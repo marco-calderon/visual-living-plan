@@ -280,22 +280,126 @@ function renderBlock(
   }
 }
 
+const THEME_BOOTSTRAP = `
+(() => {
+  const key = 'living-plan-theme';
+  let preference = 'system';
+  try {
+    const stored = localStorage.getItem(key);
+    if (stored === 'light' || stored === 'dark' || stored === 'system') preference = stored;
+  } catch {}
+  const resolved = preference === 'system'
+    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    : preference;
+  document.documentElement.dataset.theme = resolved;
+  document.documentElement.dataset.themePreference = preference;
+})();
+`
+
 const STYLES = `
 :root {
+  color-scheme: light;
   --ink: #14201b;
   --muted: #5b6b63;
   --paper: #eef3f0;
   --paper-2: #e3ebe6;
+  --page-top: #f7faf8;
   --panel: rgba(255, 255, 255, 0.72);
+  --panel-strong: rgba(255, 255, 255, 0.86);
   --line: rgba(20, 32, 27, 0.12);
   --accent: #0f766e;
   --accent-2: #b45309;
   --danger: #b42318;
   --ok: #166534;
+  --on-accent: #ffffff;
   --shadow: 0 18px 50px rgba(20, 32, 27, 0.08);
   --radius: 18px;
   --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
   --font-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --wash-accent: rgba(15, 118, 110, 0.16);
+  --wash-warm: rgba(180, 83, 9, 0.12);
+  --chip-bg: rgba(255, 255, 255, 0.55);
+  --tabs-bg: rgba(255, 255, 255, 0.62);
+  --control-bg: rgba(255, 255, 255, 0.8);
+  --control-solid: rgba(255, 255, 255, 0.7);
+  --surface-soft: rgba(255, 255, 255, 0.55);
+  --code-inline-bg: rgba(15, 118, 110, 0.08);
+  --code-block-bg: #12201b;
+  --code-block-fg: #dff7ef;
+  --tab-active-bg: var(--ink);
+  --tab-active-fg: #ffffff;
+  --toast-bg: #14201b;
+  --toast-fg: #ffffff;
+  --accent-soft: rgba(15, 118, 110, 0.08);
+  --accent-border: rgba(15, 118, 110, 0.22);
+  --accent-hover-border: rgba(15, 118, 110, 0.45);
+  --accent-hover-shadow: 0 10px 24px rgba(15, 118, 110, 0.12);
+  --danger-soft: rgba(180, 35, 24, 0.08);
+  --danger-border: rgba(180, 35, 24, 0.28);
+  --pulse: rgba(15, 118, 110, 0.45);
+  --noise-opacity: 0.35;
+  --noise-blend: multiply;
+  --stage-bg: #f7faf8;
+  --dot: rgba(20, 32, 27, 0.12);
+  --node-bg: rgba(255, 255, 255, 0.94);
+  --node-shadow: 0 10px 24px rgba(20, 32, 27, 0.08);
+  --node-active-border: rgba(15, 118, 110, 0.55);
+  --node-active-ring: rgba(15, 118, 110, 0.12);
+  --node-done-border: rgba(22, 101, 52, 0.45);
+  --node-failed-border: rgba(180, 35, 24, 0.45);
+  --handle-border: #ffffff;
+  --minimap-idle: #94a3b8;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e8f3ee;
+  --muted: #b7c7c0;
+  --paper: #101816;
+  --paper-2: #0c1210;
+  --page-top: #0d1513;
+  --panel: rgba(22, 36, 32, 0.78);
+  --panel-strong: rgba(16, 26, 23, 0.92);
+  --line: rgba(232, 243, 238, 0.14);
+  --accent: #2dd4bf;
+  --accent-2: #fbbf24;
+  --danger: #f87171;
+  --ok: #4ade80;
+  --on-accent: #06221e;
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.38);
+  --wash-accent: rgba(45, 212, 191, 0.16);
+  --wash-warm: rgba(251, 191, 36, 0.1);
+  --chip-bg: rgba(255, 255, 255, 0.06);
+  --tabs-bg: rgba(255, 255, 255, 0.05);
+  --control-bg: rgba(8, 14, 12, 0.55);
+  --control-solid: rgba(8, 14, 12, 0.45);
+  --surface-soft: rgba(255, 255, 255, 0.04);
+  --code-inline-bg: rgba(45, 212, 191, 0.14);
+  --code-block-bg: #07110e;
+  --code-block-fg: #dff7ef;
+  --tab-active-bg: #e8f3ee;
+  --tab-active-fg: #10201b;
+  --toast-bg: #e8f3ee;
+  --toast-fg: #10201b;
+  --accent-soft: rgba(45, 212, 191, 0.14);
+  --accent-border: rgba(45, 212, 191, 0.32);
+  --accent-hover-border: rgba(45, 212, 191, 0.55);
+  --accent-hover-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+  --danger-soft: rgba(248, 113, 113, 0.12);
+  --danger-border: rgba(248, 113, 113, 0.4);
+  --pulse: rgba(45, 212, 191, 0.45);
+  --noise-opacity: 0.16;
+  --noise-blend: overlay;
+  --stage-bg: #0e1614;
+  --dot: rgba(232, 243, 238, 0.14);
+  --node-bg: rgba(18, 32, 28, 0.96);
+  --node-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  --node-active-border: rgba(45, 212, 191, 0.7);
+  --node-active-ring: rgba(45, 212, 191, 0.2);
+  --node-done-border: rgba(74, 222, 128, 0.5);
+  --node-failed-border: rgba(248, 113, 113, 0.55);
+  --handle-border: #10201b;
+  --minimap-idle: #64748b;
 }
 
 * { box-sizing: border-box; }
@@ -304,9 +408,9 @@ body {
   color: var(--ink);
   font-family: var(--font-body);
   background:
-    radial-gradient(1200px 600px at 10% -10%, rgba(15, 118, 110, 0.16), transparent 55%),
-    radial-gradient(900px 500px at 100% 0%, rgba(180, 83, 9, 0.12), transparent 50%),
-    linear-gradient(180deg, #f7faf8 0%, var(--paper) 40%, var(--paper-2) 100%);
+    radial-gradient(1200px 600px at 10% -10%, var(--wash-accent), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, var(--wash-warm), transparent 50%),
+    linear-gradient(180deg, var(--page-top) 0%, var(--paper) 40%, var(--paper-2) 100%);
   background-attachment: fixed;
 }
 
@@ -315,9 +419,9 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  opacity: 0.35;
+  opacity: var(--noise-opacity);
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
-  mix-blend-mode: multiply;
+  mix-blend-mode: var(--noise-blend);
 }
 
 .shell {
@@ -363,7 +467,7 @@ body::before {
   padding: 0.35rem 0.7rem;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgba(255,255,255,0.55);
+  background: var(--chip-bg);
   color: var(--muted);
   font-size: 0.82rem;
 }
@@ -374,20 +478,28 @@ body::before {
   height: 0.55rem;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 0 0 rgba(15, 118, 110, 0.55);
+  box-shadow: 0 0 0 0 var(--pulse);
   animation: pulse 1.8s ease infinite;
 }
 
 .stack { display: grid; gap: 1rem; }
 
+.view-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 1.25rem 0 1rem;
+}
 .tabs {
   display: inline-flex;
   gap: 0.35rem;
   padding: 0.3rem;
-  margin: 1.25rem 0 1rem;
+  margin: 0;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgba(255,255,255,0.62);
+  background: var(--tabs-bg);
   backdrop-filter: blur(8px);
 }
 .tab-btn {
@@ -401,16 +513,47 @@ body::before {
   cursor: pointer;
 }
 .tab-btn[aria-selected="true"] {
-  background: var(--ink);
-  color: white;
+  background: var(--tab-active-bg);
+  color: var(--tab-active-fg);
+}
+.theme-switch {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.3rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--tabs-bg);
+  backdrop-filter: blur(8px);
+}
+.theme-switch button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 0.45rem 0.8rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.theme-switch button[aria-pressed="true"] {
+  background: var(--tab-active-bg);
+  color: var(--tab-active-fg);
+}
+.tab-btn:focus-visible,
+.theme-switch button:focus-visible,
+.btn:focus-visible,
+.choice-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .tab-panel[hidden] { display: none !important; }
 .lock-banner {
   margin-bottom: 0.85rem;
   padding: 0.8rem 1rem;
   border-radius: 14px;
-  border: 1px solid rgba(15, 118, 110, 0.22);
-  background: rgba(15, 118, 110, 0.08);
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
   color: var(--ink);
   font-size: 0.95rem;
 }
@@ -442,7 +585,7 @@ body::before {
   font-size: 0.9em;
 }
 .rich code {
-  background: rgba(15, 118, 110, 0.08);
+  background: var(--code-inline-bg);
   padding: 0.1rem 0.35rem;
   border-radius: 0.35rem;
 }
@@ -451,8 +594,8 @@ body::before {
   overflow: auto;
   padding: 0.9rem 1rem;
   border-radius: 12px;
-  background: #12201b;
-  color: #dff7ef;
+  background: var(--code-block-bg);
+  color: var(--code-block-fg);
 }
 
 .phase { display: grid; grid-template-columns: 18px 1fr; gap: 0.9rem; }
@@ -523,7 +666,8 @@ body::before {
 .choice-option {
   text-align: left;
   border: 1px solid var(--line);
-  background: rgba(255,255,255,0.7);
+  background: var(--control-solid);
+  color: var(--ink);
   border-radius: 14px;
   padding: 0.9rem;
   cursor: pointer;
@@ -531,12 +675,12 @@ body::before {
 }
 .choice-option:hover:not(:disabled) {
   transform: translateY(-2px);
-  border-color: rgba(15, 118, 110, 0.45);
-  box-shadow: 0 10px 24px rgba(15, 118, 110, 0.12);
+  border-color: var(--accent-hover-border);
+  box-shadow: var(--accent-hover-shadow);
 }
 .choice-option.selected {
   border-color: var(--accent);
-  background: rgba(15, 118, 110, 0.08);
+  background: var(--accent-soft);
 }
 .choice-label { display: block; font-weight: 600; margin-bottom: 0.25rem; }
 .choice-desc { display: block; color: var(--muted); font-size: 0.92rem; line-height: 1.4; }
@@ -552,7 +696,7 @@ input, textarea, select {
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 0.7rem 0.8rem;
-  background: rgba(255,255,255,0.8);
+  background: var(--control-bg);
   color: var(--ink);
   font: inherit;
 }
@@ -561,7 +705,7 @@ textarea { min-height: 88px; resize: vertical; }
 .button-row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
 .btn {
   border: 1px solid var(--line);
-  background: rgba(255,255,255,0.8);
+  background: var(--control-bg);
   color: var(--ink);
   border-radius: 999px;
   padding: 0.65rem 1rem;
@@ -572,8 +716,8 @@ textarea { min-height: 88px; resize: vertical; }
 }
 .btn:hover:not(:disabled) { transform: translateY(-1px); }
 .btn:disabled { opacity: 0.55; cursor: default; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: white; }
-.btn.danger { background: rgba(180, 35, 24, 0.08); border-color: rgba(180, 35, 24, 0.28); color: var(--danger); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn.danger { background: var(--danger-soft); border-color: var(--danger-border); color: var(--danger); }
 
 .interaction-state {
   margin-top: 0.85rem;
@@ -588,7 +732,7 @@ textarea { min-height: 88px; resize: vertical; }
   align-items: center;
   padding: 0.55rem 0.7rem;
   border-radius: 12px;
-  background: rgba(255,255,255,0.55);
+  background: var(--surface-soft);
   border: 1px solid var(--line);
 }
 .checklist .check {
@@ -614,7 +758,8 @@ textarea { min-height: 88px; resize: vertical; }
   padding: 0.75rem 0.85rem;
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: rgba(255,255,255,0.86);
+  background: var(--panel-strong);
+  color: var(--ink);
   backdrop-filter: blur(14px);
   box-shadow: var(--shadow);
   z-index: 5;
@@ -634,8 +779,8 @@ textarea { min-height: 88px; resize: vertical; }
   position: fixed;
   top: 1rem;
   right: 1rem;
-  background: var(--ink);
-  color: white;
+  background: var(--toast-bg);
+  color: var(--toast-fg);
   padding: 0.7rem 0.9rem;
   border-radius: 12px;
   opacity: 0;
@@ -650,9 +795,19 @@ textarea { min-height: 88px; resize: vertical; }
   to { opacity: 1; transform: translateY(0); }
 }
 @keyframes pulse {
-  0% { box-shadow: 0 0 0 0 rgba(15, 118, 110, 0.45); }
-  70% { box-shadow: 0 0 0 10px rgba(15, 118, 110, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(15, 118, 110, 0); }
+  0% { box-shadow: 0 0 0 0 var(--pulse); }
+  70% { box-shadow: 0 0 0 10px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+.execution-empty {
+  display: grid;
+  place-items: center;
+  min-height: 58vh;
+  padding: 2rem;
+  text-align: center;
+  color: var(--muted);
+  line-height: 1.55;
 }
 @keyframes glow {
   0%, 100% { opacity: 0.55; }
@@ -698,6 +853,36 @@ function clientScript(mode: 'watch' | 'review', executionActive: boolean): strin
     const preferredButton = document.querySelector('[data-tab-target="' + preferred + '"]');
     if (preferredButton instanceof HTMLElement) preferredButton.click();
   } catch {}
+
+  const themeKey = 'living-plan-theme';
+  function systemTheme() {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  function themePreference() {
+    const value = document.documentElement.dataset.themePreference;
+    return value === 'light' || value === 'dark' || value === 'system' ? value : 'system';
+  }
+  function paintTheme(preference) {
+    const resolved = preference === 'system' ? systemTheme() : preference;
+    document.documentElement.dataset.theme = resolved;
+    document.documentElement.dataset.themePreference = preference;
+    document.querySelectorAll('[data-theme-choice]').forEach((button) => {
+      const selected = button.getAttribute('data-theme-choice') === preference;
+      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    });
+  }
+  document.querySelectorAll('[data-theme-choice]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const choice = button.getAttribute('data-theme-choice');
+      if (choice !== 'light' && choice !== 'dark' && choice !== 'system') return;
+      paintTheme(choice);
+      try { localStorage.setItem(themeKey, choice); } catch {}
+    });
+  });
+  paintTheme(themePreference());
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (themePreference() === 'system') paintTheme('system');
+  });
 
   async function postJson(url, body) {
     const response = await fetch(url, {
@@ -888,13 +1073,14 @@ export function renderPlanPage(options: {
     : ''
   const executionFallback = clientAssets
     ? ''
-    : `<div class="execution-empty" style="padding:2rem;color:#5b6b63">Build the client with <code>npm run build:client</code> to enable the React Flow execution canvas.</div>`
+    : `<div class="execution-empty">Build the client with <code>npm run build:client</code> to enable the React Flow execution canvas.</div>`
 
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>${THEME_BOOTSTRAP}</script>
   <title>${escapeHtml(plan.title)} · Living Plan</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -917,9 +1103,16 @@ export function renderPlanPage(options: {
         ${changed ? `<span class="chip">Changed <strong>${changed}</strong></span>` : ''}
         ${reviewDecision ? `<span class="chip">Review <strong>${escapeHtml(reviewDecision)}</strong></span>` : ''}
       </div>
-      <div class="tabs" role="tablist" aria-label="Living Plan views">
-        <button type="button" class="tab-btn" role="tab" data-tab-target="plan" aria-selected="true">Plan</button>
-        <button type="button" class="tab-btn" role="tab" data-tab-target="execution" aria-selected="false">Execution</button>
+      <div class="view-row">
+        <div class="tabs" role="tablist" aria-label="Living Plan views">
+          <button type="button" class="tab-btn" role="tab" data-tab-target="plan" aria-selected="true">Plan</button>
+          <button type="button" class="tab-btn" role="tab" data-tab-target="execution" aria-selected="false">Execution</button>
+        </div>
+        <div class="theme-switch" role="group" aria-label="Color theme">
+          <button type="button" data-theme-choice="light" aria-pressed="false">Light</button>
+          <button type="button" data-theme-choice="dark" aria-pressed="false">Dark</button>
+          <button type="button" data-theme-choice="system" aria-pressed="true">System</button>
+        </div>
       </div>
     </header>
     <section class="tab-panel${locked ? ' plan-locked' : ''}" data-tab-panel="plan" role="tabpanel">
