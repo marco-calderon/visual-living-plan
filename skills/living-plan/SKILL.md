@@ -38,7 +38,7 @@ Exit codes for `review`: `0` approve, `1` deny, `2` iterate, `3` timeout.
 
 The UI has two tabs:
 - **Plan** — authored `.plan.md` status and interactions. Forms/gates disable while execution is live.
-- **Execution** — readonly React Flow canvas updated live via `/api/execution` (prefer portable `graph` JSON; optional adapter-specific `scene`). The canvas library is swappable via `client/execution-canvas/registry.ts`. An edge may point at its own node (`from` and `to` are the same id); that self-loop is drawn as an arc. Optional edge `label` is shown on the arc. Cycles between different nodes use the normal edge.
+- **Execution** — readonly React Flow canvas updated live via `/api/execution` (prefer portable `graph` JSON; optional adapter-specific `scene`). Until a graph is pushed, the tab shows the sample retry loop from `examples/execution-graph.json`. The canvas library is swappable via `client/execution-canvas/registry.ts`. An edge may point at its own node (`from` and `to` are the same id); that self-loop is drawn as an arc. Optional edge `label` is shown on the arc. Cycles between different nodes use the normal edge.
 
 ## File format
 

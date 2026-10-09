@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Background,
   Controls,
@@ -110,11 +110,30 @@ function ReactFlowCanvasInner({ model, readonly = true }: ExecutionCanvasProps) 
 }
 
 export function ReactFlowExecutionCanvas(props: ExecutionCanvasProps) {
+  const frameRef = useRef<HTMLDivElement>(null)
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const frame = frameRef.current
+    if (!frame) return
+
+    const update = () => {
+      setVisible(frame.clientWidth > 0 && frame.clientHeight > 0)
+    }
+
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(frame)
+    return () => observer.disconnect()
+  }, [])
+
   return (
-    <div className="execution-canvas">
-      <ReactFlowProvider>
-        <ReactFlowCanvasInner {...props} />
-      </ReactFlowProvider>
+    <div className="execution-canvas" ref={frameRef}>
+      {visible ? (
+        <ReactFlowProvider>
+          <ReactFlowCanvasInner {...props} />
+        </ReactFlowProvider>
+      ) : null}
     </div>
   )
 }
