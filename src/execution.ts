@@ -12,6 +12,8 @@ export type ExecutionGraphNode = {
 export type ExecutionGraphEdge = {
   from: string
   to: string
+  /** Shown on the edge. Self-loops (`from` === `to`) render this on the arc. */
+  label?: string
 }
 
 /** Portable agent-facing graph. Adapters map this into their native model. */

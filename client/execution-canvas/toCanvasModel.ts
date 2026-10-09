@@ -20,6 +20,7 @@ export function graphToCanvasModel(
     id: `e-${edge.from}-${edge.to}-${index}`,
     source: edge.from,
     target: edge.to,
+    label: edge.label,
   }))
 
   return { nodes, edges, scene }

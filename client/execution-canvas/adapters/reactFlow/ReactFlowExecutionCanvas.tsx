@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import {
   Background,
   Controls,
+  MarkerType,
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
@@ -9,15 +10,21 @@ import {
   useNodesState,
   useReactFlow,
   type Edge,
+  type EdgeTypes,
   type NodeTypes,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import type { ExecutionCanvasProps } from '../../types.ts'
 import { ExecutionStepNode, type ExecutionStepNodeType } from './ExecutionStepNode.tsx'
+import { LoopEdge } from './LoopEdge.tsx'
 
 const nodeTypes = {
   executionStep: ExecutionStepNode,
 } satisfies NodeTypes
+
+const edgeTypes = {
+  loop: LoopEdge,
+} satisfies EdgeTypes
 
 function toFlowNodes(model: ExecutionCanvasProps['model']): ExecutionStepNodeType[] {
   return model.nodes.map((node) => ({
@@ -36,13 +43,21 @@ function toFlowNodes(model: ExecutionCanvasProps['model']): ExecutionStepNodeTyp
 }
 
 function toFlowEdges(model: ExecutionCanvasProps['model']): Edge[] {
-  return model.edges.map((edge) => ({
-    id: edge.id,
-    source: edge.source,
-    target: edge.target,
-    animated: false,
-    type: 'smoothstep',
-  }))
+  return model.edges.map((edge) => {
+    const isLoop = edge.source === edge.target
+    return {
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      animated: isLoop,
+      type: isLoop ? 'loop' : 'smoothstep',
+      data: isLoop ? { label: edge.label } : undefined,
+      markerEnd: isLoop
+        ? { type: MarkerType.ArrowClosed, width: 16, height: 16, color: '#0f766e' }
+        : undefined,
+      style: isLoop ? { stroke: '#0f766e', strokeWidth: 1.75 } : undefined,
+    }
+  })
 }
 
 function ReactFlowCanvasInner({ model, readonly = true }: ExecutionCanvasProps) {
@@ -56,7 +71,7 @@ function ReactFlowCanvasInner({ model, readonly = true }: ExecutionCanvasProps) 
     setNodes(toFlowNodes(model))
     setEdges(toFlowEdges(model))
     const frame = requestAnimationFrame(() => {
-      void fitView({ padding: 0.2, duration: 220 })
+      void fitView({ padding: 0.28, duration: 220 })
     })
     return () => cancelAnimationFrame(frame)
   }, [model, setNodes, setEdges, fitView])
@@ -68,6 +83,7 @@ function ReactFlowCanvasInner({ model, readonly = true }: ExecutionCanvasProps) 
       onNodesChange={readonly ? undefined : onNodesChange}
       onEdgesChange={readonly ? undefined : onEdgesChange}
       nodeTypes={nodeTypes}
+      edgeTypes={edgeTypes}
       nodesDraggable={!readonly}
       nodesConnectable={!readonly}
       elementsSelectable={!readonly}

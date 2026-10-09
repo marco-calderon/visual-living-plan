@@ -57,6 +57,8 @@ Agent payloads:
 - `graph` — portable `{ nodes, edges }` (preferred; adapter-agnostic)
 - `scene` — optional adapter-specific extras
 
+React Flow already draws cycles between different nodes. A self-loop (`from` and `to` are the same id) uses a custom arc, because the built-in edge paths collapse onto the node. An optional edge `label` is drawn on that arc. `examples/execution-graph.json` includes one: `implement → implement`, labeled `retry`.
+
 ## Why this exists
 
 Visual builders optimize for humans drawing graphs. Living Plan optimizes for **agents communicating**:
