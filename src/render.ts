@@ -1,4 +1,5 @@
 import type { ExecutionState } from './execution.js'
+import { blockAnchorId } from './parse.js'
 import type {
   InteractionResponse,
   PlanBlock,
@@ -6,6 +7,7 @@ import type {
   ReviewDecision,
   SectionDiff,
 } from './types.js'
+import { planToExpectedGraph, withPlannedWorkflow } from './workflow.js'
 
 function escapeHtml(value: string): string {
   return value
@@ -22,9 +24,18 @@ function responseFor(
   return responses[id]
 }
 
-function renderPhase(block: Extract<PlanBlock, { type: 'phase' }>, diff?: SectionDiff): string {
+function anchorAttrs(anchorId?: string): string {
+  if (!anchorId) return ''
+  return ` id="plan-${escapeHtml(anchorId)}" data-plan-ref="${escapeHtml(anchorId)}" tabindex="-1"`
+}
+
+function renderPhase(
+  block: Extract<PlanBlock, { type: 'phase' }>,
+  anchorId: string | undefined,
+  diff?: SectionDiff,
+): string {
   return `
-    <section class="block phase status-${block.status} diff-${diff?.status ?? 'unchanged'}" data-section>
+    <section class="block phase status-${block.status} diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}>
       <div class="phase-rail" aria-hidden="true"></div>
       <div class="phase-body">
         <div class="phase-meta">
@@ -39,10 +50,11 @@ function renderPhase(block: Extract<PlanBlock, { type: 'phase' }>, diff?: Sectio
 
 function renderCallout(
   block: Extract<PlanBlock, { type: 'callout' }>,
+  anchorId: string | undefined,
   diff?: SectionDiff,
 ): string {
   return `
-    <section class="block callout kind-${block.kind} diff-${diff?.status ?? 'unchanged'}" data-section>
+    <section class="block callout kind-${block.kind} diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}>
       <div class="callout-label">${escapeHtml(block.kind)}${block.title ? ` · ${escapeHtml(block.title)}` : ''}</div>
       <div class="rich">${block.bodyHtml}</div>
     </section>
@@ -53,6 +65,7 @@ function renderChoice(
   block: Extract<PlanBlock, { type: 'choice' }>,
   responses: Record<string, InteractionResponse>,
   locked: boolean,
+  anchorId: string | undefined,
   diff?: SectionDiff,
 ): string {
   const existing = responseFor(responses, block.id)
@@ -78,7 +91,7 @@ function renderChoice(
     .join('')
 
   return `
-    <section class="block interaction choice diff-${diff?.status ?? 'unchanged'}" data-section data-interaction-id="${escapeHtml(block.id)}">
+    <section class="block interaction choice diff-${diff?.status ?? 'unchanged'}" data-section data-interaction-id="${escapeHtml(block.id)}"${anchorAttrs(anchorId)}>
       <div class="interaction-kicker">Needs your choice</div>
       <h3>${escapeHtml(block.prompt)}</h3>
       <div class="choice-grid">${options}</div>
@@ -99,6 +112,7 @@ function renderApprove(
   block: Extract<PlanBlock, { type: 'approve' }>,
   responses: Record<string, InteractionResponse>,
   locked: boolean,
+  anchorId: string | undefined,
   diff?: SectionDiff,
 ): string {
   const existing = responseFor(responses, block.id)
@@ -106,7 +120,7 @@ function renderApprove(
   const disabled = Boolean(decided) || locked
 
   return `
-    <section class="block interaction approve diff-${diff?.status ?? 'unchanged'}" data-section data-interaction-id="${escapeHtml(block.id)}">
+    <section class="block interaction approve diff-${diff?.status ?? 'unchanged'}" data-section data-interaction-id="${escapeHtml(block.id)}"${anchorAttrs(anchorId)}>
       <div class="interaction-kicker">Approval gate</div>
       <h3>${escapeHtml(block.prompt)}</h3>
       <div class="rich">${block.bodyHtml}</div>
@@ -137,6 +151,7 @@ function renderForm(
   block: Extract<PlanBlock, { type: 'form' }>,
   responses: Record<string, InteractionResponse>,
   locked: boolean,
+  anchorId: string | undefined,
   diff?: SectionDiff,
 ): string {
   const existing = responseFor(responses, block.id)
@@ -184,7 +199,7 @@ function renderForm(
     .join('')
 
   return `
-    <section class="block interaction form diff-${diff?.status ?? 'unchanged'}" data-section data-interaction-id="${escapeHtml(block.id)}">
+    <section class="block interaction form diff-${diff?.status ?? 'unchanged'}" data-section data-interaction-id="${escapeHtml(block.id)}"${anchorAttrs(anchorId)}>
       <div class="interaction-kicker">Needs input</div>
       <h3>${escapeHtml(block.prompt)}</h3>
       <form data-form-id="${escapeHtml(block.id)}">
@@ -202,6 +217,7 @@ function renderQuestions(
   block: Extract<PlanBlock, { type: 'questions' }>,
   responses: Record<string, InteractionResponse>,
   locked: boolean,
+  anchorId: string | undefined,
   diff?: SectionDiff,
 ): string {
   const existing = responseFor(responses, block.id)
@@ -220,7 +236,7 @@ function renderQuestions(
     .join('')
 
   return `
-    <section class="block interaction questions diff-${diff?.status ?? 'unchanged'}" data-section data-interaction-id="${escapeHtml(block.id)}">
+    <section class="block interaction questions diff-${diff?.status ?? 'unchanged'}" data-section data-interaction-id="${escapeHtml(block.id)}"${anchorAttrs(anchorId)}>
       <div class="interaction-kicker">Open questions</div>
       ${block.prompt ? `<h3>${escapeHtml(block.prompt)}</h3>` : '<h3>Please answer</h3>'}
       <form data-questions-id="${escapeHtml(block.id)}">
@@ -236,6 +252,7 @@ function renderQuestions(
 
 function renderChecklist(
   block: Extract<PlanBlock, { type: 'checklist' }>,
+  anchorId: string | undefined,
   diff?: SectionDiff,
 ): string {
   const items = block.items
@@ -245,9 +262,40 @@ function renderChecklist(
     )
     .join('')
   return `
-    <section class="block checklist diff-${diff?.status ?? 'unchanged'}" data-section>
+    <section class="block checklist diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}>
       ${block.title ? `<h3>${escapeHtml(block.title)}</h3>` : ''}
       <ul>${items}</ul>
+    </section>
+  `
+}
+
+function renderWorkflow(
+  block: Extract<PlanBlock, { type: 'workflow' }>,
+  anchorId: string | undefined,
+  diff?: SectionDiff,
+): string {
+  const steps = block.nodes
+    .map((node) => {
+      const ref = node.ref ?? node.id
+      const label = node.label ?? node.id
+      return `
+        <li>
+          <button type="button" class="workflow-step" data-plan-jump="${escapeHtml(ref)}">
+            <span class="workflow-step-label">${escapeHtml(label)}</span>
+            <span class="workflow-step-ref">Plan · ${escapeHtml(ref)}</span>
+          </button>
+        </li>
+      `
+    })
+    .join('')
+
+  return `
+    <section class="block workflow diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}>
+      <div class="interaction-kicker">Expected workflow</div>
+      <h3>${escapeHtml(block.title ?? 'Execution plan')}</h3>
+      <p class="workflow-note">These steps are the execution plan before the run is laid down. The Workflow tab draws the same path. Select a step there to jump to the matching place in this plan.</p>
+      <ol class="workflow-steps">${steps}</ol>
+      <button type="button" class="btn" data-tab-jump="workflow">Open workflow diagram</button>
     </section>
   `
 }
@@ -260,23 +308,26 @@ function renderBlock(
   locked: boolean,
 ): string {
   const diff = diffs.find((entry) => entry.index === index)
+  const anchorId = blockAnchorId(block, index)
   switch (block.type) {
     case 'markdown':
-      return `<section class="block markdown diff-${diff?.status ?? 'unchanged'}" data-section><div class="rich">${block.html}</div></section>`
+      return `<section class="block markdown diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}><div class="rich">${block.html}</div></section>`
     case 'phase':
-      return renderPhase(block, diff)
+      return renderPhase(block, anchorId, diff)
     case 'callout':
-      return renderCallout(block, diff)
+      return renderCallout(block, anchorId, diff)
     case 'choice':
-      return renderChoice(block, responses, locked, diff)
+      return renderChoice(block, responses, locked, anchorId, diff)
     case 'approve':
-      return renderApprove(block, responses, locked, diff)
+      return renderApprove(block, responses, locked, anchorId, diff)
     case 'form':
-      return renderForm(block, responses, locked, diff)
+      return renderForm(block, responses, locked, anchorId, diff)
     case 'questions':
-      return renderQuestions(block, responses, locked, diff)
+      return renderQuestions(block, responses, locked, anchorId, diff)
     case 'checklist':
-      return renderChecklist(block, diff)
+      return renderChecklist(block, anchorId, diff)
+    case 'workflow':
+      return renderWorkflow(block, anchorId, diff)
   }
 }
 
@@ -341,6 +392,7 @@ const STYLES = `
   --node-active-ring: rgba(15, 118, 110, 0.12);
   --node-done-border: rgba(22, 101, 52, 0.45);
   --node-failed-border: rgba(180, 35, 24, 0.45);
+  --node-blocked-border: rgba(180, 83, 9, 0.55);
   --handle-border: #ffffff;
   --minimap-idle: #94a3b8;
 }
@@ -392,6 +444,7 @@ const STYLES = `
   --node-active-ring: rgba(45, 212, 191, 0.2);
   --node-done-border: rgba(74, 222, 128, 0.5);
   --node-failed-border: rgba(248, 113, 113, 0.55);
+  --node-blocked-border: rgba(251, 191, 36, 0.7);
   --handle-border: #10201b;
   --minimap-idle: #64748b;
 }
@@ -521,6 +574,7 @@ body::before {
 .plan-locked .interaction { opacity: 0.78; }
 
 .block {
+  scroll-margin: 1.25rem;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -532,6 +586,55 @@ body::before {
 
 .block.diff-added { box-shadow: inset 3px 0 0 var(--ok), var(--shadow); }
 .block.diff-edited { box-shadow: inset 3px 0 0 var(--accent-2), var(--shadow); }
+.block.plan-ref-focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  background: var(--accent-soft);
+}
+
+.workflow h3 {
+  margin: 0 0 0.45rem;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+}
+.workflow-note {
+  margin: 0 0 0.85rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.workflow-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.9rem;
+  display: grid;
+  gap: 0.45rem;
+}
+.workflow-step {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.8rem;
+  align-items: baseline;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--control-solid);
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 0.7rem 0.85rem;
+  font: inherit;
+  cursor: pointer;
+}
+.workflow-step:hover {
+  border-color: var(--accent-hover-border);
+}
+.workflow-step-label { font-weight: 600; }
+.workflow-step-ref {
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
 
 .rich :is(h1,h2,h3) {
   font-family: var(--font-display);
@@ -795,24 +898,61 @@ function clientScript(mode: 'watch' | 'review', executionActive: boolean): strin
     setTimeout(() => toast.classList.remove('show'), 1600);
   }
 
+  function activateTab(target) {
+    document.querySelectorAll('[data-tab-target]').forEach((node) => {
+      node.setAttribute('aria-selected', node.getAttribute('data-tab-target') === target ? 'true' : 'false');
+    });
+    document.querySelectorAll('[data-tab-panel]').forEach((panel) => {
+      panel.hidden = panel.getAttribute('data-tab-panel') !== target;
+    });
+    try { localStorage.setItem('living-plan-tab', target || 'plan'); } catch {}
+    if (target === 'workflow') {
+      requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+    }
+  }
+
   document.querySelectorAll('[data-tab-target]').forEach((button) => {
     button.addEventListener('click', () => {
-      const target = button.getAttribute('data-tab-target');
-      document.querySelectorAll('[data-tab-target]').forEach((node) => {
-        node.setAttribute('aria-selected', node === button ? 'true' : 'false');
-      });
-      document.querySelectorAll('[data-tab-panel]').forEach((panel) => {
-        panel.hidden = panel.getAttribute('data-tab-panel') !== target;
-      });
-      try { localStorage.setItem('living-plan-tab', target || 'plan'); } catch {}
+      activateTab(button.getAttribute('data-tab-target'));
     });
   });
 
+  document.querySelectorAll('[data-tab-jump]').forEach((button) => {
+    button.addEventListener('click', () => {
+      activateTab(button.getAttribute('data-tab-jump') || 'workflow');
+    });
+  });
+
+  function focusPlanRef(ref) {
+    if (!ref) return;
+    activateTab('plan');
+    const section = document.querySelector('[data-plan-ref="' + CSS.escape(ref) + '"]');
+    if (!section) {
+      showToast('No plan section for this step');
+      return;
+    }
+    document.querySelectorAll('.plan-ref-focus').forEach((node) => node.classList.remove('plan-ref-focus'));
+    section.classList.add('plan-ref-focus');
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    });
+  }
+
+  document.querySelectorAll('[data-plan-jump]').forEach((button) => {
+    button.addEventListener('click', () => {
+      focusPlanRef(button.getAttribute('data-plan-jump'));
+    });
+  });
+
+  window.livingPlanFocusPlanRef = focusPlanRef;
+
   try {
-    const saved = localStorage.getItem('living-plan-tab');
-    const preferred = ${JSON.stringify(executionActive)} ? 'execution' : (saved || 'plan');
-    const preferredButton = document.querySelector('[data-tab-target="' + preferred + '"]');
-    if (preferredButton instanceof HTMLElement) preferredButton.click();
+    let saved = localStorage.getItem('living-plan-tab');
+    if (saved === 'execution') saved = 'workflow';
+    const preferred = ${JSON.stringify(executionActive)} ? 'workflow' : (saved || 'plan');
+    if (preferred) activateTab(preferred);
   } catch {}
 
   async function postJson(url, body) {
@@ -991,6 +1131,8 @@ export function renderPlanPage(options: {
   } = options
 
   const locked = Boolean(execution.active)
+  const planned = planToExpectedGraph(plan)
+  const workflowState = locked ? 'live' : planned ? 'planned' : 'idle'
   const body = plan.blocks
     .map((block, index) => renderBlock(block, index, responses, diffs, locked))
     .join('\n')
@@ -1004,7 +1146,8 @@ export function renderPlanPage(options: {
     : ''
   const executionFallback = clientAssets
     ? ''
-    : `<div class="execution-empty">Build the client with <code>npm run build:client</code> to enable the React Flow execution canvas.</div>`
+    : `<div class="execution-empty">Build the client with <code>npm run build:client</code> to enable the workflow canvas.</div>`
+  const bootstrap = JSON.stringify(withPlannedWorkflow(execution, plan)).replaceAll('<', '\\u003c')
 
   return `<!doctype html>
 <html lang="en">
@@ -1030,26 +1173,27 @@ export function renderPlanPage(options: {
         ${plan.agent ? `<span class="chip">Agent <strong>${escapeHtml(plan.agent)}</strong></span>` : ''}
         <span class="chip">Iteration <strong>v${iteration}</strong></span>
         <span class="chip">Pending <strong>${pendingInteractionIds.length}</strong></span>
-        <span class="chip">Execution <strong>${locked ? 'live' : 'idle'}</strong></span>
+        <span class="chip">Workflow <strong>${workflowState}</strong></span>
         ${changed ? `<span class="chip">Changed <strong>${changed}</strong></span>` : ''}
         ${reviewDecision ? `<span class="chip">Review <strong>${escapeHtml(reviewDecision)}</strong></span>` : ''}
       </div>
       <div class="tabs" role="tablist" aria-label="Living Plan views">
         <button type="button" class="tab-btn" role="tab" data-tab-target="plan" aria-selected="true">Plan</button>
-        <button type="button" class="tab-btn" role="tab" data-tab-target="execution" aria-selected="false">Execution</button>
+        <button type="button" class="tab-btn" role="tab" data-tab-target="workflow" aria-selected="false">Workflow</button>
       </div>
     </header>
     <section class="tab-panel${locked ? ' plan-locked' : ''}" data-tab-panel="plan" role="tabpanel">
       ${
         locked
-          ? `<div class="lock-banner">Execution is live. Plan forms and gates are disabled until the agent stops execution. Switch to the Execution tab to follow the live canvas.</div>`
+          ? `<div class="lock-banner">Execution is live. Plan forms and gates are disabled until the agent stops execution. Switch to the Workflow tab to follow the live canvas.</div>`
           : ''
       }
       <main class="stack">
         ${body}
       </main>
     </section>
-    <section class="tab-panel" data-tab-panel="execution" role="tabpanel" hidden>
+    <section class="tab-panel" data-tab-panel="workflow" role="tabpanel" hidden>
+      <script id="living-plan-bootstrap" type="application/json">${bootstrap}</script>
       <div id="execution-root">${executionFallback}</div>
       ${assetJs}
     </section>

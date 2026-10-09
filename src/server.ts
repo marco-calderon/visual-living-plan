@@ -7,6 +7,7 @@ import { diffSections } from './diff.js'
 import { createIdleExecutionState, type ExecutionState } from './execution.js'
 import { collectSectionSources, parsePlan } from './parse.js'
 import { renderPlanPage } from './render.js'
+import { planToExpectedGraph, withPlannedWorkflow } from './workflow.js'
 import type {
   InteractionResponse,
   PlanDocument,
@@ -135,12 +136,22 @@ export async function startLivingPlanServer(options: {
     }
   }
 
-  function setExecution(next: ExecutionState): void {
+  function executionView(): ExecutionState {
+    return withPlannedWorkflow(execution, plan)
+  }
+
+  function setExecution(next: ExecutionState): ExecutionState {
     execution = {
-      ...next,
+      active: Boolean(next.active),
+      step: next.step,
+      detail: next.detail,
+      graph: next.graph,
+      scene: next.scene,
       updatedAt: Date.now(),
     }
-    broadcast('execution', execution)
+    const view = executionView()
+    broadcast('execution', view)
+    return view
   }
 
   async function reloadFromDisk(): Promise<void> {
@@ -153,6 +164,7 @@ export async function startLivingPlanServer(options: {
     source = nextSource
     plan = nextPlan
     broadcast('reload', { at: Date.now(), changed: diffs.filter((d) => d.status !== 'unchanged').length })
+    broadcast('execution', executionView())
   }
 
   function fulfillInteraction(response: InteractionResponse): void {
@@ -237,20 +249,21 @@ export async function startLivingPlanServer(options: {
           pendingInteractionIds: pendingInteractionIds(),
           review: reviewResult ?? null,
           diffs,
-          execution,
+          execution: executionView(),
+          planned: planToExpectedGraph(plan) ?? null,
         })
         return
       }
 
       if (req.method === 'GET' && url.pathname === '/api/execution') {
-        sendJson(res, 200, execution)
+        sendJson(res, 200, executionView())
         return
       }
 
       if (req.method === 'PUT' && url.pathname === '/api/execution') {
         const raw = await readBody(req)
         const payload = JSON.parse(raw) as Partial<ExecutionState>
-        setExecution({
+        const view = setExecution({
           active: Boolean(payload.active),
           step: payload.step ? String(payload.step) : undefined,
           detail: payload.detail ? String(payload.detail) : undefined,
@@ -260,33 +273,33 @@ export async function startLivingPlanServer(options: {
               ? (payload.scene as Record<string, unknown>)
               : undefined,
         })
-        sendJson(res, 200, { ok: true, execution })
+        sendJson(res, 200, { ok: true, execution: view })
         return
       }
 
       if (req.method === 'POST' && url.pathname === '/api/execution/start') {
         const raw = await readBody(req)
         const payload = raw ? (JSON.parse(raw) as Partial<ExecutionState>) : {}
-        setExecution({
+        const view = setExecution({
           active: true,
           step: payload.step ? String(payload.step) : execution.step ?? 'Executing',
           detail: payload.detail ? String(payload.detail) : execution.detail,
           graph: payload.graph ?? execution.graph,
           scene: payload.scene ?? execution.scene,
         })
-        sendJson(res, 200, { ok: true, execution })
+        sendJson(res, 200, { ok: true, execution: view })
         return
       }
 
       if (req.method === 'POST' && url.pathname === '/api/execution/stop') {
-        setExecution({
+        const view = setExecution({
           active: false,
           step: execution.step,
           detail: execution.detail,
           graph: execution.graph,
           scene: execution.scene,
         })
-        sendJson(res, 200, { ok: true, execution })
+        sendJson(res, 200, { ok: true, execution: view })
         return
       }
 
@@ -307,7 +320,7 @@ export async function startLivingPlanServer(options: {
         client.write('hello', {
           mode,
           pendingInteractionIds: pendingInteractionIds(),
-          execution,
+          execution: executionView(),
         })
         req.on('close', () => {
           sseClients.delete(client)
@@ -450,7 +463,7 @@ export async function startLivingPlanServer(options: {
         responses: { ...responses },
         pendingInteractionIds: pendingInteractionIds(),
         review: reviewResult,
-        execution,
+        execution: executionView(),
       }
     },
   }

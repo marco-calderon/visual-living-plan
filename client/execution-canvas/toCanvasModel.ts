@@ -16,6 +16,8 @@ export function graphToCanvasModel(
     label: node.label,
     detail: node.detail,
     status: node.status ?? 'pending',
+    planRef: node.planRef,
+    planLabel: node.planLabel,
     position: {
       x: node.x ?? (index % 3) * 260,
       y: node.y ?? Math.floor(index / 3) * 160,

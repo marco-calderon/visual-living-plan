@@ -7,6 +7,7 @@ import { loadClientAssets } from './assets.js'
 import { parsePlan } from './parse.js'
 import { startLivingPlanServer } from './server.js'
 import type { ExecutionGraph, ExecutionState } from './execution.js'
+import { planToExpectedGraph } from './workflow.js'
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -24,10 +25,10 @@ Usage:
   living-plan dump <file.plan.md>
 
 Modes:
-  serve       Live watch URL with Plan + Execution tabs.
+  serve       Live watch URL with Plan + Workflow tabs.
   review      Same UI plus Approve / Deny / Iterate bar.
   wait        Block until one interaction id is answered.
-  execution   Start/push/stop the live React Flow execution canvas (locks plan forms while active).
+  execution   Start/push/stop the live workflow canvas (locks plan forms while active).
 `)
 }
 
@@ -98,6 +99,7 @@ async function putExecution(url: string, body: ExecutionState): Promise<Executio
 async function cmdCheck(file: string): Promise<number> {
   const source = await readFile(resolve(file), 'utf8')
   const plan = parsePlan(source, file)
+  const workflow = planToExpectedGraph(plan)
   console.log(
     JSON.stringify(
       {
@@ -106,6 +108,16 @@ async function cmdCheck(file: string): Promise<number> {
         agent: plan.agent,
         blocks: plan.blocks.map((block) => block.type),
         interactionIds: plan.interactionIds,
+        workflow: workflow
+          ? {
+              title: workflow.title,
+              nodes: workflow.nodes.map((node) => ({
+                id: node.id,
+                planRef: node.planRef,
+                status: node.status,
+              })),
+            }
+          : null,
       },
       null,
       2,
@@ -134,7 +146,7 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
 
   console.log(`Living Plan (watch): ${server.url}`)
   console.log(`Plan file: ${resolve(file)}`)
-  console.log('Tabs: Plan (status/forms) and Execution (live React Flow canvas).')
+  console.log('Tabs: Plan (status/forms) and Workflow (expected plan, then live React Flow canvas).')
   await openBrowser(server.url)
 
   await new Promise<void>((resolveWait) => {

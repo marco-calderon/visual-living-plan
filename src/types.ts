@@ -2,15 +2,49 @@ export type PhaseStatus = 'pending' | 'active' | 'blocked' | 'done' | 'failed'
 
 export type InteractionKind = 'choice' | 'approve' | 'form' | 'questions'
 
+export type WorkflowNodeSpec = {
+  id: string
+  label?: string
+  detail?: string
+  /** Plan block id this step corresponds to. Defaults to `id` when that block exists. */
+  ref?: string
+  status?: string
+  x?: number
+  y?: number
+}
+
+export type WorkflowEdgeSpec = {
+  from: string
+  to: string
+  label?: string
+  fromSide?: string
+  toSide?: string
+}
+
 export type PlanBlock =
   | { type: 'markdown'; html: string; source: string }
   | { type: 'phase'; id: string; title: string; status: PhaseStatus; bodyHtml: string; source: string }
-  | { type: 'callout'; kind: 'note' | 'tip' | 'risk' | 'decision' | 'warning'; title?: string; bodyHtml: string; source: string }
+  | {
+      type: 'callout'
+      id?: string
+      kind: 'note' | 'tip' | 'risk' | 'decision' | 'warning'
+      title?: string
+      bodyHtml: string
+      source: string
+    }
   | { type: 'choice'; id: string; prompt: string; options: ChoiceOption[]; source: string }
   | { type: 'approve'; id: string; prompt: string; bodyHtml: string; source: string }
   | { type: 'form'; id: string; prompt: string; fields: FormField[]; source: string }
   | { type: 'questions'; id: string; prompt?: string; items: string[]; source: string }
-  | { type: 'checklist'; title?: string; items: ChecklistItem[]; source: string }
+  | { type: 'checklist'; id?: string; title?: string; items: ChecklistItem[]; source: string }
+  | {
+      type: 'workflow'
+      id: string
+      title?: string
+      nodes: WorkflowNodeSpec[]
+      edges: WorkflowEdgeSpec[]
+      source: string
+    }
 
 export type ChoiceOption = {
   id: string

@@ -6,7 +6,7 @@ The agent owns a `.plan.md` file. Humans open a browser URL to:
 
 - see live status as phases update
 - answer choices, forms, questions, and approval gates
-- follow a live **execution diagram** (React Flow) while plan forms are locked
+- follow a **workflow diagram** (React Flow) that shows the expected execution plan before the run starts, then tracks the live run while plan forms are locked
 
 Works for local agents (file + localhost URL) and is shaped so a cloud agent can host the same server and share the URL.
 
@@ -35,9 +35,11 @@ With `serve` already running:
 npm run wait -- fail-mode --url http://127.0.0.1:9410
 ```
 
-### Live execution canvas
+### Workflow canvas
 
-The page has **Plan** and **Execution** tabs. While execution is active, Plan forms/gates are disabled. The Execution tab hosts a readonly [React Flow](https://reactflow.dev) graph the agent updates live. Before a live graph arrives, that tab shows the sample retry loop from `examples/execution-graph.json`.
+The page has **Plan** and **Workflow** tabs. The Workflow tab is filled from the plan itself — a `workflow` block, or the phases and gates when that block is omitted — so the expected execution plan is visible before the agent starts the run. Select a step to jump to the matching section in the plan. A plan with neither a workflow nor phases shows the sample retry loop from `examples/execution-graph.json` until a graph arrives.
+
+While execution is active, Plan forms/gates are disabled. The same Workflow tab then overlays the live [React Flow](https://reactflow.dev) graph the agent pushes. Node ids that match the plan keep their plan reference.
 
 ```bash
 npm run execution -- start --url http://127.0.0.1:9410 \
@@ -68,7 +70,8 @@ Visual builders optimize for humans drawing graphs. Living Plan optimizes for **
 | Show current status | `phase` blocks + file watch reload |
 | Ask for direction | `choice`, `form`, `questions`, `approve` |
 | Converge on a plan | review bar + iteration diffs |
-| Show live execution | React Flow canvas via `/api/execution` |
+| Show the expected execution plan | `workflow` block, drawn on the Workflow tab before the run |
+| Show live execution | Same Workflow tab, React Flow canvas via `/api/execution` |
 | Local + cloud | same file + HTTP server URL |
 
 ## Plan vocabulary
@@ -81,6 +84,7 @@ YAML fenced blocks:
 - `callout` — note / tip / risk / decision / warning
 - `choice` / `form` / `questions` / `approve` — human interactions
 - `checklist` — definition of done
+- `workflow` — expected execution diagram (`nodes` with `id`, `label`, `ref`, optional `status` / `x` / `y`, and `edges` with `from` / `to`, optional `label`, `fromSide`, `toSide`). `ref` is the plan block id a click jumps to. Omit the block and the diagram follows phases and gates in document order.
 
 ## Execution canvas adapters
 
@@ -95,9 +99,9 @@ To swap libraries later, add another adapter and change the active id. Keep agen
 
 ## API
 
-- `GET /` — interactive HTML page (Plan + Execution tabs)
-- `GET /api/plan` — plan metadata, responses, pending interaction ids, execution state
-- `GET /api/execution` — current execution canvas state
+- `GET /` — interactive HTML page (Plan + Workflow tabs)
+- `GET /api/plan` — plan metadata, responses, pending interaction ids, execution state, and `planned` workflow graph
+- `GET /api/execution` — current execution canvas state, including `planned` (the expected workflow from the plan) even while execution is idle
 - `PUT /api/execution` — set execution state (`active`, `step`, `detail`, `graph`, `scene`)
 - `POST /api/execution/start` / `POST /api/execution/stop` — convenience toggles
 - `GET /api/events` — SSE (`reload`, `interaction`, `review`, `execution`)
@@ -106,7 +110,7 @@ To swap libraries later, add another adapter and change the active id. Keep agen
 
 ## Agent skill
 
-Install or point your coding agent at `skills/living-plan/SKILL.md` so it authors and maintains living plans with the correct loop (`serve` / `wait` / `execution`).
+Install or point your coding agent at `skills/living-plan/SKILL.md` so it authors and maintains living plans with the correct loop (`serve` / `wait` / `execution`). Put a `workflow` block in the plan when the human should see the expected execution path before the run starts.
 
 ## License
 
