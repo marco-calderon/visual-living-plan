@@ -9,6 +9,56 @@ mode: watch
 
 We add a sliding-window limiter at the gateway, behind a flag. This living plan is the agent's status surface: phases update as work progresses, and interaction blocks pause for your direction.
 
+```workflow
+id: rollout
+title: Expected execution
+nodes:
+  - id: design
+    ref: design
+    label: Confirm limiter design
+  - id: redis-dependency
+    ref: redis-dependency
+    label: Redis dependency
+  - id: fail-mode
+    ref: fail-mode
+    label: Choose fail mode
+  - id: limits
+    ref: limits
+    label: Set production limits
+  - id: rollout-notes
+    ref: rollout-notes
+    label: Rollout notes
+  - id: proceed-implement
+    ref: proceed-implement
+    label: Approval to implement
+  - id: implement
+    ref: implement
+    label: Implement gateway middleware
+  - id: observe
+    ref: observe
+    label: Ship dashboards and alerts
+  - id: done-when
+    ref: done-when
+    label: Definition of done
+edges:
+  - from: design
+    to: redis-dependency
+  - from: redis-dependency
+    to: fail-mode
+  - from: fail-mode
+    to: limits
+  - from: limits
+    to: rollout-notes
+  - from: rollout-notes
+    to: proceed-implement
+  - from: proceed-implement
+    to: implement
+  - from: implement
+    to: observe
+  - from: observe
+    to: done-when
+```
+
 ```phase
 id: design
 title: Confirm limiter design
@@ -34,6 +84,7 @@ body: |
 ```
 
 ```callout
+id: redis-dependency
 kind: risk
 title: Redis dependency
 body: |
@@ -90,6 +141,7 @@ body: |
 ```
 
 ```checklist
+id: done-when
 title: Done when
 items:
   - text: Middleware behind a flag

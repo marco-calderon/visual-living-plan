@@ -7,6 +7,7 @@ import { loadClientAssets } from './assets.js'
 import { parsePlan } from './parse.js'
 import { startLivingPlanServer } from './server.js'
 import type { ExecutionGraph, ExecutionState } from './execution.js'
+import { planToExpectedGraph } from './workflow.js'
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -14,8 +15,8 @@ function printHelp(): void {
   console.log(`live-plan — agent-authored plans humans can interact with
 
 Usage:
-  live-plan serve <file.plan.md> [--port N] [--host HOST]
-  live-plan review <file.plan.md> [--port N] [--iteration N] [--timeout 30m]
+  live-plan serve <file.plan.md> [--port N] [--host HOST] [--no-open]
+  live-plan review <file.plan.md> [--port N] [--iteration N] [--timeout 30m] [--no-open]
   live-plan wait <id> --url <server-url> [--timeout 30m]
   live-plan execution start --url <server-url> [--step TEXT] [--detail TEXT] [--graph file.json]
   live-plan execution push --url <server-url> [--step TEXT] [--detail TEXT] [--graph file.json] [--scene file.json]
@@ -23,13 +24,17 @@ Usage:
   live-plan check <file.plan.md>
   live-plan dump <file.plan.md>
 
-Invoke with \`npx --yes visual-living-plan <command>\` when the \`live-plan\` command is not installed.
+Invoke with \`npx --yes visual-living-plan <command>\` when the \`live-plan\` command is not installed. \`living-plan\` is the same binary.
 
 Modes:
-  serve       Live watch URL with Plan + Execution tabs.
+  serve       Live watch URL. The Workflow tab draws the plan diagram, then the live run.
   review      Same UI plus Approve / Deny / Iterate bar.
   wait        Block until one interaction id is answered.
-  execution   Start/push/stop the live React Flow execution canvas (locks plan forms while active).
+  execution   Start/push/stop the live workflow canvas (locks plan forms while active).
+  check       Print plan summary, including the expected workflow nodes.
+
+The Workflow tab is filled from a \`workflow\` block, or from phases and gates when that block is omitted.
+--no-open skips launching a browser.
 `)
 }
 
@@ -60,7 +65,11 @@ async function openBrowser(url: string): Promise<void> {
   const platform = process.platform
   const command = platform === 'darwin' ? 'open' : platform === 'win32' ? 'cmd' : 'xdg-open'
   const commandArgs = platform === 'win32' ? ['/c', 'start', '', url] : [url]
-  spawn(command, commandArgs, { stdio: 'ignore', detached: true }).unref()
+  const child = spawn(command, commandArgs, { stdio: 'ignore', detached: true })
+  child.on('error', () => {
+    // A missing opener must not take down the server.
+  })
+  child.unref()
 }
 
 async function ensureClientBuild(): Promise<void> {
@@ -100,6 +109,7 @@ async function putExecution(url: string, body: ExecutionState): Promise<Executio
 async function cmdCheck(file: string): Promise<number> {
   const source = await readFile(resolve(file), 'utf8')
   const plan = parsePlan(source, file)
+  const workflow = planToExpectedGraph(plan)
   console.log(
     JSON.stringify(
       {
@@ -108,6 +118,16 @@ async function cmdCheck(file: string): Promise<number> {
         agent: plan.agent,
         blocks: plan.blocks.map((block) => block.type),
         interactionIds: plan.interactionIds,
+        workflow: workflow
+          ? {
+              title: workflow.title,
+              nodes: workflow.nodes.map((node) => ({
+                id: node.id,
+                planRef: node.planRef,
+                status: node.status,
+              })),
+            }
+          : null,
       },
       null,
       2,
@@ -136,7 +156,7 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
 
   console.log(`Living Plan (watch): ${server.url}`)
   console.log(`Plan file: ${resolve(file)}`)
-  console.log('Tabs: Plan (status/forms) and Execution (live React Flow canvas).')
+  console.log('Tabs: Plan (status/forms) and Workflow (expected plan, then live React Flow canvas).')
   await openBrowser(server.url)
 
   await new Promise<void>((resolveWait) => {

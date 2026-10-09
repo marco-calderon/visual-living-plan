@@ -21,7 +21,7 @@ Copy [`skills/live-plan/`](../skills/live-plan/SKILL.md) into your agent's skill
 - The work has several steps and the human should see which step is active.
 - You need a single choice, structured fields, open answers, or an approve/deny gate before continuing.
 - You want an explicit Approve / Deny / Iterate on the plan as a whole.
-- You are implementing and want a live execution diagram while plan forms stay locked.
+- You want the expected workflow visible before the run, then a live diagram while plan forms stay locked.
 
 Skip it for a one-step change, when the user asked for prose only, or when nobody can open the URL. A blocked `wait` or `review` with no human is a hang.
 
@@ -50,12 +50,12 @@ Swap the `npx --yes visual-living-plan` prefix for `live-plan` when that command
 
 | Command | What it does | Exit |
 |---|---|---|
-| `check <file>` | Parse the plan and print title, block types, and interaction ids | `0` ok, `1` usage or parse error |
+| `check <file>` | Parse the plan and print title, block types, interaction ids, and expected workflow nodes | `0` ok, `1` usage or parse error |
 | `dump <file>` | Print the parsed plan as JSON | `0` ok, `1` usage or parse error |
-| `serve <file>` | Watch the file and serve Plan + Execution. Hot-reloads on save. | Stays up until SIGINT/SIGTERM |
+| `serve <file>` | Watch the file and serve Plan + Workflow. The Workflow tab draws the plan before the run. Hot-reloads on save. | Stays up until SIGINT/SIGTERM |
 | `review <file>` | Same UI plus Approve / Deny / Iterate. Blocks until a decision. | `0` approve, `1` deny, `2` iterate, `3` timeout |
 | `wait <id> --url <url>` | Block until that interaction id has a response. Prints the response JSON. | `0` answered, `1` missing `--url`, `3` timeout |
-| `execution start\|push\|stop --url <url>` | Drive the execution canvas. `start` turns it on, `push` updates it, `stop` turns it off and unlocks plan forms. | `0` ok, `1` usage or HTTP error |
+| `execution start\|push\|stop --url <url>` | Drive the live workflow overlay. `start` turns it on, `push` updates it, `stop` turns it off and unlocks plan forms. | `0` ok, `1` usage or HTTP error |
 
 Flags:
 
@@ -72,7 +72,7 @@ Flags:
 
 ## Agent loop
 
-1. Write or update one `.plan.md`. Title, a short summary, phases, then only the interactions you need right now.
+1. Write or update one `.plan.md`. Title, a short summary, phases, a `workflow` block for the expected path, then only the interactions you need right now.
 2. `check` the file.
 3. `serve` for ongoing status, or `review` when you need Approve / Deny / Iterate on the whole plan.
 4. If you need one answer first, `wait <id> --url <printed-url>`. You can also read `GET /api/plan` and look at `responses`.
@@ -95,6 +95,7 @@ A plan is optional YAML frontmatter, then markdown, plus fenced YAML blocks. Eve
 | `questions` | Open questions, one string per item | One answer per item |
 | `approve` | Yes/no gate with an optional note | `approved` plus optional note |
 | `checklist` | Definition of done | No (you update `done`) |
+| `workflow` | Expected execution diagram on the Workflow tab before the run. Node `ref` is the plan block a click opens. Omit the block and the diagram follows phases and gates. | No |
 
 Frontmatter fields the parser reads: `title`, `summary`, `agent`, `mode` (`watch` or `review`). A leading `#` heading is the title when frontmatter has none.
 
@@ -121,18 +122,18 @@ Send a portable graph. The page maps it onto the current canvas (React Flow toda
 }
 ```
 
-Node `status` is `pending`, `active`, `done`, or `failed`. `x` and `y` are optional layout hints.
+Node `status` is `pending`, `active`, `blocked`, `done`, or `failed`. `x` and `y` are optional layout hints. Edges may set `label`, `fromSide`, and `toSide` (`top`, `right`, `bottom`, `left`). A self-loop (`from` and `to` are the same id) is drawn as an arc.
 
 ## HTTP, when the CLI is not enough
 
 The server URL from `serve` or `review` exposes:
 
-- `GET /` — Plan and Execution tabs
-- `GET /api/plan` — parsed plan, `responses`, `pendingInteractionIds`, execution state
+- `GET /` — Plan and Workflow tabs
+- `GET /api/plan` — parsed plan, `responses`, `pendingInteractionIds`, execution state, and the planned workflow graph
 - `GET /api/events` — server-sent events: `reload`, `interaction`, `review`, `execution`
 - `POST /api/interactions/:id` — submit one response (409 while execution is active)
 - `POST /api/review` — `{ "decision": "approve" \| "deny" \| "iterate", "note"?: "..." }` (review mode only; 409 while execution is active)
-- `GET /api/execution` and `PUT /api/execution` — read or replace execution state
+- `GET /api/execution` and `PUT /api/execution` — read or replace execution state. `GET` includes `planned` (the expected workflow) even while execution is idle
 - `POST /api/execution/start` and `POST /api/execution/stop` — convenience toggles
 
 Prefer the CLI. Use HTTP only to inspect state or when another process must submit on the human's behalf.

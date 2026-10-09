@@ -158,6 +158,32 @@ items:
     done: true
 ```
 
+## workflow
+
+Expected execution plan. The Workflow tab draws it before the run starts. Each node `ref` is the plan block id a click jumps to. `ref` defaults to `id` when that block exists. Give phases, callouts, and checklist items ids when a node should point at them.
+
+Omit the block and the diagram follows phases and gates in document order. A plan with neither shows the sample graph until a live graph is pushed.
+
+```workflow
+id: rollout
+title: Expected execution
+nodes:
+  - id: design
+    ref: design
+    label: Confirm limiter design
+  - id: implement
+    ref: implement
+    label: Implement gateway middleware
+edges:
+  - from: design
+    to: implement
+  - from: implement
+    to: implement
+    label: retry
+```
+
+An edge may point at its own node. That self-loop is drawn as an arc, with optional `label`. To close a loop through another card, set `fromSide` and `toSide` (`top`, `right`, `bottom`, or `left`) so the return edge does not sit on the forward path. Optional node fields: `detail`, `status`, `x`, `y`.
+
 ## review result
 
 `live-plan review` prints this and exits `0` approve, `1` deny, `2` iterate, `3` timeout:
@@ -197,10 +223,13 @@ items:
       "y": 80
     }
   ],
-  "edges": [{ "from": "design", "to": "implement" }]
+  "edges": [
+    { "from": "design", "to": "implement" },
+    { "from": "implement", "to": "design", "label": "retry", "fromSide": "bottom", "toSide": "bottom" }
+  ]
 }
 ```
 
-Node `status`: `pending` | `active` | `done` | `failed`. `detail`, `x`, and `y` are optional.
+Node `status`: `pending` | `active` | `blocked` | `done` | `failed`. `detail`, `x`, and `y` are optional. Reuse the plan block id so the live overlay keeps the plan reference. `fromSide` and `toSide` are `top`, `right`, `bottom`, or `left`.
 
 `execution push` keeps the current `step`, `detail`, `graph`, and `scene` when you omit that flag. `execution stop` sets `active` to false and leaves the last graph on screen. Plan interactions stay locked until execution is stopped.

@@ -4,8 +4,8 @@ description: >-
   Drive a living visual plan with the live-plan CLI so a human can watch phase
   status and answer choices, forms, questions, and approval gates in a browser.
   Use when work has multiple steps, needs a human decision before continuing,
-  needs Approve/Deny/Iterate on a plan, or should stream a live execution
-  diagram. Invoke with `npx --yes visual-living-plan` unless the `live-plan`
+  needs Approve/Deny/Iterate on a plan, should show the expected workflow
+  before a run, or should stream a live workflow diagram. Invoke with `npx --yes visual-living-plan` unless the `live-plan`
   command is already installed. Skip for a one-step change or when the user
   asked for prose only.
 ---
@@ -32,13 +32,13 @@ Do not call this repo's `npm run` scripts from a consuming project. Those are fo
 - Show current status as phases, not a chat wall.
 - Block on one choice, form, question set, or approve/deny gate.
 - Get an explicit Approve / Deny / Iterate on the plan.
-- Stream an execution diagram while you implement.
+- Show the expected workflow before a run, then stream the live diagram while you implement.
 
 Skip when the change is a single obvious step, the user asked for plain prose, or no one can open the URL.
 
 ## Loop
 
-1. Write the plan: title, short summary, phases, then only the interactions you need now. Schemas are in [primitives.md](primitives.md).
+1. Write the plan: title, short summary, phases, a `workflow` block for the expected path, then only the interactions you need now. Schemas are in [primitives.md](primitives.md).
 2. Validate: `npx --yes visual-living-plan check path/to/work.plan.md`.
 3. `serve` the file for live status, or `review` when you need a verdict on the whole plan.
 4. Block with `wait <id> --url <printed-url>` when you cannot continue without that answer.
@@ -61,12 +61,12 @@ Replace the npx prefix with `live-plan` when the command is installed.
 
 | Command | Use |
 |---|---|
-| `check <file>` | Parse check before showing the plan. Prints title, block types, interaction ids. |
+| `check <file>` | Parse check before showing the plan. Prints title, block types, interaction ids, and expected workflow nodes. |
 | `dump <file>` | Full parsed plan as JSON. |
-| `serve <file>` | Watch mode. Plan + Execution tabs. Reloads when the file changes. |
+| `serve <file>` | Watch mode. Plan + Workflow tabs. The Workflow tab draws the plan before the run, then the live graph. Reloads when the file changes. |
 | `review <file>` | Watch mode plus Approve / Deny / Iterate. Blocks until a decision. |
 | `wait <id> --url <url>` | Block until that interaction is answered. Prints the response JSON. |
-| `execution start\|push\|stop --url <url>` | Turn the execution canvas on, update it, or turn it off. |
+| `execution start\|push\|stop --url <url>` | Turn the live workflow overlay on, update it, or turn it off. |
 
 `--timeout` defaults to 4 hours. Always pass a unit (`30s`, `45m`, `4h`). A bare number is milliseconds. `--port 0` picks a free port. `--host` defaults to `127.0.0.1`. `--no-open` is only for headless runs. `--graph` is the portable execution payload; `--scene` is optional and adapter-specific.
 
@@ -81,8 +81,9 @@ Each structured block is a fenced YAML block. The fence language is the type. Gi
 - `questions` — one free-text item per question. Response: `{ kind, id, answers }`.
 - `approve` — yes/no plus optional note. Response: `{ kind, id, approved, note? }`.
 - `checklist` — definition of done. You set `done`; the human does not submit it.
+- `workflow` — expected execution diagram drawn on the Workflow tab before the run. Omit it and the diagram follows phases and gates in document order.
 
-Execution graph nodes use `id`, `label`, optional `detail`, `status` (`pending` \| `active` \| `done` \| `failed`), and optional `x` / `y`. Edges are `{ from, to }`.
+Use the same node id as the plan block id so a click jumps to that section. A self-loop (`from` and `to` are the same id) is drawn as an arc. To close a loop with another card, set `fromSide` and `toSide` (`top`, `right`, `bottom`, or `left`) on the return edge. Live graph nodes use `id`, `label`, optional `detail`, `status` (`pending` \| `active` \| `blocked` \| `done` \| `failed`), and optional `x` / `y`. Edges are `{ from, to }` plus optional `label`, `fromSide`, and `toSide`.
 
 Copy-paste schemas and response examples: [primitives.md](primitives.md).
 

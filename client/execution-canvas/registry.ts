@@ -12,7 +12,7 @@ export const executionCanvasAdapters: ExecutionCanvasAdapter[] = [
   reactFlowExecutionCanvasAdapter,
 ]
 
-/** Active visualizer for the Execution tab. */
+/** Active visualizer for the Workflow tab. */
 export const ACTIVE_EXECUTION_CANVAS_ADAPTER_ID = 'react-flow'
 
 export function getActiveExecutionCanvasAdapter(): ExecutionCanvasAdapter {
