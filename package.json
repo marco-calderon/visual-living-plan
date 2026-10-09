@@ -23,7 +23,8 @@
   "homepage": "https://github.com/marco-calderon/visual-living-plan#readme",
   "license": "MIT",
   "scripts": {
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && node -e \"import('node:fs').then((fs) => fs.chmodSync('dist/cli.js', 0o755))\"",
+    "prepare": "npm run build",
     "build:client": "vite build",
     "dev": "tsx src/cli.ts",
     "serve": "tsx src/cli.ts serve",

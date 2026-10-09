@@ -15,8 +15,8 @@ function printHelp(): void {
   console.log(`living-plan — agent-authored plans humans can interact with
 
 Usage:
-  living-plan serve <file.plan.md> [--port N] [--host HOST]
-  living-plan review <file.plan.md> [--port N] [--iteration N] [--timeout 30m]
+  living-plan serve <file.plan.md> [--port N] [--host HOST] [--no-open]
+  living-plan review <file.plan.md> [--port N] [--iteration N] [--timeout 30m] [--no-open]
   living-plan wait <id> --url <server-url> [--timeout 30m]
   living-plan execution start --url <server-url> [--step TEXT] [--detail TEXT] [--graph file.json]
   living-plan execution push --url <server-url> [--step TEXT] [--detail TEXT] [--graph file.json] [--scene file.json]
@@ -25,10 +25,14 @@ Usage:
   living-plan dump <file.plan.md>
 
 Modes:
-  serve       Live watch URL with Plan + Workflow tabs.
+  serve       Live watch URL. The Workflow tab draws the plan diagram, then the live run.
   review      Same UI plus Approve / Deny / Iterate bar.
   wait        Block until one interaction id is answered.
   execution   Start/push/stop the live workflow canvas (locks plan forms while active).
+  check       Print plan summary, including the expected workflow nodes.
+
+The Workflow tab is filled from a \`workflow\` block, or from phases and gates when that block is omitted.
+--no-open skips launching a browser.
 `)
 }
 
@@ -59,7 +63,11 @@ async function openBrowser(url: string): Promise<void> {
   const platform = process.platform
   const command = platform === 'darwin' ? 'open' : platform === 'win32' ? 'cmd' : 'xdg-open'
   const commandArgs = platform === 'win32' ? ['/c', 'start', '', url] : [url]
-  spawn(command, commandArgs, { stdio: 'ignore', detached: true }).unref()
+  const child = spawn(command, commandArgs, { stdio: 'ignore', detached: true })
+  child.on('error', () => {
+    // A missing opener must not take down the server.
+  })
+  child.unref()
 }
 
 async function ensureClientBuild(): Promise<void> {

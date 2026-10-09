@@ -15,8 +15,11 @@ Use a single `.plan.md` file as the visual channel between you and the human.
 
 ## Commands
 
+`npm install` builds the `living-plan` command (`visual-living-plan` is the same binary). From this repo, `npx living-plan …` and the `npm run` scripts below call it. Pass `--no-open` on `serve` and `review` when a browser should not launch.
+
 ```bash
 # Live status URL (hot-reloads when you edit the file)
+npx living-plan serve path/to/plan.plan.md --port 9410
 npm run serve -- path/to/plan.plan.md --port 9410
 
 # Blocking review gate (Approve / Deny / Iterate)

@@ -14,10 +14,22 @@ Works for local agents (file + localhost URL) and is shaped so a cloud agent can
 
 ```bash
 npm install
-npm run serve -- examples/rate-limit.plan.md --port 9410
+npx living-plan serve examples/rate-limit.plan.md --port 9410
 ```
 
-Open `http://127.0.0.1:9410`. Edit the example file, change a phase `status`, and the page reloads. Click a choice or submit a form to send structured feedback to the agent.
+`npm install` builds the `living-plan` and `visual-living-plan` commands. Open `http://127.0.0.1:9410`. Edit the example file, change a phase `status`, and the page reloads. Click a choice or submit a form to send structured feedback to the agent.
+
+The same server is what the npm scripts call (`npm run serve`, `npm run review`, `npm run wait`, `npm run execution`, `npm run check`).
+
+### Install the command
+
+```bash
+npm install -g .
+living-plan --help
+living-plan check examples/rate-limit.plan.md
+```
+
+`check` prints the expected workflow (the `workflow` block, or phases and gates when that block is omitted). `serve` and `review` draw that diagram on the Workflow tab before a run starts. Pass `--no-open` when a browser should not launch.
 
 ### Review mode
 
