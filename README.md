@@ -14,38 +14,26 @@ Works for local agents (file + localhost URL) and is shaped so a cloud agent can
 
 ```bash
 npm install
-npx living-plan serve examples/rate-limit.plan.md --port 9410
+npm run serve -- examples/rate-limit.plan.md --port 9410
 ```
 
-`npm install` builds the `living-plan` and `visual-living-plan` commands. Open `http://127.0.0.1:9410`. Edit the example file, change a phase `status`, and the page reloads. Click a choice or submit a form to send structured feedback to the agent.
+Open `http://127.0.0.1:9410`. Edit the example file, change a phase `status`, and the page reloads. Click a choice or submit a form to send structured feedback to the agent.
 
-The same server is what the npm scripts call (`npm run serve`, `npm run review`, `npm run wait`, `npm run execution`, `npm run check`).
+The same server is what the other npm scripts call (`npm run review`, `npm run wait`, `npm run execution`, `npm run check`).
 
 ### Install the command
 
-From a clone:
+This is the same kind of install as [Visual Plan](https://visualplan.dev/)'s `npm i -g vplan`. The package name on the registry is `visual-living-plan`. Publishing runs `prepack`, which compiles `dist/cli.js` into the tarball. `npm i -g` downloads that tarball and links the `living-plan` and `visual-living-plan` commands onto your PATH. It does not clone the repo and does not compile anything on your machine.
 
 ```bash
-npm install -g .
-living-plan --help
-```
-
-Without cloning, and without publishing to the npm registry, npm can build the command from GitHub.
-
-One shot:
-
-```bash
-npx --package github:marco-calderon/visual-living-plan living-plan serve ./my.plan.md --port 9410
-```
-
-Install it on your PATH:
-
-```bash
-npm pack github:marco-calderon/visual-living-plan
-npm install -g visual-living-plan-0.1.0.tgz
+npm i -g visual-living-plan
 living-plan --help
 living-plan check "$(npm root -g)/visual-living-plan/examples/rate-limit.plan.md"
 ```
+
+`check` prints the expected workflow (the `workflow` block, or phases and gates when that block is omitted). `serve` and `review` draw that diagram on the Workflow tab before a run starts. Pass `--no-open` when a browser should not launch.
+
+The name is not on the registry until it is published. From a checkout, `npm publish --access public` packs the built CLI and uploads it. A GitHub release runs the same publish through `.github/workflows/publish.yml`, after a trusted publisher for `visual-living-plan` is configured on npm.
 
 `check` prints the expected workflow (the `workflow` block, or phases and gates when that block is omitted). `serve` and `review` draw that diagram on the Workflow tab before a run starts. Pass `--no-open` when a browser should not launch.
 
