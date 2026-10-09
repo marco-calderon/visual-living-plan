@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Background,
   Controls,
@@ -18,6 +18,30 @@ import { ExecutionStepNode, type ExecutionStepNodeType } from './ExecutionStepNo
 const nodeTypes = {
   executionStep: ExecutionStepNode,
 } satisfies NodeTypes
+
+function useResolvedTheme(): 'light' | 'dark' {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() =>
+    document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
+  )
+
+  useEffect(() => {
+    const root = document.documentElement
+    const sync = () => {
+      setTheme(root.dataset.theme === 'dark' ? 'dark' : 'light')
+    }
+    sync()
+    const observer = new MutationObserver(sync)
+    observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => observer.disconnect()
+  }, [])
+
+  return theme
+}
+
+function cssVar(name: string, fallback: string): string {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return value || fallback
+}
 
 function toFlowNodes(model: ExecutionCanvasProps['model']): ExecutionStepNodeType[] {
   return model.nodes.map((node) => ({
@@ -47,10 +71,18 @@ function toFlowEdges(model: ExecutionCanvasProps['model']): Edge[] {
 
 function ReactFlowCanvasInner({ model, readonly = true }: ExecutionCanvasProps) {
   const { fitView } = useReactFlow()
+  const theme = useResolvedTheme()
   const initialNodes = useMemo(() => toFlowNodes(model), [model])
   const initialEdges = useMemo(() => toFlowEdges(model), [model])
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
+  const canvasColors = useMemo(
+    () => ({
+      dot: cssVar('--dot', theme === 'dark' ? 'rgba(232, 243, 238, 0.14)' : 'rgba(20, 32, 27, 0.12)'),
+      idle: cssVar('--minimap-idle', theme === 'dark' ? '#64748b' : '#94a3b8'),
+    }),
+    [theme],
+  )
 
   useEffect(() => {
     setNodes(toFlowNodes(model))
@@ -73,20 +105,22 @@ function ReactFlowCanvasInner({ model, readonly = true }: ExecutionCanvasProps) 
       elementsSelectable={!readonly}
       panOnDrag
       zoomOnScroll
+      colorMode={theme}
       fitView
       proOptions={{ hideAttribution: true }}
     >
-      <Background gap={18} size={1} color="rgba(20, 32, 27, 0.12)" />
+      <Background gap={18} size={1} color={canvasColors.dot} />
       <Controls showInteractive={false} />
       <MiniMap
         pannable
         zoomable
+        maskColor={theme === 'dark' ? 'rgba(8, 14, 12, 0.55)' : 'rgba(247, 250, 248, 0.65)'}
         nodeColor={(node) => {
           const status = (node.data as { status?: string } | undefined)?.status
-          if (status === 'done') return '#166534'
-          if (status === 'active') return '#0f766e'
-          if (status === 'failed') return '#b42318'
-          return '#94a3b8'
+          if (status === 'done') return theme === 'dark' ? '#4ade80' : '#166534'
+          if (status === 'active') return theme === 'dark' ? '#2dd4bf' : '#0f766e'
+          if (status === 'failed') return theme === 'dark' ? '#f87171' : '#b42318'
+          return canvasColors.idle
         }}
       />
     </ReactFlow>
