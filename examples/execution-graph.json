@@ -1,0 +1,40 @@
+{
+  "nodes": [
+    {
+      "id": "design",
+      "label": "Confirm design",
+      "detail": "Fail-open chosen",
+      "status": "done",
+      "x": 40,
+      "y": 80
+    },
+    {
+      "id": "implement",
+      "label": "Implement middleware",
+      "detail": "Editing gateway.ts",
+      "status": "active",
+      "x": 320,
+      "y": 80
+    },
+    {
+      "id": "tests",
+      "label": "Add coverage",
+      "detail": "429 + Retry-After",
+      "status": "pending",
+      "x": 600,
+      "y": 80
+    },
+    {
+      "id": "observe",
+      "label": "Dashboards",
+      "status": "pending",
+      "x": 320,
+      "y": 280
+    }
+  ],
+  "edges": [
+    { "from": "design", "to": "implement" },
+    { "from": "implement", "to": "tests" },
+    { "from": "implement", "to": "observe" }
+  ]
+}

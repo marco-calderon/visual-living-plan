@@ -1,0 +1,54 @@
+{
+  "name": "visual-living-plan",
+  "version": "0.1.0",
+  "description": "Agent-authored living plans with human interaction, live updates, and a swappable execution canvas",
+  "type": "module",
+  "bin": {
+    "living-plan": "./dist/cli.js",
+    "visual-living-plan": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "examples",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/marco-calderon/visual-living-plan.git"
+  },
+  "bugs": {
+    "url": "https://github.com/marco-calderon/visual-living-plan/issues"
+  },
+  "homepage": "https://github.com/marco-calderon/visual-living-plan#readme",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc && vite build",
+    "build:client": "vite build",
+    "dev": "tsx src/cli.ts",
+    "serve": "tsx src/cli.ts serve",
+    "review": "tsx src/cli.ts review",
+    "wait": "tsx src/cli.ts wait",
+    "execution": "tsx src/cli.ts execution",
+    "check": "tsx src/cli.ts check",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@xyflow/react": "^12.12.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.4"
+  }
+}
