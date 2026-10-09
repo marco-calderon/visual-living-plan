@@ -14,11 +14,16 @@ type LoopEdgeProps = EdgeProps<LoopEdgeType>
  * returns to the left handle.
  */
 export function LoopEdge({ sourceX, sourceY, targetX, targetY, markerEnd, style, data }: LoopEdgeProps) {
-  const rise = 120
-  const bulge = 42
-  const path = `M ${sourceX} ${sourceY} C ${sourceX + bulge} ${sourceY - rise}, ${targetX - bulge} ${targetY - rise}, ${targetX} ${targetY}`
+  const lift = 96
+  const out = 36
+  const topY = Math.min(sourceY, targetY) - lift
   const labelX = (sourceX + targetX) / 2
-  const labelY = Math.min(sourceY, targetY) - rise * 0.75
+  const labelY = topY
+  const path = [
+    `M ${sourceX} ${sourceY}`,
+    `C ${sourceX + out} ${sourceY}, ${sourceX + out} ${topY}, ${labelX} ${topY}`,
+    `C ${targetX - out} ${topY}, ${targetX - out} ${targetY}, ${targetX} ${targetY}`,
+  ].join(' ')
 
   return (
     <>
