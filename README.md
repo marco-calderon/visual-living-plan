@@ -30,18 +30,21 @@ npm install -g .
 living-plan --help
 ```
 
-Without cloning, and without publishing to the npm registry, install from GitHub. npm builds the command from the repository:
+Without cloning, and without publishing to the npm registry, npm can build the command from GitHub.
 
-```bash
-npm install -g github:marco-calderon/visual-living-plan
-living-plan --help
-living-plan check "$(npm root -g)/visual-living-plan/examples/rate-limit.plan.md"
-```
-
-One shot, without a global install:
+One shot:
 
 ```bash
 npx --package github:marco-calderon/visual-living-plan living-plan serve ./my.plan.md --port 9410
+```
+
+Install it on your PATH:
+
+```bash
+npm pack github:marco-calderon/visual-living-plan
+npm install -g visual-living-plan-0.1.0.tgz
+living-plan --help
+living-plan check "$(npm root -g)/visual-living-plan/examples/rate-limit.plan.md"
 ```
 
 `check` prints the expected workflow (the `workflow` block, or phases and gates when that block is omitted). `serve` and `review` draw that diagram on the Workflow tab before a run starts. Pass `--no-open` when a browser should not launch.

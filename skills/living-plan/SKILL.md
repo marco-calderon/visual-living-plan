@@ -15,7 +15,7 @@ Use a single `.plan.md` file as the visual channel between you and the human.
 
 ## Commands
 
-`npm install` builds the `living-plan` command (`visual-living-plan` is the same binary). From this repo, `npx living-plan …` and the `npm run` scripts below call it. Pass `--no-open` on `serve` and `review` when a browser should not launch.
+`npm install` builds the `living-plan` command (`visual-living-plan` is the same binary). From this repo, `npx living-plan …` and the `npm run` scripts below call it. Without a clone or an npm publish, `npx --package github:marco-calderon/visual-living-plan living-plan …` runs it, or `npm pack github:marco-calderon/visual-living-plan` and `npm install -g visual-living-plan-0.1.0.tgz` installs it. Pass `--no-open` on `serve` and `review` when a browser should not launch.
 
 ```bash
 # Live status URL (hot-reloads when you edit the file)
