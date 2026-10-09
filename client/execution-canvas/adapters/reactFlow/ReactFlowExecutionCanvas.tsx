@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Background,
   Controls,
@@ -15,7 +15,12 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import type { ExecutionCanvasProps } from '../../types.ts'
-import { ExecutionStepNode, type ExecutionStepNodeType } from './ExecutionStepNode.tsx'
+import {
+  ExecutionStepNode,
+  PlanRefContext,
+  type ExecutionStepNodeData,
+  type ExecutionStepNodeType,
+} from './ExecutionStepNode.tsx'
 import { LoopEdge } from './LoopEdge.tsx'
 
 const nodeTypes = {
@@ -65,10 +70,15 @@ function toFlowNodes(model: ExecutionCanvasProps['model']): ExecutionStepNodeTyp
       label: node.label,
       detail: node.detail,
       status: node.status,
+      planRef: node.planRef,
+      planLabel: node.planLabel,
     },
+    ariaLabel: node.planRef
+      ? `${node.label}. Plan reference ${node.planLabel ?? node.planRef}`
+      : node.label,
     draggable: false,
     connectable: false,
-    selectable: false,
+    selectable: Boolean(node.planRef),
   }))
 }
 
@@ -101,7 +111,7 @@ function toFlowEdges(model: ExecutionCanvasProps['model'], colors: EdgeColors): 
   })
 }
 
-function ReactFlowCanvasInner({ model, readonly = true }: ExecutionCanvasProps) {
+function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: ExecutionCanvasProps) {
   const { fitView } = useReactFlow()
   const theme = useResolvedTheme()
   const edgeColors = useMemo<EdgeColors>(
@@ -124,28 +134,62 @@ function ReactFlowCanvasInner({ model, readonly = true }: ExecutionCanvasProps) 
     [theme],
   )
 
+  const hostRef = useRef<HTMLDivElement>(null)
+
+  const fit = useCallback(() => {
+    const host = hostRef.current
+    if (!host || host.clientWidth < 40 || host.clientHeight < 40) return
+    void fitView({ padding: 0.28, duration: 220, minZoom: 0.2, maxZoom: 1.15 })
+  }, [fitView])
+
   useEffect(() => {
     setNodes(toFlowNodes(model))
     setEdges(toFlowEdges(model, edgeColors))
     const frame = requestAnimationFrame(() => {
-      void fitView({ padding: 0.28, duration: 220 })
+      fit()
     })
     return () => cancelAnimationFrame(frame)
-  }, [model, edgeColors, setNodes, setEdges, fitView])
+  }, [model, edgeColors, setNodes, setEdges, fit])
+
+  useEffect(() => {
+    const host = hostRef.current
+    if (!host || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => {
+      fit()
+    })
+    observer.observe(host)
+    return () => observer.disconnect()
+  }, [fit])
+
+  const openPlanRef = useCallback(
+    (planRef: string) => {
+      if (!planRef) return
+      onSelectPlanRef?.(planRef)
+    },
+    [onSelectPlanRef],
+  )
 
   return (
+    <PlanRefContext.Provider value={openPlanRef}>
+    <div ref={hostRef} className="execution-canvas-host">
     <ReactFlow
       nodes={nodes}
       edges={edges}
-      onNodesChange={readonly ? undefined : onNodesChange}
+      onNodesChange={onNodesChange}
       onEdgesChange={readonly ? undefined : onEdgesChange}
+      onNodeClick={(_event, node) => {
+        const planRef = (node.data as ExecutionStepNodeData).planRef
+        if (planRef) openPlanRef(planRef)
+      }}
       nodeTypes={nodeTypes}
       edgeTypes={edgeTypes}
       nodesDraggable={!readonly}
-      nodesConnectable={!readonly}
-      elementsSelectable={!readonly}
+      nodesConnectable={false}
+      elementsSelectable
       panOnDrag
       zoomOnScroll
+      minZoom={0.2}
+      maxZoom={1.5}
       colorMode={theme}
       fitView
       proOptions={{ hideAttribution: true }}
@@ -155,16 +199,20 @@ function ReactFlowCanvasInner({ model, readonly = true }: ExecutionCanvasProps) 
       <MiniMap
         pannable
         zoomable
+        style={{ width: 112, height: 74 }}
         maskColor={theme === 'dark' ? 'rgba(8, 14, 12, 0.55)' : 'rgba(247, 250, 248, 0.65)'}
         nodeColor={(node) => {
           const status = (node.data as { status?: string } | undefined)?.status
           if (status === 'done') return theme === 'dark' ? '#4ade80' : '#166534'
           if (status === 'active') return theme === 'dark' ? '#2dd4bf' : '#0f766e'
           if (status === 'failed') return theme === 'dark' ? '#f87171' : '#b42318'
+          if (status === 'blocked') return theme === 'dark' ? '#fbbf24' : '#b45309'
           return canvasColors.idle
         }}
       />
     </ReactFlow>
+    </div>
+    </PlanRefContext.Provider>
   )
 }
 

@@ -6,10 +6,12 @@ import type {
   PhaseStatus,
   PlanBlock,
   PlanDocument,
+  WorkflowEdgeSpec,
+  WorkflowNodeSpec,
 } from './types.js'
 
 const FENCE_RE =
-  /^```(phase|choice|approve|form|questions|checklist|callout)\s*\n([\s\S]*?)^```/gm
+  /^```(phase|choice|approve|form|questions|checklist|callout|workflow)\s*\n([\s\S]*?)^```/gm
 
 const PHASE_STATUSES: PhaseStatus[] = ['pending', 'active', 'blocked', 'done', 'failed']
 
@@ -222,6 +224,7 @@ function parseQuestions(body: string, source: string): PlanBlock {
 function parseChecklist(body: string, source: string): PlanBlock {
   const data = asRecord(parseYaml(body))
   const title = data.title ? String(data.title) : undefined
+  const id = data.id ? String(data.id) : undefined
   const itemsRaw = Array.isArray(data.items) ? data.items : []
   const items: ChecklistItem[] = itemsRaw.map((item) => {
     if (typeof item === 'string') {
@@ -233,7 +236,7 @@ function parseChecklist(body: string, source: string): PlanBlock {
       done: Boolean(row.done),
     }
   })
-  return { type: 'checklist', title, items, source }
+  return { type: 'checklist', id, title, items, source }
 }
 
 function parseCallout(body: string, source: string): PlanBlock {
@@ -247,14 +250,56 @@ function parseCallout(body: string, source: string): PlanBlock {
       ? kindRaw
       : 'note'
   const title = data.title ? String(data.title) : undefined
+  const id = data.id ? String(data.id) : undefined
   const content = String(data.body ?? data.description ?? '')
   return {
     type: 'callout',
+    id,
     kind,
     title,
     bodyHtml: markdownToHtml(content),
     source,
   }
+}
+
+function parseWorkflow(body: string, source: string): PlanBlock {
+  const data = asRecord(parseYaml(body))
+  const title = data.title ? String(data.title) : undefined
+  const id = String(data.id ?? '').trim() || slugify(title ?? 'workflow') || 'workflow'
+  const nodesRaw = Array.isArray(data.nodes) ? data.nodes : []
+  const nodes: WorkflowNodeSpec[] = nodesRaw.flatMap((item) => {
+    const node = asRecord(item)
+    const nodeId = String(node.id ?? '').trim()
+    if (!nodeId) return []
+    return [
+      {
+        id: nodeId,
+        label: node.label ? String(node.label) : undefined,
+        detail: node.detail ? String(node.detail) : undefined,
+        ref: node.ref ? String(node.ref) : undefined,
+        status: node.status ? String(node.status) : undefined,
+        x: typeof node.x === 'number' ? node.x : undefined,
+        y: typeof node.y === 'number' ? node.y : undefined,
+      },
+    ]
+  })
+  const edgesRaw = Array.isArray(data.edges) ? data.edges : []
+  const edges: WorkflowEdgeSpec[] = edgesRaw.flatMap((item) => {
+    const edge = asRecord(item)
+    const from = String(edge.from ?? '').trim()
+    const to = String(edge.to ?? '').trim()
+    if (!from || !to) return []
+    return [
+      {
+        from,
+        to,
+        label: edge.label ? String(edge.label) : undefined,
+        fromSide: edge.fromSide ? String(edge.fromSide) : undefined,
+        toSide: edge.toSide ? String(edge.toSide) : undefined,
+      },
+    ]
+  })
+  return { type: 'workflow', id, title, nodes, edges, source }
 }
 
 function parseFence(kind: string, body: string, source: string): PlanBlock {
@@ -273,6 +318,8 @@ function parseFence(kind: string, body: string, source: string): PlanBlock {
       return parseChecklist(body, source)
     case 'callout':
       return parseCallout(body, source)
+    case 'workflow':
+      return parseWorkflow(body, source)
     default:
       return { type: 'markdown', html: markdownToHtml(source), source }
   }
@@ -357,4 +404,23 @@ export function parsePlan(source: string, sourcePath?: string): PlanDocument {
 
 export function collectSectionSources(plan: PlanDocument): string[] {
   return plan.blocks.map((block) => block.source.trim())
+}
+
+/** Stable id used to link a workflow step back to a plan section. */
+export function blockAnchorId(block: PlanBlock, index: number): string | undefined {
+  switch (block.type) {
+    case 'phase':
+    case 'choice':
+    case 'approve':
+    case 'form':
+    case 'questions':
+    case 'workflow':
+      return block.id
+    case 'checklist':
+      return block.id ?? (block.title ? `checklist-${slugify(block.title)}-${index}` : undefined)
+    case 'callout':
+      return block.id ?? (block.title ? `callout-${slugify(block.title)}-${index}` : undefined)
+    case 'markdown':
+      return undefined
+  }
 }

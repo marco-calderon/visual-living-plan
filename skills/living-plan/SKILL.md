@@ -25,7 +25,8 @@ npm run review -- path/to/plan.plan.md --iteration 1
 # Wait for one interaction on a running server
 npm run wait -- fail-mode --url http://127.0.0.1:9410
 
-# Live execution canvas (locks Plan tab forms while active)
+# Live workflow canvas (locks Plan tab forms while active).
+# The Workflow tab is already filled from the plan's workflow block before this runs.
 npm run execution -- start --url http://127.0.0.1:9410 \
   --step "Implement middleware" --detail "Editing gateway.ts" \
   --graph examples/execution-graph.json
@@ -38,7 +39,7 @@ Exit codes for `review`: `0` approve, `1` deny, `2` iterate, `3` timeout.
 
 The UI has two tabs:
 - **Plan** — authored `.plan.md` status and interactions. Forms/gates disable while execution is live.
-- **Execution** — readonly React Flow canvas updated live via `/api/execution` (prefer portable `graph` JSON; optional adapter-specific `scene`). Until a graph is pushed, the tab shows the sample from `examples/execution-graph.json`: a Retry step under Tests points back at Implement and closes the loop. The canvas library is swappable via `client/execution-canvas/registry.ts`. An edge may point at its own node (`from` and `to` are the same id); that self-loop is drawn as an arc. To close a loop with another card, set `fromSide` and `toSide` (`top` | `right` | `bottom` | `left`) on the return edge so it routes around the forward path. Optional edge `label` is shown on the edge.
+- **Workflow** — readonly React Flow canvas. Before execution it shows the expected plan (`workflow` block, or phases and gates in order). A plan with neither shows the sample retry loop until a graph is pushed. During execution it keeps the plan steps and overlays live `/api/execution` updates (prefer portable `graph` JSON; optional adapter-specific `scene`). Use the same node id as the plan block id so a click still jumps to that section. The canvas library is swappable via `client/execution-canvas/registry.ts`. An edge may point at its own node (`from` and `to` are the same id); that self-loop is drawn as an arc. To close a loop with another card, set `fromSide` and `toSide` (`top` | `right` | `bottom` | `left`) on the return edge so it routes around the forward path. Optional edge `label` is shown on the edge.
 
 ## File format
 
@@ -51,12 +52,28 @@ Optional YAML frontmatter, then markdown plus fenced blocks:
 - `questions` — open answers
 - `approve` — approve/deny gate with optional note
 - `checklist` — definition of done
+- `workflow` — expected execution plan drawn before the run starts. Each node `ref` (or `id`, when it matches a block) is the plan section a click opens.
 
-Every interactive block needs a stable `id`. Do not rename ids mid-run or the human response may not match.
+Every interactive block needs a stable `id`. Do not rename ids mid-run or the human response may not match. Give phases, callouts, and checklist items ids when a workflow node should point at them.
+
+```workflow
+id: rollout
+title: Expected execution
+nodes:
+  - id: design
+    ref: design
+    label: Confirm limiter design
+  - id: implement
+    ref: implement
+    label: Implement gateway middleware
+edges:
+  - from: design
+    to: implement
+```
 
 ## Agent loop
 
-1. Create or update the `.plan.md` file with current phases and any needed interactions.
+1. Create or update the `.plan.md` file with current phases, a `workflow` block for the expected execution plan, and any needed interactions.
 2. Start or reuse `serve` for continuous status, or `review` when you need an overall verdict.
 3. If you need a specific answer before continuing, `wait <id> --url ...` (or poll `GET /api/plan`).
 4. Apply the human response, update phase statuses / checklist items in the same file, and keep going.
