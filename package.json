@@ -4,6 +4,7 @@
   "description": "Agent-authored living plans with human interaction, live updates, and a swappable execution canvas",
   "type": "module",
   "bin": {
+    "live-plan": "./dist/cli.js",
     "living-plan": "./dist/cli.js",
     "visual-living-plan": "./dist/cli.js"
   },

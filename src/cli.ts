@@ -12,17 +12,19 @@ import { planToExpectedGraph } from './workflow.js'
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 function printHelp(): void {
-  console.log(`living-plan — agent-authored plans humans can interact with
+  console.log(`live-plan — agent-authored plans humans can interact with
 
 Usage:
-  living-plan serve <file.plan.md> [--port N] [--host HOST] [--no-open]
-  living-plan review <file.plan.md> [--port N] [--iteration N] [--timeout 30m] [--no-open]
-  living-plan wait <id> --url <server-url> [--timeout 30m]
-  living-plan execution start --url <server-url> [--step TEXT] [--detail TEXT] [--graph file.json]
-  living-plan execution push --url <server-url> [--step TEXT] [--detail TEXT] [--graph file.json] [--scene file.json]
-  living-plan execution stop --url <server-url>
-  living-plan check <file.plan.md>
-  living-plan dump <file.plan.md>
+  live-plan serve <file.plan.md> [--port N] [--host HOST] [--no-open]
+  live-plan review <file.plan.md> [--port N] [--iteration N] [--timeout 30m] [--no-open]
+  live-plan wait <id> --url <server-url> [--timeout 30m]
+  live-plan execution start --url <server-url> [--step TEXT] [--detail TEXT] [--graph file.json]
+  live-plan execution push --url <server-url> [--step TEXT] [--detail TEXT] [--graph file.json] [--scene file.json]
+  live-plan execution stop --url <server-url>
+  live-plan check <file.plan.md>
+  live-plan dump <file.plan.md>
+
+Invoke with \`npx --yes visual-living-plan <command>\` when the \`live-plan\` command is not installed. \`living-plan\` is the same binary.
 
 Modes:
   serve       Live watch URL. The Workflow tab draws the plan diagram, then the live run.
@@ -208,7 +210,7 @@ async function cmdReview(file: string, args: string[]): Promise<number> {
 async function cmdWait(id: string, args: string[]): Promise<number> {
   const url = getFlag(args, '--url')
   if (!url) {
-    console.error('living-plan wait requires --url <server-url>')
+    console.error('live-plan wait requires --url <server-url>')
     return 1
   }
   const timeoutMs = parseTimeout(getFlag(args, '--timeout'), 4 * 60 * 60 * 1000)
@@ -255,7 +257,7 @@ async function cmdExecution(args: string[]): Promise<number> {
   const rest = args.slice(1)
   const url = getFlag(rest, '--url')
   if (!url) {
-    console.error('living-plan execution requires --url <server-url>')
+    console.error('live-plan execution requires --url <server-url>')
     return 1
   }
 
@@ -291,7 +293,7 @@ async function cmdExecution(args: string[]): Promise<number> {
     return 0
   }
 
-  console.error('Usage: living-plan execution <start|push|stop> --url <server-url>')
+  console.error('Usage: live-plan execution <start|push|stop> --url <server-url>')
   return 1
 }
 
@@ -307,7 +309,7 @@ async function main(): Promise<number> {
   if (command === 'check') {
     const file = args[1]
     if (!file) {
-      console.error('Usage: living-plan check <file.plan.md>')
+      console.error('Usage: live-plan check <file.plan.md>')
       return 1
     }
     return cmdCheck(file)
@@ -316,7 +318,7 @@ async function main(): Promise<number> {
   if (command === 'dump') {
     const file = args[1]
     if (!file) {
-      console.error('Usage: living-plan dump <file.plan.md>')
+      console.error('Usage: live-plan dump <file.plan.md>')
       return 1
     }
     return cmdDump(file)
@@ -325,7 +327,7 @@ async function main(): Promise<number> {
   if (command === 'serve') {
     const file = args[1]
     if (!file) {
-      console.error('Usage: living-plan serve <file.plan.md>')
+      console.error('Usage: live-plan serve <file.plan.md>')
       return 1
     }
     return cmdServe(file, args.slice(2))
@@ -334,7 +336,7 @@ async function main(): Promise<number> {
   if (command === 'review') {
     const file = args[1]
     if (!file) {
-      console.error('Usage: living-plan review <file.plan.md>')
+      console.error('Usage: live-plan review <file.plan.md>')
       return 1
     }
     return cmdReview(file, args.slice(2))
@@ -343,7 +345,7 @@ async function main(): Promise<number> {
   if (command === 'wait') {
     const id = args[1]
     if (!id) {
-      console.error('Usage: living-plan wait <id> --url <server-url>')
+      console.error('Usage: live-plan wait <id> --url <server-url>')
       return 1
     }
     return cmdWait(id, args.slice(2))

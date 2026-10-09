@@ -23,7 +23,7 @@ The same server is what the other npm scripts call (`npm run review`, `npm run w
 
 ### Install the command
 
-This is the same kind of install as [Visual Plan](https://visualplan.dev/)'s `npm i -g vplan`. The package name on the registry is `visual-living-plan`. Publishing runs `prepack`, which compiles `dist/cli.js` into the tarball. `npm i -g` downloads that tarball and links the `living-plan` and `visual-living-plan` commands onto your PATH. It does not clone the repo and does not compile anything on your machine.
+This is the same kind of install as [Visual Plan](https://visualplan.dev/)'s `npm i -g vplan`. The package name on the registry is `visual-living-plan`. Publishing runs `prepack`, which compiles `dist/cli.js` into the tarball. `npm i -g` downloads that tarball and links the `live-plan`, `living-plan`, and `visual-living-plan` commands onto your PATH. It does not clone the repo and does not compile anything on your machine.
 
 ```bash
 npm i -g visual-living-plan
@@ -94,7 +94,7 @@ Visual builders optimize for humans drawing graphs. Living Plan optimizes for **
 
 ## Plan vocabulary
 
-See `examples/rate-limit.plan.md` and `skills/living-plan/SKILL.md`.
+See `examples/rate-limit.plan.md` and `skills/live-plan/primitives.md`.
 
 YAML fenced blocks:
 
@@ -126,9 +126,20 @@ To swap libraries later, add another adapter and change the active id. Keep agen
 - `POST /api/interactions/:id` — submit an interaction response (409 while execution is live)
 - `POST /api/review` — submit Approve / Deny / Iterate (review mode)
 
-## Agent skill
+## For agents
 
-Install or point your coding agent at `skills/living-plan/SKILL.md` so it authors and maintains living plans with the correct loop (`serve` / `wait` / `execution`). Put a `workflow` block in the plan when the human should see the expected execution path before the run starts.
+Agents should invoke the published CLI with npx, or `live-plan` when that command is installed. `living-plan` is the same binary. Do not use the `npm run` scripts above unless you are developing this repository.
+
+```bash
+npx --yes visual-living-plan serve path/to/work.plan.md --port 9410
+live-plan serve path/to/work.plan.md --port 9410
+```
+
+- Guideline: [`docs/agent-guidelines.md`](docs/agent-guidelines.md)
+- Skill (copy into `.cursor/skills/live-plan/` or `.claude/skills/live-plan/`): [`skills/live-plan/SKILL.md`](skills/live-plan/SKILL.md)
+- Primitive schemas: [`skills/live-plan/primitives.md`](skills/live-plan/primitives.md)
+
+`npm install -g visual-living-plan` installs the `live-plan` command (`living-plan` and `visual-living-plan` remain aliases). Put a `workflow` block in the plan when the human should see the expected execution path before the run starts.
 
 ## License
 
