@@ -110,12 +110,34 @@
 }
 
 .rf-step-status {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: 0.68rem;
   font-weight: 700;
   color: var(--muted);
   margin-bottom: 0.3rem;
+}
+
+.rf-progress-icon {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  animation: rf-progress-spin 0.9s linear infinite;
+}
+
+@keyframes rf-progress-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rf-progress-icon {
+    animation: none;
+  }
 }
 
 .rf-step.status-active .rf-step-status { color: var(--accent); }
