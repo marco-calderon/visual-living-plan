@@ -14,10 +14,40 @@ Works for local agents (file + localhost URL) and is shaped so a cloud agent can
 
 ```bash
 npm install
-npm run serve -- examples/rate-limit.plan.md --port 9410
+npx living-plan serve examples/rate-limit.plan.md --port 9410
 ```
 
-Open `http://127.0.0.1:9410`. Edit the example file, change a phase `status`, and the page reloads. Click a choice or submit a form to send structured feedback to the agent.
+`npm install` builds the `living-plan` and `visual-living-plan` commands. Open `http://127.0.0.1:9410`. Edit the example file, change a phase `status`, and the page reloads. Click a choice or submit a form to send structured feedback to the agent.
+
+The same server is what the npm scripts call (`npm run serve`, `npm run review`, `npm run wait`, `npm run execution`, `npm run check`).
+
+### Install the command
+
+From a clone:
+
+```bash
+npm install -g .
+living-plan --help
+```
+
+Without cloning, and without publishing to the npm registry, npm can build the command from GitHub.
+
+One shot:
+
+```bash
+npx --package github:marco-calderon/visual-living-plan living-plan serve ./my.plan.md --port 9410
+```
+
+Install it on your PATH:
+
+```bash
+npm pack github:marco-calderon/visual-living-plan
+npm install -g visual-living-plan-0.1.0.tgz
+living-plan --help
+living-plan check "$(npm root -g)/visual-living-plan/examples/rate-limit.plan.md"
+```
+
+`check` prints the expected workflow (the `workflow` block, or phases and gates when that block is omitted). `serve` and `review` draw that diagram on the Workflow tab before a run starts. Pass `--no-open` when a browser should not launch.
 
 ### Review mode
 
