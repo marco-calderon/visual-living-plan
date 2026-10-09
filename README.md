@@ -37,7 +37,7 @@ npm run wait -- fail-mode --url http://127.0.0.1:9410
 
 ### Live execution canvas
 
-The page has **Plan** and **Execution** tabs. While execution is active, Plan forms/gates are disabled. The Execution tab hosts a readonly [React Flow](https://reactflow.dev) graph the agent updates live.
+The page has **Plan** and **Execution** tabs. While execution is active, Plan forms/gates are disabled. The Execution tab hosts a readonly [React Flow](https://reactflow.dev) graph the agent updates live. Before a live graph arrives, that tab shows the sample retry loop from `examples/execution-graph.json`.
 
 ```bash
 npm run execution -- start --url http://127.0.0.1:9410 \
@@ -56,6 +56,8 @@ Agent payloads:
 
 - `graph` — portable `{ nodes, edges }` (preferred; adapter-agnostic)
 - `scene` — optional adapter-specific extras
+
+React Flow draws cycles between different nodes. A self-loop (`from` and `to` are the same id) uses a custom arc, because the built-in edge paths collapse onto the node. A separate card can close a loop instead: give the return edge `fromSide` and `toSide` (`top`, `right`, `bottom`, or `left`) so it does not sit on the forward path. Optional edge `label` is drawn on the arc or the return edge. `examples/execution-graph.json` closes one loop with a Retry step: `tests → retry → implement`.
 
 ## Why this exists
 

@@ -166,6 +166,21 @@
   border: 2px solid var(--handle-border) !important;
 }
 
+.rf-loop-label {
+  position: absolute;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--accent-border);
+  background: var(--stage-bg);
+  color: var(--accent);
+  font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
 .react-flow__controls {
   border: 1px solid var(--line);
   border-radius: 12px;

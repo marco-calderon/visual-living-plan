@@ -1,4 +1,4 @@
-import type { ExecutionNodeStatus } from '../../src/execution.ts'
+import type { ExecutionNodeStatus, ExecutionPortSide } from '../../src/execution.ts'
 
 /** Library-agnostic model rendered by any execution-canvas adapter. */
 export type ExecutionCanvasNode = {
@@ -13,6 +13,9 @@ export type ExecutionCanvasEdge = {
   id: string
   source: string
   target: string
+  label?: string
+  sourceSide?: ExecutionPortSide
+  targetSide?: ExecutionPortSide
 }
 
 export type ExecutionCanvasModel = {

@@ -38,7 +38,7 @@ Exit codes for `review`: `0` approve, `1` deny, `2` iterate, `3` timeout.
 
 The UI has two tabs:
 - **Plan** — authored `.plan.md` status and interactions. Forms/gates disable while execution is live.
-- **Execution** — readonly React Flow canvas updated live via `/api/execution` (prefer portable `graph` JSON; optional adapter-specific `scene`). The canvas library is swappable via `client/execution-canvas/registry.ts`.
+- **Execution** — readonly React Flow canvas updated live via `/api/execution` (prefer portable `graph` JSON; optional adapter-specific `scene`). Until a graph is pushed, the tab shows the sample from `examples/execution-graph.json`: a Retry step under Tests points back at Implement and closes the loop. The canvas library is swappable via `client/execution-canvas/registry.ts`. An edge may point at its own node (`from` and `to` are the same id); that self-loop is drawn as an arc. To close a loop with another card, set `fromSide` and `toSide` (`top` | `right` | `bottom` | `left`) on the return edge so it routes around the forward path. Optional edge `label` is shown on the edge.
 
 ## File format
 

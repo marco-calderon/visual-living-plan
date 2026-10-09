@@ -9,9 +9,17 @@ export type ExecutionGraphNode = {
   y?: number
 }
 
+export type ExecutionPortSide = 'top' | 'right' | 'bottom' | 'left'
+
 export type ExecutionGraphEdge = {
   from: string
   to: string
+  /** Shown on the edge. Self-loops (`from` === `to`) render this on the arc. */
+  label?: string
+  /** Side of the source card the edge leaves. Defaults to `right`. */
+  fromSide?: ExecutionPortSide
+  /** Side of the target card the edge enters. Defaults to `left`. */
+  toSide?: ExecutionPortSide
 }
 
 /** Portable agent-facing graph. Adapters map this into their native model. */

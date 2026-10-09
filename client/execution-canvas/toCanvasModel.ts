@@ -1,5 +1,11 @@
-import type { ExecutionGraph, ExecutionState } from '../../src/execution.ts'
+import type { ExecutionGraph, ExecutionPortSide, ExecutionState } from '../../src/execution.ts'
 import type { ExecutionCanvasModel } from './types.ts'
+
+const PORT_SIDES = new Set<ExecutionPortSide>(['top', 'right', 'bottom', 'left'])
+
+function portSide(value: ExecutionPortSide | undefined, fallback: ExecutionPortSide): ExecutionPortSide {
+  return value && PORT_SIDES.has(value) ? value : fallback
+}
 
 export function graphToCanvasModel(
   graph: ExecutionGraph,
@@ -20,6 +26,9 @@ export function graphToCanvasModel(
     id: `e-${edge.from}-${edge.to}-${index}`,
     source: edge.from,
     target: edge.to,
+    label: edge.label,
+    sourceSide: portSide(edge.fromSide, 'right'),
+    targetSide: portSide(edge.toSide, 'left'),
   }))
 
   return { nodes, edges, scene }
