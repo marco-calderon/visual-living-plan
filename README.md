@@ -57,7 +57,7 @@ Agent payloads:
 - `graph` — portable `{ nodes, edges }` (preferred; adapter-agnostic)
 - `scene` — optional adapter-specific extras
 
-React Flow already draws cycles between different nodes. A self-loop (`from` and `to` are the same id) uses a custom arc, because the built-in edge paths collapse onto the node. An optional edge `label` is drawn on that arc. `examples/execution-graph.json` includes one: `implement → implement`, labeled `retry`.
+React Flow draws cycles between different nodes. A self-loop (`from` and `to` are the same id) uses a custom arc, because the built-in edge paths collapse onto the node. A separate card can close a loop instead: give the return edge `fromSide` and `toSide` (`top`, `right`, `bottom`, or `left`) so it does not sit on the forward path. Optional edge `label` is drawn on the arc or the return edge. `examples/execution-graph.json` closes one loop with a Retry step: `tests → retry → implement`.
 
 ## Why this exists
 

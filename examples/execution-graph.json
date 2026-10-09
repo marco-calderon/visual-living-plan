@@ -6,7 +6,7 @@
       "detail": "Fail-open chosen",
       "status": "done",
       "x": 40,
-      "y": 160
+      "y": 40
     },
     {
       "id": "implement",
@@ -14,7 +14,7 @@
       "detail": "Editing gateway.ts",
       "status": "active",
       "x": 320,
-      "y": 160
+      "y": 40
     },
     {
       "id": "tests",
@@ -22,20 +22,29 @@
       "detail": "429 + Retry-After",
       "status": "pending",
       "x": 600,
-      "y": 160
+      "y": 40
     },
     {
       "id": "observe",
       "label": "Dashboards",
       "status": "pending",
-      "x": 320,
-      "y": 360
+      "x": 880,
+      "y": 40
+    },
+    {
+      "id": "retry",
+      "label": "Retry step",
+      "detail": "Closes the loop",
+      "status": "pending",
+      "x": 600,
+      "y": 280
     }
   ],
   "edges": [
     { "from": "design", "to": "implement" },
     { "from": "implement", "to": "tests" },
-    { "from": "implement", "to": "observe" },
-    { "from": "implement", "to": "implement", "label": "retry" }
+    { "from": "tests", "to": "observe" },
+    { "from": "tests", "to": "retry", "fromSide": "bottom", "toSide": "top" },
+    { "from": "retry", "to": "implement", "label": "again", "fromSide": "left", "toSide": "bottom" }
   ]
 }

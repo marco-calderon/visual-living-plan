@@ -44,18 +44,29 @@ function toFlowNodes(model: ExecutionCanvasProps['model']): ExecutionStepNodeTyp
 
 function toFlowEdges(model: ExecutionCanvasProps['model']): Edge[] {
   return model.edges.map((edge) => {
+    const sourceSide = edge.sourceSide ?? 'right'
+    const targetSide = edge.targetSide ?? 'left'
     const isLoop = edge.source === edge.target
+    const closesLoop = !isLoop && (sourceSide !== 'right' || targetSide !== 'left')
+    const emphasized = isLoop || closesLoop
+    const stroke = emphasized ? '#0f766e' : '#5b6b63'
+
     return {
       id: edge.id,
       source: edge.source,
       target: edge.target,
-      animated: isLoop,
+      sourceHandle: `out-${sourceSide}`,
+      targetHandle: `in-${targetSide}`,
+      animated: emphasized,
       type: isLoop ? 'loop' : 'smoothstep',
       data: isLoop ? { label: edge.label } : undefined,
-      markerEnd: isLoop
-        ? { type: MarkerType.ArrowClosed, width: 16, height: 16, color: '#0f766e' }
-        : undefined,
-      style: isLoop ? { stroke: '#0f766e', strokeWidth: 1.75 } : undefined,
+      label: isLoop ? undefined : edge.label,
+      labelStyle: edge.label && !isLoop ? { fill: '#0f766e', fontWeight: 700, fontSize: 11 } : undefined,
+      labelBgStyle: edge.label && !isLoop ? { fill: '#f7faf8', fillOpacity: 0.96 } : undefined,
+      labelBgPadding: edge.label && !isLoop ? [4, 6] : undefined,
+      labelBgBorderRadius: edge.label && !isLoop ? 8 : undefined,
+      markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: stroke },
+      style: { stroke, strokeWidth: emphasized ? 1.75 : 1.4 },
     }
   })
 }
