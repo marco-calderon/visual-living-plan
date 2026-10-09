@@ -282,17 +282,11 @@ function renderBlock(
 
 const THEME_BOOTSTRAP = `
 (() => {
-  const key = 'living-plan-theme';
-  let preference = 'system';
-  try {
-    const stored = localStorage.getItem(key);
-    if (stored === 'light' || stored === 'dark' || stored === 'system') preference = stored;
-  } catch {}
-  const resolved = preference === 'system'
-    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-    : preference;
-  document.documentElement.dataset.theme = resolved;
-  document.documentElement.dataset.themePreference = preference;
+  const apply = () => {
+    document.documentElement.dataset.theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  };
+  apply();
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', apply);
 })();
 `
 
@@ -484,19 +478,11 @@ body::before {
 
 .stack { display: grid; gap: 1rem; }
 
-.view-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin: 1.25rem 0 1rem;
-}
 .tabs {
   display: inline-flex;
   gap: 0.35rem;
   padding: 0.3rem;
-  margin: 0;
+  margin: 1.25rem 0 1rem;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--tabs-bg);
@@ -516,32 +502,7 @@ body::before {
   background: var(--tab-active-bg);
   color: var(--tab-active-fg);
 }
-.theme-switch {
-  display: inline-flex;
-  gap: 0.25rem;
-  padding: 0.3rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--tabs-bg);
-  backdrop-filter: blur(8px);
-}
-.theme-switch button {
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  border-radius: 999px;
-  padding: 0.45rem 0.8rem;
-  font: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-.theme-switch button[aria-pressed="true"] {
-  background: var(--tab-active-bg);
-  color: var(--tab-active-fg);
-}
 .tab-btn:focus-visible,
-.theme-switch button:focus-visible,
 .btn:focus-visible,
 .choice-option:focus-visible {
   outline: 2px solid var(--accent);
@@ -854,36 +815,6 @@ function clientScript(mode: 'watch' | 'review', executionActive: boolean): strin
     if (preferredButton instanceof HTMLElement) preferredButton.click();
   } catch {}
 
-  const themeKey = 'living-plan-theme';
-  function systemTheme() {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  }
-  function themePreference() {
-    const value = document.documentElement.dataset.themePreference;
-    return value === 'light' || value === 'dark' || value === 'system' ? value : 'system';
-  }
-  function paintTheme(preference) {
-    const resolved = preference === 'system' ? systemTheme() : preference;
-    document.documentElement.dataset.theme = resolved;
-    document.documentElement.dataset.themePreference = preference;
-    document.querySelectorAll('[data-theme-choice]').forEach((button) => {
-      const selected = button.getAttribute('data-theme-choice') === preference;
-      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
-    });
-  }
-  document.querySelectorAll('[data-theme-choice]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const choice = button.getAttribute('data-theme-choice');
-      if (choice !== 'light' && choice !== 'dark' && choice !== 'system') return;
-      paintTheme(choice);
-      try { localStorage.setItem(themeKey, choice); } catch {}
-    });
-  });
-  paintTheme(themePreference());
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    if (themePreference() === 'system') paintTheme('system');
-  });
-
   async function postJson(url, body) {
     const response = await fetch(url, {
       method: 'POST',
@@ -1103,16 +1034,9 @@ export function renderPlanPage(options: {
         ${changed ? `<span class="chip">Changed <strong>${changed}</strong></span>` : ''}
         ${reviewDecision ? `<span class="chip">Review <strong>${escapeHtml(reviewDecision)}</strong></span>` : ''}
       </div>
-      <div class="view-row">
-        <div class="tabs" role="tablist" aria-label="Living Plan views">
-          <button type="button" class="tab-btn" role="tab" data-tab-target="plan" aria-selected="true">Plan</button>
-          <button type="button" class="tab-btn" role="tab" data-tab-target="execution" aria-selected="false">Execution</button>
-        </div>
-        <div class="theme-switch" role="group" aria-label="Color theme">
-          <button type="button" data-theme-choice="light" aria-pressed="false">Light</button>
-          <button type="button" data-theme-choice="dark" aria-pressed="false">Dark</button>
-          <button type="button" data-theme-choice="system" aria-pressed="true">System</button>
-        </div>
+      <div class="tabs" role="tablist" aria-label="Living Plan views">
+        <button type="button" class="tab-btn" role="tab" data-tab-target="plan" aria-selected="true">Plan</button>
+        <button type="button" class="tab-btn" role="tab" data-tab-target="execution" aria-selected="false">Execution</button>
       </div>
     </header>
     <section class="tab-panel${locked ? ' plan-locked' : ''}" data-tab-panel="plan" role="tabpanel">
