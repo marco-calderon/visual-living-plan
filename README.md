@@ -23,10 +23,25 @@ The same server is what the npm scripts call (`npm run serve`, `npm run review`,
 
 ### Install the command
 
+From a clone:
+
 ```bash
 npm install -g .
 living-plan --help
-living-plan check examples/rate-limit.plan.md
+```
+
+Without cloning, and without publishing to the npm registry, install from GitHub. npm builds the command from the repository:
+
+```bash
+npm install -g github:marco-calderon/visual-living-plan
+living-plan --help
+living-plan check "$(npm root -g)/visual-living-plan/examples/rate-limit.plan.md"
+```
+
+One shot, without a global install:
+
+```bash
+npx --package github:marco-calderon/visual-living-plan living-plan serve ./my.plan.md --port 9410
 ```
 
 `check` prints the expected workflow (the `workflow` block, or phases and gates when that block is omitted). `serve` and `review` draw that diagram on the Workflow tab before a run starts. Pass `--no-open` when a browser should not launch.
