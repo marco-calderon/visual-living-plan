@@ -71,7 +71,7 @@ Visual builders optimize for humans drawing graphs. Living Plan optimizes for **
 
 ## Plan vocabulary
 
-See `examples/rate-limit.plan.md` and `skills/living-plan/SKILL.md`.
+See `examples/rate-limit.plan.md` and `skills/live-plan/primitives.md`.
 
 YAML fenced blocks:
 
@@ -102,9 +102,20 @@ To swap libraries later, add another adapter and change the active id. Keep agen
 - `POST /api/interactions/:id` — submit an interaction response (409 while execution is live)
 - `POST /api/review` — submit Approve / Deny / Iterate (review mode)
 
-## Agent skill
+## For agents
 
-Install or point your coding agent at `skills/living-plan/SKILL.md` so it authors and maintains living plans with the correct loop (`serve` / `wait` / `execution`).
+Agents should invoke the published CLI with npx, or `live-plan` when that command is installed. Do not use the `npm run` scripts above unless you are developing this repository.
+
+```bash
+npx --yes visual-living-plan serve path/to/work.plan.md --port 9410
+live-plan serve path/to/work.plan.md --port 9410
+```
+
+- Guideline: [`docs/agent-guidelines.md`](docs/agent-guidelines.md)
+- Skill (copy into `.cursor/skills/live-plan/` or `.claude/skills/live-plan/`): [`skills/live-plan/SKILL.md`](skills/live-plan/SKILL.md)
+- Primitive schemas: [`skills/live-plan/primitives.md`](skills/live-plan/primitives.md)
+
+`npm install -g visual-living-plan` installs the `live-plan` command (`living-plan` and `visual-living-plan` remain aliases).
 
 ## License
 
