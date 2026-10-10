@@ -117,7 +117,7 @@ To swap libraries later, add another adapter and change the active id. Keep agen
 
 ## Theme
 
-The page header offers accent presets and a custom color picker. The choice is saved to `live-plan.config.json` beside the plan file (see `examples/live-plan.config.json`). Agents can change it through the CLI:
+The page header offers **8 accent presets** (teal, cyan, sky, blue, violet, magenta, rose, amber) plus a custom color picker. Presets are chosen to stay readable on both light and dark surfaces. The choice is saved to `live-plan.config.json` beside the plan file (see `examples/live-plan.config.json`). Agents can change it through the CLI:
 
 ```bash
 live-plan theme get --plan examples/rate-limit.plan.md

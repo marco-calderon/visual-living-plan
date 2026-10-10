@@ -22,13 +22,16 @@ export type ThemeAccentVars = {
   nodeActiveRing: string
 }
 
+/** Eight accents tuned for contrast on light paper and dark stage surfaces. */
 const PRESETS = [
   { id: 'teal', label: 'Teal', accent: '#0f766e' },
-  { id: 'ocean', label: 'Ocean', accent: '#0369a1' },
-  { id: 'indigo', label: 'Indigo', accent: '#4338ca' },
+  { id: 'cyan', label: 'Cyan', accent: '#0e7490' },
+  { id: 'sky', label: 'Sky', accent: '#0369a1' },
+  { id: 'blue', label: 'Blue', accent: '#1d4ed8' },
+  { id: 'violet', label: 'Violet', accent: '#6d28d9' },
+  { id: 'magenta', label: 'Magenta', accent: '#a21caf' },
   { id: 'rose', label: 'Rose', accent: '#be123c' },
   { id: 'amber', label: 'Amber', accent: '#b45309' },
-  { id: 'forest', label: 'Forest', accent: '#166534' },
 ] as const
 
 export const ACCENT_PRESETS = PRESETS
@@ -139,12 +142,22 @@ function toHex({ r, g, b }: { r: number; g: number; b: number }): string {
   return `#${[r, g, b].map((n) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, '0')).join('')}`
 }
 
-/** Lighten a color for dark surfaces so the accent stays readable. */
+/** Lift dark accents toward a readable mid luminance on dark surfaces. */
 export function accentForMode(accent: string, mode: 'light' | 'dark'): string {
-  const rgb = hexToRgb(accent)
-  if (mode === 'light') return normalizeAccent(accent) ?? DEFAULT_ACCENT
-  if (relativeLuminance(rgb) > 0.45) return normalizeAccent(accent) ?? DEFAULT_ACCENT
-  return toHex(mix(rgb, { r: 255, g: 255, b: 255 }, 0.42))
+  const normalized = normalizeAccent(accent) ?? DEFAULT_ACCENT
+  const rgb = hexToRgb(normalized)
+  if (mode === 'light') return normalized
+  const luminance = relativeLuminance(rgb)
+  if (luminance >= 0.48) return normalized
+  // Aim near ~0.55 so accents stay vivid on dark paper without washing out.
+  let amount = 0.28
+  let lifted = rgb
+  for (let step = 0; step < 8; step += 1) {
+    lifted = mix(rgb, { r: 255, g: 255, b: 255 }, amount)
+    if (relativeLuminance(lifted) >= 0.52) break
+    amount += 0.06
+  }
+  return toHex(lifted)
 }
 
 export function deriveAccentVars(accent: string, mode: 'light' | 'dark'): ThemeAccentVars {
