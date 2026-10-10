@@ -115,14 +115,27 @@ Execution rendering goes through a small port/adapter layer:
 
 To swap libraries later, add another adapter and change the active id. Keep agent payloads on `graph` so the API stays stable.
 
+## Theme
+
+The **Settings** tab offers **8 accent presets** (teal, cyan, sky, blue, violet, magenta, rose, amber) plus a custom color picker. Presets are chosen to stay readable on both light and dark surfaces. The choice is saved to `live-plan.config.json` beside the plan file (see `examples/live-plan.config.json`). Agents can change it through the CLI:
+
+```bash
+live-plan theme get --plan examples/rate-limit.plan.md
+live-plan theme set --accent #0369a1 --plan examples/rate-limit.plan.md
+live-plan theme set --accent #0369a1 --url http://127.0.0.1:9410
+```
+
+`serve` / `review` accept `--config path/to/live-plan.config.json`. While the server is up, prefer `--url` so the UI updates live; the config file is also watched on disk.
+
 ## API
 
-- `GET /` — interactive HTML page (Plan + Workflow tabs)
-- `GET /api/plan` — plan metadata, responses, pending interaction ids, execution state, and `planned` workflow graph
+- `GET /` — interactive HTML page (Plan + Workflow + Settings tabs)
+- `GET /api/plan` — plan metadata, responses, pending interaction ids, execution state, `planned` workflow graph, and `theme`
 - `GET /api/execution` — current execution canvas state, including `planned` (the expected workflow from the plan) even while execution is idle
 - `PUT /api/execution` — set execution state (`active`, `step`, `detail`, `graph`, `scene`)
 - `POST /api/execution/start` / `POST /api/execution/stop` — convenience toggles
-- `GET /api/events` — SSE (`reload`, `interaction`, `review`, `execution`)
+- `GET /api/events` — SSE (`reload`, `interaction`, `review`, `execution`, `theme`)
+- `GET /api/theme` / `PUT /api/theme` — read or set accent color (`{ "accent": "#hex" }`), persisted to the theme config file
 - `POST /api/interactions/:id` — submit an interaction response (409 while execution is live)
 - `POST /api/review` — submit Approve / Deny / Iterate (review mode)
 

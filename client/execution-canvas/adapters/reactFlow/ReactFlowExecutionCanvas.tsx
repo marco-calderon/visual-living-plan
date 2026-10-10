@@ -31,23 +31,31 @@ const edgeTypes = {
   loop: LoopEdge,
 } satisfies EdgeTypes
 
-function useResolvedTheme(): 'light' | 'dark' {
-  const [theme, setTheme] = useState<'light' | 'dark'>(() =>
-    document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
-  )
+function useResolvedTheme(): { mode: 'light' | 'dark'; accent: string } {
+  const [state, setState] = useState(() => ({
+    mode: (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light') as 'light' | 'dark',
+    accent: document.documentElement.dataset.accent ?? '',
+  }))
 
   useEffect(() => {
     const root = document.documentElement
     const sync = () => {
-      setTheme(root.dataset.theme === 'dark' ? 'dark' : 'light')
+      setState({
+        mode: root.dataset.theme === 'dark' ? 'dark' : 'light',
+        accent: root.dataset.accent ?? '',
+      })
     }
     sync()
     const observer = new MutationObserver(sync)
-    observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] })
-    return () => observer.disconnect()
+    observer.observe(root, { attributes: true, attributeFilter: ['data-theme', 'data-accent'] })
+    window.addEventListener('living-plan-theme', sync)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('living-plan-theme', sync)
+    }
   }, [])
 
-  return theme
+  return state
 }
 
 function cssVar(name: string, fallback: string): string {
@@ -116,9 +124,9 @@ function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: Execu
   const theme = useResolvedTheme()
   const edgeColors = useMemo<EdgeColors>(
     () => ({
-      accent: cssVar('--accent', theme === 'dark' ? '#2dd4bf' : '#0f766e'),
-      muted: cssVar('--muted', theme === 'dark' ? '#b7c7c0' : '#5b6b63'),
-      labelBg: cssVar('--stage-bg', theme === 'dark' ? '#0e1614' : '#f7faf8'),
+      accent: cssVar('--accent', theme.mode === 'dark' ? '#2dd4bf' : '#0f766e'),
+      muted: cssVar('--muted', theme.mode === 'dark' ? '#b7c7c0' : '#5b6b63'),
+      labelBg: cssVar('--stage-bg', theme.mode === 'dark' ? '#0e1614' : '#f7faf8'),
     }),
     [theme],
   )
@@ -128,8 +136,8 @@ function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: Execu
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
   const canvasColors = useMemo(
     () => ({
-      dot: cssVar('--dot', theme === 'dark' ? 'rgba(232, 243, 238, 0.14)' : 'rgba(20, 32, 27, 0.12)'),
-      idle: cssVar('--minimap-idle', theme === 'dark' ? '#64748b' : '#94a3b8'),
+      dot: cssVar('--dot', theme.mode === 'dark' ? 'rgba(232, 243, 238, 0.14)' : 'rgba(20, 32, 27, 0.12)'),
+      idle: cssVar('--minimap-idle', theme.mode === 'dark' ? '#64748b' : '#94a3b8'),
     }),
     [theme],
   )
@@ -190,7 +198,7 @@ function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: Execu
       zoomOnScroll
       minZoom={0.2}
       maxZoom={1.5}
-      colorMode={theme}
+      colorMode={theme.mode}
       fitView
       proOptions={{ hideAttribution: true }}
     >
@@ -200,13 +208,13 @@ function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: Execu
         pannable
         zoomable
         style={{ width: 112, height: 74 }}
-        maskColor={theme === 'dark' ? 'rgba(8, 14, 12, 0.55)' : 'rgba(247, 250, 248, 0.65)'}
+        maskColor={theme.mode === 'dark' ? 'rgba(8, 14, 12, 0.55)' : 'rgba(247, 250, 248, 0.65)'}
         nodeColor={(node) => {
           const status = (node.data as { status?: string } | undefined)?.status
-          if (status === 'done') return theme === 'dark' ? '#4ade80' : '#166534'
-          if (status === 'active') return theme === 'dark' ? '#2dd4bf' : '#0f766e'
-          if (status === 'failed') return theme === 'dark' ? '#f87171' : '#b42318'
-          if (status === 'blocked') return theme === 'dark' ? '#fbbf24' : '#b45309'
+          if (status === 'done') return theme.mode === 'dark' ? '#4ade80' : '#166534'
+          if (status === 'active') return edgeColors.accent
+          if (status === 'failed') return theme.mode === 'dark' ? '#f87171' : '#b42318'
+          if (status === 'blocked') return theme.mode === 'dark' ? '#fbbf24' : '#b45309'
           return canvasColors.idle
         }}
       />
