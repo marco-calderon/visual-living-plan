@@ -16,6 +16,8 @@ live-plan <command> [args]
 
 Copy [`skills/live-plan/`](../skills/live-plan/SKILL.md) into your agent's skills directory (`.cursor/skills/live-plan/` or `.claude/skills/live-plan/`) so the loop and primitives load automatically. Schemas live in [`skills/live-plan/primitives.md`](../skills/live-plan/primitives.md).
 
+Changing this repository: start with [`docs/context.md`](context.md) and [`docs/architecture`](architecture/README.md).
+
 ## When to use it
 
 - The work has several steps and the human should see which step is active.
@@ -60,7 +62,7 @@ Swap the `npx --yes visual-living-plan` prefix for `live-plan` when that command
 | `events --url <url>` | Print each `hello`, `interaction`, and `review` event until the process is stopped. | `0` |
 | `close --url <url>` | Drop that plan from the service. | `0` closed, `1` usage |
 | `execution start\|push\|stop --url <url>` | Drive the live workflow overlay. `start` turns it on, `push` updates it, `stop` turns it off and unlocks plan forms. | `0` ok, `1` usage or HTTP error |
-| `processes` | List serve/review processes registered with the shared registry, including directory and git status. `ps` is the same command. | `0` |
+| `processes` | List plans hosted by the service, including directory and git status. `ps` is the same command. | `0` |
 | `theme get\|set` | Read or write the accent color. Prefer `--url` while `serve`/`review` is up; otherwise `--config` / `--plan` writes `live-plan.config.json`. | `0` ok, `1` usage or HTTP error |
 
 Flags:

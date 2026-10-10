@@ -10,6 +10,8 @@ The agent owns a `.plan.md` file. Humans open a browser URL to:
 
 Works for local agents (file + localhost URL) and is shaped so a cloud agent can host the same server and share the URL.
 
+Architecture and the decisions behind it: [docs/architecture](docs/architecture/README.md). Context for working in this repo: [docs/context.md](docs/context.md).
+
 ## Quick start
 
 ```bash
