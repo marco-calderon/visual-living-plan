@@ -1,5 +1,6 @@
 import type { ExecutionState } from './execution.js'
 import { blockAnchorId } from './parse.js'
+import { PROCESSES_PANEL_STYLES, processesPanelMarkup, processesPanelScript } from './processesPanel.js'
 import type {
   InteractionResponse,
   PlanBlock,
@@ -842,7 +843,7 @@ textarea { min-height: 88px; resize: vertical; }
 .toast {
   position: fixed;
   top: 1rem;
-  right: 1rem;
+  left: 1rem;
   background: var(--toast-bg);
   color: var(--toast-fg);
   padding: 0.7rem 0.9rem;
@@ -1159,10 +1160,11 @@ export function renderPlanPage(options: {
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <style>${STYLES}</style>
+  <style>${STYLES}${PROCESSES_PANEL_STYLES}</style>
   ${assetCss}
 </head>
 <body>
+  ${processesPanelMarkup()}
   <div class="shell">
     <header class="hero">
       <p class="chip" style="width:fit-content;margin:0 0 0.9rem"><span class="live-dot"></span> Living Plan</p>
@@ -1211,7 +1213,8 @@ export function renderPlanPage(options: {
       : ''
   }
   <div id="toast" class="toast" role="status"></div>
-  <script>${clientScript(mode, locked)}</script>
+  <script>${clientScript(mode, locked)}
+${processesPanelScript()}</script>
 </body>
 </html>`
 }

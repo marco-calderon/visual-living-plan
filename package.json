@@ -33,7 +33,9 @@
     "wait": "tsx src/cli.ts wait",
     "execution": "tsx src/cli.ts execution",
     "check": "tsx src/cli.ts check",
-    "typecheck": "tsc --noEmit"
+    "processes": "tsx src/cli.ts processes",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts"
   },
   "engines": {
     "node": ">=20"
