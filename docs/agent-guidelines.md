@@ -56,6 +56,7 @@ Swap the `npx --yes visual-living-plan` prefix for `live-plan` when that command
 | `review <file>` | Same UI plus Approve / Deny / Iterate. Blocks until a decision. | `0` approve, `1` deny, `2` iterate, `3` timeout |
 | `wait <id> --url <url>` | Block until that interaction id has a response. Prints the response JSON. | `0` answered, `1` missing `--url`, `3` timeout |
 | `execution start\|push\|stop --url <url>` | Drive the live workflow overlay. `start` turns it on, `push` updates it, `stop` turns it off and unlocks plan forms. | `0` ok, `1` usage or HTTP error |
+| `processes` | List serve/review processes registered with the shared registry, including directory and git status. `ps` is the same command. | `0` |
 | `theme get\|set` | Read or write the accent color. Prefer `--url` while `serve`/`review` is up; otherwise `--config` / `--plan` writes `live-plan.config.json`. | `0` ok, `1` usage or HTTP error |
 
 Flags:
@@ -66,6 +67,8 @@ Flags:
 - `--iteration N` labels a review round (default `1`). Bump it when you re-open review after Iterate.
 - `--out <file>` writes the review JSON as well as printing it.
 - `--no-open` skips launching a browser. Use it only for headless or CI runs. A person should get the page opened.
+- `--no-registry` skips the shared process registry. By default `serve` and `review` register themselves so every planner page can list running plans.
+- `--registry-port` sets the registry port (default `9477`, loopback only).
 - `--graph <file.json>` is the portable execution graph. `--scene <file.json>` is optional adapter-specific extras. Prefer `graph`.
 - `--step` and `--detail` are the current execution headline.
 - `--config <file>` points at the theme config (default `live-plan.config.json` beside the plan). `--accent #hex` sets the accent for `theme set`.
@@ -162,6 +165,7 @@ The server URL from `serve` or `review` exposes:
 - `POST /api/review` — `{ "decision": "approve" \| "deny" \| "iterate", "note"?: "..." }` (review mode only; 409 while execution is active)
 - `GET /api/execution` and `PUT /api/execution` — read or replace execution state. `GET` includes `planned` (the expected workflow) even while execution is idle
 - `POST /api/execution/start` and `POST /api/execution/stop` — convenience toggles
+- `GET /api/processes` — other plans started through the CLI, with directory and git status. Each `url` opens that plan's site.
 - `GET /api/theme` and `PUT /api/theme` — read or set `{ "accent": "#hex" }` (persists to the theme config file)
 
 Prefer the CLI. Use HTTP only to inspect state or when another process must submit on the human's behalf.

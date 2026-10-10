@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadClientAssets } from './assets.js'
 import { parsePlan } from './parse.js'
-import { startLivingPlanServer } from './server.js'
+import { startLivingPlanServer, type LivingPlanServer } from './server.js'
 import type { ExecutionGraph, ExecutionState } from './execution.js'
 import {
   configPathBesidePlan,
@@ -17,6 +18,16 @@ import {
   themePayload,
 } from './theme.js'
 import { planToExpectedGraph } from './workflow.js'
+import {
+  defaultRegistryHome,
+  ensureRegistry,
+  listProcesses,
+  readRegistryLock,
+  registryHealthy,
+  watchRegisteredPlan,
+} from './registryClient.js'
+import { isPidAlive } from './pid.js'
+import { DEFAULT_REGISTRY_HOST, DEFAULT_REGISTRY_PORT } from './registryConstants.js'
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -34,6 +45,8 @@ Usage:
   live-plan theme set --accent #hex [--url <server-url>] [--config file] [--plan file.plan.md]
   live-plan check <file.plan.md>
   live-plan dump <file.plan.md>
+  live-plan processes
+  live-plan registry [--port N] [--host HOST]
 
 Invoke with \`npx --yes visual-living-plan <command>\` when the \`live-plan\` command is not installed. \`living-plan\` is the same binary.
 
@@ -44,10 +57,14 @@ Modes:
   execution   Start/push/stop the live workflow canvas (locks plan forms while active).
   theme       Read or write the accent color in live-plan.config.json (or via a running server).
   check       Print plan summary, including the expected workflow nodes.
+  processes   List plans currently registered by serve and review. \`ps\` is the same command.
+  registry    Run the shared registry in the foreground. serve and review start it on their own.
 
 The Workflow tab is filled from a \`workflow\` block, or from phases and gates when that block is omitted.
 Accent color is saved in live-plan.config.json beside the plan (override with --config).
 --no-open skips launching a browser.
+--no-registry skips registering this serve or review process.
+--registry-port and --registry-host choose the shared registry (default ${DEFAULT_REGISTRY_HOST}:${DEFAULT_REGISTRY_PORT}).
 `)
 }
 
@@ -156,21 +173,102 @@ async function cmdDump(file: string): Promise<number> {
   return 0
 }
 
+type PlanTracker = {
+  registryUrl: string
+  stop: () => Promise<void>
+}
+
+async function openRegistry(args: string[]): Promise<{ url: string; token: string } | null> {
+  if (hasFlag(args, '--no-registry')) return null
+  const portFlag = getFlag(args, '--registry-port')
+  const port = portFlag ? Number(portFlag) : undefined
+  const host = getFlag(args, '--registry-host')
+  try {
+    return await ensureRegistry({
+      entryFile: fileURLToPath(import.meta.url),
+      port: port !== undefined && Number.isFinite(port) ? port : undefined,
+      host,
+    })
+  } catch (error) {
+    console.error(`Registry unavailable: ${error instanceof Error ? error.message : error}`)
+    return null
+  }
+}
+
+async function trackPlan(
+  server: LivingPlanServer,
+  registry: { url: string; token: string },
+  selfId: string,
+  plan: {
+    mode: 'watch' | 'review'
+    planPath: string
+    host: string
+  },
+): Promise<PlanTracker | null> {
+  const state = server.getState()
+  try {
+    const session = await watchRegisteredPlan({
+      registryUrl: registry.url,
+      token: registry.token,
+      record: {
+        id: selfId,
+        pid: process.pid,
+        title: state.plan.title,
+        summary: state.plan.summary,
+        agent: state.plan.agent,
+        mode: plan.mode,
+        planPath: plan.planPath,
+        directory: dirname(plan.planPath),
+        cwd: process.cwd(),
+        url: server.url,
+        host: plan.host,
+        port: server.port,
+        pendingCount: state.pendingInteractionIds.length,
+        executionActive: Boolean(state.execution.active),
+        executionStep: state.execution.step ?? null,
+      },
+      describe: () => {
+        const current = server.getState()
+        return {
+          title: current.plan.title,
+          summary: current.plan.summary ?? null,
+          agent: current.plan.agent ?? null,
+          pendingCount: current.pendingInteractionIds.length,
+          executionActive: Boolean(current.execution.active),
+          executionStep: current.execution.step ?? null,
+        }
+      },
+    })
+    return { registryUrl: registry.url, stop: session.stop }
+  } catch (error) {
+    console.error(`Registry unavailable: ${error instanceof Error ? error.message : error}`)
+    return null
+  }
+}
+
 async function cmdServe(file: string, args: string[]): Promise<number> {
   await ensureClientBuild()
   const port = Number(getFlag(args, '--port') ?? 0)
   const host = getFlag(args, '--host') ?? '127.0.0.1'
+  const planPath = resolve(file)
+  const registry = await openRegistry(args)
+  const selfId = randomUUID()
   const configPath = getFlag(args, '--config')
   const server = await startLivingPlanServer({
-    planPath: file,
+    planPath,
     mode: 'watch',
     port: Number.isFinite(port) ? port : 0,
     host,
+    registry: registry ? { url: registry.url, selfId } : undefined,
     configPath,
   })
+  const tracker = registry
+    ? await trackPlan(server, registry, selfId, { mode: 'watch', planPath, host })
+    : null
 
   console.log(`Living Plan (watch): ${server.url}`)
-  console.log(`Plan file: ${resolve(file)}`)
+  console.log(`Plan file: ${planPath}`)
+  if (tracker) console.log(`Registry: ${tracker.registryUrl}`)
   console.log(`Theme config: ${server.getState().theme.configPath}`)
   console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent).')
   await openBrowser(server.url)
@@ -179,6 +277,7 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
     process.on('SIGINT', () => resolveWait())
     process.on('SIGTERM', () => resolveWait())
   })
+  await tracker?.stop()
   await server.close()
   return 0
 }
@@ -189,19 +288,27 @@ async function cmdReview(file: string, args: string[]): Promise<number> {
   const host = getFlag(args, '--host') ?? '127.0.0.1'
   const iteration = Number(getFlag(args, '--iteration') ?? 1)
   const timeoutMs = parseTimeout(getFlag(args, '--timeout'), 4 * 60 * 60 * 1000)
+  const planPath = resolve(file)
+  const registry = await openRegistry(args)
+  const selfId = randomUUID()
   const configPath = getFlag(args, '--config')
 
   const server = await startLivingPlanServer({
-    planPath: file,
+    planPath,
     mode: 'review',
     port: Number.isFinite(port) ? port : 0,
     host,
     iteration: Number.isFinite(iteration) ? iteration : 1,
+    registry: registry ? { url: registry.url, selfId } : undefined,
     configPath,
   })
+  const tracker = registry
+    ? await trackPlan(server, registry, selfId, { mode: 'review', planPath, host })
+    : null
 
   console.log(`Living Plan (review): ${server.url}`)
-  console.log(`Plan file: ${resolve(file)}`)
+  console.log(`Plan file: ${planPath}`)
+  if (tracker) console.log(`Registry: ${tracker.registryUrl}`)
   console.log(`Theme config: ${server.getState().theme.configPath}`)
   await openBrowser(server.url)
 
@@ -215,11 +322,13 @@ async function cmdReview(file: string, args: string[]): Promise<number> {
       await writeFile(absolute, `${payload}\n`, 'utf8')
     }
     console.log(payload)
+    await tracker?.stop()
     await server.close()
     if (review.decision === 'approve') return 0
     if (review.decision === 'deny') return 1
     return 2
   } catch (error) {
+    await tracker?.stop()
     await server.close()
     console.error(error instanceof Error ? error.message : error)
     return 3
@@ -314,6 +423,55 @@ async function cmdExecution(args: string[]): Promise<number> {
 
   console.error('Usage: live-plan execution <start|push|stop> --url <server-url>')
   return 1
+}
+
+async function cmdProcesses(): Promise<number> {
+  const home = defaultRegistryHome()
+  const lock = await readRegistryLock(home)
+  if (!lock || !isPidAlive(lock.pid) || !(await registryHealthy(lock.url))) {
+    console.log('No living-plan registry is running.')
+    return 0
+  }
+  const processes = await listProcesses(lock.url)
+  const noun = processes.length === 1 ? 'plan' : 'plans'
+  console.log(`${processes.length} running ${noun} · ${lock.url}`)
+  for (const entry of processes) {
+    console.log('')
+    console.log(entry.title)
+    console.log(`  ${entry.mode}  ${entry.url}`)
+    console.log(`  ${entry.directory}`)
+    console.log(`  ${entry.git.summary}`)
+    if (entry.executionActive) {
+      console.log(`  executing: ${entry.executionStep ?? 'live'}`)
+    }
+  }
+  return 0
+}
+
+async function cmdRegistry(args: string[]): Promise<number> {
+  const { startRegistryServer } = await import('./registryService.js')
+  const home = process.env.LIVE_PLAN_HOME ?? defaultRegistryHome()
+  const portFlag = getFlag(args, '--port')
+  const port = portFlag ? Number(portFlag) : DEFAULT_REGISTRY_PORT
+  const host = getFlag(args, '--host') ?? DEFAULT_REGISTRY_HOST
+  const existing = await readRegistryLock(home)
+  if (existing && isPidAlive(existing.pid) && (await registryHealthy(existing.url))) {
+    console.log(`Living Plan registry already running: ${existing.url}`)
+    return 0
+  }
+  const server = await startRegistryServer({
+    home,
+    host,
+    port: Number.isFinite(port) ? port : DEFAULT_REGISTRY_PORT,
+  })
+  console.log(`Living Plan registry: ${server.url}`)
+  await new Promise<void>((resolveWait) => {
+    const stop = () => resolveWait()
+    process.once('SIGINT', stop)
+    process.once('SIGTERM', stop)
+  })
+  await server.close()
+  return 0
 }
 
 function resolveThemeConfigPath(args: string[]): string {
@@ -435,6 +593,14 @@ async function main(): Promise<number> {
 
   if (command === 'execution') {
     return cmdExecution(args.slice(1))
+  }
+
+  if (command === 'processes' || command === 'ps') {
+    return cmdProcesses()
+  }
+
+  if (command === 'registry') {
+    return cmdRegistry(args.slice(1))
   }
 
   if (command === 'theme') {

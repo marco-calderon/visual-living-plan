@@ -21,6 +21,17 @@ Open `http://127.0.0.1:9410`. Edit the example file, change a phase `status`, an
 
 The same server is what the other npm scripts call (`npm run review`, `npm run wait`, `npm run execution`, `npm run check`).
 
+### Running plans
+
+`serve` and `review` register the process with a small shared registry on `127.0.0.1:9477`. The registry keeps the list in SQLite (`~/.visual-living-plan/registry.sqlite`) and outlives any single plan. Every planner page has a **Plans** button that lists those processes: directory, git branch and dirty state, and a link that opens that plan's site. The registry home page is the same list.
+
+```bash
+npm run processes
+live-plan processes
+```
+
+`--no-registry` skips registration. `--registry-port` changes the port. `live-plan registry` runs the registry in the foreground; `serve` and `review` start it on their own when it is not already up.
+
 ### Install the command
 
 This is the same kind of install as [Visual Plan](https://visualplan.dev/)'s `npm i -g vplan`. The package name on the registry is `visual-living-plan`. Publishing runs `prepack`, which compiles `dist/cli.js` into the tarball. `npm i -g` downloads that tarball and links the `live-plan`, `living-plan`, and `visual-living-plan` commands onto your PATH. It does not clone the repo and does not compile anything on your machine.
@@ -135,6 +146,7 @@ live-plan theme set --accent #0369a1 --url http://127.0.0.1:9410
 - `PUT /api/execution` — set execution state (`active`, `step`, `detail`, `graph`, `scene`)
 - `POST /api/execution/start` / `POST /api/execution/stop` — convenience toggles
 - `GET /api/events` — SSE (`reload`, `interaction`, `review`, `execution`, `theme`)
+- `GET /api/processes` — plans registered with the shared registry (directory, git status, site URL). `status` is `ok`, `offline`, or `disabled`
 - `GET /api/theme` / `PUT /api/theme` — read or set accent color (`{ "accent": "#hex" }`), persisted to the theme config file
 - `POST /api/interactions/:id` — submit an interaction response (409 while execution is live)
 - `POST /api/review` — submit Approve / Deny / Iterate (review mode)

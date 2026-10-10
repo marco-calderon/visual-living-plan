@@ -108,6 +108,11 @@ export async function startLivingPlanServer(options: {
   port?: number
   iteration?: number
   host?: string
+  /** Shared registry this page proxies so the plans panel stays same-origin. */
+  registry?: {
+    url: string
+    selfId: string
+  }
   configPath?: string
 }): Promise<LivingPlanServer> {
   const planPath = resolve(options.planPath)
@@ -406,6 +411,11 @@ export async function startLivingPlanServer(options: {
         return
       }
 
+      if (req.method === 'GET' && url.pathname === '/api/processes') {
+        await sendProcessList(res)
+        return
+      }
+
       if (req.method === 'POST' && url.pathname === '/api/review') {
         if (mode !== 'review') {
           sendJson(res, 400, { error: 'Server is not in review mode' })
@@ -436,6 +446,46 @@ export async function startLivingPlanServer(options: {
       })
     }
   })
+
+  async function sendProcessList(res: ServerResponse): Promise<void> {
+    if (!options.registry) {
+      sendJson(res, 200, {
+        status: 'disabled',
+        selfId: null,
+        registryUrl: null,
+        processes: [],
+      })
+      return
+    }
+    try {
+      const response = await fetch(new URL('/api/processes', options.registry.url), {
+        signal: AbortSignal.timeout(1_500),
+      })
+      if (!response.ok) {
+        sendJson(res, 200, {
+          status: 'offline',
+          selfId: options.registry.selfId,
+          registryUrl: options.registry.url,
+          processes: [],
+        })
+        return
+      }
+      const payload = (await response.json()) as { processes?: unknown }
+      sendJson(res, 200, {
+        status: 'ok',
+        selfId: options.registry.selfId,
+        registryUrl: options.registry.url,
+        processes: Array.isArray(payload.processes) ? payload.processes : [],
+      })
+    } catch {
+      sendJson(res, 200, {
+        status: 'offline',
+        selfId: options.registry.selfId,
+        registryUrl: options.registry.url,
+        processes: [],
+      })
+    }
+  }
 
   const watcher = watch(planPath, { persistent: true }, () => {
     void reloadFromDisk().catch((error) => {
@@ -484,6 +534,7 @@ export async function startLivingPlanServer(options: {
         client.res.end()
       }
       sseClients.clear()
+      server.closeAllConnections()
       await new Promise<void>((resolveClose, reject) => {
         server.close((error) => (error ? reject(error) : resolveClose()))
       })
