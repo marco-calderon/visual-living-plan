@@ -8,6 +8,15 @@ import { loadClientAssets } from './assets.js'
 import { parsePlan } from './parse.js'
 import { startLivingPlanServer, type LivingPlanServer } from './server.js'
 import type { ExecutionGraph, ExecutionState } from './execution.js'
+import {
+  configPathBesidePlan,
+  DEFAULT_ACCENT,
+  DEFAULT_CONFIG_FILENAME,
+  loadThemeConfig,
+  normalizeAccent,
+  saveThemeConfig,
+  themePayload,
+} from './theme.js'
 import { planToExpectedGraph } from './workflow.js'
 import {
   defaultRegistryHome,
@@ -26,12 +35,14 @@ function printHelp(): void {
   console.log(`live-plan — agent-authored plans humans can interact with
 
 Usage:
-  live-plan serve <file.plan.md> [--port N] [--host HOST] [--no-open]
-  live-plan review <file.plan.md> [--port N] [--iteration N] [--timeout 30m] [--no-open]
+  live-plan serve <file.plan.md> [--port N] [--host HOST] [--config file] [--no-open]
+  live-plan review <file.plan.md> [--port N] [--iteration N] [--timeout 30m] [--config file] [--no-open]
   live-plan wait <id> --url <server-url> [--timeout 30m]
   live-plan execution start --url <server-url> [--step TEXT] [--detail TEXT] [--graph file.json]
   live-plan execution push --url <server-url> [--step TEXT] [--detail TEXT] [--graph file.json] [--scene file.json]
   live-plan execution stop --url <server-url>
+  live-plan theme get [--url <server-url>] [--config file] [--plan file.plan.md]
+  live-plan theme set --accent #hex [--url <server-url>] [--config file] [--plan file.plan.md]
   live-plan check <file.plan.md>
   live-plan dump <file.plan.md>
   live-plan processes
@@ -44,11 +55,13 @@ Modes:
   review      Same UI plus Approve / Deny / Iterate bar.
   wait        Block until one interaction id is answered.
   execution   Start/push/stop the live workflow canvas (locks plan forms while active).
+  theme       Read or write the accent color in live-plan.config.json (or via a running server).
   check       Print plan summary, including the expected workflow nodes.
   processes   List plans currently registered by serve and review. \`ps\` is the same command.
   registry    Run the shared registry in the foreground. serve and review start it on their own.
 
 The Workflow tab is filled from a \`workflow\` block, or from phases and gates when that block is omitted.
+Accent color is saved in live-plan.config.json beside the plan (override with --config).
 --no-open skips launching a browser.
 --no-registry skips registering this serve or review process.
 --registry-port and --registry-host choose the shared registry (default ${DEFAULT_REGISTRY_HOST}:${DEFAULT_REGISTRY_PORT}).
@@ -240,12 +253,14 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
   const planPath = resolve(file)
   const registry = await openRegistry(args)
   const selfId = randomUUID()
+  const configPath = getFlag(args, '--config')
   const server = await startLivingPlanServer({
     planPath,
     mode: 'watch',
     port: Number.isFinite(port) ? port : 0,
     host,
     registry: registry ? { url: registry.url, selfId } : undefined,
+    configPath,
   })
   const tracker = registry
     ? await trackPlan(server, registry, selfId, { mode: 'watch', planPath, host })
@@ -254,7 +269,8 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
   console.log(`Living Plan (watch): ${server.url}`)
   console.log(`Plan file: ${planPath}`)
   if (tracker) console.log(`Registry: ${tracker.registryUrl}`)
-  console.log('Tabs: Plan (status/forms) and Workflow (expected plan, then live React Flow canvas).')
+  console.log(`Theme config: ${server.getState().theme.configPath}`)
+  console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent).')
   await openBrowser(server.url)
 
   await new Promise<void>((resolveWait) => {
@@ -275,6 +291,7 @@ async function cmdReview(file: string, args: string[]): Promise<number> {
   const planPath = resolve(file)
   const registry = await openRegistry(args)
   const selfId = randomUUID()
+  const configPath = getFlag(args, '--config')
 
   const server = await startLivingPlanServer({
     planPath,
@@ -283,6 +300,7 @@ async function cmdReview(file: string, args: string[]): Promise<number> {
     host,
     iteration: Number.isFinite(iteration) ? iteration : 1,
     registry: registry ? { url: registry.url, selfId } : undefined,
+    configPath,
   })
   const tracker = registry
     ? await trackPlan(server, registry, selfId, { mode: 'review', planPath, host })
@@ -291,6 +309,7 @@ async function cmdReview(file: string, args: string[]): Promise<number> {
   console.log(`Living Plan (review): ${server.url}`)
   console.log(`Plan file: ${planPath}`)
   if (tracker) console.log(`Registry: ${tracker.registryUrl}`)
+  console.log(`Theme config: ${server.getState().theme.configPath}`)
   await openBrowser(server.url)
 
   try {
@@ -455,6 +474,69 @@ async function cmdRegistry(args: string[]): Promise<number> {
   return 0
 }
 
+function resolveThemeConfigPath(args: string[]): string {
+  const explicit = getFlag(args, '--config')
+  if (explicit) return resolve(explicit)
+  const plan = getFlag(args, '--plan')
+  if (plan) return configPathBesidePlan(plan)
+  return resolve(DEFAULT_CONFIG_FILENAME)
+}
+
+async function cmdTheme(args: string[]): Promise<number> {
+  const action = args[0]
+  const rest = args.slice(1)
+  const url = getFlag(rest, '--url')
+
+  if (action === 'get') {
+    if (url) {
+      const response = await fetch(new URL('/api/theme', url))
+      if (!response.ok) {
+        console.error(await response.text())
+        return 1
+      }
+      console.log(JSON.stringify(await response.json(), null, 2))
+      return 0
+    }
+    const configPath = resolveThemeConfigPath(rest)
+    const config = await loadThemeConfig(configPath)
+    console.log(JSON.stringify(themePayload(config, configPath), null, 2))
+    return 0
+  }
+
+  if (action === 'set') {
+    const accentRaw = getFlag(rest, '--accent') ?? rest.find((arg) => arg.startsWith('#'))
+    const accent = normalizeAccent(accentRaw)
+    if (!accent) {
+      console.error(
+        `Usage: live-plan theme set --accent ${DEFAULT_ACCENT} [--url <server-url>] [--config file] [--plan file.plan.md]`,
+      )
+      return 1
+    }
+
+    if (url) {
+      const response = await fetch(new URL('/api/theme', url), {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ accent }),
+      })
+      if (!response.ok) {
+        console.error(await response.text())
+        return 1
+      }
+      console.log(JSON.stringify(await response.json(), null, 2))
+      return 0
+    }
+
+    const configPath = resolveThemeConfigPath(rest)
+    const saved = await saveThemeConfig(configPath, { accent })
+    console.log(JSON.stringify(themePayload(saved, configPath), null, 2))
+    return 0
+  }
+
+  console.error('Usage: live-plan theme <get|set> [--accent #hex] [--url <server-url>] [--config file]')
+  return 1
+}
+
 async function main(): Promise<number> {
   const args = process.argv.slice(2)
   const command = args[0]
@@ -519,6 +601,10 @@ async function main(): Promise<number> {
 
   if (command === 'registry') {
     return cmdRegistry(args.slice(1))
+  }
+
+  if (command === 'theme') {
+    return cmdTheme(args.slice(1))
   }
 
   console.error(`Unknown command: ${command}`)

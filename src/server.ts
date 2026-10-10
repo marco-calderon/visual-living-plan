@@ -1,12 +1,20 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { watch } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
-import { extname, join, normalize, resolve } from 'node:path'
+import { basename, dirname, extname, join, normalize, resolve } from 'node:path'
 import { clientDistDir, loadClientAssets } from './assets.js'
 import { diffSections } from './diff.js'
 import { createIdleExecutionState, type ExecutionState } from './execution.js'
 import { collectSectionSources, parsePlan } from './parse.js'
 import { renderPlanPage } from './render.js'
+import {
+  configPathBesidePlan,
+  loadThemeConfig,
+  normalizeAccent,
+  saveThemeConfig,
+  themePayload,
+  type ThemeConfig,
+} from './theme.js'
 import { planToExpectedGraph, withPlannedWorkflow } from './workflow.js'
 import type {
   InteractionResponse,
@@ -49,6 +57,7 @@ export type LivingPlanServer = {
     pendingInteractionIds: string[]
     review?: ReviewResult
     execution: ExecutionState
+    theme: ReturnType<typeof themePayload>
   }
 }
 
@@ -104,11 +113,13 @@ export async function startLivingPlanServer(options: {
     url: string
     selfId: string
   }
+  configPath?: string
 }): Promise<LivingPlanServer> {
   const planPath = resolve(options.planPath)
   const mode = options.mode
   const host = options.host ?? '127.0.0.1'
   const iteration = options.iteration ?? 1
+  const themeConfigPath = resolve(options.configPath ?? configPathBesidePlan(planPath))
   const clientAssets = await loadClientAssets()
   const staticRoot = clientDistDir()
 
@@ -119,6 +130,7 @@ export async function startLivingPlanServer(options: {
     index,
     status: 'unchanged',
   }))
+  let theme = await loadThemeConfig(themeConfigPath)
 
   const responses: Record<string, InteractionResponse> = {}
   const waiters = new Map<string, Waiter[]>()
@@ -130,6 +142,27 @@ export async function startLivingPlanServer(options: {
     reject: (error: Error) => void
     timer?: NodeJS.Timeout
   }> = []
+
+  function currentTheme() {
+    return themePayload(theme, themeConfigPath)
+  }
+
+  async function applyTheme(next: ThemeConfig, persist: boolean): Promise<ReturnType<typeof themePayload>> {
+    theme = next
+    if (persist) {
+      theme = await saveThemeConfig(themeConfigPath, next)
+    }
+    const payload = currentTheme()
+    broadcast('theme', payload)
+    return payload
+  }
+
+  async function reloadThemeFromDisk(): Promise<void> {
+    const next = await loadThemeConfig(themeConfigPath)
+    if (next.accent === theme.accent) return
+    theme = next
+    broadcast('theme', currentTheme())
+  }
 
   function pendingInteractionIds(): string[] {
     return plan.interactionIds.filter((id) => !responses[id])
@@ -234,6 +267,7 @@ export async function startLivingPlanServer(options: {
             reviewDecision: reviewResult?.decision,
             execution,
             clientAssets,
+            theme: currentTheme(),
           }),
         )
         return
@@ -256,7 +290,26 @@ export async function startLivingPlanServer(options: {
           diffs,
           execution: executionView(),
           planned: planToExpectedGraph(plan) ?? null,
+          theme: currentTheme(),
         })
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/api/theme') {
+        sendJson(res, 200, currentTheme())
+        return
+      }
+
+      if (req.method === 'PUT' && url.pathname === '/api/theme') {
+        const raw = await readBody(req)
+        const payload = JSON.parse(raw) as { accent?: string }
+        const accent = normalizeAccent(payload.accent)
+        if (!accent) {
+          sendJson(res, 400, { error: 'Invalid accent color. Use a hex value like #0f766e.' })
+          return
+        }
+        const view = await applyTheme({ accent }, true)
+        sendJson(res, 200, { ok: true, theme: view })
         return
       }
 
@@ -326,6 +379,7 @@ export async function startLivingPlanServer(options: {
           mode,
           pendingInteractionIds: pendingInteractionIds(),
           execution: executionView(),
+          theme: currentTheme(),
         })
         req.on('close', () => {
           sseClients.delete(client)
@@ -441,6 +495,21 @@ export async function startLivingPlanServer(options: {
     })
   })
 
+  const themeConfigBase = basename(themeConfigPath)
+  let themeWatcher: ReturnType<typeof watch> | undefined
+  try {
+    themeWatcher = watch(dirname(themeConfigPath), { persistent: true }, (_event, filename) => {
+      if (filename && filename !== themeConfigBase) return
+      void reloadThemeFromDisk().catch((error) => {
+        broadcast('error', {
+          message: error instanceof Error ? error.message : 'Failed to reload theme config',
+        })
+      })
+    })
+  } catch {
+    // Parent directory may be missing in odd setups; theme still works via API writes.
+  }
+
   const port = await new Promise<number>((resolvePort, reject) => {
     server.once('error', reject)
     server.listen(options.port ?? 0, host, () => {
@@ -460,6 +529,7 @@ export async function startLivingPlanServer(options: {
     url,
     async close() {
       watcher.close()
+      themeWatcher?.close()
       for (const client of sseClients) {
         client.res.end()
       }
@@ -515,6 +585,7 @@ export async function startLivingPlanServer(options: {
         pendingInteractionIds: pendingInteractionIds(),
         review: reviewResult,
         execution: executionView(),
+        theme: currentTheme(),
       }
     },
   }

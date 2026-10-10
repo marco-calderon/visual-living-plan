@@ -10,6 +10,7 @@ import { parsePlan } from '../src/parse.ts'
 import type { ProcessRecord } from '../src/processRecord.ts'
 import { emptyGitSnapshot } from '../src/processRecord.ts'
 import { renderPlanPage } from '../src/render.ts'
+import { defaultThemeConfig, themePayload } from '../src/theme.ts'
 import {
   ensureRegistry,
   listProcesses,
@@ -223,6 +224,7 @@ test('planner page reports when the registry was not configured', async () => {
     pendingInteractionIds: [],
     execution: createIdleExecutionState(),
     clientAssets: null,
+    theme: themePayload(defaultThemeConfig(), 'live-plan.config.json'),
   })
   assert.match(html, /data-processes-root/)
   assert.match(html, /Running plans/)
