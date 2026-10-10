@@ -11,6 +11,15 @@ type FocusWindow = Window & {
   livingPlanFocusPlanRef?: (planRef: string) => void
 }
 
+type PlanWindow = Window & {
+  __LIVE_PLAN_BASE__?: string
+}
+
+function apiPath(path: string): string {
+  const base = (window as PlanWindow).__LIVE_PLAN_BASE__ ?? ''
+  return `${base}${path}`
+}
+
 function readBootstrap(): ExecutionState {
   const node = document.getElementById('living-plan-bootstrap')
   if (!node?.textContent) return createIdleExecutionState()
@@ -38,7 +47,7 @@ function ExecutionApp() {
     let cancelled = false
 
     async function load() {
-      const response = await fetch('/api/execution')
+      const response = await fetch(apiPath('/api/execution'))
       if (!response.ok) return
       const data = (await response.json()) as ExecutionState
       if (!cancelled) setExecution(data)
@@ -46,7 +55,7 @@ function ExecutionApp() {
 
     void load()
 
-    const source = new EventSource('/api/events')
+    const source = new EventSource(apiPath('/api/events'))
     source.addEventListener('execution', (event) => {
       try {
         const payload = JSON.parse((event as MessageEvent).data) as ExecutionState
