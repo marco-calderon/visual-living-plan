@@ -3,7 +3,7 @@ name: living-plan
 description: >-
   Deprecated path. Use the live-plan skill at skills/live-plan/SKILL.md to
   author a living plan with npx visual-living-plan or the live-plan command,
-  including the workflow block drawn on the Workflow tab before a run starts.
+  including the required workflow block. That block is the execution path.
 ---
 
 # Moved

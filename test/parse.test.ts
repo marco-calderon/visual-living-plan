@@ -4,6 +4,7 @@ import { createIdleExecutionState } from '../src/execution.ts'
 import { parsePlan } from '../src/parse.ts'
 import { renderPlanPage } from '../src/render.ts'
 import { defaultThemeConfig, themePayload } from '../src/theme.ts'
+import { workflowRequirementError } from '../src/workflow.ts'
 
 test('mermaid fences in plan markdown become diagram hosts', () => {
   const plan = parsePlan(`# Demo
@@ -50,6 +51,23 @@ body: |
   assert.ok(phase && phase.type === 'phase')
   assert.match(phase.bodyHtml, /class="mermaid-diagram"/)
   assert.match(phase.bodyHtml, /Gateway --&gt; Redis/)
+})
+
+test('a plan requires a workflow block', () => {
+  const missing = parsePlan('# Demo\n\nNo execution path yet.\n')
+  assert.equal(
+    workflowRequirementError(missing),
+    'A plan requires a workflow block. That block is the execution path.',
+  )
+
+  const empty = parsePlan('```workflow\nnodes: []\nedges: []\n```\n')
+  assert.equal(
+    workflowRequirementError(empty),
+    'A plan requires a workflow block. That block is the execution path.',
+  )
+
+  const ready = parsePlan('```workflow\nnodes:\n  - id: design\n    label: Design\nedges: []\n```\n')
+  assert.equal(workflowRequirementError(ready), undefined)
 })
 
 test('the plan page loads the mermaid client only when a diagram is present', () => {

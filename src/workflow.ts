@@ -192,6 +192,15 @@ function indexAnchors(plan: PlanDocument): Map<string, PlanBlock> {
   return anchors
 }
 
+/** A plan must name its execution path with a workflow block. */
+export function workflowRequirementError(plan: PlanDocument): string | undefined {
+  const workflow = plan.blocks.find((block) => block.type === 'workflow')
+  if (!workflow || workflow.type !== 'workflow' || workflow.nodes.length === 0) {
+    return 'A plan requires a workflow block. That block is the execution path.'
+  }
+  return undefined
+}
+
 /** Expected execution diagram for a plan, available before a live run starts. */
 export function planToExpectedGraph(plan: PlanDocument): ExecutionGraph | undefined {
   const anchors = indexAnchors(plan)

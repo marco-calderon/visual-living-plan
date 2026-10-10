@@ -42,11 +42,11 @@ living-plan --help
 living-plan check "$(npm root -g)/visual-living-plan/examples/rate-limit.plan.md"
 ```
 
-`check` prints the expected workflow (the `workflow` block, or phases and gates when that block is omitted). `serve` and `review` draw that diagram on the Workflow tab before a run starts. Pass `--no-open` when a browser should not launch.
+`check` prints the workflow block. That block is required: it is the execution path. `serve` and `review` draw it on the Workflow tab before a run starts. Pass `--no-open` when a browser should not launch.
 
 The name is not on the registry until it is published. From a checkout, `npm publish --access public` packs the built CLI and uploads it. A GitHub release runs the same publish through `.github/workflows/publish.yml`, after a trusted publisher for `visual-living-plan` is configured on npm.
 
-`check` prints the expected workflow (the `workflow` block, or phases and gates when that block is omitted). `serve` and `review` draw that diagram on the Workflow tab before a run starts. Pass `--no-open` when a browser should not launch.
+`check` prints the workflow block. That block is required: it is the execution path. `serve` and `review` draw it on the Workflow tab before a run starts. Pass `--no-open` when a browser should not launch.
 
 ### Review mode
 
@@ -66,7 +66,7 @@ npm run wait -- fail-mode --url http://127.0.0.1:9410
 
 ### Workflow canvas
 
-The page has **Plan** and **Workflow** tabs. The Workflow tab is filled from the plan itself — a `workflow` block, or the phases and gates when that block is omitted — so the expected execution plan is visible before the agent starts the run. Select a step to jump to the matching section in the plan. A plan with neither a workflow nor phases shows the sample retry loop from `examples/execution-graph.json` until a graph arrives.
+The page has **Plan** and **Workflow** tabs. The Workflow tab draws the required `workflow` block, which is the execution path, before the agent starts the run. Select a step to jump to the matching section in the plan. A plan with no workflow block yet shows the sample retry loop from `examples/execution-graph.json` until that block is present.
 
 While execution is active, Plan forms/gates are disabled. The same Workflow tab then overlays the live [React Flow](https://reactflow.dev) graph the agent pushes. Node ids that match the plan keep their plan reference.
 
@@ -99,8 +99,8 @@ Visual builders optimize for humans drawing graphs. Living Plan optimizes for **
 | Show current status | `phase` blocks + file watch reload |
 | Ask for direction | `choice`, `form`, `questions`, `approve` |
 | Converge on a plan | review bar + iteration diffs |
-| Show the expected execution plan | `workflow` block, drawn on the Workflow tab before the run |
-| Show a diagram in the plan | mermaid fence in the plan markdown or a block body |
+| Show the execution path | required `workflow` block, drawn on the Workflow tab before the run |
+| Show a figure in the plan text | mermaid fence in the plan markdown or a block body |
 | Show live execution | Same Workflow tab, React Flow canvas via `/api/execution` |
 | Local + cloud | same file + HTTP server URL |
 
@@ -114,8 +114,8 @@ YAML fenced blocks:
 - `callout` — note / tip / risk / decision / warning
 - `choice` / `form` / `questions` / `approve` — human interactions
 - `checklist` — definition of done
-- `workflow` — expected execution diagram (`nodes` with `id`, `label`, `ref`, optional `status` / `x` / `y`, and `edges` with `from` / `to`, optional `label`, `fromSide`, `toSide`). `ref` is the plan block id a click jumps to. Omit the block and the diagram follows phases and gates in document order.
-- mermaid — a diagram drawn in the plan. Use a fence whose language is `mermaid`, in the plan markdown or indented inside a phase, callout, or approve `body`. This is separate from the Workflow tab.
+- `workflow` — required execution path (`nodes` with `id`, `label`, `ref`, optional `status` / `x` / `y`, and `edges` with `from` / `to`, optional `label`, `fromSide`, `toSide`). `ref` is the plan block id a click jumps to. The Workflow tab draws this block before the run, and the live run follows it.
+- mermaid — a figure in the plan text. Use a fence whose language is `mermaid`, in the plan markdown or indented inside a phase, callout, or approve `body`.
 
 ## Execution canvas adapters
 
@@ -166,7 +166,7 @@ live-plan serve path/to/work.plan.md --port 9410
 - Skill (copy into `.cursor/skills/live-plan/` or `.claude/skills/live-plan/`): [`skills/live-plan/SKILL.md`](skills/live-plan/SKILL.md)
 - Primitive schemas: [`skills/live-plan/primitives.md`](skills/live-plan/primitives.md)
 
-`npm install -g visual-living-plan` installs the `live-plan` command (`living-plan` and `visual-living-plan` remain aliases). Put a `workflow` block in the plan when the human should see the expected execution path before the run starts.
+`npm install -g visual-living-plan` installs the `live-plan` command (`living-plan` and `visual-living-plan` remain aliases). Every plan includes a `workflow` block. That block is the execution path.
 
 ## License
 

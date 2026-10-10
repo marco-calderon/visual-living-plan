@@ -4,9 +4,8 @@ description: >-
   Drive a living visual plan with the live-plan CLI so a human can watch phase
   status and answer choices, forms, questions, and approval gates in a browser.
   Use when work has multiple steps, needs a human decision before continuing,
-  needs Approve/Deny/Iterate on a plan, should show a mermaid diagram in the
-  plan, should show the expected workflow before a run, or should stream a
-  live workflow diagram. Invoke with `npx --yes visual-living-plan` unless the `live-plan`
+  needs Approve/Deny/Iterate on a plan, or should show the execution path
+  before a run and stream it live. Invoke with `npx --yes visual-living-plan` unless the `live-plan`
   command is already installed. Skip for a one-step change or when the user
   asked for prose only.
 ---
@@ -39,7 +38,7 @@ Skip when the change is a single obvious step, the user asked for plain prose, o
 
 ## Loop
 
-1. Write the plan: title, short summary, phases, a `workflow` block for the expected path, then only the interactions you need now. Schemas are in [primitives.md](primitives.md).
+1. Write the plan: title, short summary, phases, a `workflow` block, then only the interactions you need now. The workflow block is required. It is the execution path. Schemas are in [primitives.md](primitives.md).
 2. Validate: `npx --yes visual-living-plan check path/to/work.plan.md`.
 3. `serve` the file for live status, or `review` when you need a verdict on the whole plan.
 4. Block with `wait <id> --url <printed-url>` when you cannot continue without that answer.
@@ -62,7 +61,7 @@ Replace the npx prefix with `live-plan` when the command is installed.
 
 | Command | Use |
 |---|---|
-| `check <file>` | Parse check before showing the plan. Prints title, block types, interaction ids, and expected workflow nodes. |
+| `check <file>` | Parse check before showing the plan. Prints title, block types, interaction ids, and workflow nodes. Exits 1 when the workflow block is missing. |
 | `dump <file>` | Full parsed plan as JSON. |
 | `serve <file>` | Watch mode. Plan + Workflow + Settings tabs. The Workflow tab draws the plan before the run, then the live graph. Reloads when the file changes. |
 | `review <file>` | Watch mode plus Approve / Deny / Iterate. Blocks until a decision. |
@@ -89,7 +88,7 @@ Each structured block is a fenced YAML block. The fence language is the type. Gi
 - `questions` — one free-text item per question. Response: `{ kind, id, answers }`.
 - `approve` — yes/no plus optional note. Response: `{ kind, id, approved, note? }`.
 - `checklist` — definition of done. You set `done`; the human does not submit it.
-- `workflow` — expected execution diagram drawn on the Workflow tab before the run. Omit it and the diagram follows phases and gates in document order.
+- `workflow` — required. This block is the execution path. The Workflow tab draws it before the run, and the live run follows it.
 
 Use the same node id as the plan block id so a click jumps to that section. A self-loop (`from` and `to` are the same id) is drawn as an arc. To close a loop with another card, set `fromSide` and `toSide` (`top`, `right`, `bottom`, or `left`) on the return edge. Live graph nodes use `id`, `label`, optional `detail`, `status` (`pending` \| `active` \| `blocked` \| `done` \| `failed`), and optional `x` / `y`. Edges are `{ from, to }` plus optional `label`, `fromSide`, and `toSide`.
 
@@ -101,5 +100,6 @@ Copy-paste schemas and response examples: [primitives.md](primitives.md).
 - Add an interaction only if you will `wait` on it or the human must answer it inside `review`.
 - `execution stop` before `wait` or before expecting a review decision.
 - Open the browser for the human. Do not pass `--no-open` unless they cannot use a local browser.
-- Phase and callout bodies support headings, lists, fenced code, bold, italic, inline code, and mermaid diagrams.
-- A mermaid fence is drawn on the Plan tab. Put it in the plan markdown, or indent it inside a phase, callout, or approve `body`. The `workflow` block is still the Workflow tab.
+- Phase and callout bodies support headings, lists, fenced code, bold, italic, and inline code.
+- A mermaid fence draws a figure in the plan text. Put it in the plan markdown, or indent it inside a phase, callout, or approve `body`.
+- Include one `workflow` block. `check` fails when that block is missing.

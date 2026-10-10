@@ -1,6 +1,8 @@
 # Live Plan primitives
 
-Fenced blocks are YAML. The fence language is the block type (`phase`, `callout`, `choice`, `form`, `questions`, `approve`, `checklist`, `workflow`). Anything outside those fences is markdown. A `mermaid` fence is markdown: it is drawn on the Plan tab, not on the Workflow tab.
+Fenced blocks are YAML. The fence language is the block type (`phase`, `callout`, `choice`, `form`, `questions`, `approve`, `checklist`, `workflow`). Anything outside those fences is markdown. A mermaid fence in that markdown draws a figure in the plan text.
+
+Every plan includes one `workflow` block. That block is the execution path.
 
 `live-plan wait <id>` prints one interaction response as JSON. `live-plan review` prints the review result.
 
@@ -160,9 +162,9 @@ items:
 
 ## workflow
 
-Expected execution plan. The Workflow tab draws it before the run starts. Each node `ref` is the plan block id a click jumps to. `ref` defaults to `id` when that block exists. Give phases, callouts, and checklist items ids when a node should point at them.
+Required. This block is the execution path. The Workflow tab draws it before the run starts, and the live run follows it. Each node `ref` is the plan block id a click jumps to. `ref` defaults to `id` when that block exists. Give phases, callouts, and checklist items ids when a node should point at them.
 
-Omit the block and the diagram follows phases and gates in document order. A plan with neither shows the sample graph until a live graph is pushed.
+`check` exits 1 when this block is missing or has no nodes.
 
 ```workflow
 id: rollout
@@ -186,7 +188,7 @@ An edge may point at its own node. That self-loop is drawn as an arc, with optio
 
 ## mermaid
 
-A diagram in the plan itself. The fence language is `mermaid`. The Plan tab draws it. The Workflow tab does not use this fence.
+A figure in the plan text. The fence language is `mermaid`.
 
 Put the fence in the plan markdown:
 
