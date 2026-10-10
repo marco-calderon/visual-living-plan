@@ -50,7 +50,7 @@ Swap the `npx --yes visual-living-plan` prefix for `live-plan` when that command
 
 | Command | What it does | Exit |
 |---|---|---|
-| `check <file>` | Parse the plan and print title, block types, interaction ids, and expected workflow nodes | `0` ok, `1` usage or parse error |
+| `check <file>` | Parse the plan and print title, block types, interaction ids, and workflow nodes. A missing workflow block is an error. | `0` ok, `1` usage, parse error, or missing workflow |
 | `dump <file>` | Print the parsed plan as JSON | `0` ok, `1` usage or parse error |
 | `serve <file>` | Watch the file and serve Plan + Workflow + Settings. The Workflow tab draws the plan before the run. Hot-reloads on save. | Stays up until SIGINT/SIGTERM |
 | `review <file>` | Same UI plus Approve / Deny / Iterate. Blocks until a decision. | `0` approve, `1` deny, `2` iterate, `3` timeout |
@@ -78,7 +78,7 @@ Flags:
 
 ## Agent loop
 
-1. Write or update one `.plan.md`. Title, a short summary, phases, a `workflow` block for the expected path, then only the interactions you need right now.
+1. Write or update one `.plan.md`. Title, a short summary, phases, a required `workflow` block (the execution path), then only the interactions you need right now.
 2. `check` the file.
 3. `serve` for ongoing status, or `review` when you need Approve / Deny / Iterate on the whole plan.
 4. If you need one answer first, `wait <id> --url <printed-url>`. You can also read `GET /api/plan` and look at `responses`.
@@ -101,7 +101,7 @@ A plan is optional YAML frontmatter, then markdown, plus fenced YAML blocks. Eve
 | `questions` | Open questions, one string per item | One answer per item |
 | `approve` | Yes/no gate with an optional note | `approved` plus optional note |
 | `checklist` | Definition of done | No (you update `done`) |
-| `workflow` | Expected execution diagram on the Workflow tab before the run. Node `ref` is the plan block a click opens. Omit the block and the diagram follows phases and gates. | No |
+| `workflow` | Required. The execution path. The Workflow tab draws it before the run, and the live run follows it. Node `ref` is the plan block a click opens. | No |
 
 Frontmatter fields the parser reads: `title`, `summary`, `agent`, `mode` (`watch` or `review`). A leading `#` heading is the title when frontmatter has none.
 
@@ -114,6 +114,8 @@ Authoring rules:
 - Add an interaction only when you will block on the answer.
 - Prose is connective. Status, risks, and decisions belong in `phase` and `callout` blocks.
 - Phase and callout `body` is a small markdown subset: headings, lists, fenced code, `**bold**`, `*italic*`, and `` `code` ``.
+- A mermaid fence draws a figure in the plan text. Indent that fence inside a YAML `body: |` block so it does not close the outer `phase`, `callout`, or `approve` fence.
+- Include one `workflow` block. `check` fails when it is missing.
 
 ## Execution graph
 

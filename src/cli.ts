@@ -17,7 +17,7 @@ import {
   saveThemeConfig,
   themePayload,
 } from './theme.js'
-import { planToExpectedGraph } from './workflow.js'
+import { planToExpectedGraph, workflowRequirementError } from './workflow.js'
 import {
   defaultRegistryHome,
   ensureRegistry,
@@ -56,11 +56,11 @@ Modes:
   wait        Block until one interaction id is answered.
   execution   Start/push/stop the live workflow canvas (locks plan forms while active).
   theme       Read or write the accent color in live-plan.config.json (or via a running server).
-  check       Print plan summary, including the expected workflow nodes.
+  check       Print plan summary. Exits 1 when the required workflow block is missing.
   processes   List plans currently registered by serve and review. \`ps\` is the same command.
   registry    Run the shared registry in the foreground. serve and review start it on their own.
 
-The Workflow tab is filled from a \`workflow\` block, or from phases and gates when that block is omitted.
+Every plan includes a \`workflow\` block. That block is the execution path the Workflow tab draws.
 Accent color is saved in live-plan.config.json beside the plan (override with --config).
 --no-open skips launching a browser.
 --no-registry skips registering this serve or review process.
@@ -104,7 +104,7 @@ async function openBrowser(url: string): Promise<void> {
 
 async function ensureClientBuild(): Promise<void> {
   const assets = await loadClientAssets()
-  if (assets) return
+  if (assets?.mermaidHref) return
   console.log('Building execution client (vite)...')
   await new Promise<void>((resolveBuild, reject) => {
     const child = spawn('npx', ['vite', 'build'], {
@@ -139,7 +139,8 @@ async function putExecution(url: string, body: ExecutionState): Promise<Executio
 async function cmdCheck(file: string): Promise<number> {
   const source = await readFile(resolve(file), 'utf8')
   const plan = parsePlan(source, file)
-  const workflow = planToExpectedGraph(plan)
+  const workflowError = workflowRequirementError(plan)
+  const workflow = workflowError ? undefined : planToExpectedGraph(plan)
   console.log(
     JSON.stringify(
       {
@@ -158,11 +159,16 @@ async function cmdCheck(file: string): Promise<number> {
               })),
             }
           : null,
+        ...(workflowError ? { error: workflowError } : {}),
       },
       null,
       2,
     ),
   )
+  if (workflowError) {
+    console.error(workflowError)
+    return 1
+  }
   return 0
 }
 
