@@ -172,7 +172,7 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
   console.log(`Living Plan (watch): ${server.url}`)
   console.log(`Plan file: ${resolve(file)}`)
   console.log(`Theme config: ${server.getState().theme.configPath}`)
-  console.log('Tabs: Plan (status/forms) and Workflow (expected plan, then live React Flow canvas).')
+  console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent).')
   await openBrowser(server.url)
 
   await new Promise<void>((resolveWait) => {

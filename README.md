@@ -117,7 +117,7 @@ To swap libraries later, add another adapter and change the active id. Keep agen
 
 ## Theme
 
-The page header offers **8 accent presets** (teal, cyan, sky, blue, violet, magenta, rose, amber) plus a custom color picker. Presets are chosen to stay readable on both light and dark surfaces. The choice is saved to `live-plan.config.json` beside the plan file (see `examples/live-plan.config.json`). Agents can change it through the CLI:
+The **Settings** tab offers **8 accent presets** (teal, cyan, sky, blue, violet, magenta, rose, amber) plus a custom color picker. Presets are chosen to stay readable on both light and dark surfaces. The choice is saved to `live-plan.config.json` beside the plan file (see `examples/live-plan.config.json`). Agents can change it through the CLI:
 
 ```bash
 live-plan theme get --plan examples/rate-limit.plan.md
@@ -129,7 +129,7 @@ live-plan theme set --accent #0369a1 --url http://127.0.0.1:9410
 
 ## API
 
-- `GET /` — interactive HTML page (Plan + Workflow tabs)
+- `GET /` — interactive HTML page (Plan + Workflow + Settings tabs)
 - `GET /api/plan` — plan metadata, responses, pending interaction ids, execution state, `planned` workflow graph, and `theme`
 - `GET /api/execution` — current execution canvas state, including `planned` (the expected workflow from the plan) even while execution is idle
 - `PUT /api/execution` — set execution state (`active`, `step`, `detail`, `graph`, `scene`)

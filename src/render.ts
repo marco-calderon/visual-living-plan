@@ -540,62 +540,111 @@ body::before {
   animation: pulse 1.8s ease infinite;
 }
 
-.theme-row {
+.settings-stack {
+  display: grid;
+  gap: 1rem;
+}
+.settings-kicker {
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 600;
+  margin: 0 0 0.35rem;
+}
+.settings-section h3 {
+  margin: 0 0 0.45rem;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+}
+.settings-copy {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.settings-preview {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 0.65rem 0.9rem;
-  margin-top: 1rem;
-}
-.theme-label {
-  font-size: 0.82rem;
-  color: var(--muted);
-  letter-spacing: 0.02em;
+  gap: 0.6rem;
+  margin: 0 0 1.1rem;
 }
 .theme-swatches {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  gap: 0.55rem;
+  margin: 0 0 1rem;
 }
 .theme-swatch {
-  width: 1.35rem;
-  height: 1.35rem;
-  border-radius: 999px;
-  border: 2px solid transparent;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--control-solid);
+  color: var(--ink);
+  padding: 0.7rem 0.85rem;
+  font: inherit;
+  font-weight: 600;
   cursor: pointer;
-  padding: 0;
+  text-align: left;
+}
+.theme-swatch::before {
+  content: "";
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
   background: var(--swatch, var(--accent));
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+.theme-swatch:hover {
+  border-color: var(--accent-hover-border);
+  box-shadow: var(--accent-hover-shadow);
 }
 .theme-swatch[aria-checked="true"] {
-  border-color: var(--ink);
-  box-shadow: 0 0 0 2px var(--panel-strong), inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 .theme-swatch:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 .theme-custom {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.45rem;
-  font-size: 0.82rem;
+  gap: 0.65rem 0.9rem;
+  margin: 0 0 0.85rem;
+  font-size: 0.92rem;
   color: var(--muted);
 }
 .theme-custom input[type="color"] {
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 2rem;
+  height: 2rem;
   padding: 0;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 10px;
   background: transparent;
   cursor: pointer;
 }
 .theme-custom code {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
-  font-size: 0.78rem;
+  font-size: 0.85rem;
   color: var(--ink);
+}
+.settings-meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.settings-meta code {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.86em;
+  background: var(--code-inline-bg);
+  padding: 0.1rem 0.35rem;
+  border-radius: 6px;
 }
 
 .stack { display: grid; gap: 1rem; }
@@ -995,6 +1044,8 @@ function clientScript(
     if (colorInput && 'value' in colorInput) colorInput.value = payload.accent;
     const hex = document.getElementById('theme-accent-hex');
     if (hex) hex.textContent = payload.accent;
+    const customHex = document.getElementById('theme-accent-custom-hex');
+    if (customHex) customHex.textContent = payload.accent;
     window.dispatchEvent(new CustomEvent('living-plan-theme', { detail: payload }));
   }
 
@@ -1033,6 +1084,8 @@ function clientScript(
       if (!('value' in picker)) return;
       const hex = document.getElementById('theme-accent-hex');
       if (hex) hex.textContent = picker.value;
+      const customHex = document.getElementById('theme-accent-custom-hex');
+      if (customHex) customHex.textContent = picker.value;
     });
     picker.addEventListener('change', async () => {
       if (!('value' in picker)) return;
@@ -1301,6 +1354,7 @@ export function renderPlanPage(options: {
     ? ''
     : `<div class="execution-empty">Build the client with <code>npm run build:client</code> to enable the workflow canvas.</div>`
   const bootstrap = JSON.stringify(withPlannedWorkflow(execution, plan)).replaceAll('<', '\\u003c')
+  const configName = theme.configPath.split(/[\\/]/).pop() || 'live-plan.config.json'
   const swatches = theme.presets
     .map((preset) => {
       const selected = preset.accent === theme.accent
@@ -1312,7 +1366,7 @@ export function renderPlanPage(options: {
           aria-label="${escapeHtml(preset.label)} accent"
           aria-checked="${selected ? 'true' : 'false'}"
           title="${escapeHtml(preset.label)}"
-        ></button>`
+        >${escapeHtml(preset.label)}</button>`
     })
     .join('')
 
@@ -1345,19 +1399,10 @@ export function renderPlanPage(options: {
         ${changed ? `<span class="chip">Changed <strong>${changed}</strong></span>` : ''}
         ${reviewDecision ? `<span class="chip">Review <strong>${escapeHtml(reviewDecision)}</strong></span>` : ''}
       </div>
-      <div class="theme-row" aria-label="Accent color">
-        <span class="theme-label">Accent</span>
-        <div class="theme-swatches" role="radiogroup" aria-label="Accent presets">
-          ${swatches}
-        </div>
-        <label class="theme-custom">
-          <input id="theme-accent-picker" type="color" value="${escapeHtml(theme.accent)}" aria-label="Custom accent color" />
-          <code id="theme-accent-hex">${escapeHtml(theme.accent)}</code>
-        </label>
-      </div>
       <div class="tabs" role="tablist" aria-label="Living Plan views">
         <button type="button" class="tab-btn" role="tab" data-tab-target="plan" aria-selected="true">Plan</button>
         <button type="button" class="tab-btn" role="tab" data-tab-target="workflow" aria-selected="false">Workflow</button>
+        <button type="button" class="tab-btn" role="tab" data-tab-target="settings" aria-selected="false">Settings</button>
       </div>
     </header>
     <section class="tab-panel${locked ? ' plan-locked' : ''}" data-tab-panel="plan" role="tabpanel">
@@ -1374,6 +1419,28 @@ export function renderPlanPage(options: {
       <script id="living-plan-bootstrap" type="application/json">${bootstrap}</script>
       <div id="execution-root">${executionFallback}</div>
       ${assetJs}
+    </section>
+    <section class="tab-panel" data-tab-panel="settings" role="tabpanel" hidden>
+      <main class="settings-stack">
+        <section class="block settings-section" data-section>
+          <div class="settings-kicker">Appearance</div>
+          <h3>Accent color</h3>
+          <p class="settings-copy">Pick one of eight presets tuned for light and dark mode, or set a custom hex. Changes save to the theme config and update the page live.</p>
+          <div class="settings-preview">
+            <span class="chip"><span class="live-dot"></span> Preview</span>
+            <span class="chip">Accent <strong id="theme-accent-hex">${escapeHtml(theme.accent)}</strong></span>
+          </div>
+          <div class="theme-swatches" role="radiogroup" aria-label="Accent presets">
+            ${swatches}
+          </div>
+          <label class="theme-custom">
+            <span>Custom</span>
+            <input id="theme-accent-picker" type="color" value="${escapeHtml(theme.accent)}" aria-label="Custom accent color" />
+            <code id="theme-accent-custom-hex">${escapeHtml(theme.accent)}</code>
+          </label>
+          <p class="settings-meta">Saved to <code>${escapeHtml(configName)}</code>. Agents can also run <code>live-plan theme set --accent #hex</code>.</p>
+        </section>
+      </main>
     </section>
   </div>
   ${

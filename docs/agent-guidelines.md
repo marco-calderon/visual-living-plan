@@ -52,7 +52,7 @@ Swap the `npx --yes visual-living-plan` prefix for `live-plan` when that command
 |---|---|---|
 | `check <file>` | Parse the plan and print title, block types, interaction ids, and expected workflow nodes | `0` ok, `1` usage or parse error |
 | `dump <file>` | Print the parsed plan as JSON | `0` ok, `1` usage or parse error |
-| `serve <file>` | Watch the file and serve Plan + Workflow. The Workflow tab draws the plan before the run. Hot-reloads on save. | Stays up until SIGINT/SIGTERM |
+| `serve <file>` | Watch the file and serve Plan + Workflow + Settings. The Workflow tab draws the plan before the run. Hot-reloads on save. | Stays up until SIGINT/SIGTERM |
 | `review <file>` | Same UI plus Approve / Deny / Iterate. Blocks until a decision. | `0` approve, `1` deny, `2` iterate, `3` timeout |
 | `wait <id> --url <url>` | Block until that interaction id has a response. Prints the response JSON. | `0` answered, `1` missing `--url`, `3` timeout |
 | `execution start\|push\|stop --url <url>` | Drive the live workflow overlay. `start` turns it on, `push` updates it, `stop` turns it off and unlocks plan forms. | `0` ok, `1` usage or HTTP error |
@@ -129,7 +129,7 @@ Node `status` is `pending`, `active`, `blocked`, `done`, or `failed`. `x` and `y
 
 ## Theme / accent color
 
-Humans can change the accent from the page header. The choice is saved to `live-plan.config.json` beside the plan (override with `--config` on `serve` / `review`). Agents should use the CLI, not hand-edit CSS:
+Humans can change the accent on the Settings tab. The choice is saved to `live-plan.config.json` beside the plan (override with `--config` on `serve` / `review`). Agents should use the CLI, not hand-edit CSS:
 
 ```bash
 npx --yes visual-living-plan theme get --url http://127.0.0.1:9410
@@ -155,7 +155,7 @@ While the server is running, prefer `--url` so the page updates live. Editing th
 
 The server URL from `serve` or `review` exposes:
 
-- `GET /` — Plan and Workflow tabs
+- `GET /` — Plan, Workflow, and Settings tabs
 - `GET /api/plan` — parsed plan, `responses`, `pendingInteractionIds`, execution state, planned workflow graph, and `theme`
 - `GET /api/events` — server-sent events: `reload`, `interaction`, `review`, `execution`, `theme`
 - `POST /api/interactions/:id` — submit one response (409 while execution is active)
