@@ -113,7 +113,8 @@ Authoring rules:
 - Mark exactly one phase `active` while work is underway.
 - Add an interaction only when you will block on the answer.
 - Prose is connective. Status, risks, and decisions belong in `phase` and `callout` blocks.
-- Phase and callout `body` is a small markdown subset: headings, lists, fenced code, `**bold**`, `*italic*`, and `` `code` ``.
+- Phase and callout `body` is a small markdown subset: headings, lists, fenced code, `**bold**`, `*italic*`, `` `code` ``, and mermaid diagrams.
+- A fence whose language is `mermaid` is drawn on the Plan tab. Indent that fence inside a YAML `body: |` block so it does not close the outer `phase`, `callout`, or `approve` fence. The `workflow` block still drives the Workflow tab.
 
 ## Execution graph
 

@@ -104,7 +104,7 @@ async function openBrowser(url: string): Promise<void> {
 
 async function ensureClientBuild(): Promise<void> {
   const assets = await loadClientAssets()
-  if (assets) return
+  if (assets?.mermaidHref) return
   console.log('Building execution client (vite)...')
   await new Promise<void>((resolveBuild, reject) => {
     const child = spawn('npx', ['vite', 'build'], {

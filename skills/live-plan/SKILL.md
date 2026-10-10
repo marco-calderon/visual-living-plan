@@ -4,8 +4,9 @@ description: >-
   Drive a living visual plan with the live-plan CLI so a human can watch phase
   status and answer choices, forms, questions, and approval gates in a browser.
   Use when work has multiple steps, needs a human decision before continuing,
-  needs Approve/Deny/Iterate on a plan, should show the expected workflow
-  before a run, or should stream a live workflow diagram. Invoke with `npx --yes visual-living-plan` unless the `live-plan`
+  needs Approve/Deny/Iterate on a plan, should show a mermaid diagram in the
+  plan, should show the expected workflow before a run, or should stream a
+  live workflow diagram. Invoke with `npx --yes visual-living-plan` unless the `live-plan`
   command is already installed. Skip for a one-step change or when the user
   asked for prose only.
 ---
@@ -100,4 +101,5 @@ Copy-paste schemas and response examples: [primitives.md](primitives.md).
 - Add an interaction only if you will `wait` on it or the human must answer it inside `review`.
 - `execution stop` before `wait` or before expecting a review decision.
 - Open the browser for the human. Do not pass `--no-open` unless they cannot use a local browser.
-- Phase and callout bodies support headings, lists, fenced code, bold, italic, and inline code.
+- Phase and callout bodies support headings, lists, fenced code, bold, italic, inline code, and mermaid diagrams.
+- A mermaid fence is drawn on the Plan tab. Put it in the plan markdown, or indent it inside a phase, callout, or approve `body`. The `workflow` block is still the Workflow tab.

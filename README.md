@@ -100,6 +100,7 @@ Visual builders optimize for humans drawing graphs. Living Plan optimizes for **
 | Ask for direction | `choice`, `form`, `questions`, `approve` |
 | Converge on a plan | review bar + iteration diffs |
 | Show the expected execution plan | `workflow` block, drawn on the Workflow tab before the run |
+| Show a diagram in the plan | mermaid fence in the plan markdown or a block body |
 | Show live execution | Same Workflow tab, React Flow canvas via `/api/execution` |
 | Local + cloud | same file + HTTP server URL |
 
@@ -114,6 +115,7 @@ YAML fenced blocks:
 - `choice` / `form` / `questions` / `approve` — human interactions
 - `checklist` — definition of done
 - `workflow` — expected execution diagram (`nodes` with `id`, `label`, `ref`, optional `status` / `x` / `y`, and `edges` with `from` / `to`, optional `label`, `fromSide`, `toSide`). `ref` is the plan block id a click jumps to. Omit the block and the diagram follows phases and gates in document order.
+- mermaid — a diagram drawn in the plan. Use a fence whose language is `mermaid`, in the plan markdown or indented inside a phase, callout, or approve `body`. This is separate from the Workflow tab.
 
 ## Execution canvas adapters
 

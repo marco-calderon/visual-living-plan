@@ -1,3 +1,4 @@
+import type { ClientAssets } from './assets.js'
 import type { ExecutionState } from './execution.js'
 import { blockAnchorId } from './parse.js'
 import { PROCESSES_PANEL_STYLES, processesPanelMarkup, processesPanelScript } from './processesPanel.js'
@@ -780,6 +781,30 @@ body::before {
   background: var(--code-block-bg);
   color: var(--code-block-fg);
 }
+.mermaid-diagram {
+  margin: 0 0 0.85rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-strong);
+  overflow: auto;
+}
+.mermaid-diagram .mermaid {
+  margin: 0;
+  white-space: pre-wrap;
+  color: var(--muted);
+}
+.mermaid-diagram svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+.mermaid-error {
+  margin: 0.65rem 0 0;
+  color: var(--danger);
+  font-size: 0.85rem;
+}
 
 .phase { display: grid; grid-template-columns: 18px 1fr; gap: 0.9rem; }
 .phase-rail {
@@ -1321,7 +1346,7 @@ export function renderPlanPage(options: {
   pendingInteractionIds: string[]
   reviewDecision?: ReviewDecision
   execution: ExecutionState
-  clientAssets?: { jsHref: string; cssHrefs: string[] } | null
+  clientAssets?: ClientAssets | null
   theme: RenderTheme
 }): string {
   const {
@@ -1345,12 +1370,20 @@ export function renderPlanPage(options: {
     .join('\n')
 
   const changed = diffs.filter((diff) => diff.status !== 'unchanged').length
-  const assetCss = (clientAssets?.cssHrefs ?? [])
+  const hasMermaid = body.includes('class="mermaid-diagram"')
+  const assetCss = [
+    ...(clientAssets?.cssHrefs ?? []),
+    ...(hasMermaid ? (clientAssets?.mermaidCssHrefs ?? []) : []),
+  ]
     .map((href) => `<link rel="stylesheet" href="${escapeHtml(href)}" />`)
     .join('\n')
   const assetJs = clientAssets
     ? `<script type="module" src="${escapeHtml(clientAssets.jsHref)}"></script>`
     : ''
+  const mermaidJs =
+    hasMermaid && clientAssets?.mermaidHref
+      ? `<script type="module" src="${escapeHtml(clientAssets.mermaidHref)}"></script>`
+      : ''
   const executionFallback = clientAssets
     ? ''
     : `<div class="execution-empty">Build the client with <code>npm run build:client</code> to enable the workflow canvas.</div>`
@@ -1460,6 +1493,7 @@ export function renderPlanPage(options: {
   <div id="toast" class="toast" role="status"></div>
   <script>${clientScript(mode, locked, theme)}
 ${processesPanelScript()}</script>
+  ${mermaidJs}
 </body>
 </html>`
 }

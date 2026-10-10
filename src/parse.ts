@@ -90,9 +90,17 @@ function markdownToHtml(source: string): string {
         i += 1
       }
       i += 1
-      parts.push(
-        `<pre class="code-block"${lang ? ` data-lang="${escapeHtml(lang)}"` : ''}><code>${escapeHtml(code.join('\n'))}</code></pre>`,
-      )
+      const langToken = lang.split(/\s+/)[0]?.toLowerCase() ?? ''
+      const diagram = code.join('\n')
+      if (langToken === 'mermaid' && diagram.trim()) {
+        parts.push(
+          `<figure class="mermaid-diagram" role="img" aria-label="Diagram"><pre class="mermaid">${escapeHtml(diagram)}</pre></figure>`,
+        )
+      } else {
+        parts.push(
+          `<pre class="code-block"${lang ? ` data-lang="${escapeHtml(lang)}"` : ''}><code>${escapeHtml(diagram)}</code></pre>`,
+        )
+      }
       continue
     }
 
