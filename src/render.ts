@@ -1,5 +1,6 @@
 import type { ExecutionState } from './execution.js'
 import { blockAnchorId } from './parse.js'
+import { accentCssCustomProperties } from './theme.js'
 import type {
   InteractionResponse,
   PlanBlock,
@@ -8,6 +9,12 @@ import type {
   SectionDiff,
 } from './types.js'
 import { planToExpectedGraph, withPlannedWorkflow } from './workflow.js'
+
+export type RenderTheme = {
+  accent: string
+  configPath: string
+  presets: Array<{ id: string; label: string; accent: string }>
+}
 
 function escapeHtml(value: string): string {
   return value
@@ -341,6 +348,10 @@ const THEME_BOOTSTRAP = `
 })();
 `
 
+function accentStyleTag(accent: string): string {
+  return `<style id="living-plan-accent-vars">${accentCssCustomProperties(accent)}</style>`
+}
+
 const STYLES = `
 :root {
   color-scheme: light;
@@ -527,6 +538,64 @@ body::before {
   background: var(--accent);
   box-shadow: 0 0 0 0 var(--pulse);
   animation: pulse 1.8s ease infinite;
+}
+
+.theme-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 0.9rem;
+  margin-top: 1rem;
+}
+.theme-label {
+  font-size: 0.82rem;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.theme-swatches {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+.theme-swatch {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  padding: 0;
+  background: var(--swatch, var(--accent));
+}
+.theme-swatch[aria-checked="true"] {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 2px var(--panel-strong), inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+.theme-swatch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.theme-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.theme-custom input[type="color"] {
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+.theme-custom code {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.78rem;
+  color: var(--ink);
 }
 
 .stack { display: grid; gap: 1rem; }
@@ -885,17 +954,94 @@ textarea { min-height: 88px; resize: vertical; }
 }
 `
 
-function clientScript(mode: 'watch' | 'review', executionActive: boolean): string {
+function clientScript(
+  mode: 'watch' | 'review',
+  executionActive: boolean,
+  theme: RenderTheme,
+): string {
   return `
 (() => {
   const mode = ${JSON.stringify(mode)};
   const interactionsLocked = ${JSON.stringify(executionActive)};
+  let currentAccent = ${JSON.stringify(theme.accent)};
   const toast = document.getElementById('toast');
   function showToast(message) {
     if (!toast) return;
     toast.textContent = message;
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 1600);
+  }
+
+  function ensureAccentStyle() {
+    let style = document.getElementById('living-plan-accent-vars');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'living-plan-accent-vars';
+      document.head.appendChild(style);
+    }
+    return style;
+  }
+
+  function applyTheme(payload) {
+    if (!payload || !payload.accent) return;
+    currentAccent = payload.accent;
+    document.documentElement.dataset.accent = payload.accent;
+    if (payload.css) ensureAccentStyle().textContent = payload.css;
+    document.querySelectorAll('[data-accent-swatch]').forEach((node) => {
+      const swatch = node.getAttribute('data-accent-swatch');
+      node.setAttribute('aria-checked', swatch === payload.accent ? 'true' : 'false');
+    });
+    const colorInput = document.getElementById('theme-accent-picker');
+    if (colorInput && 'value' in colorInput) colorInput.value = payload.accent;
+    const hex = document.getElementById('theme-accent-hex');
+    if (hex) hex.textContent = payload.accent;
+    window.dispatchEvent(new CustomEvent('living-plan-theme', { detail: payload }));
+  }
+
+  async function putAccent(accent) {
+    const response = await fetch('/api/theme', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ accent }),
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || 'Failed to save accent');
+    }
+    const payload = await response.json();
+    applyTheme(payload.theme || { accent });
+    showToast('Accent saved');
+  }
+
+  applyTheme(${JSON.stringify({ accent: theme.accent, css: accentCssCustomProperties(theme.accent) })});
+
+  document.querySelectorAll('[data-accent-swatch]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const accent = button.getAttribute('data-accent-swatch');
+      if (!accent || accent === currentAccent) return;
+      try {
+        await putAccent(accent);
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Accent update failed');
+      }
+    });
+  });
+
+  const picker = document.getElementById('theme-accent-picker');
+  if (picker) {
+    picker.addEventListener('input', () => {
+      if (!('value' in picker)) return;
+      const hex = document.getElementById('theme-accent-hex');
+      if (hex) hex.textContent = picker.value;
+    });
+    picker.addEventListener('change', async () => {
+      if (!('value' in picker)) return;
+      try {
+        await putAccent(picker.value);
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Accent update failed');
+      }
+    });
   }
 
   function activateTab(target) {
@@ -1086,6 +1232,11 @@ function clientScript(mode: 'watch' | 'review', executionActive: boolean): strin
   source.addEventListener('reload', () => {
     window.location.reload();
   });
+  source.addEventListener('theme', (event) => {
+    try {
+      applyTheme(JSON.parse(event.data));
+    } catch {}
+  });
   source.addEventListener('execution', (event) => {
     try {
       const payload = JSON.parse(event.data);
@@ -1117,6 +1268,7 @@ export function renderPlanPage(options: {
   reviewDecision?: ReviewDecision
   execution: ExecutionState
   clientAssets?: { jsHref: string; cssHrefs: string[] } | null
+  theme: RenderTheme
 }): string {
   const {
     plan,
@@ -1128,6 +1280,7 @@ export function renderPlanPage(options: {
     reviewDecision,
     execution,
     clientAssets,
+    theme,
   } = options
 
   const locked = Boolean(execution.active)
@@ -1148,9 +1301,23 @@ export function renderPlanPage(options: {
     ? ''
     : `<div class="execution-empty">Build the client with <code>npm run build:client</code> to enable the workflow canvas.</div>`
   const bootstrap = JSON.stringify(withPlannedWorkflow(execution, plan)).replaceAll('<', '\\u003c')
+  const swatches = theme.presets
+    .map((preset) => {
+      const selected = preset.accent === theme.accent
+      return `<button
+          type="button"
+          class="theme-swatch"
+          style="--swatch:${escapeHtml(preset.accent)}"
+          data-accent-swatch="${escapeHtml(preset.accent)}"
+          aria-label="${escapeHtml(preset.label)} accent"
+          aria-checked="${selected ? 'true' : 'false'}"
+          title="${escapeHtml(preset.label)}"
+        ></button>`
+    })
+    .join('')
 
   return `<!doctype html>
-<html lang="en">
+<html lang="en" data-accent="${escapeHtml(theme.accent)}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -1160,6 +1327,7 @@ export function renderPlanPage(options: {
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <style>${STYLES}</style>
+  ${accentStyleTag(theme.accent)}
   ${assetCss}
 </head>
 <body>
@@ -1176,6 +1344,16 @@ export function renderPlanPage(options: {
         <span class="chip">Workflow <strong>${workflowState}</strong></span>
         ${changed ? `<span class="chip">Changed <strong>${changed}</strong></span>` : ''}
         ${reviewDecision ? `<span class="chip">Review <strong>${escapeHtml(reviewDecision)}</strong></span>` : ''}
+      </div>
+      <div class="theme-row" aria-label="Accent color">
+        <span class="theme-label">Accent</span>
+        <div class="theme-swatches" role="radiogroup" aria-label="Accent presets">
+          ${swatches}
+        </div>
+        <label class="theme-custom">
+          <input id="theme-accent-picker" type="color" value="${escapeHtml(theme.accent)}" aria-label="Custom accent color" />
+          <code id="theme-accent-hex">${escapeHtml(theme.accent)}</code>
+        </label>
       </div>
       <div class="tabs" role="tablist" aria-label="Living Plan views">
         <button type="button" class="tab-btn" role="tab" data-tab-target="plan" aria-selected="true">Plan</button>
@@ -1211,7 +1389,7 @@ export function renderPlanPage(options: {
       : ''
   }
   <div id="toast" class="toast" role="status"></div>
-  <script>${clientScript(mode, locked)}</script>
+  <script>${clientScript(mode, locked, theme)}</script>
 </body>
 </html>`
 }

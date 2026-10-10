@@ -56,6 +56,7 @@ Swap the `npx --yes visual-living-plan` prefix for `live-plan` when that command
 | `review <file>` | Same UI plus Approve / Deny / Iterate. Blocks until a decision. | `0` approve, `1` deny, `2` iterate, `3` timeout |
 | `wait <id> --url <url>` | Block until that interaction id has a response. Prints the response JSON. | `0` answered, `1` missing `--url`, `3` timeout |
 | `execution start\|push\|stop --url <url>` | Drive the live workflow overlay. `start` turns it on, `push` updates it, `stop` turns it off and unlocks plan forms. | `0` ok, `1` usage or HTTP error |
+| `theme get\|set` | Read or write the accent color. Prefer `--url` while `serve`/`review` is up; otherwise `--config` / `--plan` writes `live-plan.config.json`. | `0` ok, `1` usage or HTTP error |
 
 Flags:
 
@@ -67,6 +68,8 @@ Flags:
 - `--no-open` skips launching a browser. Use it only for headless or CI runs. A person should get the page opened.
 - `--graph <file.json>` is the portable execution graph. `--scene <file.json>` is optional adapter-specific extras. Prefer `graph`.
 - `--step` and `--detail` are the current execution headline.
+- `--config <file>` points at the theme config (default `live-plan.config.json` beside the plan). `--accent #hex` sets the accent for `theme set`.
+- `--plan <file.plan.md>` with `theme` resolves the config path beside that plan.
 
 `check` before the first `serve` or `review`. Fix parse failures before asking a human to look.
 
@@ -124,16 +127,41 @@ Send a portable graph. The page maps it onto the current canvas (React Flow toda
 
 Node `status` is `pending`, `active`, `blocked`, `done`, or `failed`. `x` and `y` are optional layout hints. Edges may set `label`, `fromSide`, and `toSide` (`top`, `right`, `bottom`, `left`). A self-loop (`from` and `to` are the same id) is drawn as an arc.
 
+## Theme / accent color
+
+Humans can change the accent from the page header. The choice is saved to `live-plan.config.json` beside the plan (override with `--config` on `serve` / `review`). Agents should use the CLI, not hand-edit CSS:
+
+```bash
+npx --yes visual-living-plan theme get --url http://127.0.0.1:9410
+npx --yes visual-living-plan theme set --accent #0369a1 --url http://127.0.0.1:9410
+
+# Offline / before serve: write the config file next to the plan
+npx --yes visual-living-plan theme set --accent #0369a1 --plan path/to/work.plan.md
+```
+
+Config shape:
+
+```json
+{
+  "theme": {
+    "accent": "#0f766e"
+  }
+}
+```
+
+While the server is running, prefer `--url` so the page updates live. Editing the config file on disk is also watched.
+
 ## HTTP, when the CLI is not enough
 
 The server URL from `serve` or `review` exposes:
 
 - `GET /` — Plan and Workflow tabs
-- `GET /api/plan` — parsed plan, `responses`, `pendingInteractionIds`, execution state, and the planned workflow graph
-- `GET /api/events` — server-sent events: `reload`, `interaction`, `review`, `execution`
+- `GET /api/plan` — parsed plan, `responses`, `pendingInteractionIds`, execution state, planned workflow graph, and `theme`
+- `GET /api/events` — server-sent events: `reload`, `interaction`, `review`, `execution`, `theme`
 - `POST /api/interactions/:id` — submit one response (409 while execution is active)
 - `POST /api/review` — `{ "decision": "approve" \| "deny" \| "iterate", "note"?: "..." }` (review mode only; 409 while execution is active)
 - `GET /api/execution` and `PUT /api/execution` — read or replace execution state. `GET` includes `planned` (the expected workflow) even while execution is idle
 - `POST /api/execution/start` and `POST /api/execution/stop` — convenience toggles
+- `GET /api/theme` and `PUT /api/theme` — read or set `{ "accent": "#hex" }` (persists to the theme config file)
 
 Prefer the CLI. Use HTTP only to inspect state or when another process must submit on the human's behalf.
