@@ -1,6 +1,7 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { rm } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
+import { createPlanHost, type PlanHost } from './planHost.js'
 import { DEFAULT_REGISTRY_HOST, STALE_MS } from './registryConstants.js'
 import { registryDatabasePath, registryStartingPath, writeRegistryLock } from './registryLock.js'
 import { renderRegistryPage } from './registryPage.js'
@@ -173,6 +174,17 @@ function parsePulse(body: unknown): {
   return pulse
 }
 
+export function planIdFromPath(pathname: string): string | null {
+  const prefix = '/api/plans/'
+  if (!pathname.startsWith(prefix)) return null
+  try {
+    const id = decodeURIComponent(pathname.slice(prefix.length))
+    return ID_PATTERN.test(id) ? id : null
+  } catch {
+    return null
+  }
+}
+
 export function processIdFromPath(pathname: string): string | null {
   const prefix = '/api/processes/'
   if (!pathname.startsWith(prefix)) return null
@@ -191,20 +203,82 @@ export async function startRegistryServer(options: {
   port?: number
   token?: string
   staleMs?: number
+  version?: string
 }): Promise<RegistryServer> {
   const host = options.host ?? DEFAULT_REGISTRY_HOST
   const token = options.token ?? randomBytes(24).toString('hex')
   const staleMs = options.staleMs ?? STALE_MS
   const store: RegistryStore = await openRegistryStore(registryDatabasePath(options.home))
   const page = renderRegistryPage()
+  const originBox = { current: '' }
+  const planHost: PlanHost = await createPlanHost({
+    store,
+    serviceToken: token,
+    getOrigin: () => originBox.current,
+  })
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', `http://${host}`)
     try {
       if (req.method === 'GET' && url.pathname === '/api/health') {
-        sendJson(res, 200, { ok: true, pid: process.pid, processes: store.list().length })
+        sendJson(res, 200, {
+          ok: true,
+          pid: process.pid,
+          processes: store.list().length + planHost.listRecords().length,
+          version: options.version ?? null,
+        })
         return
       }
+
+      if (req.method === 'GET' && url.pathname.startsWith('/client/')) {
+        const served = await planHost.serveClient(res, url.pathname)
+        if (!served && !res.headersSent) sendJson(res, 404, { error: 'Asset not found' })
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/plans') {
+        if (!authorized(req, token)) {
+          sendJson(res, 401, { error: 'Unauthorized' })
+          return
+        }
+        const body = JSON.parse(await readBody(req)) as Record<string, unknown>
+        const planPath = requireText(body.planPath, 1000)
+        const mode = body.mode === 'review' ? 'review' : body.mode === 'watch' ? 'watch' : null
+        if (!planPath || !mode) {
+          sendJson(res, 400, { error: 'planPath and mode are required' })
+          return
+        }
+        const iteration = Number(body.iteration)
+        try {
+          const hosted = await planHost.register({
+            planPath,
+            mode,
+            iteration: Number.isFinite(iteration) ? iteration : undefined,
+            cwd: requireText(body.cwd, 1000) ?? undefined,
+            configPath: requireText(body.configPath, 1000) ?? undefined,
+          })
+          sendJson(res, 200, { ok: true, plan: hosted })
+        } catch (error) {
+          const code = error && typeof error === 'object' && 'code' in error ? error.code : ''
+          sendJson(res, code === 'ENOENT' ? 404 : 400, {
+            error: error instanceof Error ? error.message : 'Unable to open plan',
+          })
+        }
+        return
+      }
+
+      const hostedId = planIdFromPath(url.pathname)
+      if (hostedId && req.method === 'DELETE' && url.pathname === `/api/plans/${encodeURIComponent(hostedId)}`) {
+        if (!authorized(req, token)) {
+          sendJson(res, 401, { error: 'Unauthorized' })
+          return
+        }
+        const removed = await planHost.closePlan(hostedId)
+        sendJson(res, removed ? 200 : 404, removed ? { ok: true } : { error: 'Not found' })
+        return
+      }
+
+      if (await planHost.handle(req, res, url)) return
 
       if (req.method === 'GET' && url.pathname === '/') {
         res.writeHead(200, {
@@ -217,7 +291,10 @@ export async function startRegistryServer(options: {
 
       if (req.method === 'GET' && url.pathname === '/api/processes') {
         store.prune({ staleMs })
-        sendJson(res, 200, { processes: store.list() })
+        sendJson(res, 200, {
+          status: 'ok',
+          processes: [...planHost.listRecords(), ...store.list()],
+        })
         return
       }
 
@@ -268,6 +345,7 @@ export async function startRegistryServer(options: {
 
       sendJson(res, 404, { error: 'Not found' })
     } catch (error) {
+      if (res.headersSent) return
       sendJson(res, 500, { error: error instanceof Error ? error.message : 'Unknown error' })
     }
   })
@@ -307,6 +385,7 @@ export async function startRegistryServer(options: {
   }
 
   const url = `http://${host}:${port}`
+  originBox.current = url
   await writeRegistryLock(options.home, {
     pid: process.pid,
     port,
@@ -314,6 +393,7 @@ export async function startRegistryServer(options: {
     url,
     token,
     startedAt: Date.now(),
+    version: options.version,
   })
   await rm(registryStartingPath(options.home), { force: true })
 
@@ -339,6 +419,7 @@ export async function startRegistryServer(options: {
       if (lock?.pid === process.pid) {
         await rm(registryLockPath(options.home), { force: true })
       }
+      await planHost.close()
       store.close()
       server.closeAllConnections()
       await new Promise<void>((resolveClose, reject) => {

@@ -9,6 +9,8 @@ export type RegistryLock = {
   url: string
   token: string
   startedAt: number
+  /** Package version that started this process. A mismatch restarts the service. */
+  version?: string
 }
 
 export function defaultRegistryHome(): string {
@@ -40,6 +42,7 @@ export async function readRegistryLock(home: string): Promise<RegistryLock | nul
       url: parsed.url,
       token: parsed.token,
       startedAt: typeof parsed.startedAt === 'number' ? parsed.startedAt : 0,
+      version: typeof parsed.version === 'string' ? parsed.version : undefined,
     }
   } catch {
     return null

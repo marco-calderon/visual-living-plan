@@ -8,3 +8,6 @@ export const HEARTBEAT_MS = 5_000
 
 /** Drop a plan when its heartbeat is older than this, or when its pid is gone. */
 export const STALE_MS = 20_000
+
+/** Close a hosted plan after this long with no browser and no agent stream. */
+export const SESSION_IDLE_MS = 6 * 60 * 60 * 1000
