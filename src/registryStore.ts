@@ -1,63 +1,78 @@
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { desc, eq } from 'drizzle-orm'
-import { buildDashboard, type DashboardPayload, type DashboardPeriod } from './dashboard.js'
-import { openPlanDatabase } from './db/client.js'
-import { plans } from './db/schema.js'
-import { isPidAlive } from './pid.js'
-import type {
-  CompletionState,
-  GitSnapshot,
-  PlanRecord,
-  PlanStatus,
-  ProcessPulse,
-  ProcessRecord,
-  ReviewOutcome,
-} from './processRecord.js'
-import { emptyGitSnapshot } from './processRecord.js'
 import { STALE_MS } from './registryConstants.js'
+import { isPidAlive } from './pid.js'
+import type { GitSnapshot, PlanRecord, ProcessPulse, ProcessRecord } from './processRecord.js'
+import { finishedPlan } from './processRecord.js'
+import { emptyGitSnapshot } from './processRecord.js'
 
-type PlanRow = typeof plans.$inferSelect
+type SqlValue = string | number | null
 
-export type PlanWrite = ProcessRecord & Partial<PlanRecord>
+export type StoredPlanSession = {
+  id: string
+  token: string
+  planPath: string
+  mode: 'watch' | 'review'
+  iteration: number
+  cwd: string
+  configPath: string | null
+  responsesJson: string
+  executionJson: string
+  reviewJson: string | null
+  startedAt: number
+  lastSeenAt: number
+}
 
 export type RegistryStore = {
-  upsert(record: PlanWrite): void
-  get(id: string): PlanRecord | undefined
-  /** Running plans only. Finished runs stay in `listPlans`. */
-  list(): PlanRecord[]
-  listPlans(): PlanRecord[]
-  heartbeat(id: string, pulse: ProcessPulse): PlanRecord | undefined
-  finish(id: string, status: 'executed' | 'interrupted', outcome?: ReviewOutcome | null): boolean
-  /** Mark a running plan executed. The row stays for the dashboard. */
-  remove(id: string, outcome?: ReviewOutcome | null): boolean
-  setStoredPath(id: string, storedPath: string): void
+  upsert(record: ProcessRecord): void
+  get(id: string): ProcessRecord | undefined
+  list(): ProcessRecord[]
+  heartbeat(id: string, pulse: ProcessPulse): ProcessRecord | undefined
+  remove(id: string): boolean
   prune(options?: { now?: number; staleMs?: number; isAlive?: (pid: number) => boolean }): string[]
-  dashboard(period: DashboardPeriod, now?: number): DashboardPayload
+  saveSession(session: StoredPlanSession): void
+  getSession(id: string): StoredPlanSession | undefined
+  getSessionByPath(planPath: string): StoredPlanSession | undefined
+  listSessions(): StoredPlanSession[]
+  deleteSession(id: string): boolean
+  saveRun(record: PlanRecord): void
+  listRuns(): PlanRecord[]
   close(): void
 }
 
-function clampRatio(value: number): number {
-  if (!Number.isFinite(value)) return 0
-  return Math.max(0, Math.min(100, Math.round(value)))
+let sqliteImport: Promise<typeof import('node:sqlite')> | undefined
+
+function loadSqlite(): Promise<typeof import('node:sqlite')> {
+  if (!sqliteImport) {
+    const emit = process.emitWarning.bind(process)
+    process.emitWarning = ((warning: unknown, ...args: unknown[]) => {
+      const message =
+        typeof warning === 'string' ? warning : warning instanceof Error ? warning.message : ''
+      if (message.includes('SQLite is an experimental feature')) return
+      return Reflect.apply(emit, process, [warning, ...args])
+    }) as typeof process.emitWarning
+    sqliteImport = import('node:sqlite')
+  }
+  return sqliteImport
 }
 
-function asStatus(value: string | undefined): PlanStatus {
-  if (value === 'executed' || value === 'interrupted' || value === 'running') return value
-  return 'running'
+function asNumber(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'bigint') return Number(value)
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  return 0
 }
 
-function asCompletion(value: string | undefined): CompletionState {
-  if (value === 'idle' || value === 'in_progress' || value === 'partial' || value === 'complete') return value
-  return 'idle'
+function asText(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length === 0) return null
+  return value
 }
 
-function asOutcome(value: string | null | undefined): ReviewOutcome | null {
-  if (value === 'approve' || value === 'deny' || value === 'iterate') return value
-  return null
-}
-
-function parsePaths(value: string): string[] {
+function parsePaths(value: unknown): string[] {
+  if (typeof value !== 'string' || value.length === 0) return []
   try {
     const parsed = JSON.parse(value) as unknown
     if (!Array.isArray(parsed)) return []
@@ -67,257 +82,254 @@ function parsePaths(value: string): string[] {
   }
 }
 
-function rowToPlan(row: PlanRow): PlanRecord {
-  const status = asStatus(row.status)
+function rowToSession(row: Record<string, unknown>): StoredPlanSession {
+  return {
+    id: asText(row.id) ?? '',
+    token: asText(row.token) ?? '',
+    planPath: asText(row.plan_path) ?? '',
+    mode: row.mode === 'review' ? 'review' : 'watch',
+    iteration: asNumber(row.iteration) || 1,
+    cwd: asText(row.cwd) ?? '',
+    configPath: asText(row.config_path),
+    responsesJson: asText(row.responses_json) ?? '{}',
+    executionJson: asText(row.execution_json) ?? '{}',
+    reviewJson: asText(row.review_json),
+    startedAt: asNumber(row.started_at),
+    lastSeenAt: asNumber(row.last_seen_at),
+  }
+}
+
+function rowToRecord(row: Record<string, unknown>): ProcessRecord {
   const git: GitSnapshot = {
-    isRepo: row.gitIsRepo,
-    root: row.gitRoot,
-    branch: row.gitBranch,
-    commit: row.gitCommit,
-    dirty: row.gitDirty,
-    ahead: row.gitAhead,
-    behind: row.gitBehind,
-    changedFiles: row.gitChangedFiles,
-    changedPaths: parsePaths(row.gitPaths),
-    summary: row.gitSummary,
+    isRepo: asNumber(row.git_is_repo) === 1,
+    root: asText(row.git_root),
+    branch: asText(row.git_branch),
+    commit: asText(row.git_commit),
+    dirty: asNumber(row.git_dirty) === 1,
+    ahead: asNumber(row.git_ahead),
+    behind: asNumber(row.git_behind),
+    changedFiles: asNumber(row.git_changed_files),
+    changedPaths: parsePaths(row.git_paths),
+    summary: asText(row.git_summary) ?? '',
   }
   return {
-    id: row.id,
-    pid: row.pid ?? 0,
-    title: row.title,
-    summary: row.summary,
-    agent: row.agent,
+    id: asText(row.id) ?? '',
+    pid: asNumber(row.pid),
+    title: asText(row.title) ?? '',
+    summary: asText(row.summary),
+    agent: asText(row.agent),
     mode: row.mode === 'review' ? 'review' : 'watch',
-    status,
-    planPath: row.planPath,
-    storedPath: row.storedPath,
-    directory: row.directory,
-    cwd: row.cwd,
-    url: row.url,
-    host: row.host,
-    port: row.port,
-    startedAt: row.startedAt,
-    endedAt: row.endedAt,
-    heartbeatAt: row.heartbeatAt,
-    durationMs: status === 'running' ? Math.max(0, Date.now() - row.startedAt) : row.durationMs,
-    pendingCount: row.pendingCount,
-    phaseTotal: row.phaseTotal,
-    phaseDone: row.phaseDone,
-    interactionTotal: row.interactionTotal,
-    interactionDone: row.interactionDone,
-    completionRatio: row.completionRatio,
-    completionState: asCompletion(row.completionState),
-    executionActive: row.executionActive,
-    executionStep: row.executionStep,
-    filesModified: row.filesModified,
-    outcome: asOutcome(row.outcome),
+    planPath: asText(row.plan_path) ?? '',
+    directory: asText(row.directory) ?? '',
+    cwd: asText(row.cwd) ?? '',
+    url: asText(row.url) ?? '',
+    host: asText(row.host) ?? '',
+    port: asNumber(row.port),
+    startedAt: asNumber(row.started_at),
+    heartbeatAt: asNumber(row.heartbeat_at),
+    pendingCount: asNumber(row.pending_count),
+    executionActive: asNumber(row.execution_active) === 1,
+    executionStep: asText(row.execution_step),
     git,
   }
 }
 
-function materialize(input: PlanWrite, existing: PlanRecord | undefined): PlanRecord {
-  const git = input.git ?? existing?.git ?? emptyGitSnapshot()
-  const reportedFiles = input.filesModified ?? git.changedFiles
-  return {
-    id: input.id,
-    pid: input.pid,
-    title: input.title,
-    summary: input.summary ?? null,
-    agent: input.agent ?? null,
-    mode: input.mode === 'review' ? 'review' : 'watch',
-    planPath: input.planPath,
-    directory: input.directory,
-    cwd: input.cwd,
-    url: input.url,
-    host: input.host,
-    port: input.port,
-    startedAt: existing?.startedAt ?? input.startedAt,
-    heartbeatAt: input.heartbeatAt,
-    pendingCount: input.pendingCount ?? existing?.pendingCount ?? 0,
-    executionActive: input.executionActive ?? existing?.executionActive ?? false,
-    executionStep: input.executionStep === undefined ? (existing?.executionStep ?? null) : input.executionStep,
-    git,
-    status: asStatus(input.status ?? existing?.status),
-    storedPath: input.storedPath === undefined ? (existing?.storedPath ?? null) : input.storedPath,
-    endedAt: input.endedAt === undefined ? (existing?.endedAt ?? null) : input.endedAt,
-    durationMs: input.durationMs ?? existing?.durationMs ?? 0,
-    phaseTotal: input.phaseTotal ?? existing?.phaseTotal ?? 0,
-    phaseDone: input.phaseDone ?? existing?.phaseDone ?? 0,
-    interactionTotal: input.interactionTotal ?? existing?.interactionTotal ?? 0,
-    interactionDone: input.interactionDone ?? existing?.interactionDone ?? 0,
-    completionRatio: clampRatio(input.completionRatio ?? existing?.completionRatio ?? 0),
-    completionState: asCompletion(input.completionState ?? existing?.completionState),
-    filesModified: existing ? Math.max(existing.filesModified, reportedFiles) : reportedFiles,
-    outcome: input.outcome === undefined ? (existing?.outcome ?? null) : asOutcome(input.outcome),
-  }
+function recordValues(record: ProcessRecord): SqlValue[] {
+  const git = record.git ?? emptyGitSnapshot()
+  return [
+    record.id,
+    record.pid,
+    record.title,
+    record.summary,
+    record.agent,
+    record.mode,
+    record.planPath,
+    record.directory,
+    record.cwd,
+    record.url,
+    record.host,
+    record.port,
+    record.startedAt,
+    record.heartbeatAt,
+    record.pendingCount,
+    record.executionActive ? 1 : 0,
+    record.executionStep,
+    git.isRepo ? 1 : 0,
+    git.root,
+    git.branch,
+    git.commit,
+    git.dirty ? 1 : 0,
+    git.ahead,
+    git.behind,
+    git.changedFiles,
+    JSON.stringify(git.changedPaths),
+    git.summary,
+  ]
 }
+
+const UPSERT = `
+  INSERT INTO processes (
+    id, pid, title, summary, agent, mode, plan_path, directory, cwd, url, host, port,
+    started_at, heartbeat_at, pending_count, execution_active, execution_step,
+    git_is_repo, git_root, git_branch, git_commit, git_dirty, git_ahead, git_behind,
+    git_changed_files, git_paths, git_summary
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(id) DO UPDATE SET
+    pid = excluded.pid,
+    title = excluded.title,
+    summary = excluded.summary,
+    agent = excluded.agent,
+    mode = excluded.mode,
+    plan_path = excluded.plan_path,
+    directory = excluded.directory,
+    cwd = excluded.cwd,
+    url = excluded.url,
+    host = excluded.host,
+    port = excluded.port,
+    heartbeat_at = excluded.heartbeat_at,
+    pending_count = excluded.pending_count,
+    execution_active = excluded.execution_active,
+    execution_step = excluded.execution_step,
+    git_is_repo = excluded.git_is_repo,
+    git_root = excluded.git_root,
+    git_branch = excluded.git_branch,
+    git_commit = excluded.git_commit,
+    git_dirty = excluded.git_dirty,
+    git_ahead = excluded.git_ahead,
+    git_behind = excluded.git_behind,
+    git_changed_files = excluded.git_changed_files,
+    git_paths = excluded.git_paths,
+    git_summary = excluded.git_summary
+`
 
 export async function openRegistryStore(dbPath: string): Promise<RegistryStore> {
   if (dbPath !== ':memory:') {
     await mkdir(dirname(dbPath), { recursive: true })
   }
-  const { sqlite, db } = openPlanDatabase(dbPath)
-  let closed = false
-
-  function write(record: PlanRecord): void {
-    const row = {
-      id: record.id,
-      pid: record.pid,
-      title: record.title,
-      summary: record.summary,
-      agent: record.agent,
-      mode: record.mode,
-      status: record.status,
-      planPath: record.planPath,
-      storedPath: record.storedPath,
-      directory: record.directory,
-      cwd: record.cwd,
-      url: record.url,
-      host: record.host,
-      port: record.port,
-      startedAt: record.startedAt,
-      endedAt: record.endedAt,
-      heartbeatAt: record.heartbeatAt,
-      durationMs: record.durationMs,
-      pendingCount: record.pendingCount,
-      phaseTotal: record.phaseTotal,
-      phaseDone: record.phaseDone,
-      interactionTotal: record.interactionTotal,
-      interactionDone: record.interactionDone,
-      completionRatio: record.completionRatio,
-      completionState: record.completionState,
-      executionActive: record.executionActive,
-      executionStep: record.executionStep,
-      filesModified: record.filesModified,
-      outcome: record.outcome,
-      gitIsRepo: record.git.isRepo,
-      gitRoot: record.git.root,
-      gitBranch: record.git.branch,
-      gitCommit: record.git.commit,
-      gitDirty: record.git.dirty,
-      gitAhead: record.git.ahead,
-      gitBehind: record.git.behind,
-      gitChangedFiles: record.git.changedFiles,
-      gitPaths: JSON.stringify(record.git.changedPaths),
-      gitSummary: record.git.summary,
-    }
-    db.insert(plans)
-      .values(row)
-      .onConflictDoUpdate({
-        target: plans.id,
-        set: {
-          pid: row.pid,
-          title: row.title,
-          summary: row.summary,
-          agent: row.agent,
-          mode: row.mode,
-          status: row.status,
-          planPath: row.planPath,
-          storedPath: row.storedPath,
-          directory: row.directory,
-          cwd: row.cwd,
-          url: row.url,
-          host: row.host,
-          port: row.port,
-          endedAt: row.endedAt,
-          heartbeatAt: row.heartbeatAt,
-          durationMs: row.durationMs,
-          pendingCount: row.pendingCount,
-          phaseTotal: row.phaseTotal,
-          phaseDone: row.phaseDone,
-          interactionTotal: row.interactionTotal,
-          interactionDone: row.interactionDone,
-          completionRatio: row.completionRatio,
-          completionState: row.completionState,
-          executionActive: row.executionActive,
-          executionStep: row.executionStep,
-          filesModified: row.filesModified,
-          outcome: row.outcome,
-          gitIsRepo: row.gitIsRepo,
-          gitRoot: row.gitRoot,
-          gitBranch: row.gitBranch,
-          gitCommit: row.gitCommit,
-          gitDirty: row.gitDirty,
-          gitAhead: row.gitAhead,
-          gitBehind: row.gitBehind,
-          gitChangedFiles: row.gitChangedFiles,
-          gitPaths: row.gitPaths,
-          gitSummary: row.gitSummary,
-        },
-      })
-      .run()
+  const { DatabaseSync } = await loadSqlite()
+  const database = new DatabaseSync(dbPath)
+  if (dbPath !== ':memory:') {
+    database.exec('PRAGMA journal_mode = WAL')
   }
+  database.exec('PRAGMA busy_timeout = 3000')
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS plan_sessions (
+      id TEXT PRIMARY KEY,
+      token TEXT NOT NULL,
+      plan_path TEXT NOT NULL UNIQUE,
+      mode TEXT NOT NULL,
+      iteration INTEGER NOT NULL DEFAULT 1,
+      cwd TEXT NOT NULL,
+      config_path TEXT,
+      responses_json TEXT NOT NULL DEFAULT '{}',
+      execution_json TEXT NOT NULL DEFAULT '{}',
+      review_json TEXT,
+      started_at INTEGER NOT NULL,
+      last_seen_at INTEGER NOT NULL
+    )
+  `)
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS processes (
+      id TEXT PRIMARY KEY,
+      pid INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT,
+      agent TEXT,
+      mode TEXT NOT NULL,
+      plan_path TEXT NOT NULL,
+      directory TEXT NOT NULL,
+      cwd TEXT NOT NULL,
+      url TEXT NOT NULL,
+      host TEXT NOT NULL,
+      port INTEGER NOT NULL,
+      started_at INTEGER NOT NULL,
+      heartbeat_at INTEGER NOT NULL,
+      pending_count INTEGER NOT NULL DEFAULT 0,
+      execution_active INTEGER NOT NULL DEFAULT 0,
+      execution_step TEXT,
+      git_is_repo INTEGER NOT NULL DEFAULT 0,
+      git_root TEXT,
+      git_branch TEXT,
+      git_commit TEXT,
+      git_dirty INTEGER NOT NULL DEFAULT 0,
+      git_ahead INTEGER NOT NULL DEFAULT 0,
+      git_behind INTEGER NOT NULL DEFAULT 0,
+      git_changed_files INTEGER NOT NULL DEFAULT 0,
+      git_paths TEXT NOT NULL DEFAULT '[]',
+      git_summary TEXT NOT NULL DEFAULT ''
+    )
+  `)
+
+  const upsertStatement = database.prepare(UPSERT)
+  const getStatement = database.prepare('SELECT * FROM processes WHERE id = ?')
+  const listStatement = database.prepare('SELECT * FROM processes ORDER BY started_at DESC')
+  const removeStatement = database.prepare('DELETE FROM processes WHERE id = ?')
+  const saveSessionStatement = database.prepare(`
+    INSERT INTO plan_sessions (
+      id, token, plan_path, mode, iteration, cwd, config_path,
+      responses_json, execution_json, review_json, started_at, last_seen_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      token = excluded.token,
+      plan_path = excluded.plan_path,
+      mode = excluded.mode,
+      iteration = excluded.iteration,
+      cwd = excluded.cwd,
+      config_path = excluded.config_path,
+      responses_json = excluded.responses_json,
+      execution_json = excluded.execution_json,
+      review_json = excluded.review_json,
+      last_seen_at = excluded.last_seen_at
+  `)
+  const getSessionStatement = database.prepare('SELECT * FROM plan_sessions WHERE id = ?')
+  const getSessionByPathStatement = database.prepare('SELECT * FROM plan_sessions WHERE plan_path = ?')
+  const listSessionsStatement = database.prepare('SELECT * FROM plan_sessions ORDER BY started_at DESC')
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS plan_runs (
+      run_id TEXT PRIMARY KEY,
+      started_at INTEGER NOT NULL,
+      payload TEXT NOT NULL
+    )
+  `)
+  const deleteSessionStatement = database.prepare('DELETE FROM plan_sessions WHERE id = ?')
+  const saveRunStatement = database.prepare(`
+    INSERT INTO plan_runs (run_id, started_at, payload) VALUES (?, ?, ?)
+    ON CONFLICT(run_id) DO UPDATE SET payload = excluded.payload
+  `)
+  const listRunsStatement = database.prepare('SELECT payload FROM plan_runs ORDER BY started_at DESC')
+  let closed = false
 
   const store: RegistryStore = {
     upsert(record) {
-      write(materialize(record, store.get(record.id)))
+      upsertStatement.run(...recordValues(record))
     },
     get(id) {
-      const row = db.select().from(plans).where(eq(plans.id, id)).get()
-      return row ? rowToPlan(row) : undefined
+      const row = getStatement.get(id)
+      return row ? rowToRecord(row) : undefined
     },
     list() {
-      return db
-        .select()
-        .from(plans)
-        .where(eq(plans.status, 'running'))
-        .orderBy(desc(plans.startedAt))
-        .all()
-        .map(rowToPlan)
-    },
-    listPlans() {
-      return db.select().from(plans).orderBy(desc(plans.startedAt)).all().map(rowToPlan)
+      return listStatement.all().map((row) => rowToRecord(row))
     },
     heartbeat(id, pulse) {
       const current = store.get(id)
       if (!current) return undefined
-      const at = pulse.at ?? Date.now()
-      const nextGit = pulse.git ?? current.git
-      store.upsert({
+      const next: ProcessRecord = {
         ...current,
-        heartbeatAt: at,
+        heartbeatAt: pulse.at ?? Date.now(),
         title: pulse.title ?? current.title,
         summary: pulse.summary === undefined ? current.summary : pulse.summary,
         agent: pulse.agent === undefined ? current.agent : pulse.agent,
         pendingCount: pulse.pendingCount ?? current.pendingCount,
         executionActive: pulse.executionActive ?? current.executionActive,
         executionStep: pulse.executionStep === undefined ? current.executionStep : pulse.executionStep,
-        git: nextGit,
-        status: 'running',
-        endedAt: null,
-        durationMs: Math.max(0, at - current.startedAt),
-        phaseTotal: pulse.phaseTotal ?? current.phaseTotal,
-        phaseDone: pulse.phaseDone ?? current.phaseDone,
-        interactionTotal: pulse.interactionTotal ?? current.interactionTotal,
-        interactionDone: pulse.interactionDone ?? current.interactionDone,
-        completionRatio: pulse.completionRatio ?? current.completionRatio,
-        completionState: pulse.completionState ?? current.completionState,
-        filesModified: pulse.filesModified ?? nextGit.changedFiles,
-        outcome: null,
-      })
+        git: pulse.git ?? current.git,
+      }
+      store.upsert(next)
       return store.get(id)
     },
-    finish(id, status, outcome = null) {
-      const current = store.get(id)
-      if (!current || current.status !== 'running') return false
-      const endedAt = status === 'interrupted' ? current.heartbeatAt : Date.now()
-      db.update(plans)
-        .set({
-          status,
-          endedAt,
-          durationMs: Math.max(0, endedAt - current.startedAt),
-          executionActive: false,
-          outcome,
-        })
-        .where(eq(plans.id, id))
-        .run()
-      return true
-    },
-    remove(id, outcome = null) {
-      return store.finish(id, 'executed', outcome ?? null)
-    },
-    setStoredPath(id, storedPath) {
-      db.update(plans).set({ storedPath }).where(eq(plans.id, id)).run()
+    remove(id) {
+      const result = removeStatement.run(id)
+      return result.changes > 0
     },
     prune(options) {
       const now = options?.now ?? Date.now()
@@ -327,19 +339,62 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
       for (const record of store.list()) {
         const stale = now - record.heartbeatAt > staleMs
         if (stale || !alive(record.pid)) {
-          store.finish(record.id, 'interrupted')
+          store.saveRun(finishedPlan(record, 'interrupted', null, now))
+          store.remove(record.id)
           removed.push(record.id)
         }
       }
       return removed
     },
-    dashboard(period, now) {
-      return buildDashboard(store.listPlans(), period, now)
+    saveSession(session) {
+      saveSessionStatement.run(
+        session.id,
+        session.token,
+        session.planPath,
+        session.mode,
+        session.iteration,
+        session.cwd,
+        session.configPath,
+        session.responsesJson,
+        session.executionJson,
+        session.reviewJson,
+        session.startedAt,
+        session.lastSeenAt,
+      )
+    },
+    getSession(id) {
+      const row = getSessionStatement.get(id)
+      return row ? rowToSession(row) : undefined
+    },
+    getSessionByPath(planPath) {
+      const row = getSessionByPathStatement.get(planPath)
+      return row ? rowToSession(row) : undefined
+    },
+    listSessions() {
+      return listSessionsStatement.all().map((row) => rowToSession(row))
+    },
+    deleteSession(id) {
+      const result = deleteSessionStatement.run(id)
+      return result.changes > 0
+    },
+    saveRun(record) {
+      saveRunStatement.run(`${record.id}:${record.startedAt}`, record.startedAt, JSON.stringify(record))
+    },
+    listRuns() {
+      return listRunsStatement.all().flatMap((row) => {
+        const payload = (row as { payload?: unknown }).payload
+        if (typeof payload !== 'string') return []
+        try {
+          return [JSON.parse(payload) as PlanRecord]
+        } catch {
+          return []
+        }
+      })
     },
     close() {
       if (closed) return
       closed = true
-      sqlite.close()
+      database.close()
     },
   }
 

@@ -97,6 +97,39 @@ export type ProcessPulse = {
   filesModified?: number
 }
 
+export function runningPlan(record: ProcessRecord, now = Date.now()): PlanRecord {
+  return {
+    ...record,
+    status: 'running',
+    storedPath: null,
+    endedAt: null,
+    durationMs: Math.max(0, now - record.startedAt),
+    phaseTotal: 0,
+    phaseDone: 0,
+    interactionTotal: 0,
+    interactionDone: 0,
+    completionRatio: 0,
+    completionState: 'idle',
+    filesModified: record.git.changedFiles,
+    outcome: null,
+  }
+}
+
+export function finishedPlan(
+  record: ProcessRecord,
+  status: 'executed' | 'interrupted',
+  outcome: ReviewOutcome | null = null,
+  now = Date.now(),
+): PlanRecord {
+  return {
+    ...runningPlan(record, now),
+    status,
+    endedAt: now,
+    durationMs: Math.max(0, now - record.startedAt),
+    outcome,
+  }
+}
+
 export function emptyGitSnapshot(summary = 'not a git repository'): GitSnapshot {
   return {
     isRepo: false,

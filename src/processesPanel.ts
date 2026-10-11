@@ -142,9 +142,10 @@ a.process-title:hover { color: var(--accent); }
 }
 `
 
-export function processesPanelMarkup(): string {
+export function processesPanelMarkup(selfId?: string): string {
+  const self = selfId ? ` data-self-id="${selfId.replaceAll('"', '')}"` : ''
   return `
-  <div class="processes" data-processes-root>
+  <div class="processes" data-processes-root${self}>
     <button type="button" class="processes-toggle" data-processes-toggle aria-expanded="false" aria-controls="processes-panel">
       <span class="live-dot" aria-hidden="true"></span>
       Plans
@@ -177,6 +178,7 @@ export function processesPanelScript(): string {
   const list = root.querySelector('[data-processes-list]');
   const registryLink = root.querySelector('[data-processes-registry]');
   const dashboardLink = root.querySelector('[data-processes-dashboard]');
+  const pageSelfId = root.getAttribute('data-self-id');
   if (!toggle || !panel || !count || !status || !list || !registryLink || !dashboardLink) return;
 
   let open = false;
@@ -255,7 +257,7 @@ export function processesPanelScript(): string {
     }
     list.replaceChildren();
     if (!open) return;
-    for (const record of processes) list.append(renderCard(record, payload.selfId));
+    for (const record of processes) list.append(renderCard(record, payload.selfId || pageSelfId));
   }
 
   function renderCard(record, selfId) {

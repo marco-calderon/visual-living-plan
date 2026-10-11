@@ -10,29 +10,31 @@ The agent owns a `.plan.md` file. Humans open a browser URL to:
 
 Works for local agents (file + localhost URL) and is shaped so a cloud agent can host the same server and share the URL.
 
+Architecture and the decisions behind it: [docs/architecture](docs/architecture/README.md). Context for working in this repo: [docs/context.md](docs/context.md).
+
 ## Quick start
 
 The CLI and both HTTP servers run on [Bun](https://bun.sh). The plan page and the registry are [Elysia](https://elysiajs.com) apps. Plan history is stored with [Drizzle](https://orm.drizzle.team) in SQLite.
 
 ```bash
 bun install
-bun run serve -- examples/rate-limit.plan.md --port 9410
+bun run serve -- examples/rate-limit.plan.md
 ```
 
-Open `http://127.0.0.1:9410`. Edit the example file, change a phase `status`, and the page reloads. Click a choice or submit a form to send structured feedback to the agent.
-
-The same server is what the other npm scripts call (`npm run review`, `npm run wait`, `npm run execution`, `npm run check`).
+The command prints a URL and exits. Open that URL. Edit the example file, change a phase `status`, and the page reloads. Click a choice or submit a form. An agent subscribed with `events` or `wait` hears that submission immediately.
 
 ### Running plans
 
-`serve` and `review` register the process with a small shared registry on `127.0.0.1:9477`. The registry keeps plan runs in SQLite (`~/.visual-living-plan/registry.sqlite`) and copies each plan file into `~/.visual-living-plan/plans/`. A run stays in that database after it stops, marked executed when the process exits cleanly or interrupted when the heartbeat goes stale. Every planner page has a **Plans** button that lists running processes: directory, git branch and dirty state, and a link that opens that plan's site. The registry home page is the same list. **Dashboard** (`/dashboard` on the registry, or `live-plan dashboard`) summarizes running and executed plans for the local day, week, and month, and lists them in a table.
+One plan service on `127.0.0.1:9477` hosts every plan. `serve` registers a plan and prints `http://127.0.0.1:9477/plans/<id>/`. The page stays up after the command exits. Sessions are stored in SQLite (`~/.visual-living-plan/registry.sqlite`) and come back if the service restarts. Every planner page has a **Plans** button that lists those plans: directory, git branch and dirty state, and a link that opens that plan. The service home page is the same list. **Dashboard** (`/dashboard`, or `live-plan dashboard`) summarizes the hosted plans and the ones that have finished, for the local day, week, and month. A clean close is executed. An idle drop, or a private process whose heartbeat went stale, is interrupted. The plan file is copied into `~/.visual-living-plan/plans/`.
+
+`live-plan events --url <plan-url>` subscribes to that plan. A choice, form, question, approval, or review is pushed to the client when the user submits it. `wait` uses the same stream and returns when one id is answered.
 
 ```bash
 npm run processes
 live-plan processes
 ```
 
-`--no-registry` skips registration. `--registry-port` changes the port. `live-plan registry` runs the registry in the foreground; `serve` and `review` start it on their own when it is not already up.
+`--no-registry` serves that one plan in its own process instead. `--registry-port` changes the service port. `live-plan registry` runs the service in the foreground; `serve` and `review` start it when it is not already up. `live-plan close --url <plan-url>` drops a plan.
 
 ### Install the command
 
@@ -62,10 +64,10 @@ Blocks until Approve (`0`), Deny (`1`), or Iterate (`2`).
 
 ### Wait for one interaction
 
-With `serve` already running:
+After `serve` prints a plan URL:
 
 ```bash
-npm run wait -- fail-mode --url http://127.0.0.1:9410
+npm run wait -- fail-mode --url <printed-plan-url>
 ```
 
 ### Workflow canvas
@@ -75,16 +77,16 @@ The page has **Plan** and **Workflow** tabs. The Workflow tab draws the required
 While execution is active, Plan forms/gates are disabled. The same Workflow tab then overlays the live [React Flow](https://reactflow.dev) graph the agent pushes. Node ids that match the plan keep their plan reference.
 
 ```bash
-npm run execution -- start --url http://127.0.0.1:9410 \
+npm run execution -- start --url <printed-plan-url> \
   --step "Implement middleware" \
   --detail "Editing gateway.ts" \
   --graph examples/execution-graph.json
 
-npm run execution -- push --url http://127.0.0.1:9410 \
+npm run execution -- push --url <printed-plan-url> \
   --step "Add coverage" \
   --graph examples/execution-graph.json
 
-npm run execution -- stop --url http://127.0.0.1:9410
+npm run execution -- stop --url <printed-plan-url>
 ```
 
 Agent payloads:
@@ -139,7 +141,7 @@ The **Settings** tab offers **8 accent presets** (teal, cyan, sky, blue, violet,
 ```bash
 live-plan theme get --plan examples/rate-limit.plan.md
 live-plan theme set --accent #0369a1 --plan examples/rate-limit.plan.md
-live-plan theme set --accent #0369a1 --url http://127.0.0.1:9410
+live-plan theme set --accent #0369a1 --url <printed-plan-url>
 ```
 
 `serve` / `review` accept `--config path/to/live-plan.config.json`. While the server is up, prefer `--url` so the UI updates live; the config file is also watched on disk.
@@ -151,12 +153,12 @@ live-plan theme set --accent #0369a1 --url http://127.0.0.1:9410
 - `GET /api/execution` — current execution canvas state, including `planned` (the expected workflow from the plan) even while execution is idle
 - `PUT /api/execution` — set execution state (`active`, `step`, `detail`, `graph`, `scene`)
 - `POST /api/execution/start` / `POST /api/execution/stop` — convenience toggles
-- `GET /api/events` — SSE (`reload`, `interaction`, `review`, `execution`, `theme`)
-- `GET /api/processes` — plans registered with the shared registry (directory, git status, site URL). `status` is `ok`, `offline`, or `disabled`. This list is running plans only
+- `GET /api/events` — browser SSE (`reload`, `interaction`, `review`, `execution`, `theme`)
+- `GET /api/agent-events` — agent SSE. On the shared service this requires the plan token or the service token. The first event is `hello` (current responses and review). Later events push each submission.
+- `GET /api/processes` — plans hosted by the service (directory, git status, site URL). `status` is `ok`, `offline`, or `disabled`
 - `GET /dashboard` — registry page for running and executed plans: day, week, and month summaries, plus a table (status, completion, folder, files modified, start time, duration)
 - `GET /api/dashboard?period=day|week|month` — the same summary and rows as JSON
 - `GET /api/plans` — every stored plan run, including executed and interrupted
-- `GET /plans/:id` — the plan markdown copied into the registry home when that run was registered
 - `GET /api/theme` / `PUT /api/theme` — read or set accent color (`{ "accent": "#hex" }`), persisted to the theme config file
 - `POST /api/interactions/:id` — submit an interaction response (409 while execution is live)
 - `POST /api/review` — submit Approve / Deny / Iterate (review mode)
@@ -166,8 +168,9 @@ live-plan theme set --accent #0369a1 --url http://127.0.0.1:9410
 Agents should invoke the published CLI with bunx, or `live-plan` when that command is installed. `living-plan` is the same binary. Bun has to be installed. Do not use the `npm run` scripts above unless you are developing this repository.
 
 ```bash
-bunx visual-living-plan serve path/to/work.plan.md --port 9410
-live-plan serve path/to/work.plan.md --port 9410
+bunx visual-living-plan serve path/to/work.plan.md
+live-plan serve path/to/work.plan.md
+live-plan events --url <printed-plan-url>
 ```
 
 - Guideline: [`docs/agent-guidelines.md`](docs/agent-guidelines.md)

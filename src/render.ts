@@ -1033,10 +1033,12 @@ function clientScript(
   mode: 'watch' | 'review',
   executionActive: boolean,
   theme: RenderTheme,
+  basePath: string,
 ): string {
   return `
 (() => {
   const mode = ${JSON.stringify(mode)};
+  const apiBase = ${JSON.stringify(basePath)};
   const interactionsLocked = ${JSON.stringify(executionActive)};
   let currentAccent = ${JSON.stringify(theme.accent)};
   const toast = document.getElementById('toast');
@@ -1076,7 +1078,7 @@ function clientScript(
   }
 
   async function putAccent(accent) {
-    const response = await fetch('/api/theme', {
+    const response = await fetch(apiBase + '/api/theme', {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ accent }),
@@ -1205,7 +1207,7 @@ function clientScript(
       const optionId = button.getAttribute('data-option-id');
       const label = button.getAttribute('data-option-label');
       if (!id || !optionId || !label) return;
-      await postJson('/api/interactions/' + encodeURIComponent(id), {
+      await postJson(apiBase + '/api/interactions/' + encodeURIComponent(id), {
         kind: 'choice',
         id,
         optionId,
@@ -1227,7 +1229,7 @@ function clientScript(
       const approved = button.getAttribute('data-approved') === 'true';
       if (!id) return;
       const note = document.querySelector('[data-approve-note="' + id + '"]');
-      await postJson('/api/interactions/' + encodeURIComponent(id), {
+      await postJson(apiBase + '/api/interactions/' + encodeURIComponent(id), {
         kind: 'approve',
         id,
         approved,
@@ -1255,7 +1257,7 @@ function clientScript(
           ? Number(value)
           : value;
       });
-      await postJson('/api/interactions/' + encodeURIComponent(id), {
+      await postJson(apiBase + '/api/interactions/' + encodeURIComponent(id), {
         kind: 'form',
         id,
         values,
@@ -1279,7 +1281,7 @@ function clientScript(
       data.forEach((value, key) => {
         answers[key] = String(value);
       });
-      await postJson('/api/interactions/' + encodeURIComponent(id), {
+      await postJson(apiBase + '/api/interactions/' + encodeURIComponent(id), {
         kind: 'questions',
         id,
         answers,
@@ -1297,7 +1299,7 @@ function clientScript(
       button.addEventListener('click', async () => {
         const decision = button.getAttribute('data-review-decision');
         const note = document.getElementById('review-note');
-        await postJson('/api/review', {
+        await postJson(apiBase + '/api/review', {
           decision,
           note: note && 'value' in note ? note.value : undefined,
           comments: [],
@@ -1307,7 +1309,7 @@ function clientScript(
     });
   }
 
-  const source = new EventSource('/api/events');
+  const source = new EventSource(apiBase + '/api/events');
   source.addEventListener('reload', () => {
     window.location.reload();
   });
@@ -1348,6 +1350,9 @@ export function renderPlanPage(options: {
   execution: ExecutionState
   clientAssets?: ClientAssets | null
   theme: RenderTheme
+  /** Prefix for this plan's API. Empty when the plan owns the origin. */
+  basePath?: string
+  selfId?: string
 }): string {
   const {
     plan,
@@ -1361,6 +1366,8 @@ export function renderPlanPage(options: {
     clientAssets,
     theme,
   } = options
+  const basePath = options.basePath ?? ''
+  const selfId = options.selfId
 
   const locked = Boolean(execution.active)
   const planned = planToExpectedGraph(plan)
@@ -1419,7 +1426,7 @@ export function renderPlanPage(options: {
   ${assetCss}
 </head>
 <body>
-  ${processesPanelMarkup()}
+  ${processesPanelMarkup(selfId)}
   <div class="shell">
     <header class="hero">
       <p class="chip" style="width:fit-content;margin:0 0 0.9rem"><span class="live-dot"></span> Living Plan</p>
@@ -1452,6 +1459,7 @@ export function renderPlanPage(options: {
     </section>
     <section class="tab-panel" data-tab-panel="workflow" role="tabpanel" hidden>
       <script id="living-plan-bootstrap" type="application/json">${bootstrap}</script>
+      <script>window.__LIVE_PLAN_BASE__ = ${JSON.stringify(basePath)};</script>
       <div id="execution-root">${executionFallback}</div>
       ${assetJs}
     </section>
@@ -1491,7 +1499,7 @@ export function renderPlanPage(options: {
       : ''
   }
   <div id="toast" class="toast" role="status"></div>
-  <script>${clientScript(mode, locked, theme)}
+  <script>${clientScript(mode, locked, theme, basePath)}
 ${processesPanelScript()}</script>
   ${mermaidJs}
 </body>

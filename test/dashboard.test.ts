@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict'
-import { Database } from 'bun:sqlite'
+import { DatabaseSync } from 'node:sqlite'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { buildDashboard, periodRange } from '../src/dashboard.ts'
-import { PLAN_COLUMNS } from '../src/db/migrate.ts'
 import { measurePlan } from '../src/planProgress.ts'
 import type { PlanRecord } from '../src/processRecord.ts'
 import { emptyGitSnapshot } from '../src/processRecord.ts'
@@ -131,11 +130,11 @@ test('dashboard groups plans by local day, week, and month', () => {
   assert.equal(month.summary.durationMs, 4_000 + 19_000 + 50_000)
 })
 
-test('opening the store migrates the legacy processes table and older plan tables', async () => {
+test('opening the store keeps legacy process rows and adds session tables', async () => {
   const home = await mkdtemp(join(tmpdir(), 'live-plan-migrate-'))
   const dbPath = join(home, 'registry.sqlite')
   try {
-    const legacy = new Database(dbPath)
+    const legacy = new DatabaseSync(dbPath)
     legacy.exec(`
       CREATE TABLE processes (
         id TEXT PRIMARY KEY,
@@ -168,7 +167,7 @@ test('opening the store migrates the legacy processes table and older plan table
       )
     `)
     legacy
-      .query(
+      .prepare(
         `INSERT INTO processes (
           id, pid, title, summary, agent, mode, plan_path, directory, cwd, url, host, port,
           started_at, heartbeat_at, pending_count, execution_active, execution_step,
@@ -205,37 +204,25 @@ test('opening the store migrates the legacy processes table and older plan table
         '["src/a.ts"]',
         'main @ abc1234 · dirty · 4 files',
       )
-    legacy.exec(`CREATE TABLE plans (id TEXT PRIMARY KEY, title TEXT NOT NULL)`)
-    legacy.exec(`INSERT INTO plans (id, title) VALUES ('legacyid', 'Legacy plan')`)
     legacy.close()
 
     const store = await openRegistryStore(dbPath)
     try {
       const migrated = store.get('dddddddd-dddd-4ddd-8ddd-dddddddddddd')
       assert.equal(migrated?.title, 'Migrated plan')
-      assert.equal(migrated?.status, 'running')
       assert.equal(migrated?.directory, '/tmp/migrated')
-      assert.equal(migrated?.filesModified, 4)
       assert.equal(migrated?.git.branch, 'main')
+      assert.equal(migrated?.git.changedFiles, 4)
       assert.equal(store.list().some((entry) => entry.id === migrated?.id), true)
-
-      const older = store.get('legacyid')
-      assert.equal(older?.title, 'Legacy plan')
-      assert.equal(older?.status, 'running')
-      assert.equal(older?.mode, 'watch')
-      assert.equal(older?.filesModified, 0)
     } finally {
       store.close()
     }
 
-    const check = new Database(dbPath, { readonly: true })
-    const tables = check.query("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>
-    assert.equal(tables.some((table) => table.name === 'processes'), false)
-    const columns = check.query('PRAGMA table_info(plans)').all() as Array<{ name: string }>
-    assert.deepEqual(
-      columns.map((column) => column.name).sort(),
-      PLAN_COLUMNS.map((column) => column.name).sort(),
-    )
+    const check = new DatabaseSync(dbPath, { readOnly: true })
+    const tables = check.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>
+    assert.equal(tables.some((table) => table.name === 'processes'), true)
+    assert.equal(tables.some((table) => table.name === 'plan_sessions'), true)
+    assert.equal(tables.some((table) => table.name === 'plan_runs'), true)
     check.close()
   } finally {
     await rm(home, { recursive: true, force: true })

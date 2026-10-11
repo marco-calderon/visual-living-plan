@@ -420,7 +420,7 @@ export function renderDashboardPage(): string {
         }
         if (record.storedPath && record.id) {
           const archived = text('a', 'action', 'Plan file');
-          archived.href = '/plans/' + encodeURIComponent(record.id);
+          archived.href = '/archive/' + encodeURIComponent(record.id);
           if (record.storedPath) archived.title = record.storedPath;
           cell.append(archived);
         }

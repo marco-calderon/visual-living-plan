@@ -107,9 +107,9 @@ test('registry store keeps plans and prunes stale or dead pids', async () => {
     assert.deepEqual(removed.sort(), [dead.id, stale.id].sort())
     assert.equal(store.list().length, 1)
     assert.equal(store.list()[0]?.id, first.id)
-    assert.equal(store.get(stale.id)?.status, 'interrupted')
-    assert.equal(store.get(dead.id)?.status, 'interrupted')
-    assert.equal(store.listPlans().length, 3)
+    const runs = store.listRuns()
+    assert.equal(runs.find((entry) => entry.id === stale.id)?.status, 'interrupted')
+    assert.equal(runs.find((entry) => entry.id === dead.id)?.status, 'interrupted')
   } finally {
     store.close()
   }
@@ -180,7 +180,7 @@ test('registry http api registers, lists, and requires a token to mutate', async
     const badPeriod = await fetch(new URL('/api/dashboard?period=year', registry.url))
     assert.equal(badPeriod.status, 400)
 
-    const archivedPage = await fetch(new URL(`/plans/${sample().id}`, registry.url))
+    const archivedPage = await fetch(new URL(`/archive/${sample().id}`, registry.url))
     assert.equal(archivedPage.status, 200)
     assert.match(await archivedPage.text(), /Rate limiting rollout/)
   } finally {
