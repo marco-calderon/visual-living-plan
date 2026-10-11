@@ -14,7 +14,7 @@ Architecture and the decisions behind it: [docs/architecture](docs/architecture/
 
 ## Quick start
 
-The CLI and both HTTP servers run on [Bun](https://bun.sh). The plan page and the registry are [Elysia](https://elysiajs.com) apps. Plan history is stored with [Drizzle](https://orm.drizzle.team) in SQLite.
+The CLI and both HTTP servers run on [Bun](https://bun.sh). The plan page and the registry are [Elysia](https://elysiajs.com) apps. Sessions and finished runs are stored in SQLite.
 
 ```bash
 bun install

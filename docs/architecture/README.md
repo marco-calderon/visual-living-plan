@@ -31,7 +31,7 @@ Each plan is a session under `/plans/<id>/`. The id is a stable hash of the plan
 
 ## Where a request goes
 
-`src/registryService.ts` owns the socket. Paths under `/plans/<id>/` are handed to `src/planHost.ts`, which picks the session and lets `src/planSession.ts` handle the rest. Everything else is the catalog, the dashboard, or shared assets.
+`src/registryService.ts` is an Elysia app, bound with Bun. Each path is a route handler. Paths under `/plans/<id>/` resolve that session in `src/planHost.ts` and run the handlers in `src/planRoutes.ts`. `src/planSession.ts` holds the plan state and both event streams. Everything else is the catalog, the dashboard, or shared assets.
 
 ```mermaid
 flowchart TD
@@ -123,10 +123,12 @@ A row overlaps the selected window when it started before the end of the window 
 | Module | Role |
 |---|---|
 | `src/planSession.ts` | One plan: file watch, parsed document, responses, execution, review, browser events, agent events |
+| `src/planRoutes.ts` | Elysia routes for one plan, at the origin or under `/plans/<id>/` |
 | `src/planHost.ts` | All sessions on the service: register, close, idle timeout, git snapshot cache, dashboard rows for open sessions |
-| `src/registryService.ts` | The HTTP process: health, plan list, registration, dashboard, archive, and the hosted plan routes |
+| `src/registryService.ts` | The Elysia app: health, plan list, registration, dashboard, archive, and the hosted plan routes |
 | `src/registryStore.ts` | SQLite: `processes` for private servers, `plan_sessions` for live hosted plans, `plan_runs` for finished runs |
-| `src/server.ts` | The private one-plan server used by `--no-registry` |
+| `src/server.ts` | The private one-plan Elysia app used by `--no-registry` |
+| `src/httpServer.ts` | Binds an Elysia app with `Bun.serve` so event streams stay open |
 | `src/cli.ts` | Client of the service. `serve` registers and exits. `events`, `wait`, and `review` read the stream. `dashboard` opens `/dashboard` |
 | `src/agentEvents.ts` | SSE reader and URL helper used by the CLI |
 | `src/dashboard.ts`, `src/dashboardPage.ts` | Period summary and the dashboard page |

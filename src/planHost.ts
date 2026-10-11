@@ -1,10 +1,9 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { access } from 'node:fs/promises'
-import type { IncomingMessage, ServerResponse } from 'node:http'
 import { dirname, resolve } from 'node:path'
 import { createIdleExecutionState, type ExecutionState } from './execution.js'
 import { readGitSnapshot } from './gitStatus.js'
-import { openPlanSession, sendClientAsset, type PlanSession, type PlanSessionSnapshot } from './planSession.js'
+import { openPlanSession, type PlanSession, type PlanSessionSnapshot } from './planSession.js'
 import { measurePlan } from './planProgress.js'
 import type { GitSnapshot, PlanRecord, ProcessRecord, ReviewOutcome } from './processRecord.js'
 import { runningPlan } from './processRecord.js'
@@ -12,7 +11,6 @@ import { SESSION_IDLE_MS } from './registryConstants.js'
 import type { RegistryStore, StoredPlanSession } from './registryStore.js'
 import type { InteractionResponse, ReviewResult } from './types.js'
 
-const ID_PATTERN = /^[A-Za-z0-9_-]{8,80}$/
 const GIT_CACHE_MS = 10_000
 
 export type HostedPlan = {
@@ -34,8 +32,8 @@ export type PlanHost = {
   closePlan(id: string, status?: 'executed' | 'interrupted'): Promise<boolean>
   listRecords(): ProcessRecord[]
   dashboardRecords(): PlanRecord[]
-  handle(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean>
-  serveClient(res: ServerResponse, pathname: string): Promise<boolean>
+  getSession(id: string): PlanSession | undefined
+  authorize(request: Request, session: PlanSession): boolean
   close(): Promise<void>
 }
 
@@ -50,19 +48,11 @@ function tokenEquals(expected: string, actual: string): boolean {
   return timingSafeEqual(left, right)
 }
 
-function bearer(req: IncomingMessage): string | null {
-  const header = req.headers.authorization
-  if (typeof header !== 'string') return null
+function bearer(request: Request): string | null {
+  const header = request.headers.get('authorization')
+  if (!header) return null
   const match = /^Bearer\s+(\S+)$/i.exec(header.trim())
   return match?.[1] ?? null
-}
-
-function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    'cache-control': 'no-store',
-  })
-  res.end(JSON.stringify(body))
 }
 
 function parseJson<T>(value: string, fallback: T): T {
@@ -162,8 +152,8 @@ export async function createPlanHost(options: {
     }
   }
 
-  function authorized(req: IncomingMessage, session: PlanSession): boolean {
-    const presented = bearer(req)
+  function authorize(request: Request, session: PlanSession): boolean {
+    const presented = bearer(request)
     if (!presented) return false
     return tokenEquals(options.serviceToken, presented) || tokenEquals(session.token, presented)
   }
@@ -302,40 +292,10 @@ export async function createPlanHost(options: {
     dashboardRecords() {
       return [...sessions.values()].map((session) => dashboardRecord(session))
     },
-    serveClient(res, pathname) {
-      return sendClientAsset(res, pathname)
+    getSession(id) {
+      return sessions.get(id)
     },
-    async handle(req, res, url) {
-      const pathname = url.pathname
-      const match = pathname.match(/^\/plans\/([A-Za-z0-9_-]+)(\/.*)?$/)
-      if (!match) return false
-      const id = match[1] ?? ''
-      if (!ID_PATTERN.test(id)) {
-        sendJson(res, 404, { error: 'Not found' })
-        return true
-      }
-      if (!match[2]) {
-        res.writeHead(302, { location: `/plans/${id}/` })
-        res.end()
-        return true
-      }
-      const session = sessions.get(id)
-      if (!session) {
-        sendJson(res, 404, { error: 'Plan not found' })
-        return true
-      }
-      const rest = match[2] === '/' ? '/' : match[2]
-      if (req.method === 'GET' && rest === '/api/agent-events') {
-        if (!authorized(req, session)) {
-          sendJson(res, 401, { error: 'Unauthorized' })
-          return true
-        }
-        session.serveAgentEvents(req, res)
-        return true
-      }
-      await session.handle(req, res, rest)
-      return true
-    },
+    authorize,
     async close() {
       if (closed) return
       closed = true

@@ -1,10 +1,14 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { readFile, rm } from 'node:fs/promises'
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
+import { Elysia } from 'elysia'
 import { buildDashboard, parsePeriod } from './dashboard.js'
 import { renderDashboardPage } from './dashboardPage.js'
+import { assertBodyLimit, html, HttpError, jsonBody } from './http.js'
+import { bindElysia } from './httpServer.js'
 import { archivePlanFile, archivedPlanPath, isPathInside } from './planArchive.js'
 import { createPlanHost, type PlanHost } from './planHost.js'
+import { registerPlanRoutes } from './planRoutes.js'
+import { readClientAsset } from './planSession.js'
 import { DEFAULT_REGISTRY_HOST, STALE_MS } from './registryConstants.js'
 import { registryDatabasePath, registryPlansDir, registryStartingPath, writeRegistryLock } from './registryLock.js'
 import { renderRegistryPage } from './registryPage.js'
@@ -23,36 +27,9 @@ export type RegistryServer = {
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{8,80}$/
 
-function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    'cache-control': 'no-store',
-  })
-  res.end(JSON.stringify(body))
-}
-
-function readBody(req: IncomingMessage, limit = 65_536): Promise<string> {
-  return new Promise((resolveBody, reject) => {
-    const chunks: Buffer[] = []
-    let size = 0
-    req.on('data', (chunk: Buffer | string) => {
-      const buffer = Buffer.from(chunk)
-      size += buffer.length
-      if (size > limit) {
-        reject(new Error('Body too large'))
-        req.destroy()
-        return
-      }
-      chunks.push(buffer)
-    })
-    req.on('end', () => resolveBody(Buffer.concat(chunks).toString('utf8')))
-    req.on('error', reject)
-  })
-}
-
-function authorized(req: IncomingMessage, token: string): boolean {
-  const header = req.headers.authorization
-  if (typeof header !== 'string') return false
+function authorized(request: Request, token: string): boolean {
+  const header = request.headers.get('authorization')
+  if (!header) return false
   const expected = Buffer.from(`Bearer ${token}`)
   const actual = Buffer.from(header)
   if (actual.length !== expected.length) return false
@@ -177,23 +154,10 @@ function parsePulse(body: unknown): {
   return pulse
 }
 
-export function planIdFromPath(pathname: string): string | null {
-  const prefix = '/api/plans/'
-  if (!pathname.startsWith(prefix)) return null
+function routeId(value: string | undefined): string | null {
+  if (!value) return null
   try {
-    const id = decodeURIComponent(pathname.slice(prefix.length))
-    return ID_PATTERN.test(id) ? id : null
-  } catch {
-    return null
-  }
-}
-
-export function processIdFromPath(pathname: string): string | null {
-  const prefix = '/api/processes/'
-  if (!pathname.startsWith(prefix)) return null
-  const rest = pathname.slice(prefix.length).replace(/\/heartbeat$/, '')
-  try {
-    const id = decodeURIComponent(rest)
+    const id = decodeURIComponent(value)
     return ID_PATTERN.test(id) ? id : null
   } catch {
     return null
@@ -233,235 +197,214 @@ export async function startRegistryServer(options: {
     return [...planHost.dashboardRecords(), ...store.list().map((record) => runningPlan(record)), ...store.listRuns()]
   }
 
-  const server = createServer(async (req, res) => {
-    const url = new URL(req.url ?? '/', `http://${host}`)
-    try {
-      if (req.method === 'GET' && url.pathname === '/dashboard') {
-        res.writeHead(200, {
-          'content-type': 'text/html; charset=utf-8',
-          'cache-control': 'no-store',
-        })
-        res.end(dashboardPage)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/api/dashboard') {
-        const period = parsePeriod(url.searchParams.get('period') ?? 'day')
+  const app = registerPlanRoutes(
+    new Elysia({ strictPath: true })
+      .onBeforeHandle(({ set }) => {
+        set.headers['cache-control'] = 'no-store'
+      })
+      .onError(({ code, error, set }) => {
+        if (error instanceof HttpError) {
+          set.status = error.status
+          return { error: error.message }
+        }
+        if (code === 'NOT_FOUND') {
+          set.status = 404
+          return { error: 'Not found' }
+        }
+        set.status = 500
+        return { error: error instanceof Error ? error.message : 'Unknown error' }
+      })
+      .get('/dashboard', () => html(dashboardPage))
+      .get('/api/dashboard', ({ request, set }) => {
+        const period = parsePeriod(new URL(request.url).searchParams.get('period') ?? 'day')
         if (!period) {
-          sendJson(res, 400, { error: 'period must be day, week, or month' })
-          return
+          set.status = 400
+          return { error: 'period must be day, week, or month' }
         }
         store.prune({ staleMs })
-        sendJson(res, 200, buildDashboard(dashboardPlans(), period))
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/api/plans') {
+        return buildDashboard(dashboardPlans(), period)
+      })
+      .get('/api/plans', () => {
         store.prune({ staleMs })
-        sendJson(res, 200, { plans: dashboardPlans() })
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname.startsWith('/archive/')) {
-        const id = decodeURIComponent(url.pathname.slice('/archive/'.length))
-        const target = ID_PATTERN.test(id) ? archivedPlanPath(plansDir, id) : null
+        return { plans: dashboardPlans() }
+      })
+      .get('/archive/:id', async ({ params, set }) => {
+        const id = routeId(params.id)
+        const target = id ? archivedPlanPath(plansDir, id) : null
         if (!target || !isPathInside(plansDir, target)) {
-          sendJson(res, 404, { error: 'Archived plan not found' })
-          return
+          set.status = 404
+          return { error: 'Archived plan not found' }
         }
         try {
           const body = await readFile(target)
-          res.writeHead(200, {
-            'content-type': 'text/markdown; charset=utf-8',
-            'cache-control': 'no-store',
+          return new Response(body, {
+            headers: {
+              'content-type': 'text/markdown; charset=utf-8',
+              'cache-control': 'no-store',
+            },
           })
-          res.end(body)
         } catch {
-          sendJson(res, 404, { error: 'Archived plan not found' })
+          set.status = 404
+          return { error: 'Archived plan not found' }
         }
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/api/health') {
-        sendJson(res, 200, {
-          ok: true,
-          pid: process.pid,
-          processes: store.list().length + planHost.listRecords().length,
-          version: options.version ?? null,
-        })
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname.startsWith('/client/')) {
-        const served = await planHost.serveClient(res, url.pathname)
-        if (!served && !res.headersSent) sendJson(res, 404, { error: 'Asset not found' })
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/api/plans') {
-        if (!authorized(req, token)) {
-          sendJson(res, 401, { error: 'Unauthorized' })
-          return
+      })
+      .get('/api/health', () => ({
+        ok: true,
+        pid: process.pid,
+        processes: store.list().length + planHost.listRecords().length,
+        version: options.version ?? null,
+      }))
+      .get('/client/*', async ({ params, set }) => {
+        try {
+          const response = await readClientAsset(String(params['*'] ?? ''))
+          if (!response) {
+            set.status = 404
+            return { error: 'Asset not found' }
+          }
+          return response
+        } catch (error) {
+          if (error instanceof HttpError) {
+            set.status = error.status
+            return { error: error.message }
+          }
+          throw error
         }
-        const body = JSON.parse(await readBody(req)) as Record<string, unknown>
-        const planPath = requireText(body.planPath, 1000)
-        const mode = body.mode === 'review' ? 'review' : body.mode === 'watch' ? 'watch' : null
+      })
+      .post('/api/plans', async ({ request, body, set }) => {
+        if (!authorized(request, token)) {
+          set.status = 401
+          return { error: 'Unauthorized' }
+        }
+        assertBodyLimit(request)
+        const payload = jsonBody(body, true) as Record<string, unknown>
+        const planPath = requireText(payload.planPath, 1000)
+        const mode = payload.mode === 'review' ? 'review' : payload.mode === 'watch' ? 'watch' : null
         if (!planPath || !mode) {
-          sendJson(res, 400, { error: 'planPath and mode are required' })
-          return
+          set.status = 400
+          return { error: 'planPath and mode are required' }
         }
-        const iteration = Number(body.iteration)
+        const iteration = Number(payload.iteration)
         try {
           const hosted = await planHost.register({
             planPath,
             mode,
             iteration: Number.isFinite(iteration) ? iteration : undefined,
-            cwd: requireText(body.cwd, 1000) ?? undefined,
-            configPath: requireText(body.configPath, 1000) ?? undefined,
+            cwd: requireText(payload.cwd, 1000) ?? undefined,
+            configPath: requireText(payload.configPath, 1000) ?? undefined,
           })
-          sendJson(res, 200, { ok: true, plan: hosted })
+          return { ok: true, plan: hosted }
         } catch (error) {
           const code = error && typeof error === 'object' && 'code' in error ? error.code : ''
-          sendJson(res, code === 'ENOENT' ? 404 : 400, {
-            error: error instanceof Error ? error.message : 'Unable to open plan',
-          })
+          set.status = code === 'ENOENT' ? 404 : 400
+          return { error: error instanceof Error ? error.message : 'Unable to open plan' }
         }
-        return
-      }
-
-      const hostedId = planIdFromPath(url.pathname)
-      if (hostedId && req.method === 'DELETE' && url.pathname === `/api/plans/${encodeURIComponent(hostedId)}`) {
-        if (!authorized(req, token)) {
-          sendJson(res, 401, { error: 'Unauthorized' })
-          return
+      })
+      .delete('/api/plans/:id', async ({ request, params, set }) => {
+        if (!authorized(request, token)) {
+          set.status = 401
+          return { error: 'Unauthorized' }
         }
-        const removed = await planHost.closePlan(hostedId)
-        sendJson(res, removed ? 200 : 404, removed ? { ok: true } : { error: 'Not found' })
-        return
-      }
-
-      if (await planHost.handle(req, res, url)) return
-
-      if (req.method === 'GET' && url.pathname === '/') {
-        res.writeHead(200, {
-          'content-type': 'text/html; charset=utf-8',
-          'cache-control': 'no-store',
-        })
-        res.end(page)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/api/processes') {
+        const id = routeId(params.id)
+        if (!id) {
+          set.status = 404
+          return { error: 'Not found' }
+        }
+        const removed = await planHost.closePlan(id)
+        if (!removed) {
+          set.status = 404
+          return { error: 'Not found' }
+        }
+        return { ok: true }
+      })
+      .get('/', () => html(page))
+      .get('/api/processes', () => {
         store.prune({ staleMs })
-        sendJson(res, 200, {
+        return {
           status: 'ok',
           processes: [...planHost.listRecords(), ...store.list()],
-        })
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/api/processes') {
-        if (!authorized(req, token)) {
-          sendJson(res, 401, { error: 'Unauthorized' })
-          return
         }
-        const parsed = parseRegistration(JSON.parse(await readBody(req)) as unknown, Date.now())
+      })
+      .post('/api/processes', async ({ request, body, set }) => {
+        if (!authorized(request, token)) {
+          set.status = 401
+          return { error: 'Unauthorized' }
+        }
+        assertBodyLimit(request)
+        const parsed = parseRegistration(jsonBody(body, true), Date.now())
         if ('error' in parsed) {
-          sendJson(res, 400, parsed)
-          return
+          set.status = 400
+          return parsed
         }
         const existing = store.get(parsed.id)
         store.upsert(existing ? { ...parsed, startedAt: existing.startedAt } : parsed)
         await archivePlanFile(plansDir, parsed.id, parsed.planPath)
-        sendJson(res, 200, { ok: true, process: store.get(parsed.id) })
-        return
-      }
-
-      const id = processIdFromPath(url.pathname)
-      if (id && req.method === 'POST' && url.pathname.endsWith('/heartbeat')) {
-        if (!authorized(req, token)) {
-          sendJson(res, 401, { error: 'Unauthorized' })
-          return
+        return { ok: true, process: store.get(parsed.id) }
+      })
+      .post('/api/processes/:id/heartbeat', ({ request, params, body, set }) => {
+        if (!authorized(request, token)) {
+          set.status = 401
+          return { error: 'Unauthorized' }
         }
-        const raw = await readBody(req)
+        assertBodyLimit(request)
+        const id = routeId(params.id)
+        if (!id) {
+          set.status = 404
+          return { error: 'Not found' }
+        }
         const updated = store.heartbeat(id, {
           at: Date.now(),
-          ...parsePulse(raw ? (JSON.parse(raw) as unknown) : {}),
+          ...parsePulse(jsonBody(body, false)),
         })
         if (!updated) {
-          sendJson(res, 404, { error: 'Not registered' })
-          return
+          set.status = 404
+          return { error: 'Not registered' }
         }
-        sendJson(res, 200, { ok: true, process: updated })
-        return
-      }
-
-      if (id && req.method === 'DELETE' && url.pathname === `/api/processes/${encodeURIComponent(id)}`) {
-        if (!authorized(req, token)) {
-          sendJson(res, 401, { error: 'Unauthorized' })
-          return
+        return { ok: true, process: updated }
+      })
+      .delete('/api/processes/:id', async ({ request, params, body, set }) => {
+        if (!authorized(request, token)) {
+          set.status = 401
+          return { error: 'Unauthorized' }
+        }
+        assertBodyLimit(request)
+        const id = routeId(params.id)
+        if (!id) {
+          set.status = 404
+          return { error: 'Not found' }
         }
         const existing = store.get(id)
         if (existing) {
-          const raw = await readBody(req)
-          let outcome: ReviewOutcome | null = null
-          if (raw.trim()) {
-            const body = JSON.parse(raw) as { outcome?: unknown }
-            outcome = body.outcome === 'approve' || body.outcome === 'deny' || body.outcome === 'iterate' ? body.outcome : null
-          }
+          const payload = jsonBody(body, false) as { outcome?: unknown }
+          const outcome: ReviewOutcome | null =
+            payload.outcome === 'approve' || payload.outcome === 'deny' || payload.outcome === 'iterate'
+              ? payload.outcome
+              : null
           await remember(finishedPlan(existing, 'executed', outcome))
         }
         store.remove(id)
-        sendJson(res, 200, { ok: true })
-        return
-      }
+        return { ok: true }
+      }),
+    {
+      hosted: true,
+      resolve: (id) => (id ? planHost.getSession(id) : undefined),
+      authorizeAgent: (request, session) => planHost.authorize(request, session),
+    },
+  )
 
-      sendJson(res, 404, { error: 'Not found' })
-    } catch (error) {
-      if (res.headersSent) return
-      sendJson(res, 500, { error: error instanceof Error ? error.message : 'Unknown error' })
-    }
-  })
-
-  const preferred = options.port ?? 0
-  const candidates = preferred > 0 ? [preferred, 0] : [0]
-  let lastError: unknown
-  let port = 0
-  for (const candidate of candidates) {
-    try {
-      port = await new Promise<number>((resolvePort, reject) => {
-        const onError = (error: Error) => {
-          server.off('listening', onListening)
-          reject(error)
-        }
-        const onListening = () => {
-          server.off('error', onError)
-          const address = server.address()
-          if (!address || typeof address === 'string') {
-            reject(new Error('Unable to bind living-plan registry'))
-            return
-          }
-          resolvePort(address.port)
-        }
-        server.once('error', onError)
-        server.listen(candidate, host, onListening)
-      })
-      lastError = undefined
-      break
-    } catch (error) {
-      lastError = error
-    }
-  }
-  if (!port) {
+  let bound: ReturnType<typeof bindElysia>
+  try {
+    bound = bindElysia(app, host, options.port ?? 0)
+  } catch (error) {
+    await planHost.close()
     store.close()
-    throw lastError instanceof Error ? lastError : new Error('Unable to bind living-plan registry')
+    throw error
   }
 
-  const url = `http://${host}:${port}`
+  const url = `http://${host}:${bound.port}`
   originBox.current = url
   await writeRegistryLock(options.home, {
     pid: process.pid,
-    port,
+    port: bound.port,
     host,
     url,
     token,
@@ -481,7 +424,7 @@ export async function startRegistryServer(options: {
 
   return {
     url,
-    port,
+    port: bound.port,
     host,
     token,
     home: options.home,
@@ -494,10 +437,7 @@ export async function startRegistryServer(options: {
       }
       await planHost.close()
       store.close()
-      server.closeAllConnections()
-      await new Promise<void>((resolveClose, reject) => {
-        server.close((error) => (error ? reject(error) : resolveClose()))
-      })
+      await bound.stop()
     },
   }
 }

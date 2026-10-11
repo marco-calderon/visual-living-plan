@@ -1,8 +1,8 @@
 import { watch } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import { basename, dirname, extname, join, normalize, resolve } from 'node:path'
-import type { IncomingMessage, ServerResponse } from 'node:http'
 import { clientDistDir, loadClientAssets, type ClientAssets } from './assets.js'
+import { html, HttpError, jsonBody } from './http.js'
 import { diffSections } from './diff.js'
 import { createIdleExecutionState, type ExecutionState } from './execution.js'
 import { collectSectionSources, parsePlan } from './parse.js'
@@ -20,7 +20,7 @@ import type { InteractionResponse, PlanDocument, ReviewDecision, ReviewResult, S
 
 type SseClient = {
   write: (event: string, data: unknown) => void
-  res: ServerResponse
+  close: () => void
 }
 
 type Waiter = {
@@ -81,62 +81,40 @@ export type PlanSession = {
   touch: () => void
   snapshot: () => PlanSessionSnapshot
   setMode: (mode: 'watch' | 'review', iteration?: number) => void
-  handle: (req: IncomingMessage, res: ServerResponse, pathname: string) => Promise<void>
-  serveAgentEvents: (req: IncomingMessage, res: ServerResponse) => void
-  serveClientAsset: (res: ServerResponse, pathname: string) => Promise<boolean>
+  page: () => Response
+  planPayload: () => unknown
+  themeView: () => ReturnType<typeof themePayload>
+  updateTheme: (body: unknown) => Promise<unknown>
+  executionPayload: () => ExecutionState
+  updateExecution: (body: unknown) => unknown
+  startExecution: (body: unknown) => unknown
+  stopExecution: () => unknown
+  browserEvents: (request: Request) => Response
+  agentEvents: (request: Request) => Response
+  submitInteraction: (interactionId: string, body: unknown) => unknown
+  submitReview: (body: unknown) => unknown
   close: () => Promise<void>
   waitForInteraction: (id: string, timeoutMs?: number) => Promise<InteractionResponse>
   waitForReview: (timeoutMs?: number) => Promise<ReviewResult>
   getState: () => PlanSessionState
 }
 
-function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    'cache-control': 'no-store',
-  })
-  res.end(JSON.stringify(body, null, 2))
-}
-
-function sendHtml(res: ServerResponse, html: string): void {
-  res.writeHead(200, {
-    'content-type': 'text/html; charset=utf-8',
-    'cache-control': 'no-store',
-  })
-  res.end(html)
-}
-
-function readBody(req: IncomingMessage): Promise<string> {
-  return new Promise((resolveBody, reject) => {
-    const chunks: Buffer[] = []
-    req.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
-    req.on('end', () => resolveBody(Buffer.concat(chunks).toString('utf8')))
-    req.on('error', reject)
-  })
-}
-
-export async function sendClientAsset(res: ServerResponse, pathname: string): Promise<boolean> {
+export async function readClientAsset(pathname: string): Promise<Response | null> {
   const relative = normalize(pathname.replace(/^\/client\//, ''))
-  if (relative.startsWith('..') || relative.includes('\0')) {
-    sendJson(res, 400, { error: 'Invalid path' })
-    return true
-  }
-  return sendStatic(res, join(clientDistDir(), relative))
-}
-
-async function sendStatic(res: ServerResponse, filePath: string): Promise<boolean> {
+  if (relative.startsWith('..') || relative.includes('\0')) throw new HttpError(400, 'Invalid path')
   try {
+    const filePath = join(clientDistDir(), relative)
     const info = await stat(filePath)
-    if (!info.isFile()) return false
+    if (!info.isFile()) return null
     const body = await readFile(filePath)
-    res.writeHead(200, {
-      'content-type': MIME[extname(filePath)] ?? 'application/octet-stream',
-      'cache-control': 'no-cache',
+    return new Response(body, {
+      headers: {
+        'content-type': MIME[extname(filePath)] ?? 'application/octet-stream',
+        'cache-control': 'no-cache',
+      },
     })
-    res.end(body)
-    return true
   } catch {
-    return false
+    return null
   }
 }
 
@@ -232,9 +210,60 @@ export async function openPlanSession(options: {
     for (const client of agentClients) client.write(event, data)
   }
 
-  function writeSse(res: ServerResponse, event: string, data: unknown): void {
-    res.write(`event: ${event}\n`)
-    res.write(`data: ${JSON.stringify(data)}\n\n`)
+  function eventStream(bucket: Set<SseClient>, hello: unknown, signal: AbortSignal): Response {
+    const encoder = new TextEncoder()
+    let client: SseClient | undefined
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        let closed = false
+        client = {
+          write(event, data) {
+            if (closed) return
+            try {
+              controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
+            } catch {
+              closed = true
+              if (client) bucket.delete(client)
+            }
+          },
+          close() {
+            if (closed) return
+            closed = true
+            if (client) bucket.delete(client)
+            try {
+              controller.close()
+            } catch {
+              // The client already went away.
+            }
+          },
+        }
+        bucket.add(client)
+        client.write('hello', hello)
+        touch()
+        persist()
+        signal.addEventListener(
+          'abort',
+          () => {
+            client?.close()
+            touch()
+            persist()
+          },
+          { once: true },
+        )
+      },
+      cancel() {
+        client?.close()
+        touch()
+        persist()
+      },
+    })
+    return new Response(stream, {
+      headers: {
+        'content-type': 'text/event-stream',
+        'cache-control': 'no-cache, no-transform',
+        connection: 'keep-alive',
+      },
+    })
   }
 
   async function applyTheme(next: ThemeConfig, save: boolean): Promise<ReturnType<typeof themePayload>> {
@@ -317,245 +346,165 @@ export async function openPlanSession(options: {
     persist()
   }
 
-  function addSseClient(res: ServerResponse, bucket: Set<SseClient>, hello: unknown): SseClient {
-    const client: SseClient = {
-      res,
-      write(event, data) {
-        writeSse(res, event, data)
+  function page(): Response {
+    touch()
+    return html(
+      renderPlanPage({
+        plan,
+        mode,
+        responses,
+        diffs,
+        iteration,
+        pendingInteractionIds: pendingInteractionIds(),
+        reviewDecision: reviewResult?.decision,
+        execution,
+        clientAssets,
+        theme: currentTheme(),
+        basePath,
+        selfId,
+      }),
+    )
+  }
+
+  function planPayload(): unknown {
+    touch()
+    return {
+      plan: {
+        title: plan.title,
+        summary: plan.summary,
+        agent: plan.agent,
+        interactionIds: plan.interactionIds,
+        sourcePath: plan.sourcePath,
       },
-    }
-    bucket.add(client)
-    writeSse(res, 'hello', hello)
-    touch()
-    persist()
-    return client
-  }
-
-  function serveAgentEvents(req: IncomingMessage, res: ServerResponse): void {
-    res.writeHead(200, {
-      'content-type': 'text/event-stream',
-      'cache-control': 'no-cache, no-transform',
-      connection: 'keep-alive',
-    })
-    const client = addSseClient(res, agentClients, {
       mode,
-      pendingInteractionIds: pendingInteractionIds(),
+      iteration,
       responses,
+      pendingInteractionIds: pendingInteractionIds(),
       review: reviewResult ?? null,
+      diffs,
       execution: executionView(),
-    })
-    req.on('close', () => {
-      agentClients.delete(client)
-      touch()
-      persist()
-    })
-  }
-
-  async function handle(req: IncomingMessage, res: ServerResponse, pathname: string): Promise<void> {
-    touch()
-    try {
-      if (req.method === 'GET' && pathname.startsWith('/client/')) {
-        const served = await serveClientAsset(res, pathname)
-        if (!served) sendJson(res, 404, { error: 'Asset not found' })
-        return
-      }
-
-      if (req.method === 'GET' && (pathname === '/' || pathname === '')) {
-        sendHtml(
-          res,
-          renderPlanPage({
-            plan,
-            mode,
-            responses,
-            diffs,
-            iteration,
-            pendingInteractionIds: pendingInteractionIds(),
-            reviewDecision: reviewResult?.decision,
-            execution,
-            clientAssets,
-            theme: currentTheme(),
-            basePath,
-            selfId,
-          }),
-        )
-        return
-      }
-
-      if (req.method === 'GET' && pathname === '/api/plan') {
-        sendJson(res, 200, {
-          plan: {
-            title: plan.title,
-            summary: plan.summary,
-            agent: plan.agent,
-            interactionIds: plan.interactionIds,
-            sourcePath: plan.sourcePath,
-          },
-          mode,
-          iteration,
-          responses,
-          pendingInteractionIds: pendingInteractionIds(),
-          review: reviewResult ?? null,
-          diffs,
-          execution: executionView(),
-          planned: planToExpectedGraph(plan) ?? null,
-          theme: currentTheme(),
-        })
-        return
-      }
-
-      if (req.method === 'GET' && pathname === '/api/theme') {
-        sendJson(res, 200, currentTheme())
-        return
-      }
-
-      if (req.method === 'PUT' && pathname === '/api/theme') {
-        const raw = await readBody(req)
-        const payload = JSON.parse(raw) as { accent?: string }
-        const accent = normalizeAccent(payload.accent)
-        if (!accent) {
-          sendJson(res, 400, { error: 'Invalid accent color. Use a hex value like #0f766e.' })
-          return
-        }
-        const view = await applyTheme({ accent }, true)
-        sendJson(res, 200, { ok: true, theme: view })
-        return
-      }
-
-      if (req.method === 'GET' && pathname === '/api/execution') {
-        sendJson(res, 200, executionView())
-        return
-      }
-
-      if (req.method === 'PUT' && pathname === '/api/execution') {
-        const raw = await readBody(req)
-        const payload = JSON.parse(raw) as Partial<ExecutionState>
-        const view = setExecution({
-          active: Boolean(payload.active),
-          step: payload.step ? String(payload.step) : undefined,
-          detail: payload.detail ? String(payload.detail) : undefined,
-          graph: payload.graph,
-          scene:
-            payload.scene && typeof payload.scene === 'object'
-              ? (payload.scene as Record<string, unknown>)
-              : undefined,
-        })
-        sendJson(res, 200, { ok: true, execution: view })
-        return
-      }
-
-      if (req.method === 'POST' && pathname === '/api/execution/start') {
-        const raw = await readBody(req)
-        const payload = raw ? (JSON.parse(raw) as Partial<ExecutionState>) : {}
-        const view = setExecution({
-          active: true,
-          step: payload.step ? String(payload.step) : execution.step ?? 'Executing',
-          detail: payload.detail ? String(payload.detail) : execution.detail,
-          graph: payload.graph ?? execution.graph,
-          scene: payload.scene ?? execution.scene,
-        })
-        sendJson(res, 200, { ok: true, execution: view })
-        return
-      }
-
-      if (req.method === 'POST' && pathname === '/api/execution/stop') {
-        const view = setExecution({
-          active: false,
-          step: execution.step,
-          detail: execution.detail,
-          graph: execution.graph,
-          scene: execution.scene,
-        })
-        sendJson(res, 200, { ok: true, execution: view })
-        return
-      }
-
-      if (req.method === 'GET' && pathname === '/api/events') {
-        res.writeHead(200, {
-          'content-type': 'text/event-stream',
-          'cache-control': 'no-cache, no-transform',
-          connection: 'keep-alive',
-        })
-        const client = addSseClient(res, browserClients, {
-          mode,
-          pendingInteractionIds: pendingInteractionIds(),
-          execution: executionView(),
-          theme: currentTheme(),
-        })
-        req.on('close', () => {
-          browserClients.delete(client)
-          touch()
-          persist()
-        })
-        return
-      }
-
-      if (req.method === 'GET' && pathname === '/api/agent-events') {
-        serveAgentEvents(req, res)
-        return
-      }
-
-      if (req.method === 'POST' && pathname.startsWith('/api/interactions/')) {
-        const interactionId = decodeURIComponent(pathname.replace('/api/interactions/', ''))
-        const raw = await readBody(req)
-        const payload = JSON.parse(raw) as InteractionResponse
-        if (!plan.interactionIds.includes(interactionId)) {
-          sendJson(res, 404, { error: `Unknown interaction id: ${interactionId}` })
-          return
-        }
-        if (payload.id !== interactionId) {
-          sendJson(res, 400, { error: 'Interaction id mismatch' })
-          return
-        }
-        try {
-          fulfillInteraction(payload)
-        } catch (error) {
-          sendJson(res, 409, {
-            error: error instanceof Error ? error.message : 'Interaction locked',
-          })
-          return
-        }
-        sendJson(res, 200, {
-          ok: true,
-          response: payload,
-          pendingInteractionIds: pendingInteractionIds(),
-        })
-        return
-      }
-
-      if (req.method === 'POST' && pathname === '/api/review') {
-        if (mode !== 'review') {
-          sendJson(res, 400, { error: 'Server is not in review mode' })
-          return
-        }
-        const raw = await readBody(req)
-        const payload = JSON.parse(raw) as { decision: ReviewDecision; note?: string }
-        if (!['approve', 'deny', 'iterate'].includes(payload.decision)) {
-          sendJson(res, 400, { error: 'Invalid decision' })
-          return
-        }
-        try {
-          fulfillReview(payload.decision, payload.note)
-        } catch (error) {
-          sendJson(res, 409, {
-            error: error instanceof Error ? error.message : 'Review locked',
-          })
-          return
-        }
-        sendJson(res, 200, { ok: true, review: reviewResult })
-        return
-      }
-
-      sendJson(res, 404, { error: 'Not found' })
-    } catch (error) {
-      if (res.headersSent) return
-      sendJson(res, 500, {
-        error: error instanceof Error ? error.message : 'Unknown error',
-      })
+      planned: planToExpectedGraph(plan) ?? null,
+      theme: currentTheme(),
     }
   }
 
-  async function serveClientAsset(res: ServerResponse, pathname: string): Promise<boolean> {
-    return sendClientAsset(res, pathname)
+  function themeView(): ReturnType<typeof themePayload> {
+    touch()
+    return currentTheme()
+  }
+
+  async function updateTheme(body: unknown): Promise<unknown> {
+    touch()
+    const payload = jsonBody(body, true) as { accent?: string }
+    const accent = normalizeAccent(payload.accent)
+    if (!accent) throw new HttpError(400, 'Invalid accent color. Use a hex value like #0f766e.')
+    const view = await applyTheme({ accent }, true)
+    return { ok: true, theme: view }
+  }
+
+  function executionPayload(): ExecutionState {
+    touch()
+    return executionView()
+  }
+
+  function updateExecution(body: unknown): unknown {
+    touch()
+    const payload = jsonBody(body, true) as Partial<ExecutionState>
+    const view = setExecution({
+      active: Boolean(payload.active),
+      step: payload.step ? String(payload.step) : undefined,
+      detail: payload.detail ? String(payload.detail) : undefined,
+      graph: payload.graph,
+      scene:
+        payload.scene && typeof payload.scene === 'object' ? (payload.scene as Record<string, unknown>) : undefined,
+    })
+    return { ok: true, execution: view }
+  }
+
+  function startExecution(body: unknown): unknown {
+    touch()
+    const payload = jsonBody(body, false) as Partial<ExecutionState>
+    const view = setExecution({
+      active: true,
+      step: payload.step ? String(payload.step) : execution.step ?? 'Executing',
+      detail: payload.detail ? String(payload.detail) : execution.detail,
+      graph: payload.graph ?? execution.graph,
+      scene: payload.scene ?? execution.scene,
+    })
+    return { ok: true, execution: view }
+  }
+
+  function stopExecution(): unknown {
+    touch()
+    const view = setExecution({
+      active: false,
+      step: execution.step,
+      detail: execution.detail,
+      graph: execution.graph,
+      scene: execution.scene,
+    })
+    return { ok: true, execution: view }
+  }
+
+  function browserEvents(request: Request): Response {
+    touch()
+    return eventStream(
+      browserClients,
+      {
+        mode,
+        pendingInteractionIds: pendingInteractionIds(),
+        execution: executionView(),
+        theme: currentTheme(),
+      },
+      request.signal,
+    )
+  }
+
+  function agentEvents(request: Request): Response {
+    touch()
+    return eventStream(
+      agentClients,
+      {
+        mode,
+        pendingInteractionIds: pendingInteractionIds(),
+        responses,
+        review: reviewResult ?? null,
+        execution: executionView(),
+      },
+      request.signal,
+    )
+  }
+
+  function submitInteraction(interactionId: string, body: unknown): unknown {
+    touch()
+    const payload = jsonBody(body, true) as InteractionResponse
+    if (!plan.interactionIds.includes(interactionId)) {
+      throw new HttpError(404, `Unknown interaction id: ${interactionId}`)
+    }
+    if (payload.id !== interactionId) throw new HttpError(400, 'Interaction id mismatch')
+    try {
+      fulfillInteraction(payload)
+    } catch (error) {
+      throw new HttpError(409, error instanceof Error ? error.message : 'Interaction locked')
+    }
+    return {
+      ok: true,
+      response: payload,
+      pendingInteractionIds: pendingInteractionIds(),
+    }
+  }
+
+  function submitReview(body: unknown): unknown {
+    touch()
+    if (mode !== 'review') throw new HttpError(400, 'Server is not in review mode')
+    const payload = jsonBody(body, true) as { decision: ReviewDecision; note?: string }
+    if (!['approve', 'deny', 'iterate'].includes(payload.decision)) throw new HttpError(400, 'Invalid decision')
+    try {
+      fulfillReview(payload.decision, payload.note)
+    } catch (error) {
+      throw new HttpError(409, error instanceof Error ? error.message : 'Review locked')
+    }
+    return { ok: true, review: reviewResult }
   }
 
   const watcher = watch(planPath, { persistent: true }, () => {
@@ -605,16 +554,24 @@ export async function openPlanSession(options: {
       if (nextIteration !== undefined && Number.isFinite(nextIteration)) iteration = nextIteration
       persist()
     },
-    handle,
-    serveAgentEvents,
-    serveClientAsset,
+    page,
+    planPayload,
+    themeView,
+    updateTheme,
+    executionPayload,
+    updateExecution,
+    startExecution,
+    stopExecution,
+    browserEvents,
+    agentEvents,
+    submitInteraction,
+    submitReview,
     async close() {
       if (closed) return
       closed = true
       watcher.close()
       themeWatcher?.close()
-      for (const client of browserClients) client.res.end()
-      for (const client of agentClients) client.res.end()
+      for (const client of [...browserClients, ...agentClients]) client.close()
       browserClients.clear()
       agentClients.clear()
       for (const queue of waiters.values()) {
