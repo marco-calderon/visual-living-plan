@@ -21,13 +21,13 @@ bun install
 bun run serve -- examples/rate-limit.plan.md
 ```
 
-The command prints a URL and exits. Open that URL. Edit the example file, change a phase `status`, and the page reloads. Click a choice or submit a form. An agent subscribed with `events` or `wait` hears that submission immediately.
+The command prints a URL and stays attached to that plan. Open the URL. Edit the example file, change a phase `status`, and the page reloads. Click a choice or submit a form. This command prints that submission. `--detach` registers the plan and returns; `events` or `wait` can attach later.
 
 ### Running plans
 
-One plan service on `127.0.0.1:9477` hosts every plan. `serve` registers a plan and prints `http://127.0.0.1:9477/plans/<id>/`. The page stays up after the command exits. Sessions are stored in SQLite (`~/.visual-living-plan/registry.sqlite`) and come back if the service restarts. Every planner page has a **Plans** button that lists those plans: directory, git branch and dirty state, and a link that opens that plan. The service home page is the same list. **Dashboard** (`/dashboard`, or `live-plan dashboard`) summarizes the hosted plans and the ones that have finished, for the local day, week, and month. A clean close is executed. An idle drop, or a private process whose heartbeat went stale, is interrupted. The plan file is copied into `~/.visual-living-plan/plans/`.
+One plan service on `127.0.0.1:9477` hosts every plan. `serve` registers a plan, prints `http://127.0.0.1:9477/plans/<id>/`, and listens for that plan's submissions. Stopping the command leaves the page up. Sessions are stored in SQLite (`~/.visual-living-plan/registry.sqlite`) and come back if the service restarts. Every planner page has a **Plans** button that lists those plans: directory, git branch and dirty state, and a link that opens that plan. The service home page is the same list. **Dashboard** (`/dashboard`, or `live-plan dashboard`) summarizes the hosted plans and the ones that have finished, for the local day, week, and month. A clean close is executed. An idle drop, or a private process whose heartbeat went stale, is interrupted. The plan file is copied into `~/.visual-living-plan/plans/`.
 
-`live-plan events --url <plan-url>` subscribes to that plan. A choice, form, question, approval, or review is pushed to the client when the user submits it. `wait` uses the same stream and returns when one id is answered.
+A choice, form, question, approval, or review is pushed to every client listening on that plan, and to no other plan. `serve` is one of those clients. `events` is another. `wait` uses the same stream and returns when one id is answered.
 
 ```bash
 npm run processes

@@ -29,13 +29,14 @@ Skip it for a one-step change, when the user asked for prose only, or when nobod
 
 ## How to run it
 
-`serve` registers the plan on the machine service and exits. Keep the printed URL. `events` stays open and prints each user submission. `wait` and `review` block on that same stream.
+`serve` registers the plan on the one machine service and stays attached. It prints each submission for that plan until you stop it. The page stays up after it exits. Pass `--detach` to register and return, then use `events` or `wait` on the printed URL. `wait` and `review` block on that same stream.
 
 ```bash
 bunx visual-living-plan check path/to/work.plan.md
 
 bunx visual-living-plan serve path/to/work.plan.md
 
+bunx visual-living-plan serve path/to/work.plan.md --detach
 bunx visual-living-plan events --url <printed-plan-url>
 
 bunx visual-living-plan wait fail-mode --url <printed-plan-url> --timeout 30m
@@ -56,7 +57,7 @@ Swap the `bunx visual-living-plan` prefix for `live-plan` when that command is o
 |---|---|---|
 | `check <file>` | Parse the plan and print title, block types, interaction ids, and workflow nodes. A missing workflow block is an error. | `0` ok, `1` usage, parse error, or missing workflow |
 | `dump <file>` | Print the parsed plan as JSON | `0` ok, `1` usage or parse error |
-| `serve <file>` | Register the plan on the machine service. Prints the plan URL and exits. The page stays up and reloads when the file changes. | `0` registered |
+| `serve <file>` | Register the plan on the machine service and print each submission for that plan until stopped. `--detach` prints the URL and returns. The page stays up either way. | `0` stopped or detached, `1` the stream failed |
 | `review <file>` | Same page plus Approve / Deny / Iterate. Blocks on the agent event stream until a decision, then closes the plan. | `0` approve, `1` deny, `2` iterate, `3` timeout |
 | `wait <id> --url <url>` | Block on the agent event stream until that interaction id is answered. Prints the response JSON. | `0` answered, `1` missing `--url`, `3` timeout |
 | `events --url <url>` | Print each `hello`, `interaction`, and `review` event until the process is stopped. | `0` |
@@ -74,6 +75,7 @@ Flags:
 - `--iteration N` labels a review round (default `1`). Bump it when you re-open review after Iterate.
 - `--out <file>` writes the review JSON as well as printing it.
 - `--no-open` skips launching a browser. Use it only for headless or CI runs. A person should get the page opened.
+- `--detach` on `serve` registers the plan and returns. Omit it to stay attached and print that plan's submissions.
 - `--no-registry` serves this plan in its own process. By default `serve` and `review` use the machine service, so every planner page can list running plans.
 - `--registry-port` sets the service port (default `9477`, loopback only).
 - `--token` authorizes `events`, `wait`, and `close`. When omitted, the CLI reads the local service token.
@@ -88,8 +90,8 @@ Flags:
 
 1. Write or update one `.plan.md`. Title, a short summary, phases, a required `workflow` block (the execution path), then only the interactions you need right now.
 2. `check` the file.
-3. `serve` for ongoing status, or `review` when you need Approve / Deny / Iterate on the whole plan.
-4. To hear every submission, run `events --url <printed-url>`. To block on one answer, `wait <id> --url <printed-url>`. Both use the agent event stream.
+3. `serve` for ongoing status, or `review` when you need Approve / Deny / Iterate on the whole plan. `serve` prints submissions for that plan. Pass `--detach` when this process has to return before the person answers.
+4. After `--detach`, run `events --url <printed-url>` to hear every submission, or `wait <id> --url <printed-url>` to block on one answer. Both use the same agent event stream as `serve`.
 5. Apply the response. Update phase `status` and checklist `done` in the same file. The page reloads on save.
 6. While implementing, `execution start`, then `execution push` as the graph changes, then `execution stop` before the next plan interaction. Plan forms and review are rejected with HTTP 409 while execution is active.
 7. On review **approve**, proceed. On **deny**, stop. On **iterate**, edit the same file, bump `--iteration`, and run `review` again.

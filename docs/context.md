@@ -12,7 +12,7 @@ Authoring rules for agents who *use* the tool live in [docs/agent-guidelines.md]
 
 ## How a plan is hosted
 
-One service per machine, default `127.0.0.1:9477`, hosts every plan. `serve` registers the file, prints `http://127.0.0.1:9477/plans/<id>/`, and exits. The page stays up. `events` subscribes to `/plans/<id>/api/agent-events` and prints each user submission. `wait` and `review` block on that stream.
+One service per machine, default `127.0.0.1:9477`, hosts every plan. `serve` registers the file, prints `http://127.0.0.1:9477/plans/<id>/`, and stays subscribed to that plan's agent stream. It prints each submission until stopped. The page stays up after it exits. `--detach` registers and returns. `events` and `wait` are further clients of the same stream. A client of another plan does not see the event.
 
 `--no-registry` is the exception: one private server for one plan. Keep that path working.
 

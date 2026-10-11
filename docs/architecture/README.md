@@ -6,7 +6,7 @@ Read [the decisions](decisions/README.md) for why it is shaped this way. Read [t
 
 ## How the pieces talk
 
-A single process listens on `127.0.0.1:9477`. `serve` and `review` start it when it is not already running, then register a plan and return. The page stays up after the CLI exits.
+A single process listens on `127.0.0.1:9477`. `serve` and `review` start it when it is not already running, then register a plan. `serve` stays connected as a client of that plan and prints each submission. Stopping it leaves the page up. `review` waits for the decision, then closes that plan.
 
 ```mermaid
 flowchart LR
@@ -96,7 +96,7 @@ sequenceDiagram
   Note over Agent: The first event is hello, with responses already stored
 ```
 
-`events` prints each event until stopped. `wait` returns when the matching interaction id arrives. `review` returns when the review event arrives, then closes that plan.
+`serve` prints each `interaction` and `review` for the plan it registered. A second `serve` or `events` on that same plan hears the same submission. A client subscribed to a different plan does not. `wait` returns when the matching interaction id arrives. `review` returns when the review event arrives, then closes that plan. `--detach` registers without subscribing.
 
 The agent stream requires the plan token or the service token. The CLI reads the service token from `~/.visual-living-plan/registry.json` when `--token` is omitted. Browser routes on loopback stay open so the page can submit without that token.
 
@@ -129,7 +129,7 @@ A row overlaps the selected window when it started before the end of the window 
 | `src/registryStore.ts` | SQLite: `processes` for private servers, `plan_sessions` for live hosted plans, `plan_runs` for finished runs |
 | `src/server.ts` | The private one-plan Elysia app used by `--no-registry` |
 | `src/httpServer.ts` | Binds an Elysia app with `Bun.serve` so event streams stay open |
-| `src/cli.ts` | Client of the service. `serve` registers and exits. `events`, `wait`, and `review` read the stream. `dashboard` opens `/dashboard` |
+| `src/cli.ts` | Client of the service. `serve` registers and listens for that plan. `events`, `wait`, and `review` read the same stream. `dashboard` opens `/dashboard` |
 | `src/agentEvents.ts` | SSE reader and URL helper used by the CLI |
 | `src/dashboard.ts`, `src/dashboardPage.ts` | Period summary and the dashboard page |
 | `src/planArchive.ts` | Copy a plan file into the registry home and serve that copy |

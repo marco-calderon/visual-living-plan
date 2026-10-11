@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadClientAssets } from './assets.js'
 import { parsePlan } from './parse.js'
-import { planApiUrl, planIdFromPlanUrl, readAgentEvents } from './agentEvents.js'
+import { planApiUrl, planClientNotices, planIdFromPlanUrl, readAgentEvents } from './agentEvents.js'
 import { startLivingPlanServer } from './server.js'
 import type { ExecutionGraph, ExecutionState } from './execution.js'
 import {
@@ -37,7 +37,7 @@ function printHelp(): void {
   console.log(`live-plan — agent-authored plans humans can interact with
 
 Usage:
-  live-plan serve <file.plan.md> [--port N] [--host HOST] [--config file] [--no-open]
+  live-plan serve <file.plan.md> [--port N] [--host HOST] [--config file] [--no-open] [--detach]
   live-plan review <file.plan.md> [--port N] [--iteration N] [--timeout 30m] [--config file] [--no-open]
   live-plan wait <id> --url <plan-url> [--token TOKEN] [--timeout 30m]
   live-plan events --url <plan-url> [--token TOKEN]
@@ -56,7 +56,7 @@ Usage:
 Requires Bun (https://bun.sh). Invoke with \`bunx visual-living-plan <command>\` when the \`live-plan\` command is not installed. \`living-plan\` is the same binary.
 
 Modes:
-  serve       Register the plan with the machine service and print its URL.
+  serve       Register the plan on the machine service and print submissions for that plan.
   review      Same page, plus Approve / Deny / Iterate. Blocks until a decision.
   wait        Block until one interaction id is answered.
   events      Print each user interaction as it arrives on the agent event stream.
@@ -71,6 +71,7 @@ Modes:
 Every plan includes a \`workflow\` block. That block is the execution path the Workflow tab draws.
 Accent color is saved in live-plan.config.json beside the plan (override with --config).
 --no-open skips launching a browser.
+--detach registers the plan and returns. Without it, serve stays connected and prints that plan's submissions.
 --no-registry serves this plan in its own process instead of the machine service.
 --port sets that private process port. With the service, --port is used only when the service is not already running.
 --registry-port and --registry-host choose the service (default ${DEFAULT_REGISTRY_HOST}:${DEFAULT_REGISTRY_PORT}).
@@ -142,6 +143,33 @@ async function resolveAgentToken(args: string[]): Promise<string | undefined> {
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError'
+}
+
+/** Stay subscribed to one hosted plan and print that plan's submissions. */
+async function followPlan(url: string, token: string): Promise<number> {
+  console.log('Listening for submissions on this plan. Stopping this command leaves the page up.')
+  const controller = new AbortController()
+  const stop = () => controller.abort()
+  process.once('SIGINT', stop)
+  process.once('SIGTERM', stop)
+  try {
+    await readAgentEvents(
+      url,
+      token,
+      (event) => {
+        for (const notice of planClientNotices(event)) {
+          console.log(JSON.stringify(notice))
+        }
+      },
+      controller.signal,
+    )
+  } catch (error) {
+    if (!isAbortError(error)) {
+      console.error(error instanceof Error ? error.message : error)
+      return 1
+    }
+  }
+  return 0
 }
 
 async function putExecution(url: string, body: ExecutionState): Promise<ExecutionState> {
@@ -233,9 +261,12 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
     console.log(`Plan file: ${planPath}`)
     console.log(`Service: ${registry.url}`)
     console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent).')
-    console.log(`Events: live-plan events --url ${hosted.url}`)
     await openBrowser(hosted.url)
-    return 0
+    if (hasFlag(args, '--detach')) {
+      console.log(`Events: live-plan events --url ${hosted.url}`)
+      return 0
+    }
+    return followPlan(hosted.url, hosted.token)
   }
 
   const port = Number(getFlag(args, '--port') ?? 0)
