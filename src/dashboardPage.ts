@@ -160,7 +160,7 @@ export function renderDashboardPage(): string {
     .path {
       font-family: "IBM Plex Mono", ui-monospace, monospace;
       font-size: 0.75rem;
-      word-break: break-all;
+      overflow-wrap: break-word;
     }
     .pill {
       display: inline-flex;
@@ -260,6 +260,20 @@ export function renderDashboardPage(): string {
         return node;
       }
 
+      function pathNode(className, value) {
+        const node = document.createElement('span');
+        node.className = className;
+        const parts = String(value).split('/');
+        for (let index = 0; index < parts.length; index += 1) {
+          if (index > 0) {
+            node.append('/');
+            node.append(document.createElement('wbr'));
+          }
+          node.append(parts[index]);
+        }
+        return node;
+      }
+
       function safeUrl(value) {
         try {
           const url = new URL(value);
@@ -328,7 +342,7 @@ export function renderDashboardPage(): string {
         if (record.executionStep) bits.push(record.executionStep);
         if (record.outcome) bits.push(record.outcome);
         cell.append(text('span', 'sub', bits.join(' · ')));
-        if (record.planPath) cell.append(text('span', 'sub path', record.planPath));
+        if (record.planPath) cell.append(pathNode('sub path', record.planPath));
         return cell;
       }
 
@@ -350,10 +364,9 @@ export function renderDashboardPage(): string {
 
       function folderCell(record) {
         const cell = document.createElement('td');
-        cell.append(text('span', 'path', record.directory || ''));
+        if (record.directory) cell.append(pathNode('path', record.directory));
         const git = record.git || {};
         if (git.branch) cell.append(text('span', 'sub', git.branch + (git.dirty ? ' · dirty' : ' · clean')));
-        if (record.storedPath) cell.append(text('span', 'sub path', record.storedPath));
         return cell;
       }
 
@@ -370,6 +383,7 @@ export function renderDashboardPage(): string {
         if (record.storedPath && record.id) {
           const archived = text('a', 'action', 'Plan file');
           archived.href = '/plans/' + encodeURIComponent(record.id);
+          if (record.storedPath) archived.title = record.storedPath;
           cell.append(archived);
         }
         return cell;
