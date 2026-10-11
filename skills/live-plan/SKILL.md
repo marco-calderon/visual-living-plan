@@ -5,9 +5,9 @@ description: >-
   status and answer choices, forms, questions, and approval gates in a browser.
   Use when work has multiple steps, needs a human decision before continuing,
   needs Approve/Deny/Iterate on a plan, or should show the execution path
-  before a run and stream it live. Invoke with `npx --yes visual-living-plan` unless the `live-plan`
-  command is already installed. Skip for a one-step change or when the user
-  asked for prose only.
+  before a run and stream it live. Invoke with `bunx visual-living-plan` unless the `live-plan`
+  command is already installed. The CLI runs on Bun.
+  Skip for a one-step change or when the user asked for prose only.
 ---
 
 # Live Plan
@@ -16,10 +16,10 @@ Keep one `.plan.md` file as the channel between you and the human. You update th
 
 ## Invoke
 
-Use npx unless `live-plan` is already on `PATH`.
+Use bunx unless `live-plan` is already on `PATH`. Bun must be installed.
 
 ```bash
-npx --yes visual-living-plan <command> [args]
+bunx visual-living-plan <command> [args]
 live-plan <command> [args]
 ```
 
@@ -39,7 +39,7 @@ Skip when the change is a single obvious step, the user asked for plain prose, o
 ## Loop
 
 1. Write the plan: title, short summary, phases, a `workflow` block, then only the interactions you need now. The workflow block is required. It is the execution path. Schemas are in [primitives.md](primitives.md).
-2. Validate: `npx --yes visual-living-plan check path/to/work.plan.md`.
+2. Validate: `bunx visual-living-plan check path/to/work.plan.md`.
 3. `serve` the file for live status, or `review` when you need a verdict on the whole plan.
 4. Block with `wait <id> --url <printed-url>` when you cannot continue without that answer.
 5. Apply the JSON response. Update phase `status` and checklist `done` in the same file.
@@ -47,15 +47,15 @@ Skip when the change is a single obvious step, the user asked for plain prose, o
 7. Review exits `0` approve (proceed), `1` deny (stop), `2` iterate (edit the same file, bump `--iteration`, run `review` again), `3` timeout.
 
 ```bash
-npx --yes visual-living-plan serve path/to/work.plan.md --port 9410
-npx --yes visual-living-plan wait fail-mode --url http://127.0.0.1:9410 --timeout 30m
-npx --yes visual-living-plan review path/to/work.plan.md --iteration 1 --timeout 4h
-npx --yes visual-living-plan execution start --url http://127.0.0.1:9410 \
+bunx visual-living-plan serve path/to/work.plan.md --port 9410
+bunx visual-living-plan wait fail-mode --url http://127.0.0.1:9410 --timeout 30m
+bunx visual-living-plan review path/to/work.plan.md --iteration 1 --timeout 4h
+bunx visual-living-plan execution start --url http://127.0.0.1:9410 \
   --step "Implement middleware" --graph path/to/graph.json
-npx --yes visual-living-plan execution stop --url http://127.0.0.1:9410
+bunx visual-living-plan execution stop --url http://127.0.0.1:9410
 ```
 
-Replace the npx prefix with `live-plan` when the command is installed.
+Replace the bunx prefix with `live-plan` when the command is installed.
 
 ## Commands
 
@@ -68,13 +68,14 @@ Replace the npx prefix with `live-plan` when the command is installed.
 | `wait <id> --url <url>` | Block until that interaction is answered. Prints the response JSON. |
 | `execution start\|push\|stop --url <url>` | Turn the live workflow overlay on, update it, or turn it off. |
 | `processes` | List running serve/review plans (directory, git status, site URL). |
+| `dashboard` | Open the registry dashboard for running and executed plans. |
 | `theme get\|set` | Read or change the accent color. Use `--url` while serving, or `--plan` / `--config` to edit `live-plan.config.json`. |
 
 `--timeout` defaults to 4 hours. Always pass a unit (`30s`, `45m`, `4h`). A bare number is milliseconds. `--port 0` picks a free port. `--host` defaults to `127.0.0.1`. `--no-open` is only for headless runs. `--graph` is the portable execution payload; `--scene` is optional and adapter-specific. Accent color lives in `live-plan.config.json` beside the plan (`theme.accent`). Humans can also pick it on the Settings tab.
 
 ```bash
-npx --yes visual-living-plan theme set --accent #0369a1 --url http://127.0.0.1:9410
-npx --yes visual-living-plan theme set --accent #0369a1 --plan path/to/work.plan.md
+bunx visual-living-plan theme set --accent #0369a1 --url http://127.0.0.1:9410
+bunx visual-living-plan theme set --accent #0369a1 --plan path/to/work.plan.md
 ```
 
 ## Primitives

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test } from 'node:test'
@@ -107,6 +107,9 @@ test('registry store keeps plans and prunes stale or dead pids', async () => {
     assert.deepEqual(removed.sort(), [dead.id, stale.id].sort())
     assert.equal(store.list().length, 1)
     assert.equal(store.list()[0]?.id, first.id)
+    assert.equal(store.get(stale.id)?.status, 'interrupted')
+    assert.equal(store.get(dead.id)?.status, 'interrupted')
+    assert.equal(store.listPlans().length, 3)
   } finally {
     store.close()
   }
@@ -123,6 +126,12 @@ test('registry http api registers, lists, and requires a token to mutate', async
     assert.equal(page.status, 200)
     assert.match(await page.text(), /Running plans/)
 
+    const dashboardPage = await fetch(new URL('/dashboard', registry.url))
+    assert.equal(dashboardPage.status, 200)
+    const dashboardHtml = await dashboardPage.text()
+    assert.match(dashboardHtml, /Control dashboard/)
+    assert.match(dashboardHtml, /<table>/)
+
     const denied = await fetch(new URL('/api/processes', registry.url), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -133,6 +142,8 @@ test('registry http api registers, lists, and requires a token to mutate', async
     const created = await registerProcess(registry.url, registry.token, sample())
     assert.equal(created.title, 'Rate limiting rollout')
     assert.equal(created.url, 'http://127.0.0.1:9410')
+    const archived = await readFile(join(home, 'plans', `${sample().id}.plan.md`), 'utf8')
+    assert.match(archived, /Rate limiting rollout/)
 
     const listed = await fetch(new URL('/api/processes', registry.url))
     const body = (await listed.json()) as { processes: ProcessRecord[] }
@@ -148,11 +159,30 @@ test('registry http api registers, lists, and requires a token to mutate', async
     assert.equal(afterPrune.processes.length, 1)
     assert.equal(afterPrune.processes[0]?.id, sample().id)
 
-    await unregisterProcess(registry.url, registry.token, sample().id)
+    await unregisterProcess(registry.url, registry.token, sample().id, 'approve')
     const empty = (await (await fetch(new URL('/api/processes', registry.url))).json()) as {
       processes: ProcessRecord[]
     }
     assert.equal(empty.processes.length, 0)
+
+    const dash = (await (await fetch(new URL('/api/dashboard?period=day', registry.url))).json()) as {
+      summary: { running: number; executed: number; interrupted: number; filesModified: number }
+      plans: Array<{ id: string; status: string; outcome: string | null; directory: string }>
+    }
+    assert.equal(dash.summary.running, 0)
+    assert.equal(dash.summary.executed, 1)
+    assert.equal(dash.summary.interrupted, 1)
+    const finished = dash.plans.find((plan) => plan.id === sample().id)
+    assert.equal(finished?.status, 'executed')
+    assert.equal(finished?.outcome, 'approve')
+    assert.equal(finished?.directory, '/workspace/examples')
+
+    const badPeriod = await fetch(new URL('/api/dashboard?period=year', registry.url))
+    assert.equal(badPeriod.status, 400)
+
+    const archivedPage = await fetch(new URL(`/plans/${sample().id}`, registry.url))
+    assert.equal(archivedPage.status, 200)
+    assert.match(await archivedPage.text(), /Rate limiting rollout/)
   } finally {
     await registry.close()
     await rm(home, { recursive: true, force: true })
@@ -206,6 +236,30 @@ test('planner page lists registered plans and links their directories', async ()
     const html = await (await fetch(planServer.url)).text()
     assert.match(html, /data-processes-root/)
     assert.match(html, /\/api\/processes/)
+    assert.match(html, /data-processes-dashboard/)
+
+    const missingAsset = await fetch(new URL('/client/assets/missing.js', planServer.url))
+    assert.equal(missingAsset.status, 404)
+    assert.equal(((await missingAsset.json()) as { error: string }).error, 'Asset not found')
+
+    const events = await fetch(new URL('/api/events', planServer.url))
+    assert.equal(events.headers.get('content-type'), 'text/event-stream')
+    const reader = events.body?.getReader()
+    assert.ok(reader)
+    const first = await reader.read()
+    assert.match(new TextDecoder().decode(first.value), /event: hello/)
+    await reader.cancel()
+
+    const probeDir = resolve('dist/client/assets')
+    await mkdir(probeDir, { recursive: true })
+    await writeFile(join(probeDir, 'probe.txt'), 'probe-ok')
+    try {
+      const asset = await fetch(new URL('/client/assets/probe.txt', planServer.url))
+      assert.equal(asset.status, 200)
+      assert.equal(await asset.text(), 'probe-ok')
+    } finally {
+      await rm(join(probeDir, 'probe.txt'), { force: true })
+    }
   } finally {
     await planServer.close()
     await registry.close()
@@ -246,7 +300,7 @@ test('planner page reports when the registry was not configured', async () => {
   }
 })
 
-test('watchRegisteredPlan removes the plan when the process stops', async () => {
+test('watchRegisteredPlan keeps an executed plan when the process stops', async () => {
   const home = await tempHome()
   const registry = await startRegistryServer({ home, port: 0, token: 'test-token-value' })
   try {
@@ -258,6 +312,13 @@ test('watchRegisteredPlan removes the plan when the process stops', async () => 
     assert.equal((await listProcesses(registry.url)).length, 1)
     await session.stop()
     assert.equal((await listProcesses(registry.url)).length, 0)
+    const archived = await readFile(join(home, 'plans', `${sample().id}.plan.md`), 'utf8')
+    assert.match(archived, /Rate limiting rollout/)
+    const history = (await (await fetch(new URL('/api/plans', registry.url))).json()) as {
+      plans: Array<{ status: string }>
+    }
+    assert.equal(history.plans.length, 1)
+    assert.equal(history.plans[0]?.status, 'executed')
   } finally {
     await registry.close()
     await rm(home, { recursive: true, force: true })

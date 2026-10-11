@@ -1,12 +1,16 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { rm } from 'node:fs/promises'
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
+import { Elysia } from 'elysia'
+import { parsePeriod } from './dashboard.js'
+import { renderDashboardPage } from './dashboardPage.js'
+import { bindElysia } from './httpServer.js'
+import { archivePlanFile, isPathInside } from './planArchive.js'
+import type { CompletionState, GitSnapshot, PlanRecord, ProcessRecord, ReviewOutcome } from './processRecord.js'
+import { emptyGitSnapshot } from './processRecord.js'
 import { DEFAULT_REGISTRY_HOST, STALE_MS } from './registryConstants.js'
-import { registryDatabasePath, registryStartingPath, writeRegistryLock } from './registryLock.js'
+import { registryDatabasePath, registryPlansDir, registryStartingPath, writeRegistryLock } from './registryLock.js'
 import { renderRegistryPage } from './registryPage.js'
 import { openRegistryStore, type RegistryStore } from './registryStore.js'
-import type { GitSnapshot, ProcessRecord } from './processRecord.js'
-import { emptyGitSnapshot } from './processRecord.js'
 
 export type RegistryServer = {
   url: string
@@ -19,36 +23,19 @@ export type RegistryServer = {
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{8,80}$/
 
-function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    'cache-control': 'no-store',
-  })
-  res.end(JSON.stringify(body))
+type IncomingPlan = ProcessRecord & {
+  phaseTotal?: number
+  phaseDone?: number
+  interactionTotal?: number
+  interactionDone?: number
+  completionRatio?: number
+  completionState?: CompletionState
+  filesModified?: number
 }
 
-function readBody(req: IncomingMessage, limit = 65_536): Promise<string> {
-  return new Promise((resolveBody, reject) => {
-    const chunks: Buffer[] = []
-    let size = 0
-    req.on('data', (chunk: Buffer | string) => {
-      const buffer = Buffer.from(chunk)
-      size += buffer.length
-      if (size > limit) {
-        reject(new Error('Body too large'))
-        req.destroy()
-        return
-      }
-      chunks.push(buffer)
-    })
-    req.on('end', () => resolveBody(Buffer.concat(chunks).toString('utf8')))
-    req.on('error', reject)
-  })
-}
-
-function authorized(req: IncomingMessage, token: string): boolean {
-  const header = req.headers.authorization
-  if (typeof header !== 'string') return false
+function authorized(request: Request, token: string): boolean {
+  const header = request.headers.get('authorization')
+  if (!header) return false
   const expected = Buffer.from(`Bearer ${token}`)
   const actual = Buffer.from(header)
   if (actual.length !== expected.length) return false
@@ -78,6 +65,51 @@ function httpUrl(value: unknown): string | null {
   }
 }
 
+function countOf(value: unknown): number | undefined {
+  if (value === undefined) return undefined
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return undefined
+  return Math.max(0, Math.round(parsed))
+}
+
+function completionStateOf(value: unknown): CompletionState | undefined {
+  if (value === 'idle' || value === 'in_progress' || value === 'partial' || value === 'complete') return value
+  return undefined
+}
+
+function outcomeOf(value: unknown): ReviewOutcome | null {
+  if (value === 'approve' || value === 'deny' || value === 'iterate') return value
+  return null
+}
+
+function progressFields(raw: Record<string, unknown>): Pick<
+  IncomingPlan,
+  | 'phaseTotal'
+  | 'phaseDone'
+  | 'interactionTotal'
+  | 'interactionDone'
+  | 'completionRatio'
+  | 'completionState'
+  | 'filesModified'
+> {
+  const progress: ReturnType<typeof progressFields> = {}
+  const phaseTotal = countOf(raw.phaseTotal)
+  const phaseDone = countOf(raw.phaseDone)
+  const interactionTotal = countOf(raw.interactionTotal)
+  const interactionDone = countOf(raw.interactionDone)
+  const completionRatio = countOf(raw.completionRatio)
+  const completionState = completionStateOf(raw.completionState)
+  const filesModified = countOf(raw.filesModified)
+  if (phaseTotal !== undefined) progress.phaseTotal = phaseTotal
+  if (phaseDone !== undefined) progress.phaseDone = phaseDone
+  if (interactionTotal !== undefined) progress.interactionTotal = interactionTotal
+  if (interactionDone !== undefined) progress.interactionDone = interactionDone
+  if (completionRatio !== undefined) progress.completionRatio = Math.min(100, completionRatio)
+  if (completionState) progress.completionState = completionState
+  if (filesModified !== undefined) progress.filesModified = filesModified
+  return progress
+}
+
 function parseGit(value: unknown): GitSnapshot {
   if (!value || typeof value !== 'object') return emptyGitSnapshot()
   const git = value as Partial<GitSnapshot>
@@ -105,7 +137,7 @@ function parseGit(value: unknown): GitSnapshot {
   return snapshot
 }
 
-function parseRegistration(body: unknown, now: number): ProcessRecord | { error: string } {
+function parseRegistration(body: unknown, now: number): IncomingPlan | { error: string } {
   if (!body || typeof body !== 'object') return { error: 'Expected a JSON object' }
   const raw = body as Record<string, unknown>
   const id = typeof raw.id === 'string' ? raw.id.trim() : ''
@@ -145,6 +177,7 @@ function parseRegistration(body: unknown, now: number): ProcessRecord | { error:
     executionActive: Boolean(raw.executionActive),
     executionStep: clip(raw.executionStep, 200),
     git: parseGit(raw.git),
+    ...progressFields(raw),
   }
 }
 
@@ -156,6 +189,13 @@ function parsePulse(body: unknown): {
   executionActive?: boolean
   executionStep?: string | null
   git?: GitSnapshot
+  phaseTotal?: number
+  phaseDone?: number
+  interactionTotal?: number
+  interactionDone?: number
+  completionRatio?: number
+  completionState?: CompletionState
+  filesModified?: number
 } {
   if (!body || typeof body !== 'object') return {}
   const raw = body as Record<string, unknown>
@@ -170,7 +210,7 @@ function parsePulse(body: unknown): {
   if ('executionActive' in raw) pulse.executionActive = Boolean(raw.executionActive)
   if ('executionStep' in raw) pulse.executionStep = clip(raw.executionStep, 200)
   if ('git' in raw) pulse.git = parseGit(raw.git)
-  return pulse
+  return { ...pulse, ...progressFields(raw) }
 }
 
 export function processIdFromPath(pathname: string): string | null {
@@ -185,6 +225,30 @@ export function processIdFromPath(pathname: string): string | null {
   }
 }
 
+function routeId(value: string): string | null {
+  try {
+    const id = decodeURIComponent(value)
+    return ID_PATTERN.test(id) ? id : null
+  } catch {
+    return null
+  }
+}
+
+async function readLimited(request: Request, limit = 65_536): Promise<string> {
+  const raw = await request.text()
+  if (Buffer.byteLength(raw) > limit) throw new Error('Body too large')
+  return raw
+}
+
+function html(body: string): Response {
+  return new Response(body, {
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'no-store',
+    },
+  })
+}
+
 export async function startRegistryServer(options: {
   home: string
   host?: string
@@ -195,121 +259,158 @@ export async function startRegistryServer(options: {
   const host = options.host ?? DEFAULT_REGISTRY_HOST
   const token = options.token ?? randomBytes(24).toString('hex')
   const staleMs = options.staleMs ?? STALE_MS
+  const plansDir = registryPlansDir(options.home)
   const store: RegistryStore = await openRegistryStore(registryDatabasePath(options.home))
   const page = renderRegistryPage()
+  const dashboard = renderDashboardPage()
 
-  const server = createServer(async (req, res) => {
-    const url = new URL(req.url ?? '/', `http://${host}`)
-    try {
-      if (req.method === 'GET' && url.pathname === '/api/health') {
-        sendJson(res, 200, { ok: true, pid: process.pid, processes: store.list().length })
-        return
+  for (const plan of store.list()) {
+    if (plan.storedPath) continue
+    const stored = await archivePlanFile(plansDir, plan.id, plan.planPath)
+    if (stored) store.setStoredPath(plan.id, stored)
+  }
+
+  async function remember(record: IncomingPlan): Promise<PlanRecord | undefined> {
+    const existing = store.get(record.id)
+    store.upsert({
+      ...record,
+      startedAt: existing?.startedAt ?? record.startedAt,
+      status: 'running',
+      endedAt: null,
+      storedPath: existing?.storedPath ?? null,
+    })
+    const stored = await archivePlanFile(plansDir, record.id, record.planPath)
+    if (stored) store.setStoredPath(record.id, stored)
+    return store.get(record.id)
+  }
+
+  const app = new Elysia()
+    .onBeforeHandle(({ set }) => {
+      set.headers['cache-control'] = 'no-store'
+    })
+    .onError(({ code, error, set }) => {
+      if (code === 'NOT_FOUND') {
+        set.status = 404
+        return { error: 'Not found' }
       }
-
-      if (req.method === 'GET' && url.pathname === '/') {
-        res.writeHead(200, {
-          'content-type': 'text/html; charset=utf-8',
+      set.status = 500
+      return { error: error instanceof Error ? error.message : 'Unknown error' }
+    })
+    .get('/api/health', () => ({
+      ok: true,
+      pid: process.pid,
+      processes: store.list().length,
+      plans: store.listPlans().length,
+    }))
+    .get('/', () => html(page))
+    .get('/dashboard', () => html(dashboard))
+    .get('/api/processes', () => {
+      store.prune({ staleMs })
+      return { processes: store.list() }
+    })
+    .get('/api/plans', () => {
+      store.prune({ staleMs })
+      return { plans: store.listPlans() }
+    })
+    .get('/api/dashboard', ({ request, set }) => {
+      const period = parsePeriod(new URL(request.url).searchParams.get('period') ?? 'day')
+      if (!period) {
+        set.status = 400
+        return { error: 'period must be day, week, or month' }
+      }
+      store.prune({ staleMs })
+      return store.dashboard(period)
+    })
+    .get('/plans/:id', async ({ params, set }) => {
+      const id = routeId(params.id)
+      const plan = id ? store.get(id) : undefined
+      if (!id || !plan?.storedPath || !isPathInside(plansDir, plan.storedPath)) {
+        set.status = 404
+        return { error: 'Archived plan not found' }
+      }
+      const file = Bun.file(plan.storedPath)
+      if (!(await file.exists())) {
+        set.status = 404
+        return { error: 'Archived plan not found' }
+      }
+      return new Response(file, {
+        headers: {
+          'content-type': 'text/markdown; charset=utf-8',
           'cache-control': 'no-store',
-        })
-        res.end(page)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/api/processes') {
-        store.prune({ staleMs })
-        sendJson(res, 200, { processes: store.list() })
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/api/processes') {
-        if (!authorized(req, token)) {
-          sendJson(res, 401, { error: 'Unauthorized' })
-          return
-        }
-        const parsed = parseRegistration(JSON.parse(await readBody(req)) as unknown, Date.now())
-        if ('error' in parsed) {
-          sendJson(res, 400, parsed)
-          return
-        }
-        const existing = store.get(parsed.id)
-        store.upsert(existing ? { ...parsed, startedAt: existing.startedAt } : parsed)
-        sendJson(res, 200, { ok: true, process: store.get(parsed.id) })
-        return
-      }
-
-      const id = processIdFromPath(url.pathname)
-      if (id && req.method === 'POST' && url.pathname.endsWith('/heartbeat')) {
-        if (!authorized(req, token)) {
-          sendJson(res, 401, { error: 'Unauthorized' })
-          return
-        }
-        const raw = await readBody(req)
-        const updated = store.heartbeat(id, {
-          at: Date.now(),
-          ...parsePulse(raw ? (JSON.parse(raw) as unknown) : {}),
-        })
-        if (!updated) {
-          sendJson(res, 404, { error: 'Not registered' })
-          return
-        }
-        sendJson(res, 200, { ok: true, process: updated })
-        return
-      }
-
-      if (id && req.method === 'DELETE' && url.pathname === `/api/processes/${encodeURIComponent(id)}`) {
-        if (!authorized(req, token)) {
-          sendJson(res, 401, { error: 'Unauthorized' })
-          return
-        }
-        store.remove(id)
-        sendJson(res, 200, { ok: true })
-        return
-      }
-
-      sendJson(res, 404, { error: 'Not found' })
-    } catch (error) {
-      sendJson(res, 500, { error: error instanceof Error ? error.message : 'Unknown error' })
-    }
-  })
-
-  const preferred = options.port ?? 0
-  const candidates = preferred > 0 ? [preferred, 0] : [0]
-  let lastError: unknown
-  let port = 0
-  for (const candidate of candidates) {
-    try {
-      port = await new Promise<number>((resolvePort, reject) => {
-        const onError = (error: Error) => {
-          server.off('listening', onListening)
-          reject(error)
-        }
-        const onListening = () => {
-          server.off('error', onError)
-          const address = server.address()
-          if (!address || typeof address === 'string') {
-            reject(new Error('Unable to bind living-plan registry'))
-            return
-          }
-          resolvePort(address.port)
-        }
-        server.once('error', onError)
-        server.listen(candidate, host, onListening)
+          'content-disposition': `inline; filename="${id}.plan.md"`,
+        },
       })
-      lastError = undefined
-      break
-    } catch (error) {
-      lastError = error
-    }
-  }
-  if (!port) {
+    })
+    .post('/api/processes', async ({ request, set }) => {
+      if (!authorized(request, token)) {
+        set.status = 401
+        return { error: 'Unauthorized' }
+      }
+      const parsed = parseRegistration(JSON.parse(await readLimited(request)) as unknown, Date.now())
+      if ('error' in parsed) {
+        set.status = 400
+        return parsed
+      }
+      const saved = await remember(parsed)
+      return { ok: true, process: saved }
+    })
+    .post('/api/processes/:id/heartbeat', async ({ params, request, set }) => {
+      if (!authorized(request, token)) {
+        set.status = 401
+        return { error: 'Unauthorized' }
+      }
+      const id = routeId(params.id)
+      if (!id) {
+        set.status = 404
+        return { error: 'Not registered' }
+      }
+      const raw = await readLimited(request)
+      const updated = store.heartbeat(id, {
+        at: Date.now(),
+        ...parsePulse(raw ? (JSON.parse(raw) as unknown) : {}),
+      })
+      if (!updated) {
+        set.status = 404
+        return { error: 'Not registered' }
+      }
+      const stored = await archivePlanFile(plansDir, id, updated.planPath)
+      if (stored) store.setStoredPath(id, stored)
+      return { ok: true, process: store.get(id) }
+    })
+    .delete('/api/processes/:id', async ({ params, request, set }) => {
+      if (!authorized(request, token)) {
+        set.status = 401
+        return { error: 'Unauthorized' }
+      }
+      const id = routeId(params.id)
+      if (!id) return { ok: true }
+      const raw = await readLimited(request)
+      let outcome: ReviewOutcome | null = null
+      if (raw.trim()) {
+        const body = JSON.parse(raw) as { outcome?: unknown }
+        outcome = outcomeOf(body.outcome)
+      }
+      store.remove(id, outcome)
+      const stored = store.get(id)
+      if (stored) {
+        const archived = await archivePlanFile(plansDir, id, stored.planPath)
+        if (archived) store.setStoredPath(id, archived)
+      }
+      return { ok: true }
+    })
+
+  let bound: ReturnType<typeof bindElysia>
+  try {
+    bound = bindElysia(app, host, options.port ?? 0)
+  } catch (error) {
     store.close()
-    throw lastError instanceof Error ? lastError : new Error('Unable to bind living-plan registry')
+    throw error
   }
 
-  const url = `http://${host}:${port}`
+  const url = `http://${host}:${bound.port}`
   await writeRegistryLock(options.home, {
     pid: process.pid,
-    port,
+    port: bound.port,
     host,
     url,
     token,
@@ -328,7 +429,7 @@ export async function startRegistryServer(options: {
 
   return {
     url,
-    port,
+    port: bound.port,
     host,
     token,
     home: options.home,
@@ -340,10 +441,7 @@ export async function startRegistryServer(options: {
         await rm(registryLockPath(options.home), { force: true })
       }
       store.close()
-      server.closeAllConnections()
-      await new Promise<void>((resolveClose, reject) => {
-        server.close((error) => (error ? reject(error) : resolveClose()))
-      })
+      await bound.stop()
     },
   }
 }

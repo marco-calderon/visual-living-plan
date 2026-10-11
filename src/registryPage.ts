@@ -44,7 +44,8 @@ export function renderRegistryPage(): string {
     main { width: min(760px, calc(100% - 2rem)); margin: 0 auto; padding: 2.5rem 0 4rem; }
     .kicker { margin: 0 0 0.4rem; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.75rem; font-weight: 600; color: var(--accent); }
     h1 { font-family: Fraunces, serif; font-size: clamp(2.2rem, 5vw, 3.4rem); line-height: 0.95; margin: 0 0 0.7rem; }
-    .lede { margin: 0 0 1.4rem; color: var(--muted); max-width: 38rem; line-height: 1.5; }
+    .lede { margin: 0 0 1rem; color: var(--muted); max-width: 38rem; line-height: 1.5; }
+    .lede a { color: var(--accent); font-weight: 600; }
     .status { color: var(--muted); margin: 0 0 0.8rem; }
     ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.7rem; }
     article {
@@ -78,7 +79,8 @@ export function renderRegistryPage(): string {
   <main>
     <p class="kicker">Living Plan</p>
     <h1>Running plans</h1>
-    <p class="lede">Plans started from the CLI. Each one is linked to a directory and that directory's git status. Open an entry to work in its site.</p>
+    <p class="lede">Plans started from the CLI. Each one is linked to a directory and that directory's git status. Open an entry to work in its site. Finished runs stay on the <a href="/dashboard">dashboard</a>.</p>
+    <p class="actions"><a class="btn" href="/dashboard">Dashboard</a></p>
     <p class="status" id="status">Loading…</p>
     <ul id="list"></ul>
   </main>

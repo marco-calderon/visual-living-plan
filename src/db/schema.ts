@@ -1,0 +1,47 @@
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+
+/**
+ * One row is one serve/review run.
+ * `processes` was the previous table; `migratePlanDatabase` copies those rows here.
+ */
+export const plans = sqliteTable('plans', {
+  id: text('id').primaryKey(),
+  pid: integer('pid'),
+  title: text('title').notNull(),
+  summary: text('summary'),
+  agent: text('agent'),
+  mode: text('mode').notNull(),
+  status: text('status').notNull(),
+  planPath: text('plan_path').notNull(),
+  storedPath: text('stored_path'),
+  directory: text('directory').notNull(),
+  cwd: text('cwd').notNull(),
+  url: text('url').notNull(),
+  host: text('host').notNull(),
+  port: integer('port').notNull(),
+  startedAt: integer('started_at').notNull(),
+  endedAt: integer('ended_at'),
+  heartbeatAt: integer('heartbeat_at').notNull(),
+  durationMs: integer('duration_ms').notNull().default(0),
+  pendingCount: integer('pending_count').notNull().default(0),
+  phaseTotal: integer('phase_total').notNull().default(0),
+  phaseDone: integer('phase_done').notNull().default(0),
+  interactionTotal: integer('interaction_total').notNull().default(0),
+  interactionDone: integer('interaction_done').notNull().default(0),
+  completionRatio: integer('completion_ratio').notNull().default(0),
+  completionState: text('completion_state').notNull().default('idle'),
+  executionActive: integer('execution_active', { mode: 'boolean' }).notNull().default(false),
+  executionStep: text('execution_step'),
+  filesModified: integer('files_modified').notNull().default(0),
+  outcome: text('outcome'),
+  gitIsRepo: integer('git_is_repo', { mode: 'boolean' }).notNull().default(false),
+  gitRoot: text('git_root'),
+  gitBranch: text('git_branch'),
+  gitCommit: text('git_commit'),
+  gitDirty: integer('git_dirty', { mode: 'boolean' }).notNull().default(false),
+  gitAhead: integer('git_ahead').notNull().default(0),
+  gitBehind: integer('git_behind').notNull().default(0),
+  gitChangedFiles: integer('git_changed_files').notNull().default(0),
+  gitPaths: text('git_paths').notNull().default('[]'),
+  gitSummary: text('git_summary').notNull().default(''),
+})

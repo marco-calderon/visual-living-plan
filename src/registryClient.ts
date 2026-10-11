@@ -4,7 +4,7 @@ import { mkdir, open, readFile, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { readGitSnapshot } from './gitStatus.js'
 import { isPidAlive } from './pid.js'
-import type { GitSnapshot, ProcessPulse, ProcessRecord, ProcessRegistration } from './processRecord.js'
+import type { CompletionState, GitSnapshot, ProcessPulse, ProcessRecord, ProcessRegistration } from './processRecord.js'
 import { DEFAULT_REGISTRY_HOST, DEFAULT_REGISTRY_PORT, HEARTBEAT_MS } from './registryConstants.js'
 import {
   defaultRegistryHome,
@@ -23,6 +23,13 @@ export type PlanLiveState = {
   pendingCount: number
   executionActive: boolean
   executionStep: string | null
+  phaseTotal?: number
+  phaseDone?: number
+  interactionTotal?: number
+  interactionDone?: number
+  completionRatio?: number
+  completionState?: CompletionState
+  filesModified?: number
 }
 
 const STARTING_STALE_MS = 8_000
@@ -86,6 +93,10 @@ async function acquireStartingLock(home: string): Promise<boolean> {
   }
 }
 
+function onBun(): boolean {
+  return typeof process.versions.bun === 'string'
+}
+
 function loaderArgs(): string[] {
   const args = process.execArgv
   const kept: string[] = []
@@ -112,6 +123,7 @@ function loaderArgs(): string[] {
 }
 
 function childArgs(entryFile: string, commandArgs: string[]): string[] {
+  if (onBun()) return [entryFile, ...commandArgs]
   const loaders = loaderArgs()
   if (loaders.length > 0) return [...loaders, entryFile, ...commandArgs]
   if (entryFile.endsWith('.ts') || entryFile.endsWith('.tsx') || entryFile.endsWith('.mts')) {
@@ -258,10 +270,16 @@ export async function heartbeatProcess(
   return true
 }
 
-export async function unregisterProcess(registryUrl: string, token: string, id: string): Promise<void> {
+export async function unregisterProcess(
+  registryUrl: string,
+  token: string,
+  id: string,
+  outcome?: string | null,
+): Promise<void> {
   const response = await fetch(new URL(`/api/processes/${encodeURIComponent(id)}`, registryUrl), {
     method: 'DELETE',
     headers: authHeaders(token),
+    body: JSON.stringify({ outcome: outcome ?? null }),
     signal: AbortSignal.timeout(2_000),
   })
   if (response.status === 404 || response.ok) return
@@ -289,12 +307,19 @@ export async function watchRegisteredPlan(options: {
     const nextGit: GitSnapshot = readGitSnapshot(options.record.directory)
     const beat: ProcessPulse = {
       git: nextGit,
+      filesModified: nextGit.changedFiles,
       title: live?.title,
       summary: live?.summary,
       agent: live?.agent,
       pendingCount: live?.pendingCount,
       executionActive: live?.executionActive,
       executionStep: live?.executionStep,
+      phaseTotal: live?.phaseTotal,
+      phaseDone: live?.phaseDone,
+      interactionTotal: live?.interactionTotal,
+      interactionDone: live?.interactionDone,
+      completionRatio: live?.completionRatio,
+      completionState: live?.completionState,
     }
     try {
       const ok = await heartbeatProcess(options.registryUrl, options.token, options.record.id, beat)
@@ -311,14 +336,14 @@ export async function watchRegisteredPlan(options: {
   }
 
   return {
-    async stop() {
+    async stop(outcome?: string | null) {
       if (stopped) return
       stopped = true
       clearInterval(timer)
       try {
-        await unregisterProcess(options.registryUrl, options.token, options.record.id)
+        await unregisterProcess(options.registryUrl, options.token, options.record.id, outcome)
       } catch {
-        // Heartbeats stop, and the registry drops the row once it is stale.
+        // Heartbeats stop, and the registry marks the row interrupted once it is stale.
       }
     },
   }

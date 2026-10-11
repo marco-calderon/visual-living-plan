@@ -49,6 +49,34 @@ export type ProcessRegistration = {
   executionActive?: boolean
   executionStep?: string | null
   git?: GitSnapshot
+  phaseTotal?: number
+  phaseDone?: number
+  interactionTotal?: number
+  interactionDone?: number
+  completionRatio?: number
+  completionState?: CompletionState
+  filesModified?: number
+}
+
+export type PlanStatus = 'running' | 'executed' | 'interrupted'
+
+export type CompletionState = 'idle' | 'in_progress' | 'partial' | 'complete'
+
+export type ReviewOutcome = 'approve' | 'deny' | 'iterate'
+
+export type PlanRecord = ProcessRecord & {
+  status: PlanStatus
+  storedPath: string | null
+  endedAt: number | null
+  durationMs: number
+  phaseTotal: number
+  phaseDone: number
+  interactionTotal: number
+  interactionDone: number
+  completionRatio: number
+  completionState: CompletionState
+  filesModified: number
+  outcome: ReviewOutcome | null
 }
 
 export type ProcessPulse = {
@@ -60,6 +88,13 @@ export type ProcessPulse = {
   executionActive?: boolean
   executionStep?: string | null
   git?: GitSnapshot
+  phaseTotal?: number
+  phaseDone?: number
+  interactionTotal?: number
+  interactionDone?: number
+  completionRatio?: number
+  completionState?: CompletionState
+  filesModified?: number
 }
 
 export function emptyGitSnapshot(summary = 'not a git repository'): GitSnapshot {

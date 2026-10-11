@@ -2,17 +2,17 @@
 
 Use Live Plan when a human needs a live view of what you are doing, or must answer something before you continue. You own one `.plan.md` file. The human watches a browser URL.
 
-Invoke the CLI with **npx** unless the `live-plan` command is already installed.
+The CLI runs on Bun. Invoke it with **bunx** unless the `live-plan` command is already installed.
 
 ```bash
 # Default. No global install.
-npx --yes visual-living-plan <command> [args]
+bunx visual-living-plan <command> [args]
 
 # After `npm install -g visual-living-plan` (or a local install that puts the bin on PATH).
 live-plan <command> [args]
 ```
 
-`npx --yes visual-living-plan` runs the published package. `live-plan` is the same program once installed. Do not use this repository's `npm run` scripts unless you are developing Live Plan itself.
+`bunx visual-living-plan` runs the published package. `live-plan` is the same program once installed. Bun must be on `PATH`. Do not use this repository's `npm run` scripts unless you are developing Live Plan itself.
 
 Copy [`skills/live-plan/`](../skills/live-plan/SKILL.md) into your agent's skills directory (`.cursor/skills/live-plan/` or `.claude/skills/live-plan/`) so the loop and primitives load automatically. Schemas live in [`skills/live-plan/primitives.md`](../skills/live-plan/primitives.md).
 
@@ -30,23 +30,23 @@ Skip it for a one-step change, when the user asked for prose only, or when nobod
 `serve` and `review` are long-running. Start them in the background, read the printed URL, and keep that URL for `wait` and `execution`.
 
 ```bash
-npx --yes visual-living-plan check path/to/work.plan.md
+bunx visual-living-plan check path/to/work.plan.md
 
-npx --yes visual-living-plan serve path/to/work.plan.md --port 9410
+bunx visual-living-plan serve path/to/work.plan.md --port 9410
 
-npx --yes visual-living-plan wait fail-mode --url http://127.0.0.1:9410 --timeout 30m
+bunx visual-living-plan wait fail-mode --url http://127.0.0.1:9410 --timeout 30m
 
-npx --yes visual-living-plan review path/to/work.plan.md --iteration 1 --timeout 4h
+bunx visual-living-plan review path/to/work.plan.md --iteration 1 --timeout 4h
 
-npx --yes visual-living-plan execution start --url http://127.0.0.1:9410 \
+bunx visual-living-plan execution start --url http://127.0.0.1:9410 \
   --step "Implement middleware" --detail "Editing gateway.ts" \
   --graph path/to/graph.json
-npx --yes visual-living-plan execution push --url http://127.0.0.1:9410 \
+bunx visual-living-plan execution push --url http://127.0.0.1:9410 \
   --step "Add coverage" --graph path/to/graph.json
-npx --yes visual-living-plan execution stop --url http://127.0.0.1:9410
+bunx visual-living-plan execution stop --url http://127.0.0.1:9410
 ```
 
-Swap the `npx --yes visual-living-plan` prefix for `live-plan` when that command is on `PATH`.
+Swap the `bunx visual-living-plan` prefix for `live-plan` when that command is on `PATH`.
 
 | Command | What it does | Exit |
 |---|---|---|
@@ -57,6 +57,7 @@ Swap the `npx --yes visual-living-plan` prefix for `live-plan` when that command
 | `wait <id> --url <url>` | Block until that interaction id has a response. Prints the response JSON. | `0` answered, `1` missing `--url`, `3` timeout |
 | `execution start\|push\|stop --url <url>` | Drive the live workflow overlay. `start` turns it on, `push` updates it, `stop` turns it off and unlocks plan forms. | `0` ok, `1` usage or HTTP error |
 | `processes` | List serve/review processes registered with the shared registry, including directory and git status. `ps` is the same command. | `0` |
+| `dashboard` | Open the registry dashboard of running and executed plans (day, week, and month). | `0` when the registry is up, `1` when it is not |
 | `theme get\|set` | Read or write the accent color. Prefer `--url` while `serve`/`review` is up; otherwise `--config` / `--plan` writes `live-plan.config.json`. | `0` ok, `1` usage or HTTP error |
 
 Flags:
@@ -137,11 +138,11 @@ Node `status` is `pending`, `active`, `blocked`, `done`, or `failed`. `x` and `y
 Humans can change the accent on the Settings tab. The choice is saved to `live-plan.config.json` beside the plan (override with `--config` on `serve` / `review`). Agents should use the CLI, not hand-edit CSS:
 
 ```bash
-npx --yes visual-living-plan theme get --url http://127.0.0.1:9410
-npx --yes visual-living-plan theme set --accent #0369a1 --url http://127.0.0.1:9410
+bunx visual-living-plan theme get --url http://127.0.0.1:9410
+bunx visual-living-plan theme set --accent #0369a1 --url http://127.0.0.1:9410
 
 # Offline / before serve: write the config file next to the plan
-npx --yes visual-living-plan theme set --accent #0369a1 --plan path/to/work.plan.md
+bunx visual-living-plan theme set --accent #0369a1 --plan path/to/work.plan.md
 ```
 
 Config shape:
@@ -168,6 +169,7 @@ The server URL from `serve` or `review` exposes:
 - `GET /api/execution` and `PUT /api/execution` — read or replace execution state. `GET` includes `planned` (the expected workflow) even while execution is idle
 - `POST /api/execution/start` and `POST /api/execution/stop` — convenience toggles
 - `GET /api/processes` — other plans started through the CLI, with directory and git status. Each `url` opens that plan's site.
+- Registry `GET /dashboard` — running and executed plans, with day, week, and month summaries. `live-plan dashboard` opens it. Plan files are copied into the registry home under `plans/`.
 - `GET /api/theme` and `PUT /api/theme` — read or set `{ "accent": "#hex" }` (persists to the theme config file)
 
 Prefer the CLI. Use HTTP only to inspect state or when another process must submit on the human's behalf.

@@ -1,10 +1,11 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadClientAssets } from './assets.js'
+import { measurePlan } from './planProgress.js'
 import { parsePlan } from './parse.js'
 import { startLivingPlanServer, type LivingPlanServer } from './server.js'
 import type { ExecutionGraph, ExecutionState } from './execution.js'
@@ -46,9 +47,10 @@ Usage:
   live-plan check <file.plan.md>
   live-plan dump <file.plan.md>
   live-plan processes
+  live-plan dashboard
   live-plan registry [--port N] [--host HOST]
 
-Invoke with \`npx --yes visual-living-plan <command>\` when the \`live-plan\` command is not installed. \`living-plan\` is the same binary.
+Requires Bun (https://bun.sh). Invoke with \`bunx visual-living-plan <command>\` when the \`live-plan\` command is not installed. \`living-plan\` is the same binary.
 
 Modes:
   serve       Live watch URL. The Workflow tab draws the plan diagram, then the live run.
@@ -58,6 +60,7 @@ Modes:
   theme       Read or write the accent color in live-plan.config.json (or via a running server).
   check       Print plan summary. Exits 1 when the required workflow block is missing.
   processes   List plans currently registered by serve and review. \`ps\` is the same command.
+  dashboard   Open the control dashboard (running and executed plans, by day, week, or month).
   registry    Run the shared registry in the foreground. serve and review start it on their own.
 
 Every plan includes a \`workflow\` block. That block is the execution path the Workflow tab draws.
@@ -107,7 +110,7 @@ async function ensureClientBuild(): Promise<void> {
   if (assets?.mermaidHref) return
   console.log('Building execution client (vite)...')
   await new Promise<void>((resolveBuild, reject) => {
-    const child = spawn('npx', ['vite', 'build'], {
+    const child = spawn(process.execPath, ['x', 'vite', 'build'], {
       cwd: packageRoot,
       stdio: 'inherit',
       shell: process.platform === 'win32',
@@ -181,7 +184,7 @@ async function cmdDump(file: string): Promise<number> {
 
 type PlanTracker = {
   registryUrl: string
-  stop: () => Promise<void>
+  stop: (outcome?: string | null) => Promise<void>
 }
 
 async function openRegistry(args: string[]): Promise<{ url: string; token: string } | null> {
@@ -201,6 +204,20 @@ async function openRegistry(args: string[]): Promise<{ url: string; token: strin
   }
 }
 
+function describePlan(server: LivingPlanServer) {
+  const current = server.getState()
+  const progress = measurePlan(current.plan, Object.keys(current.responses))
+  return {
+    title: current.plan.title,
+    summary: current.plan.summary ?? null,
+    agent: current.plan.agent ?? null,
+    pendingCount: current.pendingInteractionIds.length,
+    executionActive: Boolean(current.execution.active),
+    executionStep: current.execution.step ?? null,
+    ...progress,
+  }
+}
+
 async function trackPlan(
   server: LivingPlanServer,
   registry: { url: string; token: string },
@@ -212,6 +229,7 @@ async function trackPlan(
   },
 ): Promise<PlanTracker | null> {
   const state = server.getState()
+  const progress = measurePlan(state.plan, Object.keys(state.responses))
   try {
     const session = await watchRegisteredPlan({
       registryUrl: registry.url,
@@ -232,18 +250,9 @@ async function trackPlan(
         pendingCount: state.pendingInteractionIds.length,
         executionActive: Boolean(state.execution.active),
         executionStep: state.execution.step ?? null,
+        ...progress,
       },
-      describe: () => {
-        const current = server.getState()
-        return {
-          title: current.plan.title,
-          summary: current.plan.summary ?? null,
-          agent: current.plan.agent ?? null,
-          pendingCount: current.pendingInteractionIds.length,
-          executionActive: Boolean(current.execution.active),
-          executionStep: current.execution.step ?? null,
-        }
-      },
+      describe: () => describePlan(server),
     })
     return { registryUrl: registry.url, stop: session.stop }
   } catch (error) {
@@ -328,7 +337,7 @@ async function cmdReview(file: string, args: string[]): Promise<number> {
       await writeFile(absolute, `${payload}\n`, 'utf8')
     }
     console.log(payload)
-    await tracker?.stop()
+    await tracker?.stop(review.decision)
     await server.close()
     if (review.decision === 'approve') return 0
     if (review.decision === 'deny') return 1
@@ -441,6 +450,7 @@ async function cmdProcesses(): Promise<number> {
   const processes = await listProcesses(lock.url)
   const noun = processes.length === 1 ? 'plan' : 'plans'
   console.log(`${processes.length} running ${noun} · ${lock.url}`)
+  console.log(`Dashboard: ${new URL('/dashboard', lock.url).href}`)
   for (const entry of processes) {
     console.log('')
     console.log(entry.title)
@@ -451,6 +461,18 @@ async function cmdProcesses(): Promise<number> {
       console.log(`  executing: ${entry.executionStep ?? 'live'}`)
     }
   }
+  return 0
+}
+
+async function cmdDashboard(args: string[]): Promise<number> {
+  const registry = await openRegistry(args)
+  if (!registry) {
+    console.error('Registry unavailable.')
+    return 1
+  }
+  const url = new URL('/dashboard', registry.url).href
+  console.log(`Plan dashboard: ${url}`)
+  await openBrowser(url)
   return 0
 }
 
@@ -603,6 +625,10 @@ async function main(): Promise<number> {
 
   if (command === 'processes' || command === 'ps') {
     return cmdProcesses()
+  }
+
+  if (command === 'dashboard') {
+    return cmdDashboard(args.slice(1))
   }
 
   if (command === 'registry') {

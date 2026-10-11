@@ -1,10 +1,11 @@
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { watch } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import { basename, dirname, extname, join, normalize, resolve } from 'node:path'
+import { Elysia } from 'elysia'
 import { clientDistDir, loadClientAssets } from './assets.js'
 import { diffSections } from './diff.js'
 import { createIdleExecutionState, type ExecutionState } from './execution.js'
+import { bindElysia } from './httpServer.js'
 import { collectSectionSources, parsePlan } from './parse.js'
 import { renderPlanPage } from './render.js'
 import {
@@ -26,7 +27,7 @@ import type {
 
 type SseClient = {
   write: (event: string, data: unknown) => void
-  res: ServerResponse
+  close: () => void
 }
 
 type Waiter = {
@@ -43,6 +44,7 @@ const MIME: Record<string, string> = {
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.woff2': 'font/woff2',
+  '.txt': 'text/plain; charset=utf-8',
 }
 
 export type LivingPlanServer = {
@@ -61,45 +63,38 @@ export type LivingPlanServer = {
   }
 }
 
-function readBody(req: IncomingMessage): Promise<string> {
-  return new Promise((resolveBody, reject) => {
-    const chunks: Buffer[] = []
-    req.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
-    req.on('end', () => resolveBody(Buffer.concat(chunks).toString('utf8')))
-    req.on('error', reject)
-  })
+async function readJson(request: Request, required: boolean): Promise<unknown> {
+  const raw = await request.text()
+  if (!raw.trim()) {
+    if (required) return JSON.parse(raw)
+    return {}
+  }
+  return JSON.parse(raw)
 }
 
-function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    'cache-control': 'no-store',
-  })
-  res.end(JSON.stringify(body, null, 2))
-}
-
-function sendHtml(res: ServerResponse, html: string): void {
-  res.writeHead(200, {
-    'content-type': 'text/html; charset=utf-8',
-    'cache-control': 'no-store',
-  })
-  res.end(html)
-}
-
-async function sendStatic(res: ServerResponse, filePath: string): Promise<boolean> {
+async function sendStatic(filePath: string): Promise<Response | null> {
   try {
     const info = await stat(filePath)
-    if (!info.isFile()) return false
+    if (!info.isFile()) return null
     const body = await readFile(filePath)
-    res.writeHead(200, {
-      'content-type': MIME[extname(filePath)] ?? 'application/octet-stream',
-      'cache-control': 'no-cache',
+    return new Response(body, {
+      headers: {
+        'content-type': MIME[extname(filePath)] ?? 'application/octet-stream',
+        'cache-control': 'no-cache',
+      },
     })
-    res.end(body)
-    return true
   } catch {
-    return false
+    return null
   }
+}
+
+function html(body: string): Response {
+  return new Response(body, {
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'no-store',
+    },
+  })
 }
 
 export async function startLivingPlanServer(options: {
@@ -239,253 +234,231 @@ export async function startLivingPlanServer(options: {
     broadcast('review', reviewResult)
   }
 
-  const server = createServer(async (req, res) => {
-    const url = new URL(req.url ?? '/', `http://${host}`)
-
-    try {
-      if (req.method === 'GET' && url.pathname.startsWith('/client/')) {
-        const relative = normalize(url.pathname.replace('/client/', ''))
-        if (relative.startsWith('..')) {
-          sendJson(res, 400, { error: 'Invalid path' })
-          return
-        }
-        const ok = await sendStatic(res, join(staticRoot, relative))
-        if (!ok) sendJson(res, 404, { error: 'Asset not found' })
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/') {
-        sendHtml(
-          res,
-          renderPlanPage({
-            plan,
-            mode,
-            responses,
-            diffs,
-            iteration,
-            pendingInteractionIds: pendingInteractionIds(),
-            reviewDecision: reviewResult?.decision,
-            execution,
-            clientAssets,
-            theme: currentTheme(),
-          }),
-        )
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/api/plan') {
-        sendJson(res, 200, {
-          plan: {
-            title: plan.title,
-            summary: plan.summary,
-            agent: plan.agent,
-            interactionIds: plan.interactionIds,
-            sourcePath: plan.sourcePath,
-          },
-          mode,
-          iteration,
-          responses,
-          pendingInteractionIds: pendingInteractionIds(),
-          review: reviewResult ?? null,
-          diffs,
-          execution: executionView(),
-          planned: planToExpectedGraph(plan) ?? null,
-          theme: currentTheme(),
-        })
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/api/theme') {
-        sendJson(res, 200, currentTheme())
-        return
-      }
-
-      if (req.method === 'PUT' && url.pathname === '/api/theme') {
-        const raw = await readBody(req)
-        const payload = JSON.parse(raw) as { accent?: string }
-        const accent = normalizeAccent(payload.accent)
-        if (!accent) {
-          sendJson(res, 400, { error: 'Invalid accent color. Use a hex value like #0f766e.' })
-          return
-        }
-        const view = await applyTheme({ accent }, true)
-        sendJson(res, 200, { ok: true, theme: view })
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/api/execution') {
-        sendJson(res, 200, executionView())
-        return
-      }
-
-      if (req.method === 'PUT' && url.pathname === '/api/execution') {
-        const raw = await readBody(req)
-        const payload = JSON.parse(raw) as Partial<ExecutionState>
-        const view = setExecution({
-          active: Boolean(payload.active),
-          step: payload.step ? String(payload.step) : undefined,
-          detail: payload.detail ? String(payload.detail) : undefined,
-          graph: payload.graph,
-          scene:
-            payload.scene && typeof payload.scene === 'object'
-              ? (payload.scene as Record<string, unknown>)
-              : undefined,
-        })
-        sendJson(res, 200, { ok: true, execution: view })
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/api/execution/start') {
-        const raw = await readBody(req)
-        const payload = raw ? (JSON.parse(raw) as Partial<ExecutionState>) : {}
-        const view = setExecution({
-          active: true,
-          step: payload.step ? String(payload.step) : execution.step ?? 'Executing',
-          detail: payload.detail ? String(payload.detail) : execution.detail,
-          graph: payload.graph ?? execution.graph,
-          scene: payload.scene ?? execution.scene,
-        })
-        sendJson(res, 200, { ok: true, execution: view })
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/api/execution/stop') {
-        const view = setExecution({
-          active: false,
-          step: execution.step,
-          detail: execution.detail,
-          graph: execution.graph,
-          scene: execution.scene,
-        })
-        sendJson(res, 200, { ok: true, execution: view })
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/api/events') {
-        res.writeHead(200, {
-          'content-type': 'text/event-stream',
-          'cache-control': 'no-cache, no-transform',
-          connection: 'keep-alive',
-        })
-        const client: SseClient = {
-          res,
-          write(event, data) {
-            res.write(`event: ${event}\n`)
-            res.write(`data: ${JSON.stringify(data)}\n\n`)
-          },
-        }
-        sseClients.add(client)
-        client.write('hello', {
-          mode,
-          pendingInteractionIds: pendingInteractionIds(),
-          execution: executionView(),
-          theme: currentTheme(),
-        })
-        req.on('close', () => {
-          sseClients.delete(client)
-        })
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname.startsWith('/api/interactions/')) {
-        const id = decodeURIComponent(url.pathname.replace('/api/interactions/', ''))
-        const raw = await readBody(req)
-        const payload = JSON.parse(raw) as InteractionResponse
-        if (!plan.interactionIds.includes(id)) {
-          sendJson(res, 404, { error: `Unknown interaction id: ${id}` })
-          return
-        }
-        if (payload.id !== id) {
-          sendJson(res, 400, { error: 'Interaction id mismatch' })
-          return
-        }
-        try {
-          fulfillInteraction(payload)
-        } catch (error) {
-          sendJson(res, 409, {
-            error: error instanceof Error ? error.message : 'Interaction locked',
-          })
-          return
-        }
-        sendJson(res, 200, { ok: true, response: payload, pendingInteractionIds: pendingInteractionIds() })
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/api/processes') {
-        await sendProcessList(res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/api/review') {
-        if (mode !== 'review') {
-          sendJson(res, 400, { error: 'Server is not in review mode' })
-          return
-        }
-        const raw = await readBody(req)
-        const payload = JSON.parse(raw) as { decision: ReviewDecision; note?: string }
-        if (!['approve', 'deny', 'iterate'].includes(payload.decision)) {
-          sendJson(res, 400, { error: 'Invalid decision' })
-          return
-        }
-        try {
-          fulfillReview(payload.decision, payload.note)
-        } catch (error) {
-          sendJson(res, 409, {
-            error: error instanceof Error ? error.message : 'Review locked',
-          })
-          return
-        }
-        sendJson(res, 200, { ok: true, review: reviewResult })
-        return
-      }
-
-      sendJson(res, 404, { error: 'Not found' })
-    } catch (error) {
-      sendJson(res, 500, {
-        error: error instanceof Error ? error.message : 'Unknown error',
-      })
-    }
-  })
-
-  async function sendProcessList(res: ServerResponse): Promise<void> {
+  async function sendProcessList(): Promise<{
+    status: 'ok' | 'offline' | 'disabled'
+    selfId: string | null
+    registryUrl: string | null
+    processes: unknown[]
+  }> {
     if (!options.registry) {
-      sendJson(res, 200, {
-        status: 'disabled',
-        selfId: null,
-        registryUrl: null,
-        processes: [],
-      })
-      return
+      return { status: 'disabled', selfId: null, registryUrl: null, processes: [] }
     }
     try {
       const response = await fetch(new URL('/api/processes', options.registry.url), {
         signal: AbortSignal.timeout(1_500),
       })
       if (!response.ok) {
-        sendJson(res, 200, {
+        return {
           status: 'offline',
           selfId: options.registry.selfId,
           registryUrl: options.registry.url,
           processes: [],
-        })
-        return
+        }
       }
       const payload = (await response.json()) as { processes?: unknown }
-      sendJson(res, 200, {
+      return {
         status: 'ok',
         selfId: options.registry.selfId,
         registryUrl: options.registry.url,
         processes: Array.isArray(payload.processes) ? payload.processes : [],
-      })
+      }
     } catch {
-      sendJson(res, 200, {
+      return {
         status: 'offline',
         selfId: options.registry.selfId,
         registryUrl: options.registry.url,
         processes: [],
-      })
+      }
     }
   }
+
+  const app = new Elysia()
+    .onBeforeHandle(({ set }) => {
+      set.headers['cache-control'] = 'no-store'
+    })
+    .onError(({ code, error, set }) => {
+      if (code === 'NOT_FOUND') {
+        set.status = 404
+        return { error: 'Not found' }
+      }
+      set.status = 500
+      return { error: error instanceof Error ? error.message : 'Unknown error' }
+    })
+    .get('/client/*', async ({ params, set }) => {
+      const relative = normalize(String(params['*'] ?? ''))
+      if (relative.startsWith('..') || relative.startsWith('/') || relative.startsWith('\\')) {
+        set.status = 400
+        return { error: 'Invalid path' }
+      }
+      const response = await sendStatic(join(staticRoot, relative))
+      if (!response) {
+        set.status = 404
+        return { error: 'Asset not found' }
+      }
+      return response
+    })
+    .get('/', () =>
+      html(
+        renderPlanPage({
+          plan,
+          mode,
+          responses,
+          diffs,
+          iteration,
+          pendingInteractionIds: pendingInteractionIds(),
+          reviewDecision: reviewResult?.decision,
+          execution,
+          clientAssets,
+          theme: currentTheme(),
+        }),
+      ),
+    )
+    .get('/api/plan', () => ({
+      plan: {
+        title: plan.title,
+        summary: plan.summary,
+        agent: plan.agent,
+        interactionIds: plan.interactionIds,
+        sourcePath: plan.sourcePath,
+      },
+      mode,
+      iteration,
+      responses,
+      pendingInteractionIds: pendingInteractionIds(),
+      review: reviewResult ?? null,
+      diffs,
+      execution: executionView(),
+      planned: planToExpectedGraph(plan) ?? null,
+      theme: currentTheme(),
+    }))
+    .get('/api/theme', () => currentTheme())
+    .put('/api/theme', async ({ request, set }) => {
+      const payload = (await readJson(request, true)) as { accent?: string }
+      const accent = normalizeAccent(payload.accent)
+      if (!accent) {
+        set.status = 400
+        return { error: 'Invalid accent color. Use a hex value like #0f766e.' }
+      }
+      const view = await applyTheme({ accent }, true)
+      return { ok: true, theme: view }
+    })
+    .get('/api/execution', () => executionView())
+    .put('/api/execution', async ({ request }) => {
+      const payload = (await readJson(request, true)) as Partial<ExecutionState>
+      const view = setExecution({
+        active: Boolean(payload.active),
+        step: payload.step ? String(payload.step) : undefined,
+        detail: payload.detail ? String(payload.detail) : undefined,
+        graph: payload.graph,
+        scene:
+          payload.scene && typeof payload.scene === 'object'
+            ? (payload.scene as Record<string, unknown>)
+            : undefined,
+      })
+      return { ok: true, execution: view }
+    })
+    .post('/api/execution/start', async ({ request }) => {
+      const payload = (await readJson(request, false)) as Partial<ExecutionState>
+      const view = setExecution({
+        active: true,
+        step: payload.step ? String(payload.step) : execution.step ?? 'Executing',
+        detail: payload.detail ? String(payload.detail) : execution.detail,
+        graph: payload.graph ?? execution.graph,
+        scene: payload.scene ?? execution.scene,
+      })
+      return { ok: true, execution: view }
+    })
+    .post('/api/execution/stop', () => {
+      const view = setExecution({
+        active: false,
+        step: execution.step,
+        detail: execution.detail,
+        graph: execution.graph,
+        scene: execution.scene,
+      })
+      return { ok: true, execution: view }
+    })
+    .get('/api/events', ({ request }) => {
+      const encoder = new TextEncoder()
+      let client: SseClient | undefined
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          let closed = false
+          client = {
+            write(event, data) {
+              if (closed) return
+              controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
+            },
+            close() {
+              if (closed) return
+              closed = true
+              if (client) sseClients.delete(client)
+              try {
+                controller.close()
+              } catch {
+                // The client already went away.
+              }
+            },
+          }
+          sseClients.add(client)
+          client.write('hello', {
+            mode,
+            pendingInteractionIds: pendingInteractionIds(),
+            execution: executionView(),
+            theme: currentTheme(),
+          })
+          request.signal.addEventListener('abort', () => client?.close())
+        },
+        cancel() {
+          client?.close()
+        },
+      })
+      return new Response(stream, {
+        headers: {
+          'content-type': 'text/event-stream',
+          'cache-control': 'no-cache, no-transform',
+          connection: 'keep-alive',
+        },
+      })
+    })
+    .post('/api/interactions/:id', async ({ params, request, set }) => {
+      const id = decodeURIComponent(params.id)
+      const payload = (await readJson(request, true)) as InteractionResponse
+      if (!plan.interactionIds.includes(id)) {
+        set.status = 404
+        return { error: `Unknown interaction id: ${id}` }
+      }
+      if (payload.id !== id) {
+        set.status = 400
+        return { error: 'Interaction id mismatch' }
+      }
+      try {
+        fulfillInteraction(payload)
+      } catch (error) {
+        set.status = 409
+        return { error: error instanceof Error ? error.message : 'Interaction locked' }
+      }
+      return { ok: true, response: payload, pendingInteractionIds: pendingInteractionIds() }
+    })
+    .get('/api/processes', () => sendProcessList())
+    .post('/api/review', async ({ request, set }) => {
+      if (mode !== 'review') {
+        set.status = 400
+        return { error: 'Server is not in review mode' }
+      }
+      const payload = (await readJson(request, true)) as { decision: ReviewDecision; note?: string }
+      if (!['approve', 'deny', 'iterate'].includes(payload.decision)) {
+        set.status = 400
+        return { error: 'Invalid decision' }
+      }
+      try {
+        fulfillReview(payload.decision, payload.note)
+      } catch (error) {
+        set.status = 409
+        return { error: error instanceof Error ? error.message : 'Review locked' }
+      }
+      return { ok: true, review: reviewResult }
+    })
 
   const watcher = watch(planPath, { persistent: true }, () => {
     void reloadFromDisk().catch((error) => {
@@ -510,34 +483,18 @@ export async function startLivingPlanServer(options: {
     // Parent directory may be missing in odd setups; theme still works via API writes.
   }
 
-  const port = await new Promise<number>((resolvePort, reject) => {
-    server.once('error', reject)
-    server.listen(options.port ?? 0, host, () => {
-      const address = server.address()
-      if (!address || typeof address === 'string') {
-        reject(new Error('Unable to bind living-plan server'))
-        return
-      }
-      resolvePort(address.port)
-    })
-  })
-
-  const url = `http://${host}:${port}`
+  const bound = bindElysia(app, host, options.port ?? 0)
+  const url = `http://${host}:${bound.port}`
 
   return {
-    port,
+    port: bound.port,
     url,
     async close() {
       watcher.close()
       themeWatcher?.close()
-      for (const client of sseClients) {
-        client.res.end()
-      }
+      for (const client of sseClients) client.close()
       sseClients.clear()
-      server.closeAllConnections()
-      await new Promise<void>((resolveClose, reject) => {
-        server.close((error) => (error ? reject(error) : resolveClose()))
-      })
+      await bound.stop()
     },
     waitForInteraction(id, timeoutMs = 4 * 60 * 60 * 1000) {
       if (responses[id]) {
