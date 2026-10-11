@@ -43,7 +43,6 @@ export function renderDashboardPage(): string {
       }
     }
     * { box-sizing: border-box; }
-    @view-transition { navigation: auto; }
     body {
       margin: 0;
       color: var(--ink);
@@ -91,7 +90,7 @@ export function renderDashboardPage(): string {
       margin: 1.4rem 0 0.9rem;
     }
     .segment, .filters { display: flex; gap: 0.35rem; flex-wrap: wrap; }
-    .filters { margin: 0 0 1.35rem; padding-bottom: 0.15rem; }
+    .filters { margin: 0 0 1.85rem; padding-bottom: 0.45rem; }
     button.seg, button.filter, button.refresh {
       font: inherit;
       border: 1px solid var(--line);
@@ -186,49 +185,28 @@ export function renderDashboardPage(): string {
     .meter span { display: block; height: 100%; background: var(--accent); }
     @media (prefers-reduced-motion: no-preference) {
       @keyframes enter {
-        from { opacity: 0; transform: translateY(10px); }
+        from { opacity: 0; transform: translateY(16px); }
         to { opacity: 1; transform: none; }
-      }
-      @keyframes enter-forward {
-        from { opacity: 0; transform: translateX(18px); }
-        to { opacity: 1; transform: none; }
-      }
-      @keyframes enter-back {
-        from { opacity: 0; transform: translateX(-18px); }
-        to { opacity: 1; transform: none; }
-      }
-      @keyframes fade-out {
-        to { opacity: 0; }
       }
       @keyframes row-in {
         from { opacity: 0; }
         to { opacity: 1; }
       }
-      ::view-transition-old(root) { animation: 180ms ease both fade-out; }
-      ::view-transition-new(root) { animation: 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both enter; }
       .top, .toolbar, .stats, .status, .filters, .table-wrap {
-        animation: enter 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+        animation: enter 0.7s cubic-bezier(0.16, 0.84, 0.24, 1) both;
       }
       .top { animation-delay: 0.02s; }
       .toolbar { animation-delay: 0.08s; }
-      .stats { animation-delay: 0.14s; }
-      .status { animation-delay: 0.2s; }
-      .filters { animation-delay: 0.26s; }
-      .table-wrap { animation-delay: 0.32s; }
-      .stat.enter, .table-wrap.swap, .stats.swap, .status.swap {
-        animation: enter 0.38s cubic-bezier(0.2, 0.7, 0.2, 1) both;
-      }
-      html[data-shift="forward"] .table-wrap.swap,
-      html[data-shift="forward"] .stats.swap,
-      html[data-shift="forward"] .status.swap { animation-name: enter-forward; }
-      html[data-shift="back"] .table-wrap.swap,
-      html[data-shift="back"] .stats.swap,
-      html[data-shift="back"] .status.swap { animation-name: enter-back; }
-      tbody tr.enter { animation: row-in 0.35s ease both; }
+      .stats { animation-delay: 0.16s; }
+      .status { animation-delay: 0.24s; }
+      .filters { animation-delay: 0.32s; }
+      .table-wrap { animation-delay: 0.4s; }
+      .stat.enter { animation: enter 0.55s cubic-bezier(0.16, 0.84, 0.24, 1) both; }
+      tbody tr.enter { animation: row-in 0.5s ease both; }
       button.seg, button.filter {
         transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
       }
-      .meter span { transition: width 0.45s ease; }
+      .meter span { transition: width 0.55s ease; }
     }
     .num { font-variant-numeric: tabular-nums; }
     a.action {
@@ -373,12 +351,6 @@ export function renderDashboardPage(): string {
         return card;
       }
 
-      function replay(node) {
-        node.classList.remove('swap');
-        void node.offsetWidth;
-        node.classList.add('swap');
-      }
-
       function paintStats(summary, animate) {
         stats.replaceChildren(
           statCard('Running', String(summary.running)),
@@ -479,20 +451,30 @@ export function renderDashboardPage(): string {
         return plans.filter((plan) => plan.status === filter);
       }
 
-      function paint(payload) {
+      function motionOff() {
+        return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      }
+
+      function slideFrames(kind, shift, phase) {
+        if (kind === 'filter') {
+          return phase === 'out'
+            ? [{ opacity: 1, transform: 'translateY(0px)' }, { opacity: 0, transform: 'translateY(14px)' }]
+            : [{ opacity: 0, transform: 'translateY(18px)' }, { opacity: 1, transform: 'translateY(0px)' }];
+        }
+        const outX = shift === 'back' ? '32px' : '-32px';
+        const inX = shift === 'back' ? '-40px' : '40px';
+        return phase === 'out'
+          ? [{ opacity: 1, transform: 'translateX(0px)' }, { opacity: 0, transform: 'translateX(' + outX + ')' }]
+          : [{ opacity: 0, transform: 'translateX(' + inX + ')' }, { opacity: 1, transform: 'translateX(0px)' }];
+      }
+
+      let paintGeneration = 0;
+
+      function applyPaint(payload, reveal, meters) {
         latest = payload;
         const summary = payload.summary || {};
         const plans = Array.isArray(payload.plans) ? payload.plans : [];
-        const animate = motion !== 'quiet';
-        const animateStats = motion === 'enter' || motion === 'period';
-        if (motion === 'period' || motion === 'filter') {
-          replay(document.querySelector('.table-wrap'));
-          if (motion === 'period') {
-            replay(stats);
-            replay(status);
-          }
-        }
-        paintStats(summary, animateStats);
+        paintStats(summary, reveal);
         const shown = visiblePlans(plans);
         const range = summary.from ? formatRange(summary) : '';
         const started = typeof summary.started === 'number' ? summary.started : 0;
@@ -510,21 +492,99 @@ export function renderDashboardPage(): string {
           const row = document.createElement('tr');
           const cell = text('td', 'empty', 'No plans in this view.');
           cell.colSpan = 8;
-          if (animate) row.classList.add('enter');
+          if (reveal) row.classList.add('enter');
           row.append(cell);
           rows.append(row);
-          motion = 'quiet';
           return;
         }
         for (let index = 0; index < shown.length; index += 1) {
-          const row = renderRow(shown[index], animate);
-          if (animate) {
+          const row = renderRow(shown[index], meters);
+          if (reveal) {
             row.classList.add('enter');
             row.style.animationDelay = Math.min(index, 12) * 40 + 'ms';
           }
           rows.append(row);
         }
+      }
+
+      async function playSwap(kind, shift, update) {
+        const generation = paintGeneration;
+        const nodes = [status, document.querySelector('.table-wrap')];
+        if (kind === 'period') nodes.unshift(stats);
+        for (const node of nodes) {
+          node.getAnimations().forEach((animation) => animation.cancel());
+          node.style.animation = 'none';
+          node.style.opacity = '';
+        }
+        const outgoing = nodes.map((node) => node.animate(slideFrames(kind, shift, 'out'), {
+          duration: 280,
+          easing: 'ease',
+          fill: 'forwards',
+        }));
+        await Promise.all(outgoing.map((animation) => animation.finished));
+        if (generation !== paintGeneration) return;
+        for (const node of nodes) node.style.opacity = '0';
+        for (const animation of outgoing) animation.cancel();
+        update();
+        if (generation !== paintGeneration) return;
+        nodes.forEach((node) => {
+          const animation = node.animate(slideFrames(kind, shift, 'in'), {
+            duration: 620,
+            easing: 'cubic-bezier(0.16, 0.84, 0.24, 1)',
+            fill: 'both',
+          });
+          node.style.opacity = '';
+          animation.finished.then(() => {
+            animation.cancel();
+          });
+        });
+      }
+
+      async function paint(payload) {
+        const generation = ++paintGeneration;
+        const kind = motion;
+        const shift = document.documentElement.dataset.shift === 'back' ? 'back' : 'forward';
         motion = 'quiet';
+        const reveal = kind === 'enter' && !motionOff();
+        const swap = (kind === 'period' || kind === 'filter') && !motionOff();
+        const update = () => {
+          if (generation !== paintGeneration) return;
+          applyPaint(payload, reveal, reveal || swap);
+        };
+        if (!swap) {
+          update();
+          return;
+        }
+        await playSwap(kind, shift, update);
+      }
+
+      function followInternalPage(event) {
+        if (motionOff()) return;
+        if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        const target = event.target;
+        const link = target && target.closest ? target.closest('a[href]') : null;
+        if (!link || link.target === '_blank' || link.hasAttribute('download')) return;
+        let url;
+        try {
+          url = new URL(link.href, window.location.href);
+        } catch (error) {
+          return;
+        }
+        if (url.origin !== window.location.origin) return;
+        if (url.pathname !== '/' && url.pathname !== '/dashboard') return;
+        if (url.pathname === window.location.pathname) return;
+        event.preventDefault();
+        const main = document.querySelector('main');
+        const leaving = main.animate(
+          [
+            { opacity: 1, transform: 'translateY(0px)' },
+            { opacity: 0, transform: 'translateY(24px)' },
+          ],
+          { duration: 460, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' },
+        );
+        leaving.finished.then(() => {
+          window.location.assign(url.href);
+        });
       }
 
       function syncPressed() {
@@ -541,7 +601,7 @@ export function renderDashboardPage(): string {
         try {
           const response = await fetch('/api/dashboard?period=' + encodeURIComponent(period), { cache: 'no-store' });
           if (!response.ok) throw new Error('Request failed');
-          paint(await response.json());
+          await paint(await response.json());
         } catch (error) {
           status.textContent = 'Could not read the dashboard.';
         }
@@ -577,7 +637,11 @@ export function renderDashboardPage(): string {
           if (latest) paint(latest);
         });
       }
-      document.getElementById('refresh').addEventListener('click', refresh);
+      document.getElementById('refresh').addEventListener('click', () => {
+        motion = 'filter';
+        refresh();
+      });
+      document.addEventListener('click', followInternalPage);
       refresh();
       setInterval(refresh, 4000);
     })();

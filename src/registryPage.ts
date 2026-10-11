@@ -33,7 +33,6 @@ export function renderRegistryPage(): string {
       }
     }
     * { box-sizing: border-box; }
-    @view-transition { navigation: auto; }
     body {
       margin: 0;
       color: var(--ink);
@@ -76,24 +75,19 @@ export function renderRegistryPage(): string {
     }
     @media (prefers-reduced-motion: no-preference) {
       @keyframes enter {
-        from { opacity: 0; transform: translateY(10px); }
+        from { opacity: 0; transform: translateY(16px); }
         to { opacity: 1; transform: none; }
       }
-      @keyframes fade-out {
-        to { opacity: 0; }
-      }
-      ::view-transition-old(root) { animation: 180ms ease both fade-out; }
-      ::view-transition-new(root) { animation: 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both enter; }
       .kicker, h1, .lede, .actions, .status, #list {
-        animation: enter 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+        animation: enter 0.7s cubic-bezier(0.16, 0.84, 0.24, 1) both;
       }
       .kicker { animation-delay: 0.02s; }
-      h1 { animation-delay: 0.06s; }
-      .lede { animation-delay: 0.12s; }
-      .actions { animation-delay: 0.18s; }
-      .status { animation-delay: 0.24s; }
-      #list { animation-delay: 0.3s; }
-      article.enter { animation: enter 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+      h1 { animation-delay: 0.08s; }
+      .lede { animation-delay: 0.14s; }
+      .actions { animation-delay: 0.22s; }
+      .status { animation-delay: 0.3s; }
+      #list { animation-delay: 0.38s; }
+      article.enter { animation: enter 0.55s cubic-bezier(0.16, 0.84, 0.24, 1) both; }
     }
   </style>
 </head>
@@ -205,6 +199,36 @@ export function renderRegistryPage(): string {
         }
       }
 
+      function followInternalPage(event) {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        const target = event.target;
+        const link = target && target.closest ? target.closest('a[href]') : null;
+        if (!link || link.target === '_blank' || link.hasAttribute('download')) return;
+        let url;
+        try {
+          url = new URL(link.href, window.location.href);
+        } catch (error) {
+          return;
+        }
+        if (url.origin !== window.location.origin) return;
+        if (url.pathname !== '/' && url.pathname !== '/dashboard') return;
+        if (url.pathname === window.location.pathname) return;
+        event.preventDefault();
+        const main = document.querySelector('main');
+        const leaving = main.animate(
+          [
+            { opacity: 1, transform: 'translateY(0px)' },
+            { opacity: 0, transform: 'translateY(24px)' },
+          ],
+          { duration: 460, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' },
+        );
+        leaving.finished.then(() => {
+          window.location.assign(url.href);
+        });
+      }
+
+      document.addEventListener('click', followInternalPage);
       refresh();
       setInterval(refresh, 4000);
     })();
