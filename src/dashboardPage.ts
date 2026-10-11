@@ -43,6 +43,7 @@ export function renderDashboardPage(): string {
       }
     }
     * { box-sizing: border-box; }
+    @view-transition { navigation: auto; }
     body {
       margin: 0;
       color: var(--ink);
@@ -90,6 +91,7 @@ export function renderDashboardPage(): string {
       margin: 1.4rem 0 0.9rem;
     }
     .segment, .filters { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+    .filters { margin: 0 0 1.35rem; padding-bottom: 0.15rem; }
     button.seg, button.filter, button.refresh {
       font: inherit;
       border: 1px solid var(--line);
@@ -182,6 +184,52 @@ export function renderDashboardPage(): string {
       margin-bottom: 0.3rem;
     }
     .meter span { display: block; height: 100%; background: var(--accent); }
+    @media (prefers-reduced-motion: no-preference) {
+      @keyframes enter {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: none; }
+      }
+      @keyframes enter-forward {
+        from { opacity: 0; transform: translateX(18px); }
+        to { opacity: 1; transform: none; }
+      }
+      @keyframes enter-back {
+        from { opacity: 0; transform: translateX(-18px); }
+        to { opacity: 1; transform: none; }
+      }
+      @keyframes fade-out {
+        to { opacity: 0; }
+      }
+      @keyframes row-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      ::view-transition-old(root) { animation: 180ms ease both fade-out; }
+      ::view-transition-new(root) { animation: 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both enter; }
+      .top, .toolbar, .stats, .status, .filters, .table-wrap {
+        animation: enter 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+      }
+      .top { animation-delay: 0.02s; }
+      .toolbar { animation-delay: 0.08s; }
+      .stats { animation-delay: 0.14s; }
+      .status { animation-delay: 0.2s; }
+      .filters { animation-delay: 0.26s; }
+      .table-wrap { animation-delay: 0.32s; }
+      .stat.enter, .table-wrap.swap, .stats.swap, .status.swap {
+        animation: enter 0.38s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+      }
+      html[data-shift="forward"] .table-wrap.swap,
+      html[data-shift="forward"] .stats.swap,
+      html[data-shift="forward"] .status.swap { animation-name: enter-forward; }
+      html[data-shift="back"] .table-wrap.swap,
+      html[data-shift="back"] .stats.swap,
+      html[data-shift="back"] .status.swap { animation-name: enter-back; }
+      tbody tr.enter { animation: row-in 0.35s ease both; }
+      button.seg, button.filter {
+        transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+      }
+      .meter span { transition: width 0.45s ease; }
+    }
     .num { font-variant-numeric: tabular-nums; }
     a.action {
       color: var(--accent);
@@ -249,6 +297,7 @@ export function renderDashboardPage(): string {
       let period = 'day';
       let filter = 'all';
       let latest = null;
+      let motion = 'enter';
 
       const initial = new URLSearchParams(window.location.search).get('period');
       if (initial === 'day' || initial === 'week' || initial === 'month') period = initial;
@@ -324,7 +373,13 @@ export function renderDashboardPage(): string {
         return card;
       }
 
-      function paintStats(summary) {
+      function replay(node) {
+        node.classList.remove('swap');
+        void node.offsetWidth;
+        node.classList.add('swap');
+      }
+
+      function paintStats(summary, animate) {
         stats.replaceChildren(
           statCard('Running', String(summary.running)),
           statCard('Executed', String(summary.executed)),
@@ -333,6 +388,12 @@ export function renderDashboardPage(): string {
           statCard('Execution time', formatDuration(summary.durationMs)),
           statCard('Folders', String(summary.folders)),
         );
+        if (!animate) return;
+        const cards = stats.querySelectorAll('.stat');
+        for (let index = 0; index < cards.length; index += 1) {
+          cards[index].classList.add('enter');
+          cards[index].style.animationDelay = (index * 45) + 'ms';
+        }
       }
 
       function planCell(record) {
@@ -346,12 +407,17 @@ export function renderDashboardPage(): string {
         return cell;
       }
 
-      function completionCell(record) {
+      function completionCell(record, animate) {
         const cell = document.createElement('td');
         const meter = text('div', 'meter');
         const bar = document.createElement('span');
         const ratio = Math.max(0, Math.min(100, Number(record.completionRatio) || 0));
-        bar.style.width = ratio + '%';
+        bar.style.width = animate ? '0%' : ratio + '%';
+        if (animate) {
+          requestAnimationFrame(() => {
+            bar.style.width = ratio + '%';
+          });
+        }
         meter.append(bar);
         cell.append(meter);
         const state = completionLabel[record.completionState] || 'Idle';
@@ -389,7 +455,7 @@ export function renderDashboardPage(): string {
         return cell;
       }
 
-      function renderRow(record) {
+      function renderRow(record, animate) {
         const row = document.createElement('tr');
         row.append(planCell(record));
         const statusCell = document.createElement('td');
@@ -399,7 +465,7 @@ export function renderDashboardPage(): string {
           statusCell.append(text('span', 'sub', record.pendingCount + ' pending'));
         }
         row.append(statusCell);
-        row.append(completionCell(record));
+        row.append(completionCell(record, animate));
         row.append(folderCell(record));
         row.append(text('td', 'num', String(record.filesModified ?? 0)));
         row.append(text('td', 'num', formatWhen(record.startedAt)));
@@ -417,7 +483,16 @@ export function renderDashboardPage(): string {
         latest = payload;
         const summary = payload.summary || {};
         const plans = Array.isArray(payload.plans) ? payload.plans : [];
-        paintStats(summary);
+        const animate = motion !== 'quiet';
+        const animateStats = motion === 'enter' || motion === 'period';
+        if (motion === 'period' || motion === 'filter') {
+          replay(document.querySelector('.table-wrap'));
+          if (motion === 'period') {
+            replay(stats);
+            replay(status);
+          }
+        }
+        paintStats(summary, animateStats);
         const shown = visiblePlans(plans);
         const range = summary.from ? formatRange(summary) : '';
         const started = typeof summary.started === 'number' ? summary.started : 0;
@@ -435,11 +510,21 @@ export function renderDashboardPage(): string {
           const row = document.createElement('tr');
           const cell = text('td', 'empty', 'No plans in this view.');
           cell.colSpan = 8;
+          if (animate) row.classList.add('enter');
           row.append(cell);
           rows.append(row);
+          motion = 'quiet';
           return;
         }
-        for (const plan of shown) rows.append(renderRow(plan));
+        for (let index = 0; index < shown.length; index += 1) {
+          const row = renderRow(shown[index], animate);
+          if (animate) {
+            row.classList.add('enter');
+            row.style.animationDelay = Math.min(index, 12) * 40 + 'ms';
+          }
+          rows.append(row);
+        }
+        motion = 'quiet';
       }
 
       function syncPressed() {
@@ -462,9 +547,19 @@ export function renderDashboardPage(): string {
         }
       }
 
+      function periodIndex(value) {
+        if (value === 'week') return 1;
+        if (value === 'month') return 2;
+        return 0;
+      }
+
       for (const button of periodButtons) {
         button.addEventListener('click', () => {
-          period = button.getAttribute('data-period') || 'day';
+          const nextPeriod = button.getAttribute('data-period') || 'day';
+          if (nextPeriod === period) return;
+          document.documentElement.dataset.shift = periodIndex(nextPeriod) > periodIndex(period) ? 'forward' : 'back';
+          period = nextPeriod;
+          motion = 'period';
           const next = new URL(window.location.href);
           next.searchParams.set('period', period);
           history.replaceState(null, '', next);
@@ -473,7 +568,11 @@ export function renderDashboardPage(): string {
       }
       for (const button of filterButtons) {
         button.addEventListener('click', () => {
-          filter = button.getAttribute('data-filter') || 'all';
+          const nextFilter = button.getAttribute('data-filter') || 'all';
+          if (nextFilter === filter) return;
+          delete document.documentElement.dataset.shift;
+          filter = nextFilter;
+          motion = 'filter';
           syncPressed();
           if (latest) paint(latest);
         });
