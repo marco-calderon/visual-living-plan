@@ -7,6 +7,21 @@ import { emptyGitSnapshot } from './processRecord.js'
 
 type SqlValue = string | number | null
 
+export type StoredPlanSession = {
+  id: string
+  token: string
+  planPath: string
+  mode: 'watch' | 'review'
+  iteration: number
+  cwd: string
+  configPath: string | null
+  responsesJson: string
+  executionJson: string
+  reviewJson: string | null
+  startedAt: number
+  lastSeenAt: number
+}
+
 export type RegistryStore = {
   upsert(record: ProcessRecord): void
   get(id: string): ProcessRecord | undefined
@@ -14,6 +29,11 @@ export type RegistryStore = {
   heartbeat(id: string, pulse: ProcessPulse): ProcessRecord | undefined
   remove(id: string): boolean
   prune(options?: { now?: number; staleMs?: number; isAlive?: (pid: number) => boolean }): string[]
+  saveSession(session: StoredPlanSession): void
+  getSession(id: string): StoredPlanSession | undefined
+  getSessionByPath(planPath: string): StoredPlanSession | undefined
+  listSessions(): StoredPlanSession[]
+  deleteSession(id: string): boolean
   close(): void
 }
 
@@ -56,6 +76,23 @@ function parsePaths(value: unknown): string[] {
     return parsed.filter((entry): entry is string => typeof entry === 'string')
   } catch {
     return []
+  }
+}
+
+function rowToSession(row: Record<string, unknown>): StoredPlanSession {
+  return {
+    id: asText(row.id) ?? '',
+    token: asText(row.token) ?? '',
+    planPath: asText(row.plan_path) ?? '',
+    mode: row.mode === 'review' ? 'review' : 'watch',
+    iteration: asNumber(row.iteration) || 1,
+    cwd: asText(row.cwd) ?? '',
+    configPath: asText(row.config_path),
+    responsesJson: asText(row.responses_json) ?? '{}',
+    executionJson: asText(row.execution_json) ?? '{}',
+    reviewJson: asText(row.review_json),
+    startedAt: asNumber(row.started_at),
+    lastSeenAt: asNumber(row.last_seen_at),
   }
 }
 
@@ -173,6 +210,22 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
   }
   database.exec('PRAGMA busy_timeout = 3000')
   database.exec(`
+    CREATE TABLE IF NOT EXISTS plan_sessions (
+      id TEXT PRIMARY KEY,
+      token TEXT NOT NULL,
+      plan_path TEXT NOT NULL UNIQUE,
+      mode TEXT NOT NULL,
+      iteration INTEGER NOT NULL DEFAULT 1,
+      cwd TEXT NOT NULL,
+      config_path TEXT,
+      responses_json TEXT NOT NULL DEFAULT '{}',
+      execution_json TEXT NOT NULL DEFAULT '{}',
+      review_json TEXT,
+      started_at INTEGER NOT NULL,
+      last_seen_at INTEGER NOT NULL
+    )
+  `)
+  database.exec(`
     CREATE TABLE IF NOT EXISTS processes (
       id TEXT PRIMARY KEY,
       pid INTEGER NOT NULL,
@@ -208,6 +261,27 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
   const getStatement = database.prepare('SELECT * FROM processes WHERE id = ?')
   const listStatement = database.prepare('SELECT * FROM processes ORDER BY started_at DESC')
   const removeStatement = database.prepare('DELETE FROM processes WHERE id = ?')
+  const saveSessionStatement = database.prepare(`
+    INSERT INTO plan_sessions (
+      id, token, plan_path, mode, iteration, cwd, config_path,
+      responses_json, execution_json, review_json, started_at, last_seen_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      token = excluded.token,
+      plan_path = excluded.plan_path,
+      mode = excluded.mode,
+      iteration = excluded.iteration,
+      cwd = excluded.cwd,
+      config_path = excluded.config_path,
+      responses_json = excluded.responses_json,
+      execution_json = excluded.execution_json,
+      review_json = excluded.review_json,
+      last_seen_at = excluded.last_seen_at
+  `)
+  const getSessionStatement = database.prepare('SELECT * FROM plan_sessions WHERE id = ?')
+  const getSessionByPathStatement = database.prepare('SELECT * FROM plan_sessions WHERE plan_path = ?')
+  const listSessionsStatement = database.prepare('SELECT * FROM plan_sessions ORDER BY started_at DESC')
+  const deleteSessionStatement = database.prepare('DELETE FROM plan_sessions WHERE id = ?')
   let closed = false
 
   const store: RegistryStore = {
@@ -255,6 +329,37 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
         }
       }
       return removed
+    },
+    saveSession(session) {
+      saveSessionStatement.run(
+        session.id,
+        session.token,
+        session.planPath,
+        session.mode,
+        session.iteration,
+        session.cwd,
+        session.configPath,
+        session.responsesJson,
+        session.executionJson,
+        session.reviewJson,
+        session.startedAt,
+        session.lastSeenAt,
+      )
+    },
+    getSession(id) {
+      const row = getSessionStatement.get(id)
+      return row ? rowToSession(row) : undefined
+    },
+    getSessionByPath(planPath) {
+      const row = getSessionByPathStatement.get(planPath)
+      return row ? rowToSession(row) : undefined
+    },
+    listSessions() {
+      return listSessionsStatement.all().map((row) => rowToSession(row))
+    },
+    deleteSession(id) {
+      const result = deleteSessionStatement.run(id)
+      return result.changes > 0
     },
     close() {
       if (closed) return

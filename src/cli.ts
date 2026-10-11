@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process'
-import { randomUUID } from 'node:crypto'
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadClientAssets } from './assets.js'
 import { parsePlan } from './parse.js'
-import { startLivingPlanServer, type LivingPlanServer } from './server.js'
+import { planApiUrl, planIdFromPlanUrl, readAgentEvents } from './agentEvents.js'
+import { startLivingPlanServer } from './server.js'
 import type { ExecutionGraph, ExecutionState } from './execution.js'
 import {
   configPathBesidePlan,
@@ -19,12 +19,14 @@ import {
 } from './theme.js'
 import { planToExpectedGraph, workflowRequirementError } from './workflow.js'
 import {
+  closeHostedPlan,
   defaultRegistryHome,
   ensureRegistry,
   listProcesses,
+  readPackageVersion,
   readRegistryLock,
+  registerHostedPlan,
   registryHealthy,
-  watchRegisteredPlan,
 } from './registryClient.js'
 import { isPidAlive } from './pid.js'
 import { DEFAULT_REGISTRY_HOST, DEFAULT_REGISTRY_PORT } from './registryConstants.js'
@@ -37,12 +39,14 @@ function printHelp(): void {
 Usage:
   live-plan serve <file.plan.md> [--port N] [--host HOST] [--config file] [--no-open]
   live-plan review <file.plan.md> [--port N] [--iteration N] [--timeout 30m] [--config file] [--no-open]
-  live-plan wait <id> --url <server-url> [--timeout 30m]
-  live-plan execution start --url <server-url> [--step TEXT] [--detail TEXT] [--graph file.json]
-  live-plan execution push --url <server-url> [--step TEXT] [--detail TEXT] [--graph file.json] [--scene file.json]
-  live-plan execution stop --url <server-url>
-  live-plan theme get [--url <server-url>] [--config file] [--plan file.plan.md]
-  live-plan theme set --accent #hex [--url <server-url>] [--config file] [--plan file.plan.md]
+  live-plan wait <id> --url <plan-url> [--token TOKEN] [--timeout 30m]
+  live-plan events --url <plan-url> [--token TOKEN]
+  live-plan close --url <plan-url> [--token TOKEN]
+  live-plan execution start --url <plan-url> [--step TEXT] [--detail TEXT] [--graph file.json]
+  live-plan execution push --url <plan-url> [--step TEXT] [--detail TEXT] [--graph file.json] [--scene file.json]
+  live-plan execution stop --url <plan-url>
+  live-plan theme get [--url <plan-url>] [--config file] [--plan file.plan.md]
+  live-plan theme set --accent #hex [--url <plan-url>] [--config file] [--plan file.plan.md]
   live-plan check <file.plan.md>
   live-plan dump <file.plan.md>
   live-plan processes
@@ -51,20 +55,24 @@ Usage:
 Invoke with \`npx --yes visual-living-plan <command>\` when the \`live-plan\` command is not installed. \`living-plan\` is the same binary.
 
 Modes:
-  serve       Live watch URL. The Workflow tab draws the plan diagram, then the live run.
-  review      Same UI plus Approve / Deny / Iterate bar.
+  serve       Register the plan with the machine service and print its URL.
+  review      Same page, plus Approve / Deny / Iterate. Blocks until a decision.
   wait        Block until one interaction id is answered.
+  events      Print each user interaction as it arrives on the agent event stream.
+  close       Drop a plan from the machine service.
   execution   Start/push/stop the live workflow canvas (locks plan forms while active).
   theme       Read or write the accent color in live-plan.config.json (or via a running server).
   check       Print plan summary. Exits 1 when the required workflow block is missing.
-  processes   List plans currently registered by serve and review. \`ps\` is the same command.
-  registry    Run the shared registry in the foreground. serve and review start it on their own.
+  processes   List plans hosted by the service. \`ps\` is the same command.
+  registry    Run the plan service in the foreground. serve and review start it on their own.
 
 Every plan includes a \`workflow\` block. That block is the execution path the Workflow tab draws.
 Accent color is saved in live-plan.config.json beside the plan (override with --config).
 --no-open skips launching a browser.
---no-registry skips registering this serve or review process.
---registry-port and --registry-host choose the shared registry (default ${DEFAULT_REGISTRY_HOST}:${DEFAULT_REGISTRY_PORT}).
+--no-registry serves this plan in its own process instead of the machine service.
+--port sets that private process port. With the service, --port is used only when the service is not already running.
+--registry-port and --registry-host choose the service (default ${DEFAULT_REGISTRY_HOST}:${DEFAULT_REGISTRY_PORT}).
+--token authorizes the agent event stream. Omitted, the local service token is used.
 `)
 }
 
@@ -123,8 +131,19 @@ async function readJsonFile<T>(path: string): Promise<T> {
   return JSON.parse(await readFile(resolve(path), 'utf8')) as T
 }
 
+async function resolveAgentToken(args: string[]): Promise<string | undefined> {
+  const explicit = getFlag(args, '--token')
+  if (explicit) return explicit
+  const lock = await readRegistryLock(defaultRegistryHome())
+  return lock?.token
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
+}
+
 async function putExecution(url: string, body: ExecutionState): Promise<ExecutionState> {
-  const response = await fetch(new URL('/api/execution', url), {
+  const response = await fetch(planApiUrl(url, '/api/execution'), {
     method: 'PUT',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -179,20 +198,15 @@ async function cmdDump(file: string): Promise<number> {
   return 0
 }
 
-type PlanTracker = {
-  registryUrl: string
-  stop: () => Promise<void>
-}
-
 async function openRegistry(args: string[]): Promise<{ url: string; token: string } | null> {
   if (hasFlag(args, '--no-registry')) return null
-  const portFlag = getFlag(args, '--registry-port')
+  const portFlag = getFlag(args, '--registry-port') ?? getFlag(args, '--port')
   const port = portFlag ? Number(portFlag) : undefined
-  const host = getFlag(args, '--registry-host')
+  const host = getFlag(args, '--registry-host') ?? getFlag(args, '--host')
   try {
     return await ensureRegistry({
       entryFile: fileURLToPath(import.meta.url),
-      port: port !== undefined && Number.isFinite(port) ? port : undefined,
+      port: port !== undefined && Number.isFinite(port) && port > 0 ? port : undefined,
       host,
     })
   } catch (error) {
@@ -201,140 +215,156 @@ async function openRegistry(args: string[]): Promise<{ url: string; token: strin
   }
 }
 
-async function trackPlan(
-  server: LivingPlanServer,
-  registry: { url: string; token: string },
-  selfId: string,
-  plan: {
-    mode: 'watch' | 'review'
-    planPath: string
-    host: string
-  },
-): Promise<PlanTracker | null> {
-  const state = server.getState()
-  try {
-    const session = await watchRegisteredPlan({
-      registryUrl: registry.url,
-      token: registry.token,
-      record: {
-        id: selfId,
-        pid: process.pid,
-        title: state.plan.title,
-        summary: state.plan.summary,
-        agent: state.plan.agent,
-        mode: plan.mode,
-        planPath: plan.planPath,
-        directory: dirname(plan.planPath),
-        cwd: process.cwd(),
-        url: server.url,
-        host: plan.host,
-        port: server.port,
-        pendingCount: state.pendingInteractionIds.length,
-        executionActive: Boolean(state.execution.active),
-        executionStep: state.execution.step ?? null,
-      },
-      describe: () => {
-        const current = server.getState()
-        return {
-          title: current.plan.title,
-          summary: current.plan.summary ?? null,
-          agent: current.plan.agent ?? null,
-          pendingCount: current.pendingInteractionIds.length,
-          executionActive: Boolean(current.execution.active),
-          executionStep: current.execution.step ?? null,
-        }
-      },
-    })
-    return { registryUrl: registry.url, stop: session.stop }
-  } catch (error) {
-    console.error(`Registry unavailable: ${error instanceof Error ? error.message : error}`)
-    return null
-  }
-}
-
 async function cmdServe(file: string, args: string[]): Promise<number> {
   await ensureClientBuild()
+  const planPath = resolve(file)
+  const configPath = getFlag(args, '--config')
+  const registry = await openRegistry(args)
+  if (registry) {
+    const hosted = await registerHostedPlan(registry.url, registry.token, {
+      planPath,
+      mode: 'watch',
+      cwd: process.cwd(),
+      configPath,
+    })
+    console.log(`Living Plan (watch): ${hosted.url}`)
+    console.log(`Plan file: ${planPath}`)
+    console.log(`Service: ${registry.url}`)
+    console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent).')
+    console.log(`Events: live-plan events --url ${hosted.url}`)
+    await openBrowser(hosted.url)
+    return 0
+  }
+
   const port = Number(getFlag(args, '--port') ?? 0)
   const host = getFlag(args, '--host') ?? '127.0.0.1'
-  const planPath = resolve(file)
-  const registry = await openRegistry(args)
-  const selfId = randomUUID()
-  const configPath = getFlag(args, '--config')
   const server = await startLivingPlanServer({
     planPath,
     mode: 'watch',
     port: Number.isFinite(port) ? port : 0,
     host,
-    registry: registry ? { url: registry.url, selfId } : undefined,
     configPath,
   })
-  const tracker = registry
-    ? await trackPlan(server, registry, selfId, { mode: 'watch', planPath, host })
-    : null
-
   console.log(`Living Plan (watch): ${server.url}`)
   console.log(`Plan file: ${planPath}`)
-  if (tracker) console.log(`Registry: ${tracker.registryUrl}`)
   console.log(`Theme config: ${server.getState().theme.configPath}`)
   console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent).')
   await openBrowser(server.url)
-
   await new Promise<void>((resolveWait) => {
     process.on('SIGINT', () => resolveWait())
     process.on('SIGTERM', () => resolveWait())
   })
-  await tracker?.stop()
   await server.close()
   return 0
 }
 
+type ReviewPayload = {
+  decision: 'approve' | 'deny' | 'iterate'
+  note?: string
+  iteration?: number
+}
+
+function reviewExitCode(decision: ReviewPayload['decision']): number {
+  if (decision === 'approve') return 0
+  if (decision === 'deny') return 1
+  return 2
+}
+
+async function writeReviewOutput(args: string[], review: ReviewPayload): Promise<void> {
+  const payload = JSON.stringify(review, null, 2)
+  const outPath = getFlag(args, '--out')
+  if (outPath) {
+    const absolute = resolve(outPath)
+    await mkdir(dirname(absolute), { recursive: true })
+    await writeFile(absolute, `${payload}\n`, 'utf8')
+  }
+  console.log(payload)
+}
+
+async function readReviewEvent(url: string, token: string | undefined, timeoutMs: number): Promise<ReviewPayload> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  let review: ReviewPayload | undefined
+  try {
+    await readAgentEvents(
+      url,
+      token,
+      ({ event, data }) => {
+        if (review) return
+        if (event === 'hello') {
+          const hello = data as { review?: ReviewPayload | null }
+          if (hello.review?.decision) {
+            review = hello.review
+            controller.abort()
+          }
+        }
+        if (event === 'review') {
+          review = data as ReviewPayload
+          controller.abort()
+        }
+      },
+      controller.signal,
+    )
+  } catch (error) {
+    if (!review && !isAbortError(error)) throw error
+  } finally {
+    clearTimeout(timer)
+  }
+  if (!review) throw new Error('Timed out waiting for review decision')
+  return review
+}
+
 async function cmdReview(file: string, args: string[]): Promise<number> {
   await ensureClientBuild()
-  const port = Number(getFlag(args, '--port') ?? 0)
-  const host = getFlag(args, '--host') ?? '127.0.0.1'
   const iteration = Number(getFlag(args, '--iteration') ?? 1)
   const timeoutMs = parseTimeout(getFlag(args, '--timeout'), 4 * 60 * 60 * 1000)
   const planPath = resolve(file)
-  const registry = await openRegistry(args)
-  const selfId = randomUUID()
   const configPath = getFlag(args, '--config')
+  const registry = await openRegistry(args)
+  if (registry) {
+    const hosted = await registerHostedPlan(registry.url, registry.token, {
+      planPath,
+      mode: 'review',
+      iteration: Number.isFinite(iteration) ? iteration : 1,
+      cwd: process.cwd(),
+      configPath,
+    })
+    console.log(`Living Plan (review): ${hosted.url}`)
+    console.log(`Plan file: ${planPath}`)
+    console.log(`Service: ${registry.url}`)
+    await openBrowser(hosted.url)
+    try {
+      const review = await readReviewEvent(hosted.url, hosted.token, timeoutMs)
+      await writeReviewOutput(args, review)
+      await closeHostedPlan(registry.url, registry.token, hosted.id)
+      return reviewExitCode(review.decision)
+    } catch (error) {
+      await closeHostedPlan(registry.url, registry.token, hosted.id)
+      console.error(error instanceof Error ? error.message : error)
+      return 3
+    }
+  }
 
+  const port = Number(getFlag(args, '--port') ?? 0)
+  const host = getFlag(args, '--host') ?? '127.0.0.1'
   const server = await startLivingPlanServer({
     planPath,
     mode: 'review',
     port: Number.isFinite(port) ? port : 0,
     host,
     iteration: Number.isFinite(iteration) ? iteration : 1,
-    registry: registry ? { url: registry.url, selfId } : undefined,
     configPath,
   })
-  const tracker = registry
-    ? await trackPlan(server, registry, selfId, { mode: 'review', planPath, host })
-    : null
-
   console.log(`Living Plan (review): ${server.url}`)
   console.log(`Plan file: ${planPath}`)
-  if (tracker) console.log(`Registry: ${tracker.registryUrl}`)
   console.log(`Theme config: ${server.getState().theme.configPath}`)
   await openBrowser(server.url)
-
   try {
     const review = await server.waitForReview(timeoutMs)
-    const outPath = getFlag(args, '--out')
-    const payload = JSON.stringify(review, null, 2)
-    if (outPath) {
-      const absolute = resolve(outPath)
-      await mkdir(dirname(absolute), { recursive: true })
-      await writeFile(absolute, `${payload}\n`, 'utf8')
-    }
-    console.log(payload)
-    await tracker?.stop()
+    await writeReviewOutput(args, review)
     await server.close()
-    if (review.decision === 'approve') return 0
-    if (review.decision === 'deny') return 1
-    return 2
+    return reviewExitCode(review.decision)
   } catch (error) {
-    await tracker?.stop()
     await server.close()
     console.error(error instanceof Error ? error.message : error)
     return 3
@@ -344,29 +374,98 @@ async function cmdReview(file: string, args: string[]): Promise<number> {
 async function cmdWait(id: string, args: string[]): Promise<number> {
   const url = getFlag(args, '--url')
   if (!url) {
-    console.error('live-plan wait requires --url <server-url>')
+    console.error('live-plan wait requires --url <plan-url>')
     return 1
   }
   const timeoutMs = parseTimeout(getFlag(args, '--timeout'), 4 * 60 * 60 * 1000)
-  const started = Date.now()
-
-  while (Date.now() - started < timeoutMs) {
-    const response = await fetch(new URL('/api/plan', url))
-    if (!response.ok) {
-      throw new Error(`Failed to read plan state from ${url}`)
-    }
-    const state = (await response.json()) as {
-      responses: Record<string, unknown>
-    }
-    if (state.responses[id]) {
-      console.log(JSON.stringify(state.responses[id], null, 2))
-      return 0
-    }
-    await new Promise((resolveDelay) => setTimeout(resolveDelay, 1000))
+  const token = await resolveAgentToken(args)
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  let printed = false
+  try {
+    await readAgentEvents(
+      url,
+      token,
+      ({ event, data }) => {
+        if (printed) return
+        if (event === 'hello') {
+          const responses = (data as { responses?: Record<string, unknown> }).responses
+          const found = responses?.[id]
+          if (found) {
+            console.log(JSON.stringify(found, null, 2))
+            printed = true
+            controller.abort()
+          }
+        }
+        if (event === 'interaction') {
+          const response = data as { id?: string }
+          if (response.id === id) {
+            console.log(JSON.stringify(data, null, 2))
+            printed = true
+            controller.abort()
+          }
+        }
+      },
+      controller.signal,
+    )
+  } catch (error) {
+    if (!printed && !isAbortError(error)) throw error
+  } finally {
+    clearTimeout(timer)
   }
+  if (!printed) {
+    console.error(`Timed out waiting for interaction: ${id}`)
+    return 3
+  }
+  return 0
+}
 
-  console.error(`Timed out waiting for interaction: ${id}`)
-  return 3
+async function cmdEvents(args: string[]): Promise<number> {
+  const url = getFlag(args, '--url')
+  if (!url) {
+    console.error('live-plan events requires --url <plan-url>')
+    return 1
+  }
+  const token = await resolveAgentToken(args)
+  const controller = new AbortController()
+  const stop = () => controller.abort()
+  process.once('SIGINT', stop)
+  process.once('SIGTERM', stop)
+  try {
+    await readAgentEvents(
+      url,
+      token,
+      ({ event, data }) => {
+        console.log(JSON.stringify({ event, data }))
+      },
+      controller.signal,
+    )
+  } catch (error) {
+    if (!isAbortError(error)) throw error
+  }
+  return 0
+}
+
+async function cmdClose(args: string[]): Promise<number> {
+  const url = getFlag(args, '--url')
+  if (!url) {
+    console.error('live-plan close requires --url <plan-url>')
+    return 1
+  }
+  const id = planIdFromPlanUrl(url)
+  if (!id) {
+    console.error('That URL is not a plan hosted by the service.')
+    return 1
+  }
+  const token = await resolveAgentToken(args)
+  if (!token) {
+    console.error('No service token found. Pass --token.')
+    return 1
+  }
+  const origin = new URL(url).origin
+  await closeHostedPlan(origin, token, id)
+  console.log(`Closed ${url}`)
+  return 0
 }
 
 async function buildExecutionPayload(
@@ -402,7 +501,7 @@ async function cmdExecution(args: string[]): Promise<number> {
   }
 
   if (action === 'push') {
-    const currentResponse = await fetch(new URL('/api/execution', url))
+    const currentResponse = await fetch(planApiUrl(url, '/api/execution'))
     const current = (await currentResponse.json()) as ExecutionState
     const next = await buildExecutionPayload(rest, current.active ?? true)
     const execution = await putExecution(url, {
@@ -417,7 +516,7 @@ async function cmdExecution(args: string[]): Promise<number> {
   }
 
   if (action === 'stop') {
-    const currentResponse = await fetch(new URL('/api/execution', url))
+    const currentResponse = await fetch(planApiUrl(url, '/api/execution'))
     const current = (await currentResponse.json()) as ExecutionState
     const execution = await putExecution(url, {
       ...current,
@@ -460,17 +559,30 @@ async function cmdRegistry(args: string[]): Promise<number> {
   const portFlag = getFlag(args, '--port')
   const port = portFlag ? Number(portFlag) : DEFAULT_REGISTRY_PORT
   const host = getFlag(args, '--host') ?? DEFAULT_REGISTRY_HOST
+  const version = await readPackageVersion(fileURLToPath(import.meta.url))
   const existing = await readRegistryLock(home)
-  if (existing && isPidAlive(existing.pid) && (await registryHealthy(existing.url))) {
-    console.log(`Living Plan registry already running: ${existing.url}`)
+  if (existing && existing.version === version && isPidAlive(existing.pid) && (await registryHealthy(existing.url))) {
+    console.log(`Living Plan service already running: ${existing.url}`)
     return 0
+  }
+  if (existing && isPidAlive(existing.pid) && (await registryHealthy(existing.url))) {
+    try {
+      process.kill(existing.pid, 'SIGTERM')
+    } catch {
+      // The previous service already exited.
+    }
+    const started = Date.now()
+    while (isPidAlive(existing.pid) && Date.now() - started < 1_500) {
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 50))
+    }
   }
   const server = await startRegistryServer({
     home,
     host,
     port: Number.isFinite(port) ? port : DEFAULT_REGISTRY_PORT,
+    version,
   })
-  console.log(`Living Plan registry: ${server.url}`)
+  console.log(`Living Plan service: ${server.url}`)
   await new Promise<void>((resolveWait) => {
     const stop = () => resolveWait()
     process.once('SIGINT', stop)
@@ -495,7 +607,7 @@ async function cmdTheme(args: string[]): Promise<number> {
 
   if (action === 'get') {
     if (url) {
-      const response = await fetch(new URL('/api/theme', url))
+      const response = await fetch(planApiUrl(url, '/api/theme'))
       if (!response.ok) {
         console.error(await response.text())
         return 1
@@ -520,7 +632,7 @@ async function cmdTheme(args: string[]): Promise<number> {
     }
 
     if (url) {
-      const response = await fetch(new URL('/api/theme', url), {
+      const response = await fetch(planApiUrl(url, '/api/theme'), {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ accent }),
@@ -591,10 +703,18 @@ async function main(): Promise<number> {
   if (command === 'wait') {
     const id = args[1]
     if (!id) {
-      console.error('Usage: live-plan wait <id> --url <server-url>')
+      console.error('Usage: live-plan wait <id> --url <plan-url>')
       return 1
     }
     return cmdWait(id, args.slice(2))
+  }
+
+  if (command === 'events') {
+    return cmdEvents(args.slice(1))
+  }
+
+  if (command === 'close') {
+    return cmdClose(args.slice(1))
   }
 
   if (command === 'execution') {

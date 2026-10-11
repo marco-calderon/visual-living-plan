@@ -1,7 +1,7 @@
 import { spawn, type SpawnOptions } from 'node:child_process'
 import { closeSync, openSync } from 'node:fs'
 import { mkdir, open, readFile, rm, stat } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { readGitSnapshot } from './gitStatus.js'
 import { isPidAlive } from './pid.js'
 import type { GitSnapshot, ProcessPulse, ProcessRecord, ProcessRegistration } from './processRecord.js'
@@ -151,9 +151,39 @@ async function retireUnhealthyRegistry(home: string): Promise<void> {
   }
 }
 
+export async function readPackageVersion(entryFile: string): Promise<string> {
+  try {
+    const raw = await readFile(join(dirname(entryFile), '..', 'package.json'), 'utf8')
+    const parsed = JSON.parse(raw) as { version?: string }
+    return typeof parsed.version === 'string' && parsed.version ? parsed.version : '0.0.0'
+  } catch {
+    return '0.0.0'
+  }
+}
+
+/** Stop a registry this package started. Used when its package version is stale. */
+async function stopOwnedRegistry(home: string): Promise<void> {
+  const lock = await readRegistryLock(home)
+  if (!lock) return
+  if (isPidAlive(lock.pid) && (await looksLikeRegistryProcess(lock.pid))) {
+    try {
+      process.kill(lock.pid, 'SIGTERM')
+    } catch {
+      // The process already exited.
+    }
+    const started = Date.now()
+    while (isPidAlive(lock.pid) && Date.now() - started < 1_500) {
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 50))
+    }
+  }
+  if (!isPidAlive(lock.pid)) {
+    await rm(join(home, 'registry.json'), { force: true })
+  }
+}
+
 /**
- * Connect to the shared registry, starting a detached one when none is running.
- * The registry survives individual plan processes so every planner page can list them.
+ * Connect to the shared plan service, starting a detached one when none is running.
+ * One service hosts every plan. Agents are clients of it.
  */
 export async function ensureRegistry(options: {
   entryFile: string
@@ -164,20 +194,24 @@ export async function ensureRegistry(options: {
   const home = options.home ?? defaultRegistryHome()
   const host = options.host ?? DEFAULT_REGISTRY_HOST
   const port = options.port ?? DEFAULT_REGISTRY_PORT
+  const version = await readPackageVersion(options.entryFile)
   await mkdir(home, { recursive: true, mode: 0o700 })
 
   const already = await runningRegistry(home)
-  if (already) return already
+  if (already?.version === version) return already
+  if (already) await stopOwnedRegistry(home)
 
   const age = await startingLockAge(home)
   if (age !== null && age < STARTING_STALE_MS) {
     const waited = await waitForRunning(home, STARTING_STALE_MS)
-    if (waited) return waited
+    if (waited?.version === version) return waited
+    if (waited) await stopOwnedRegistry(home)
   }
 
   await rm(registryStartingPath(home), { force: true })
   const stillThere = await runningRegistry(home)
-  if (stillThere) return stillThere
+  if (stillThere?.version === version) return stillThere
+  if (stillThere) await stopOwnedRegistry(home)
   await retireUnhealthyRegistry(home)
 
   const acquired = await acquireStartingLock(home)
@@ -204,7 +238,8 @@ export async function ensureRegistry(options: {
 
   const waited = await waitForRunning(home, STARTING_STALE_MS)
   await rm(registryStartingPath(home), { force: true })
-  if (waited) return waited
+  if (waited?.version === version) return waited
+  if (waited) await stopOwnedRegistry(home)
 
   if (child.pid && isPidAlive(child.pid)) {
     try {
@@ -214,6 +249,46 @@ export async function ensureRegistry(options: {
     }
   }
   throw new Error(`Timed out starting the living-plan registry. See ${join(home, 'registry.log')}`)
+}
+
+export type HostedPlan = {
+  id: string
+  url: string
+  token: string
+  planPath: string
+  mode: 'watch' | 'review'
+}
+
+export async function registerHostedPlan(
+  registryUrl: string,
+  token: string,
+  body: {
+    planPath: string
+    mode: 'watch' | 'review'
+    iteration?: number
+    cwd?: string
+    configPath?: string
+  },
+): Promise<HostedPlan> {
+  const response = await fetch(new URL('/api/plans', registryUrl), {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(5_000),
+  })
+  if (!response.ok) throw new Error(await response.text())
+  const payload = (await response.json()) as { plan: HostedPlan }
+  return payload.plan
+}
+
+export async function closeHostedPlan(registryUrl: string, token: string, id: string): Promise<void> {
+  const response = await fetch(new URL(`/api/plans/${encodeURIComponent(id)}`, registryUrl), {
+    method: 'DELETE',
+    headers: authHeaders(token),
+    signal: AbortSignal.timeout(5_000),
+  })
+  if (response.status === 404 || response.ok) return
+  throw new Error(await response.text())
 }
 
 export async function listProcesses(registryUrl: string): Promise<ProcessRecord[]> {
