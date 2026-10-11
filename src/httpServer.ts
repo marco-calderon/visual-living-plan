@@ -1,0 +1,41 @@
+export type FetchApp = {
+  fetch: (request: Request) => Response | Promise<Response>
+}
+
+export type BoundServer = {
+  port: number
+  stop: () => Promise<void>
+}
+
+/**
+ * Bun serves the Elysia app directly so the process does not depend on Node's HTTP server.
+ * `idleTimeout: 0` keeps server-sent events open.
+ */
+export function bindElysia(app: FetchApp, host: string, preferredPort: number): BoundServer {
+  const candidates = preferredPort > 0 ? [preferredPort, 0] : [0]
+  let lastError: unknown
+  for (const port of candidates) {
+    try {
+      const server = Bun.serve({
+        port,
+        hostname: host,
+        idleTimeout: 0,
+        fetch: (request) => app.fetch(request),
+      })
+      const bound = server.port
+      if (!bound) {
+        void server.stop(true)
+        throw new Error('Unable to bind server')
+      }
+      return {
+        port: bound,
+        async stop() {
+          await server.stop(true)
+        },
+      }
+    } catch (error) {
+      lastError = error
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Unable to bind server')
+}

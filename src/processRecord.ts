@@ -49,6 +49,34 @@ export type ProcessRegistration = {
   executionActive?: boolean
   executionStep?: string | null
   git?: GitSnapshot
+  phaseTotal?: number
+  phaseDone?: number
+  interactionTotal?: number
+  interactionDone?: number
+  completionRatio?: number
+  completionState?: CompletionState
+  filesModified?: number
+}
+
+export type PlanStatus = 'running' | 'executed' | 'interrupted'
+
+export type CompletionState = 'idle' | 'in_progress' | 'partial' | 'complete'
+
+export type ReviewOutcome = 'approve' | 'deny' | 'iterate'
+
+export type PlanRecord = ProcessRecord & {
+  status: PlanStatus
+  storedPath: string | null
+  endedAt: number | null
+  durationMs: number
+  phaseTotal: number
+  phaseDone: number
+  interactionTotal: number
+  interactionDone: number
+  completionRatio: number
+  completionState: CompletionState
+  filesModified: number
+  outcome: ReviewOutcome | null
 }
 
 export type ProcessPulse = {
@@ -60,6 +88,46 @@ export type ProcessPulse = {
   executionActive?: boolean
   executionStep?: string | null
   git?: GitSnapshot
+  phaseTotal?: number
+  phaseDone?: number
+  interactionTotal?: number
+  interactionDone?: number
+  completionRatio?: number
+  completionState?: CompletionState
+  filesModified?: number
+}
+
+export function runningPlan(record: ProcessRecord, now = Date.now()): PlanRecord {
+  return {
+    ...record,
+    status: 'running',
+    storedPath: null,
+    endedAt: null,
+    durationMs: Math.max(0, now - record.startedAt),
+    phaseTotal: 0,
+    phaseDone: 0,
+    interactionTotal: 0,
+    interactionDone: 0,
+    completionRatio: 0,
+    completionState: 'idle',
+    filesModified: record.git.changedFiles,
+    outcome: null,
+  }
+}
+
+export function finishedPlan(
+  record: ProcessRecord,
+  status: 'executed' | 'interrupted',
+  outcome: ReviewOutcome | null = null,
+  now = Date.now(),
+): PlanRecord {
+  return {
+    ...runningPlan(record, now),
+    status,
+    endedAt: now,
+    durationMs: Math.max(0, now - record.startedAt),
+    outcome,
+  }
 }
 
 export function emptyGitSnapshot(summary = 'not a git repository'): GitSnapshot {

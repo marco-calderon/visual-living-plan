@@ -12,22 +12,24 @@ Authoring rules for agents who *use* the tool live in [docs/agent-guidelines.md]
 
 ## How a plan is hosted
 
-One service per machine, default `127.0.0.1:9477`, hosts every plan. `serve` registers the file, prints `http://127.0.0.1:9477/plans/<id>/`, and exits. The page stays up. `events` subscribes to `/plans/<id>/api/agent-events` and prints each user submission. `wait` and `review` block on that stream.
+One service per machine, default `127.0.0.1:9477`, hosts every plan. `serve` registers the file, prints `http://127.0.0.1:9477/plans/<id>/`, and stays subscribed to that plan's agent stream. It prints each submission until stopped. The page stays up after it exits. `--detach` registers and returns. `events` and `wait` are further clients of the same stream. A client of another plan does not see the event.
 
 `--no-registry` is the exception: one private server for one plan. Keep that path working.
 
-Do not add a new Node server per plan. Put plan behavior on the session in `src/planSession.ts`. Put "all plans on this machine" behavior on `src/planHost.ts` and `src/registryService.ts`.
+The service and the private server are Elysia apps. Route handlers live in `src/registryService.ts`, `src/server.ts`, and `src/planRoutes.ts`, and `src/httpServer.ts` binds them with Bun. Put plan behavior on the session in `src/planSession.ts`. Put "all plans on this machine" behavior on `src/planHost.ts` and `src/registryService.ts`.
 
 ## Layout
 
 | Path | What it is |
 |---|---|
 | `src/cli.ts` | Commands. Prefer the service. Fall back to the private server only for `--no-registry` or when the service cannot start |
-| `src/planSession.ts` | State and HTTP for one plan, including both event streams |
+| `src/planSession.ts` | State for one plan, including both event streams |
+| `src/planRoutes.ts` | Elysia routes for that plan |
 | `src/planHost.ts` | Session map, registration, idle close, git cache |
-| `src/registryService.ts` | The long-lived process and its routes |
-| `src/registryStore.ts` | SQLite. Process rows and `plan_sessions` |
-| `src/server.ts` | Private one-plan server |
+| `src/registryService.ts` | The long-lived Elysia app and its routes |
+| `src/registryStore.ts` | SQLite. Process rows, `plan_sessions`, and `plan_runs` |
+| `src/server.ts` | Private one-plan Elysia app |
+| `src/httpServer.ts` | `Bun.serve` binding for an Elysia app |
 | `src/agentEvents.ts` | Client-side SSE reader. Use `planApiUrl` so `/plans/<id>/` URLs resolve correctly |
 | `src/parse.ts`, `src/render.ts` | Plan file in, HTML page out |
 | `src/workflow.ts`, `src/execution.ts` | Expected workflow and the live execution overlay |

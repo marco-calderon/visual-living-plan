@@ -1,16 +1,16 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { access } from 'node:fs/promises'
-import type { IncomingMessage, ServerResponse } from 'node:http'
 import { dirname, resolve } from 'node:path'
 import { createIdleExecutionState, type ExecutionState } from './execution.js'
 import { readGitSnapshot } from './gitStatus.js'
-import { openPlanSession, sendClientAsset, type PlanSession, type PlanSessionSnapshot } from './planSession.js'
-import type { GitSnapshot, ProcessRecord } from './processRecord.js'
+import { openPlanSession, type PlanSession, type PlanSessionSnapshot } from './planSession.js'
+import { measurePlan } from './planProgress.js'
+import type { GitSnapshot, PlanRecord, ProcessRecord, ReviewOutcome } from './processRecord.js'
+import { runningPlan } from './processRecord.js'
 import { SESSION_IDLE_MS } from './registryConstants.js'
 import type { RegistryStore, StoredPlanSession } from './registryStore.js'
 import type { InteractionResponse, ReviewResult } from './types.js'
 
-const ID_PATTERN = /^[A-Za-z0-9_-]{8,80}$/
 const GIT_CACHE_MS = 10_000
 
 export type HostedPlan = {
@@ -29,10 +29,11 @@ export type PlanHost = {
     cwd?: string
     configPath?: string
   }): Promise<HostedPlan>
-  closePlan(id: string): Promise<boolean>
+  closePlan(id: string, status?: 'executed' | 'interrupted'): Promise<boolean>
   listRecords(): ProcessRecord[]
-  handle(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean>
-  serveClient(res: ServerResponse, pathname: string): Promise<boolean>
+  dashboardRecords(): PlanRecord[]
+  getSession(id: string): PlanSession | undefined
+  authorize(request: Request, session: PlanSession): boolean
   close(): Promise<void>
 }
 
@@ -47,19 +48,11 @@ function tokenEquals(expected: string, actual: string): boolean {
   return timingSafeEqual(left, right)
 }
 
-function bearer(req: IncomingMessage): string | null {
-  const header = req.headers.authorization
-  if (typeof header !== 'string') return null
+function bearer(request: Request): string | null {
+  const header = request.headers.get('authorization')
+  if (!header) return null
   const match = /^Bearer\s+(\S+)$/i.exec(header.trim())
   return match?.[1] ?? null
-}
-
-function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    'cache-control': 'no-store',
-  })
-  res.end(JSON.stringify(body))
 }
 
 function parseJson<T>(value: string, fallback: T): T {
@@ -87,10 +80,16 @@ function toStored(snapshot: PlanSessionSnapshot): StoredPlanSession {
   }
 }
 
+function reviewOutcome(decision: string | undefined): ReviewOutcome | null {
+  if (decision === 'approve' || decision === 'deny' || decision === 'iterate') return decision
+  return null
+}
+
 export async function createPlanHost(options: {
   store: RegistryStore
   serviceToken: string
   getOrigin: () => string
+  onFinish?: (record: PlanRecord) => void | Promise<void>
 }): Promise<PlanHost> {
   const sessions = new Map<string, PlanSession>()
   const gitCache = new Map<string, { at: number; snapshot: GitSnapshot }>()
@@ -153,8 +152,8 @@ export async function createPlanHost(options: {
     }
   }
 
-  function authorized(req: IncomingMessage, session: PlanSession): boolean {
-    const presented = bearer(req)
+  function authorize(request: Request, session: PlanSession): boolean {
+    const presented = bearer(request)
     if (!presented) return false
     return tokenEquals(options.serviceToken, presented) || tokenEquals(session.token, presented)
   }
@@ -245,13 +244,31 @@ export async function createPlanHost(options: {
     }
   }
 
-  async function closePlan(id: string): Promise<boolean> {
+  function dashboardRecord(session: PlanSession, status: 'running' | 'executed' | 'interrupted' = 'running'): PlanRecord {
+    const state = session.getState()
+    const progress = measurePlan(state.plan, Object.keys(state.responses))
+    const now = Date.now()
+    const base = runningPlan(toRecord(session), now)
+    return {
+      ...base,
+      ...progress,
+      status,
+      filesModified: base.git.changedFiles,
+      outcome: reviewOutcome(state.review?.decision),
+      endedAt: status === 'running' ? null : now,
+      durationMs: Math.max(0, (status === 'running' ? now : now) - session.startedAt),
+    }
+  }
+
+  async function closePlan(id: string, status: 'executed' | 'interrupted' = 'executed'): Promise<boolean> {
     const session = sessions.get(id)
     if (!session) {
       return options.store.deleteSession(id)
     }
+    const finished = dashboardRecord(session, status)
     sessions.delete(id)
     await session.close()
+    await options.onFinish?.(finished)
     options.store.deleteSession(id)
     return true
   }
@@ -261,7 +278,7 @@ export async function createPlanHost(options: {
     for (const session of sessions.values()) {
       if (session.browserClients > 0 || session.agentClients > 0) continue
       if (now - session.lastSeenAt < SESSION_IDLE_MS) continue
-      void closePlan(session.id)
+      void closePlan(session.id, 'interrupted')
     }
   }, 60_000)
   idleTimer.unref()
@@ -272,40 +289,13 @@ export async function createPlanHost(options: {
     listRecords() {
       return [...sessions.values()].map((session) => toRecord(session))
     },
-    serveClient(res, pathname) {
-      return sendClientAsset(res, pathname)
+    dashboardRecords() {
+      return [...sessions.values()].map((session) => dashboardRecord(session))
     },
-    async handle(req, res, url) {
-      const pathname = url.pathname
-      const match = pathname.match(/^\/plans\/([A-Za-z0-9_-]+)(\/.*)?$/)
-      if (!match) return false
-      const id = match[1] ?? ''
-      if (!ID_PATTERN.test(id)) {
-        sendJson(res, 404, { error: 'Not found' })
-        return true
-      }
-      if (!match[2]) {
-        res.writeHead(302, { location: `/plans/${id}/` })
-        res.end()
-        return true
-      }
-      const session = sessions.get(id)
-      if (!session) {
-        sendJson(res, 404, { error: 'Plan not found' })
-        return true
-      }
-      const rest = match[2] === '/' ? '/' : match[2]
-      if (req.method === 'GET' && rest === '/api/agent-events') {
-        if (!authorized(req, session)) {
-          sendJson(res, 401, { error: 'Unauthorized' })
-          return true
-        }
-        session.serveAgentEvents(req, res)
-        return true
-      }
-      await session.handle(req, res, rest)
-      return true
+    getSession(id) {
+      return sessions.get(id)
     },
+    authorize,
     async close() {
       if (closed) return
       closed = true

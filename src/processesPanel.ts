@@ -65,6 +65,7 @@ export const PROCESSES_PANEL_STYLES = `
   font-family: var(--font-display);
   font-size: 1.15rem;
 }
+.processes-links { display: flex; gap: 0.7rem; }
 .processes-registry {
   color: var(--accent);
   font-size: 0.82rem;
@@ -153,7 +154,10 @@ export function processesPanelMarkup(selfId?: string): string {
     <div id="processes-panel" class="processes-panel" data-processes-panel hidden>
       <div class="processes-head">
         <strong>Running plans</strong>
-        <a class="processes-registry" data-processes-registry href="" hidden>Registry</a>
+        <span class="processes-links">
+          <a class="processes-registry" data-processes-dashboard href="" hidden>Dashboard</a>
+          <a class="processes-registry" data-processes-registry href="" hidden>Registry</a>
+        </span>
       </div>
       <p class="processes-status" data-processes-status>Loading…</p>
       <ul class="processes-list" data-processes-list></ul>
@@ -173,8 +177,9 @@ export function processesPanelScript(): string {
   const status = root.querySelector('[data-processes-status]');
   const list = root.querySelector('[data-processes-list]');
   const registryLink = root.querySelector('[data-processes-registry]');
+  const dashboardLink = root.querySelector('[data-processes-dashboard]');
   const pageSelfId = root.getAttribute('data-self-id');
-  if (!toggle || !panel || !count || !status || !list || !registryLink) return;
+  if (!toggle || !panel || !count || !status || !list || !registryLink || !dashboardLink) return;
 
   let open = false;
   let latest = null;
@@ -233,8 +238,11 @@ export function processesPanelScript(): string {
     if (registryUrl) {
       registryLink.href = registryUrl;
       registryLink.hidden = false;
+      dashboardLink.href = new URL('/dashboard', registryUrl).href;
+      dashboardLink.hidden = false;
     } else {
       registryLink.hidden = true;
+      dashboardLink.hidden = true;
     }
     if (payload.status === 'disabled') {
       status.textContent = 'Started without the shared registry.';

@@ -19,6 +19,27 @@ export function planIdFromPlanUrl(planUrl: string): string | null {
   }
 }
 
+/**
+ * Submissions the service pushes to one plan's CLI clients.
+ * A late client also hears answers already stored in `hello`.
+ */
+export function planClientNotices(event: AgentEvent): AgentEvent[] {
+  if (event.event === 'interaction' || event.event === 'review') return [event]
+  if (event.event !== 'hello' || !event.data || typeof event.data !== 'object') return []
+  const hello = event.data as {
+    responses?: Record<string, unknown>
+    review?: { decision?: string } | null
+  }
+  const notices: AgentEvent[] = []
+  for (const data of Object.values(hello.responses ?? {})) {
+    notices.push({ event: 'interaction', data })
+  }
+  if (hello.review && typeof hello.review === 'object' && hello.review.decision) {
+    notices.push({ event: 'review', data: hello.review })
+  }
+  return notices
+}
+
 function parseSseChunk(chunk: string): AgentEvent | null {
   let event = 'message'
   const dataLines: string[] = []

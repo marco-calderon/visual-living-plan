@@ -2,17 +2,17 @@
 
 Use Live Plan when a human needs a live view of what you are doing, or must answer something before you continue. You own one `.plan.md` file. The human watches a browser URL.
 
-Invoke the CLI with **npx** unless the `live-plan` command is already installed.
+The CLI runs on Bun. Invoke it with **bunx** unless the `live-plan` command is already installed.
 
 ```bash
 # Default. No global install.
-npx --yes visual-living-plan <command> [args]
+bunx visual-living-plan <command> [args]
 
 # After `npm install -g visual-living-plan` (or a local install that puts the bin on PATH).
 live-plan <command> [args]
 ```
 
-`npx --yes visual-living-plan` runs the published package. `live-plan` is the same program once installed. Do not use this repository's `npm run` scripts unless you are developing Live Plan itself.
+`bunx visual-living-plan` runs the published package. `live-plan` is the same program once installed. Bun must be on `PATH`. Do not use this repository's `npm run` scripts unless you are developing Live Plan itself.
 
 Copy [`skills/live-plan/`](../skills/live-plan/SKILL.md) into your agent's skills directory (`.cursor/skills/live-plan/` or `.claude/skills/live-plan/`) so the loop and primitives load automatically. Schemas live in [`skills/live-plan/primitives.md`](../skills/live-plan/primitives.md).
 
@@ -29,40 +29,42 @@ Skip it for a one-step change, when the user asked for prose only, or when nobod
 
 ## How to run it
 
-`serve` registers the plan on the machine service and exits. Keep the printed URL. `events` stays open and prints each user submission. `wait` and `review` block on that same stream.
+`serve` registers the plan on the one machine service and stays attached. It prints each submission for that plan until you stop it. The page stays up after it exits. Pass `--detach` to register and return, then use `events` or `wait` on the printed URL. `wait` and `review` block on that same stream.
 
 ```bash
-npx --yes visual-living-plan check path/to/work.plan.md
+bunx visual-living-plan check path/to/work.plan.md
 
-npx --yes visual-living-plan serve path/to/work.plan.md
+bunx visual-living-plan serve path/to/work.plan.md
 
-npx --yes visual-living-plan events --url <printed-plan-url>
+bunx visual-living-plan serve path/to/work.plan.md --detach
+bunx visual-living-plan events --url <printed-plan-url>
 
-npx --yes visual-living-plan wait fail-mode --url <printed-plan-url> --timeout 30m
+bunx visual-living-plan wait fail-mode --url <printed-plan-url> --timeout 30m
 
-npx --yes visual-living-plan review path/to/work.plan.md --iteration 1 --timeout 4h
+bunx visual-living-plan review path/to/work.plan.md --iteration 1 --timeout 4h
 
-npx --yes visual-living-plan execution start --url <printed-plan-url> \
+bunx visual-living-plan execution start --url <printed-plan-url> \
   --step "Implement middleware" --detail "Editing gateway.ts" \
   --graph path/to/graph.json
-npx --yes visual-living-plan execution push --url <printed-plan-url> \
+bunx visual-living-plan execution push --url <printed-plan-url> \
   --step "Add coverage" --graph path/to/graph.json
-npx --yes visual-living-plan execution stop --url <printed-plan-url>
+bunx visual-living-plan execution stop --url <printed-plan-url>
 ```
 
-Swap the `npx --yes visual-living-plan` prefix for `live-plan` when that command is on `PATH`.
+Swap the `bunx visual-living-plan` prefix for `live-plan` when that command is on `PATH`.
 
 | Command | What it does | Exit |
 |---|---|---|
 | `check <file>` | Parse the plan and print title, block types, interaction ids, and workflow nodes. A missing workflow block is an error. | `0` ok, `1` usage, parse error, or missing workflow |
 | `dump <file>` | Print the parsed plan as JSON | `0` ok, `1` usage or parse error |
-| `serve <file>` | Register the plan on the machine service. Prints the plan URL and exits. The page stays up and reloads when the file changes. | `0` registered |
+| `serve <file>` | Register the plan on the machine service and print each submission for that plan until stopped. `--detach` prints the URL and returns. The page stays up either way. | `0` stopped or detached, `1` the stream failed |
 | `review <file>` | Same page plus Approve / Deny / Iterate. Blocks on the agent event stream until a decision, then closes the plan. | `0` approve, `1` deny, `2` iterate, `3` timeout |
 | `wait <id> --url <url>` | Block on the agent event stream until that interaction id is answered. Prints the response JSON. | `0` answered, `1` missing `--url`, `3` timeout |
 | `events --url <url>` | Print each `hello`, `interaction`, and `review` event until the process is stopped. | `0` |
 | `close --url <url>` | Drop that plan from the service. | `0` closed, `1` usage |
 | `execution start\|push\|stop --url <url>` | Drive the live workflow overlay. `start` turns it on, `push` updates it, `stop` turns it off and unlocks plan forms. | `0` ok, `1` usage or HTTP error |
 | `processes` | List plans hosted by the service, including directory and git status. `ps` is the same command. | `0` |
+| `dashboard` | Open the registry dashboard of running and executed plans (day, week, and month). | `0` when the registry is up, `1` when it is not |
 | `theme get\|set` | Read or write the accent color. Prefer `--url` while `serve`/`review` is up; otherwise `--config` / `--plan` writes `live-plan.config.json`. | `0` ok, `1` usage or HTTP error |
 
 Flags:
@@ -73,6 +75,7 @@ Flags:
 - `--iteration N` labels a review round (default `1`). Bump it when you re-open review after Iterate.
 - `--out <file>` writes the review JSON as well as printing it.
 - `--no-open` skips launching a browser. Use it only for headless or CI runs. A person should get the page opened.
+- `--detach` on `serve` registers the plan and returns. Omit it to stay attached and print that plan's submissions.
 - `--no-registry` serves this plan in its own process. By default `serve` and `review` use the machine service, so every planner page can list running plans.
 - `--registry-port` sets the service port (default `9477`, loopback only).
 - `--token` authorizes `events`, `wait`, and `close`. When omitted, the CLI reads the local service token.
@@ -87,8 +90,8 @@ Flags:
 
 1. Write or update one `.plan.md`. Title, a short summary, phases, a required `workflow` block (the execution path), then only the interactions you need right now.
 2. `check` the file.
-3. `serve` for ongoing status, or `review` when you need Approve / Deny / Iterate on the whole plan.
-4. To hear every submission, run `events --url <printed-url>`. To block on one answer, `wait <id> --url <printed-url>`. Both use the agent event stream.
+3. `serve` for ongoing status, or `review` when you need Approve / Deny / Iterate on the whole plan. `serve` prints submissions for that plan. Pass `--detach` when this process has to return before the person answers.
+4. After `--detach`, run `events --url <printed-url>` to hear every submission, or `wait <id> --url <printed-url>` to block on one answer. Both use the same agent event stream as `serve`.
 5. Apply the response. Update phase `status` and checklist `done` in the same file. The page reloads on save.
 6. While implementing, `execution start`, then `execution push` as the graph changes, then `execution stop` before the next plan interaction. Plan forms and review are rejected with HTTP 409 while execution is active.
 7. On review **approve**, proceed. On **deny**, stop. On **iterate**, edit the same file, bump `--iteration`, and run `review` again.
@@ -144,11 +147,11 @@ Node `status` is `pending`, `active`, `blocked`, `done`, or `failed`. `x` and `y
 Humans can change the accent on the Settings tab. The choice is saved to `live-plan.config.json` beside the plan (override with `--config` on `serve` / `review`). Agents should use the CLI, not hand-edit CSS:
 
 ```bash
-npx --yes visual-living-plan theme get --url <printed-plan-url>
-npx --yes visual-living-plan theme set --accent #0369a1 --url <printed-plan-url>
+bunx visual-living-plan theme get --url <printed-plan-url>
+bunx visual-living-plan theme set --accent #0369a1 --url <printed-plan-url>
 
 # Offline / before serve: write the config file next to the plan
-npx --yes visual-living-plan theme set --accent #0369a1 --plan path/to/work.plan.md
+bunx visual-living-plan theme set --accent #0369a1 --plan path/to/work.plan.md
 ```
 
 Config shape:
@@ -176,6 +179,7 @@ The server URL from `serve` or `review` exposes:
 - `GET /api/execution` and `PUT /api/execution` — read or replace execution state. `GET` includes `planned` (the expected workflow) even while execution is idle
 - `POST /api/execution/start` and `POST /api/execution/stop` — convenience toggles
 - `GET /api/processes` — other plans started through the CLI, with directory and git status. Each `url` opens that plan's site.
+- Registry `GET /dashboard` — running and executed plans, with day, week, and month summaries. `live-plan dashboard` opens it. Plan files are copied into the registry home under `plans/`.
 - `GET /api/theme` and `PUT /api/theme` — read or set `{ "accent": "#hex" }` (persists to the theme config file)
 
 Prefer the CLI. Use HTTP only to inspect state or when another process must submit on the human's behalf.

@@ -14,18 +14,20 @@ Architecture and the decisions behind it: [docs/architecture](docs/architecture/
 
 ## Quick start
 
+The CLI and both HTTP servers run on [Bun](https://bun.sh). The plan page and the registry are [Elysia](https://elysiajs.com) apps. Sessions and finished runs are stored in SQLite.
+
 ```bash
-npm install
-npm run serve -- examples/rate-limit.plan.md
+bun install
+bun run serve -- examples/rate-limit.plan.md
 ```
 
-The command prints a URL and exits. Open that URL. Edit the example file, change a phase `status`, and the page reloads. Click a choice or submit a form. An agent subscribed with `events` or `wait` hears that submission immediately.
+The command prints a URL and stays attached to that plan. Open the URL. Edit the example file, change a phase `status`, and the page reloads. Click a choice or submit a form. This command prints that submission. `--detach` registers the plan and returns; `events` or `wait` can attach later.
 
 ### Running plans
 
-One plan service on `127.0.0.1:9477` hosts every plan. `serve` registers a plan and prints `http://127.0.0.1:9477/plans/<id>/`. The page stays up after the command exits. Sessions are stored in SQLite (`~/.visual-living-plan/registry.sqlite`) and come back if the service restarts. Every planner page has a **Plans** button that lists those plans: directory, git branch and dirty state, and a link that opens that plan. The service home page is the same list.
+One plan service on `127.0.0.1:9477` hosts every plan. `serve` registers a plan, prints `http://127.0.0.1:9477/plans/<id>/`, and listens for that plan's submissions. Stopping the command leaves the page up. Sessions are stored in SQLite (`~/.visual-living-plan/registry.sqlite`) and come back if the service restarts. Every planner page has a **Plans** button that lists those plans: directory, git branch and dirty state, and a link that opens that plan. The service home page is the same list. **Dashboard** (`/dashboard`, or `live-plan dashboard`) summarizes the hosted plans and the ones that have finished, for the local day, week, and month. A clean close is executed. An idle drop, or a private process whose heartbeat went stale, is interrupted. The plan file is copied into `~/.visual-living-plan/plans/`.
 
-`live-plan events --url <plan-url>` subscribes to that plan. A choice, form, question, approval, or review is pushed to the client when the user submits it. `wait` uses the same stream and returns when one id is answered.
+A choice, form, question, approval, or review is pushed to every client listening on that plan, and to no other plan. `serve` is one of those clients. `events` is another. `wait` uses the same stream and returns when one id is answered.
 
 ```bash
 npm run processes
@@ -37,6 +39,8 @@ live-plan processes
 ### Install the command
 
 This is the same kind of install as [Visual Plan](https://visualplan.dev/)'s `npm i -g vplan`. The package name on the registry is `visual-living-plan`. Publishing runs `prepack`, which compiles `dist/cli.js` into the tarball. `npm i -g` downloads that tarball and links the `live-plan`, `living-plan`, and `visual-living-plan` commands onto your PATH. It does not clone the repo and does not compile anything on your machine.
+
+Bun has to be on `PATH`. The published command's shebang is `bun`.
 
 ```bash
 npm i -g visual-living-plan
@@ -152,16 +156,20 @@ live-plan theme set --accent #0369a1 --url <printed-plan-url>
 - `GET /api/events` — browser SSE (`reload`, `interaction`, `review`, `execution`, `theme`)
 - `GET /api/agent-events` — agent SSE. On the shared service this requires the plan token or the service token. The first event is `hello` (current responses and review). Later events push each submission.
 - `GET /api/processes` — plans hosted by the service (directory, git status, site URL). `status` is `ok`, `offline`, or `disabled`
+- `GET /dashboard` — registry page for running and executed plans: day, week, and month summaries, plus a table (status, completion, folder, files modified, start time, duration)
+- `GET /api/dashboard?period=day|week|month` — the same summary and rows as JSON
+- `GET /api/plans` — every stored plan run, including executed and interrupted
 - `GET /api/theme` / `PUT /api/theme` — read or set accent color (`{ "accent": "#hex" }`), persisted to the theme config file
 - `POST /api/interactions/:id` — submit an interaction response (409 while execution is live)
 - `POST /api/review` — submit Approve / Deny / Iterate (review mode)
 
 ## For agents
 
-Agents should invoke the published CLI with npx, or `live-plan` when that command is installed. `living-plan` is the same binary. Do not use the `npm run` scripts above unless you are developing this repository.
+Agents should invoke the published CLI with bunx, or `live-plan` when that command is installed. `living-plan` is the same binary. Bun has to be installed. Do not use the `npm run` scripts above unless you are developing this repository.
 
 ```bash
-npx --yes visual-living-plan serve path/to/work.plan.md
+bunx visual-living-plan serve path/to/work.plan.md
+live-plan serve path/to/work.plan.md
 live-plan events --url <printed-plan-url>
 ```
 

@@ -1,6 +1,6 @@
 # ADR 0004: One machine service hosts every plan
 
-- Status: Accepted
+- Status: Accepted. The "serve exits" bullet is superseded by [ADR 0007](0007-serve-stays-a-client.md).
 - Date: 2026-10-10
 
 ## Context
@@ -13,7 +13,7 @@ The alternative was one service installed on the machine. Every agent would be a
 
 The registry process is the plan service. It hosts every plan for that machine.
 
-- `serve` ensures the service, registers the plan file, prints `http://<host>:<port>/plans/<id>/`, opens the browser, and exits.
+- `serve` ensures the service, registers the plan file, prints `http://<host>:<port>/plans/<id>/`, and opens the browser. It used to exit here; [ADR 0007](0007-serve-stays-a-client.md) keeps it subscribed unless `--detach` is set.
 - The service watches the file, serves the page, and keeps that plan's responses, execution state, and review state.
 - Plan URLs live under `/plans/<id>/`. Client assets are served once from `/client/`.
 - The same plan path returns the same id, so a later `serve` reattaches instead of starting a second copy.

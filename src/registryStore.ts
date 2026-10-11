@@ -2,7 +2,8 @@ import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { STALE_MS } from './registryConstants.js'
 import { isPidAlive } from './pid.js'
-import type { GitSnapshot, ProcessPulse, ProcessRecord } from './processRecord.js'
+import type { GitSnapshot, PlanRecord, ProcessPulse, ProcessRecord } from './processRecord.js'
+import { finishedPlan } from './processRecord.js'
 import { emptyGitSnapshot } from './processRecord.js'
 
 type SqlValue = string | number | null
@@ -34,6 +35,8 @@ export type RegistryStore = {
   getSessionByPath(planPath: string): StoredPlanSession | undefined
   listSessions(): StoredPlanSession[]
   deleteSession(id: string): boolean
+  saveRun(record: PlanRecord): void
+  listRuns(): PlanRecord[]
   close(): void
 }
 
@@ -281,7 +284,19 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
   const getSessionStatement = database.prepare('SELECT * FROM plan_sessions WHERE id = ?')
   const getSessionByPathStatement = database.prepare('SELECT * FROM plan_sessions WHERE plan_path = ?')
   const listSessionsStatement = database.prepare('SELECT * FROM plan_sessions ORDER BY started_at DESC')
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS plan_runs (
+      run_id TEXT PRIMARY KEY,
+      started_at INTEGER NOT NULL,
+      payload TEXT NOT NULL
+    )
+  `)
   const deleteSessionStatement = database.prepare('DELETE FROM plan_sessions WHERE id = ?')
+  const saveRunStatement = database.prepare(`
+    INSERT INTO plan_runs (run_id, started_at, payload) VALUES (?, ?, ?)
+    ON CONFLICT(run_id) DO UPDATE SET payload = excluded.payload
+  `)
+  const listRunsStatement = database.prepare('SELECT payload FROM plan_runs ORDER BY started_at DESC')
   let closed = false
 
   const store: RegistryStore = {
@@ -324,6 +339,7 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
       for (const record of store.list()) {
         const stale = now - record.heartbeatAt > staleMs
         if (stale || !alive(record.pid)) {
+          store.saveRun(finishedPlan(record, 'interrupted', null, now))
           store.remove(record.id)
           removed.push(record.id)
         }
@@ -360,6 +376,20 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
     deleteSession(id) {
       const result = deleteSessionStatement.run(id)
       return result.changes > 0
+    },
+    saveRun(record) {
+      saveRunStatement.run(`${record.id}:${record.startedAt}`, record.startedAt, JSON.stringify(record))
+    },
+    listRuns() {
+      return listRunsStatement.all().flatMap((row) => {
+        const payload = (row as { payload?: unknown }).payload
+        if (typeof payload !== 'string') return []
+        try {
+          return [JSON.parse(payload) as PlanRecord]
+        } catch {
+          return []
+        }
+      })
     },
     close() {
       if (closed) return

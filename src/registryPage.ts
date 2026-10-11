@@ -44,7 +44,8 @@ export function renderRegistryPage(): string {
     main { width: min(760px, calc(100% - 2rem)); margin: 0 auto; padding: 2.5rem 0 4rem; }
     .kicker { margin: 0 0 0.4rem; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.75rem; font-weight: 600; color: var(--accent); }
     h1 { font-family: Fraunces, serif; font-size: clamp(2.2rem, 5vw, 3.4rem); line-height: 0.95; margin: 0 0 0.7rem; }
-    .lede { margin: 0 0 1.4rem; color: var(--muted); max-width: 38rem; line-height: 1.5; }
+    .lede { margin: 0 0 1rem; color: var(--muted); max-width: 38rem; line-height: 1.5; }
+    .lede a { color: var(--accent); font-weight: 600; }
     .status { color: var(--muted); margin: 0 0 0.8rem; }
     ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.7rem; }
     article {
@@ -72,13 +73,30 @@ export function renderRegistryPage(): string {
       font-weight: 600;
       font-size: 0.88rem;
     }
+    @media (prefers-reduced-motion: no-preference) {
+      @keyframes enter {
+        from { opacity: 0; transform: translateY(16px); }
+        to { opacity: 1; transform: none; }
+      }
+      .kicker, h1, .lede, .actions, .status, #list {
+        animation: enter 0.7s cubic-bezier(0.16, 0.84, 0.24, 1) both;
+      }
+      .kicker { animation-delay: 0.02s; }
+      h1 { animation-delay: 0.08s; }
+      .lede { animation-delay: 0.14s; }
+      .actions { animation-delay: 0.22s; }
+      .status { animation-delay: 0.3s; }
+      #list { animation-delay: 0.38s; }
+      article.enter { animation: enter 0.55s cubic-bezier(0.16, 0.84, 0.24, 1) both; }
+    }
   </style>
 </head>
 <body>
   <main>
     <p class="kicker">Living Plan</p>
     <h1>Running plans</h1>
-    <p class="lede">Plans started from the CLI. Each one is linked to a directory and that directory's git status. Open an entry to work in its site.</p>
+    <p class="lede">Plans started from the CLI. Each one is linked to a directory and that directory's git status. Open an entry to work in its site. Finished runs stay on the <a href="/dashboard">dashboard</a>.</p>
+    <p class="actions"><a class="btn" href="/dashboard">Dashboard</a></p>
     <p class="status" id="status">Loading…</p>
     <ul id="list"></ul>
   </main>
@@ -86,6 +104,7 @@ export function renderRegistryPage(): string {
     (() => {
       const status = document.getElementById('status');
       const list = document.getElementById('list');
+      let revealed = false;
 
       function text(tag, className, value) {
         const node = document.createElement(tag);
@@ -160,8 +179,13 @@ export function renderRegistryPage(): string {
             actions.append(open);
             card.append(actions);
           }
+          if (!revealed) {
+            card.classList.add('enter');
+            card.style.animationDelay = Math.min(list.children.length, 8) * 50 + 'ms';
+          }
           list.append(card);
         }
+        revealed = true;
       }
 
       async function refresh() {
@@ -175,6 +199,36 @@ export function renderRegistryPage(): string {
         }
       }
 
+      function followInternalPage(event) {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        const target = event.target;
+        const link = target && target.closest ? target.closest('a[href]') : null;
+        if (!link || link.target === '_blank' || link.hasAttribute('download')) return;
+        let url;
+        try {
+          url = new URL(link.href, window.location.href);
+        } catch (error) {
+          return;
+        }
+        if (url.origin !== window.location.origin) return;
+        if (url.pathname !== '/' && url.pathname !== '/dashboard') return;
+        if (url.pathname === window.location.pathname) return;
+        event.preventDefault();
+        const main = document.querySelector('main');
+        const leaving = main.animate(
+          [
+            { opacity: 1, transform: 'translateY(0px)' },
+            { opacity: 0, transform: 'translateY(24px)' },
+          ],
+          { duration: 460, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' },
+        );
+        leaving.finished.then(() => {
+          window.location.assign(url.href);
+        });
+      }
+
+      document.addEventListener('click', followInternalPage);
       refresh();
       setInterval(refresh, 4000);
     })();

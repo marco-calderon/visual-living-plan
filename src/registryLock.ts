@@ -25,6 +25,11 @@ export function registryDatabasePath(home: string): string {
   return join(home, 'registry.sqlite')
 }
 
+/** Copies of plan files, one per run, kept beside the registry database. */
+export function registryPlansDir(home: string): string {
+  return join(home, 'plans')
+}
+
 export function registryStartingPath(home: string): string {
   return join(home, 'registry.starting')
 }
