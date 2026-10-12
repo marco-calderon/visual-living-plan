@@ -27,7 +27,7 @@ The service and the private server are Elysia apps. Route handlers live in `src/
 | `src/planRoutes.ts` | Elysia routes for that plan |
 | `src/planHost.ts` | Session map, registration, idle close, git cache |
 | `src/registryService.ts` | The long-lived Elysia app and its routes |
-| `src/registryStore.ts` | SQLite. Process rows, `plan_sessions`, and `plan_runs` |
+| `src/registryStore.ts` | SQLite through `node:sqlite`. Process rows, `plan_sessions`, and `plan_runs`. Finished runs are filtered by `started_at` and `ended_at` |
 | `src/server.ts` | Private one-plan Elysia app |
 | `src/httpServer.ts` | `Bun.serve` binding for an Elysia app |
 | `src/agentEvents.ts` | Client-side SSE reader. Use `planApiUrl` so `/plans/<id>/` URLs resolve correctly |

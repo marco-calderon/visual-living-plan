@@ -116,7 +116,7 @@ flowchart LR
   Summary --> Page["/dashboard"]
 ```
 
-A row overlaps the selected window when it started before the end of the window and is still running, or it ended inside the window. Completion counts phases marked done plus interactions that already have an answer (`src/planProgress.ts`). Files modified is the git change count captured with the run. The plan markdown copied into the registry home is linked from the table at `/archive/<id>`.
+A row overlaps the selected window when it started before the end of the window and is still running, or it ended inside the window. Finished runs are stored in `plan_runs` with `started_at` and `ended_at`, and `GET /api/dashboard` selects that window in SQLite before parsing the payload. Open sessions and live private processes stay in memory and are still filtered with the same overlap rule. Completion counts phases marked done plus interactions that already have an answer (`src/planProgress.ts`). Files modified is the git change count captured with the run. The plan markdown copied into the registry home is linked from the table at `/archive/<id>`.
 
 ## What lives where
 
