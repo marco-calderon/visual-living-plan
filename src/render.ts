@@ -491,6 +491,9 @@ body::before {
   position: relative;
   z-index: 1;
 }
+body.has-review-bar .shell {
+  padding-bottom: 14rem;
+}
 
 .hero {
   margin-bottom: 2rem;
@@ -953,34 +956,66 @@ textarea { min-height: 88px; resize: vertical; }
 .checklist li.done { opacity: 0.72; }
 .checklist li.done .check { color: var(--ok); }
 
-.review-bar {
+.review-dock {
   position: fixed;
-  left: 50%;
-  bottom: 1rem;
-  transform: translateX(-50%);
-  width: min(920px, calc(100% - 2rem));
-  display: flex;
-  gap: 0.6rem;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 0.85rem;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--panel-strong);
-  color: var(--ink);
-  backdrop-filter: blur(14px);
-  box-shadow: var(--shadow);
+  inset-inline: 0;
+  bottom: 0;
   z-index: 5;
+  display: flex;
+  justify-content: center;
+  padding: 2.75rem 1rem 1rem;
+  pointer-events: none;
+  background: linear-gradient(to top, var(--paper) 0%, var(--paper) 58%, transparent 100%);
   animation: rise 0.5s ease both;
 }
-.review-bar .actions { display: flex; gap: 0.45rem; flex-wrap: wrap; }
+.review-bar {
+  pointer-events: auto;
+  width: min(920px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  padding: 0.7rem 0.7rem 0.6rem;
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+.review-bar:focus-within {
+  border-color: var(--accent-hover-border);
+  box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow);
+}
+.review-bar .actions {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+}
+.review-bar .actions .btn { flex: 0 0 auto; }
 .review-note {
-  flex: 1;
-  min-width: 140px;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
   border: 0;
+  border-radius: 12px;
   background: transparent;
-  padding: 0.4rem 0.6rem;
+  box-shadow: none;
+  resize: none;
+  overflow-y: auto;
+  min-height: 2.75rem;
+  max-height: 9rem;
+  padding: 0.35rem 0.45rem 0.15rem;
+  line-height: 1.45;
   font: inherit;
+}
+.review-note:focus { outline: none; }
+.review-note::placeholder { color: var(--muted); }
+:root[data-theme="dark"] .review-bar {
+  background: #172420;
+  border-color: rgba(232, 243, 238, 0.16);
 }
 
 .toast {
@@ -1023,9 +1058,9 @@ textarea { min-height: 88px; resize: vertical; }
 }
 
 @media (max-width: 720px) {
-  .review-bar { border-radius: 18px; flex-direction: column; align-items: stretch; }
-  .review-bar .actions { justify-content: stretch; }
-  .review-bar .actions .btn { flex: 1; }
+  .review-dock { padding-inline: 0.75rem; }
+  .review-bar { border-radius: 18px; }
+  body.has-review-bar .shell { padding-bottom: 16rem; }
 }
 `
 
@@ -1295,6 +1330,16 @@ function clientScript(
   });
 
   if (mode === 'review') {
+    const reviewNote = document.getElementById('review-note');
+    if (reviewNote instanceof HTMLTextAreaElement) {
+      const fitReviewNote = () => {
+        reviewNote.style.height = 'auto';
+        const next = Math.min(reviewNote.scrollHeight, 144);
+        reviewNote.style.height = next + 'px';
+      };
+      reviewNote.addEventListener('input', fitReviewNote);
+      fitReviewNote();
+    }
     document.querySelectorAll('[data-review-decision]').forEach((button) => {
       button.addEventListener('click', async () => {
         const decision = button.getAttribute('data-review-decision');
@@ -1370,6 +1415,7 @@ export function renderPlanPage(options: {
   const selfId = options.selfId
 
   const locked = Boolean(execution.active)
+  const showReviewBar = mode === 'review' && !reviewDecision && !locked
   const planned = planToExpectedGraph(plan)
   const workflowState = locked ? 'live' : planned ? 'planned' : 'idle'
   const body = plan.blocks
@@ -1425,7 +1471,7 @@ export function renderPlanPage(options: {
   ${accentStyleTag(theme.accent)}
   ${assetCss}
 </head>
-<body>
+<body class="${showReviewBar ? 'has-review-bar' : ''}">
   ${processesPanelMarkup(selfId)}
   <div class="shell">
     <header class="hero">
@@ -1487,13 +1533,15 @@ export function renderPlanPage(options: {
     </section>
   </div>
   ${
-    mode === 'review' && !reviewDecision && !locked
-      ? `<div class="review-bar">
-          <input id="review-note" class="review-note" placeholder="Optional overall note for the agent" />
-          <div class="actions">
-            <button class="btn danger" data-review-decision="deny">Deny</button>
-            <button class="btn" data-review-decision="iterate">Iterate</button>
-            <button class="btn primary" data-review-decision="approve">Approve</button>
+    showReviewBar
+      ? `<div class="review-dock">
+          <div class="review-bar" role="region" aria-label="Review this plan">
+            <textarea id="review-note" class="review-note" rows="2" placeholder="Optional overall note for the agent" aria-label="Optional overall note for the agent"></textarea>
+            <div class="actions">
+              <button class="btn danger" data-review-decision="deny">Deny</button>
+              <button class="btn" data-review-decision="iterate">Iterate</button>
+              <button class="btn primary" data-review-decision="approve">Approve</button>
+            </div>
           </div>
         </div>`
       : ''
