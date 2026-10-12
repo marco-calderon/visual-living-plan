@@ -25,7 +25,7 @@ The command prints a URL and stays attached to that plan. Open the URL. Edit the
 
 ### Running plans
 
-One plan service on `127.0.0.1:9477` hosts every plan. `serve` registers a plan, prints `http://127.0.0.1:9477/plans/<id>/`, and listens for that plan's submissions. Stopping the command leaves the page up. Sessions are stored in SQLite (`~/.visual-living-plan/registry.sqlite`) and come back if the service restarts. Every planner page has a **Plans** button that lists those plans: directory, git branch and dirty state, and a link that opens that plan. The service home page is the same list. **Dashboard** (`/dashboard`, or `live-plan dashboard`) summarizes the hosted plans and the ones that have finished, for the local day, week, and month. A clean close is executed. An idle drop, or a private process whose heartbeat went stale, is interrupted. The plan file is copied into `~/.visual-living-plan/plans/`.
+One plan service on `127.0.0.1:9477` hosts every plan. `serve` registers a plan, prints `http://127.0.0.1:9477/plans/<id>/`, and listens for that plan's submissions. Stopping the command leaves the page up. Sessions are stored in SQLite (`~/.visual-living-plan/registry.sqlite`) and come back if the service restarts. Every planner page has a **Plans** button that lists those plans: directory, git branch and dirty state, and a link that opens that plan. The service home page is the same list. **Dashboard** (`/dashboard`, or `live-plan dashboard`) summarizes the hosted plans and the ones that have finished, for the local day, week, and month. `live-plan tui` is that same dashboard in the terminal. It reads `GET /api/dashboard?period=day|week|month` (day by default), lists active plans first, and accepts clicks and the keyboard. A clean close is executed. An idle drop, or a private process whose heartbeat went stale, is interrupted. The plan file is copied into `~/.visual-living-plan/plans/`.
 
 A choice, form, question, approval, or review is pushed to every client listening on that plan, and to no other plan. `serve` is one of those clients. `events` is another. `wait` uses the same stream and returns when one id is answered.
 
@@ -157,7 +157,7 @@ live-plan theme set --accent #0369a1 --url <printed-plan-url>
 - `GET /api/agent-events` — agent SSE. On the shared service this requires the plan token or the service token. The first event is `hello` (current responses and review). Later events push each submission.
 - `GET /api/processes` — plans hosted by the service (directory, git status, site URL). `status` is `ok`, `offline`, or `disabled`
 - `GET /dashboard` — registry page for running and executed plans: day, week, and month summaries, plus a table (status, completion, folder, files modified, start time, duration)
-- `GET /api/dashboard?period=day|week|month` — the same summary and rows as JSON
+- `GET /api/dashboard?period=day|week|month` — the same summary and rows as JSON. `live-plan tui` reads this route.
 - `GET /api/plans` — every stored plan run, including executed and interrupted
 - `GET /api/theme` / `PUT /api/theme` — read or set accent color (`{ "accent": "#hex" }`), persisted to the theme config file
 - `POST /api/interactions/:id` — submit an interaction response (409 while execution is live)

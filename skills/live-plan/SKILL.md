@@ -73,6 +73,7 @@ Replace the bunx prefix with `live-plan` when the command is installed.
 | `execution start\|push\|stop --url <url>` | Turn the live workflow overlay on, update it, or turn it off. |
 | `processes` | List plans hosted by the service (directory, git status, site URL). |
 | `dashboard` | Open the registry dashboard for running and executed plans. |
+| `tui` | Same dashboard in the terminal (`--period day`, `week`, or `month`). Active plans are listed first. |
 | `theme get\|set` | Read or change the accent color. Use `--url` while serving, or `--plan` / `--config` to edit `live-plan.config.json`. |
 
 `--timeout` defaults to 4 hours. Always pass a unit (`30s`, `45m`, `4h`). A bare number is milliseconds. `--port 0` picks a free port. `--host` defaults to `127.0.0.1`. `--no-open` is only for headless runs. `--detach` on `serve` registers and returns; omit it to print that plan's submissions in the same command. `--graph` is the portable execution payload; `--scene` is optional and adapter-specific. Accent color lives in `live-plan.config.json` beside the plan (`theme.accent`). Humans can also pick it on the Settings tab.
