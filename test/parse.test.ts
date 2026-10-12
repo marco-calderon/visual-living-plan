@@ -77,6 +77,8 @@ test('the plan page loads the mermaid client only when a diagram is present', ()
     cssHrefs: [],
     mermaidHref: '/client/assets/mermaid.js',
     mermaidCssHrefs: ['/client/assets/mermaid.css'],
+    highlightHref: '/client/assets/highlight.js',
+    highlightCssHrefs: ['/client/assets/highlight.css'],
   }
   const withDiagram = parsePlan('```mermaid\nflowchart LR\n  A --> B\n```\n')
   const withoutDiagram = parsePlan('# Notes\n\nNo diagram here.\n')
@@ -106,6 +108,90 @@ test('the plan page loads the mermaid client only when a diagram is present', ()
 
   assert.match(diagramHtml, /src="\/client\/assets\/mermaid\.js"/)
   assert.match(diagramHtml, /href="\/client\/assets\/mermaid\.css"/)
+  assert.doesNotMatch(diagramHtml, /highlight\.js/)
   assert.doesNotMatch(plainHtml, /mermaid\.js/)
   assert.doesNotMatch(plainHtml, /mermaid\.css/)
+  assert.doesNotMatch(plainHtml, /highlight\.js/)
+})
+
+test('a code fence can start line numbers at a chosen line', () => {
+  const plan = parsePlan('```ts start=40\nconst n = 1\n```\n')
+  const markdown = plan.blocks.find((block) => block.type === 'markdown')
+  assert.ok(markdown && markdown.type === 'markdown')
+  assert.match(markdown.html, /data-lang="ts"/)
+  assert.match(markdown.html, /data-start="40"/)
+  assert.doesNotMatch(markdown.html, /start=40/)
+
+  const plain = parsePlan('```ts\nconst n = 1\n```\n')
+  const plainMarkdown = plain.blocks.find((block) => block.type === 'markdown')
+  assert.ok(plainMarkdown && plainMarkdown.type === 'markdown')
+  assert.doesNotMatch(plainMarkdown.html, /data-start=/)
+})
+
+test('a diff fence is marked for hunk rendering', () => {
+  const plan = parsePlan('```diff\n--- a/gate.ts\n+++ b/gate.ts\n@@ -1 +1 @@\n-a\n+b\n```\n')
+  const markdown = plan.blocks.find((block) => block.type === 'markdown')
+  assert.ok(markdown && markdown.type === 'markdown')
+  assert.match(markdown.html, /class="code-block"/)
+  assert.match(markdown.html, /data-diff="true"/)
+  assert.doesNotMatch(markdown.html, /data-lang=/)
+  assert.doesNotMatch(markdown.html, /data-start=/)
+
+  const typed = parsePlan('```ts diff\n@@ -1 +1 @@\n-a\n+b\n```\n')
+  const typedMarkdown = typed.blocks.find((block) => block.type === 'markdown')
+  assert.ok(typedMarkdown && typedMarkdown.type === 'markdown')
+  assert.match(typedMarkdown.html, /data-lang="ts"/)
+  assert.match(typedMarkdown.html, /data-diff="true"/)
+
+  const patch = parsePlan('```patch start=40\n@@ -1 +1 @@\n-a\n+b\n```\n')
+  const patchMarkdown = patch.blocks.find((block) => block.type === 'markdown')
+  assert.ok(patchMarkdown && patchMarkdown.type === 'markdown')
+  assert.match(patchMarkdown.html, /data-diff="true"/)
+  assert.doesNotMatch(patchMarkdown.html, /data-start=/)
+  assert.doesNotMatch(patchMarkdown.html, /data-lang=/)
+})
+
+test('the plan page loads the highlighter only when a code block is present', () => {
+  const theme = themePayload(defaultThemeConfig(), 'live-plan.config.json')
+  const clientAssets = {
+    jsHref: '/client/assets/main.js',
+    cssHrefs: [],
+    mermaidHref: '/client/assets/mermaid.js',
+    mermaidCssHrefs: [],
+    highlightHref: '/client/assets/highlight.js',
+    highlightCssHrefs: ['/client/assets/highlight.css'],
+  }
+  const withCode = parsePlan('```ts\nconst n = 1\n```\n')
+  const withoutCode = parsePlan('# Notes\n\nPlain prose.\n')
+
+  const codeHtml = renderPlanPage({
+    plan: withCode,
+    mode: 'watch',
+    responses: {},
+    diffs: [],
+    iteration: 1,
+    pendingInteractionIds: [],
+    execution: createIdleExecutionState(),
+    clientAssets,
+    theme,
+  })
+  const plainHtml = renderPlanPage({
+    plan: withoutCode,
+    mode: 'watch',
+    responses: {},
+    diffs: [],
+    iteration: 1,
+    pendingInteractionIds: [],
+    execution: createIdleExecutionState(),
+    clientAssets,
+    theme,
+  })
+
+  assert.match(codeHtml, /class="code-block"/)
+  assert.match(codeHtml, /data-lang="ts"/)
+  assert.match(codeHtml, /src="\/client\/assets\/highlight\.js"/)
+  assert.match(codeHtml, /href="\/client\/assets\/highlight\.css"/)
+  assert.doesNotMatch(codeHtml, /mermaid\.js/)
+  assert.doesNotMatch(plainHtml, /highlight\.js/)
+  assert.doesNotMatch(plainHtml, /highlight\.css/)
 })

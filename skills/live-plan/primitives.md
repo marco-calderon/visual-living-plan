@@ -1,6 +1,6 @@
 # Live Plan primitives
 
-Fenced blocks are YAML. The fence language is the block type (`phase`, `callout`, `choice`, `form`, `questions`, `approve`, `checklist`, `workflow`). Anything outside those fences is markdown. A mermaid fence in that markdown draws a figure in the plan text.
+Fenced blocks are YAML. The fence language is the block type (`phase`, `callout`, `choice`, `form`, `questions`, `approve`, `checklist`, `workflow`). Anything outside those fences is markdown. A mermaid fence in that markdown draws a figure. Any other fence is highlighted source.
 
 Every plan includes one `workflow` block. That block is the execution path.
 
@@ -214,7 +214,102 @@ body: |
 ```
 ````
 
-Other fenced code stays as code. A diagram that cannot be parsed stays as source with a short error under it.
+A diagram that cannot be parsed stays as source with a short error under it.
+
+## code
+
+Highlighted source. Use this when the human should read the code as it stands. Use [diff](#diff) when they should see a change.
+
+The fence language is the syntax (`ts`, `python`, `bash`, `json`, and the rest). `mermaid` and the YAML block types are not code.
+
+Put the fence in the plan markdown:
+
+````markdown
+```ts
+if (!flag.enabled) return next()
+```
+````
+
+The same fence works in a phase, callout, or approve `body`. Indent it under `body: |` so the inner fence does not close the outer block:
+
+````markdown
+```phase
+id: implement
+title: Implement gateway middleware
+status: active
+body: |
+  The limiter, as it stands:
+
+  ```ts
+  if (!flag.enabled) return next()
+  ```
+```
+````
+
+A fence with no language still renders as code, without a language label. An unknown language stays readable as plain text. Every block shows line numbers, starting at 1, so a note can point at a line.
+
+To number a slice of a larger file, add `start=` after the language. The first line of the fence uses that number, and the following lines count up from there. Omit it to start at 1. Do not put `start=` on a diff.
+
+````markdown
+```ts start=40
+export function gate(req: Request) {
+  return reply.code(429).send()
+}
+```
+````
+
+That block shows lines 40 and 41.
+
+## diff
+
+A change rendered as hunks. Use this when the human should see what changed or what you propose to change. Do not paste the whole file for that.
+
+Fence language is `diff` or `patch`. `start=` does not apply. The `@@` header is the line numbers.
+
+````markdown
+```diff
+--- a/gate.ts
++++ b/gate.ts
+@@ -3,1 +3,3 @@
+-  if (await limiter.over(req)) return reply.code(429).send()
++  if (await limiter.over(req)) {
++    return reply.code(429).send()
++  }
+```
+````
+
+That hunk shows one removed line at line 3 and three added lines at lines 3–5. The card header reads `gate.ts`.
+
+Count the body lines so the `@@` header matches:
+
+- A line starting with `-` counts only toward the old count.
+- A line starting with `+` counts only toward the new count.
+- A line starting with a space is context and counts toward both.
+
+````markdown
+```diff
+--- a/gate.ts
++++ b/gate.ts
+@@ -2,2 +2,2 @@
+   if (!flag.enabled) return next()
+-  return next()
++  return reply.code(429).send()
+```
+````
+
+Old count is 2 (the context line plus the deletion). New count is 2 (the context line plus the addition). The context line begins with a space.
+
+A hunk with no `---` / `+++` headers still renders. Put a language before `diff` so the hunk is highlighted as that language:
+
+````markdown
+```ts diff
+@@ -3,1 +3,1 @@
+-  return next()
++  return reply.code(429).send()
+```
+````
+
+Indent the fence under `body: |` the same way as a source fence.
 
 ## review result
 

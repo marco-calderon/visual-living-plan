@@ -4,8 +4,9 @@ description: >-
   Drive a living visual plan with the live-plan CLI so a human can watch phase
   status and answer choices, forms, questions, and approval gates in a browser.
   Use when work has multiple steps, needs a human decision before continuing,
-  needs Approve/Deny/Iterate on a plan, or should show the execution path
-  before a run and stream it live. Invoke with `bunx visual-living-plan` unless the `live-plan`
+  needs Approve/Deny/Iterate on a plan, should show highlighted source or a
+  diff hunk in the plan, or should show the execution path before a run and
+  stream it live. Invoke with `bunx visual-living-plan` unless the `live-plan`
   command is already installed. The CLI runs on Bun.
   Skip for a one-step change or when the user asked for prose only.
 ---
@@ -33,6 +34,7 @@ Do not call this repo's `npm run` scripts from a consuming project. Those are fo
 - Block on one choice, form, question set, or approve/deny gate.
 - Get an explicit Approve / Deny / Iterate on the plan.
 - Show the expected workflow before a run, then stream the live diagram while you implement.
+- Show source the human should read, or a hunk of what changed, inside the plan.
 
 Skip when the change is a single obvious step, the user asked for plain prose, or no one can open the URL.
 
@@ -109,3 +111,29 @@ Copy-paste schemas and response examples: [primitives.md](primitives.md).
 - Phase and callout bodies support headings, lists, fenced code, bold, italic, and inline code.
 - A mermaid fence draws a figure in the plan text. Put it in the plan markdown, or indent it inside a phase, callout, or approve `body`.
 - Include one `workflow` block. `check` fails when that block is missing.
+
+## Showing code
+
+Put the fence in the plan markdown, or indent it under a phase, callout, or approve `body: |`. The inner fence must be indented so it does not close the YAML block. `mermaid` and the YAML block types (`phase`, `callout`, `choice`, and the rest) are not code.
+
+Use a **language fence** when the human should read the code as it stands. Name the syntax (`ts`, `python`, `bash`, `json`). The block is highlighted and numbered from 1. Add `start=40` after the language when the snippet is a slice of a larger file and a note should point at those real lines. `start=` applies only to source, not to a diff.
+
+Use a **diff fence** when the human should see what changed or what you propose to change. Do not paste the whole file for that. Fence language is `diff` or `patch`.
+
+```diff
+--- a/gate.ts
++++ b/gate.ts
+@@ -3,1 +3,3 @@
+-  if (await limiter.over(req)) return reply.code(429).send()
++  if (await limiter.over(req)) {
++    return reply.code(429).send()
++  }
+```
+
+- `---` and `+++` name the file. The card header uses that name.
+- `@@ -oldStart,oldCount +newStart,newCount @@` sets the line numbers.
+- A line that starts with `-` counts only toward `oldCount`. A line that starts with `+` counts only toward `newCount`. A line that starts with a space is context and counts toward both.
+- Those counts must match the lines you write.
+- A hunk with no file headers still renders. Put the language first (`ts diff`) so that hunk is highlighted as that language.
+
+Copy-paste shapes are in [primitives.md](primitives.md).

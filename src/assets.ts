@@ -17,6 +17,8 @@ export type ClientAssets = {
   cssHrefs: string[]
   mermaidHref: string | null
   mermaidCssHrefs: string[]
+  highlightHref: string | null
+  highlightCssHrefs: string[]
 }
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -36,15 +38,20 @@ export async function loadClientAssets(): Promise<ClientAssets | null> {
     const manifest = JSON.parse(raw) as ViteManifest
     const entry =
       manifestEntry(manifest, ['client/main.tsx', 'main']) ??
-      Object.values(manifest).find((item) => item.isEntry && item.name !== 'mermaid')
+      Object.values(manifest).find(
+        (item) => item.isEntry && item.name !== 'mermaid' && item.name !== 'highlight',
+      )
 
     if (!entry) return null
     const mermaid = manifestEntry(manifest, ['client/mermaid.ts', 'mermaid'])
+    const highlight = manifestEntry(manifest, ['client/highlight.tsx', 'highlight'])
     return {
       jsHref: `/client/${entry.file}`,
       cssHrefs: (entry.css ?? []).map((file) => `/client/${file}`),
       mermaidHref: mermaid ? `/client/${mermaid.file}` : null,
       mermaidCssHrefs: (mermaid?.css ?? []).map((file) => `/client/${file}`),
+      highlightHref: highlight ? `/client/${highlight.file}` : null,
+      highlightCssHrefs: (highlight?.css ?? []).map((file) => `/client/${file}`),
     }
   } catch {
     return null

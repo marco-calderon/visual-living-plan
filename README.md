@@ -107,6 +107,7 @@ Visual builders optimize for humans drawing graphs. Living Plan optimizes for **
 | Converge on a plan | review bar + iteration diffs |
 | Show the execution path | required `workflow` block, drawn on the Workflow tab before the run |
 | Show a figure in the plan text | mermaid fence in the plan markdown or a block body |
+| Show source in the plan text | fenced code block with a language, highlighted in the plan |
 | Show live execution | Same Workflow tab, React Flow canvas via `/api/execution` |
 | Local + cloud | same file + HTTP server URL |
 
@@ -122,6 +123,8 @@ YAML fenced blocks:
 - `checklist` — definition of done
 - `workflow` — required execution path (`nodes` with `id`, `label`, `ref`, optional `status` / `x` / `y`, and `edges` with `from` / `to`, optional `label`, `fromSide`, `toSide`). `ref` is the plan block id a click jumps to. The Workflow tab draws this block before the run, and the live run follows it.
 - mermaid — a figure in the plan text. Use a fence whose language is `mermaid`, in the plan markdown or indented inside a phase, callout, or approve `body`.
+- code — a highlighted source block with line numbers, starting at 1. Add `start=40` after the language to number the snippet from another line. Use any fence language other than the YAML block types and `mermaid` (`ts`, `python`, `bash`, and so on), in the plan markdown or indented inside a phase, callout, or approve `body`. A fence with no language still renders as code.
+- diff — a unified diff rendered as hunks. Use a `diff` or `patch` fence, or add `diff` after the language (`ts diff`). Include `---` / `+++` file headers and `@@` hunk ranges; those ranges are the line numbers. A hunk without file headers still renders.
 
 ## Execution canvas adapters
 

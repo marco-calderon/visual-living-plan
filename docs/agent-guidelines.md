@@ -125,6 +125,8 @@ Authoring rules:
 - Add an interaction only when you will block on the answer.
 - Prose is connective. Status, risks, and decisions belong in `phase` and `callout` blocks.
 - Phase and callout `body` is a small markdown subset: headings, lists, fenced code, `**bold**`, `*italic*`, and `` `code` ``.
+- Show source the human should read with a language fence (`ts`, `python`, `bash`). It is highlighted and numbered from 1. Add `start=40` after the language when the snippet is a slice of a larger file. Indent that fence inside a YAML `body: |` block so it does not close the outer `phase`, `callout`, or `approve` fence.
+- Show a change with a `diff` or `patch` fence, not the whole file. Write `---` / `+++` file headers and a `@@ -oldStart,oldCount +newStart,newCount @@` hunk. A `-` line counts only as old, a `+` line only as new, and a leading space counts as both. Those counts must match. A hunk without file headers still renders; `ts diff` highlights that hunk as TypeScript. `start=` does not apply to a diff.
 - A mermaid fence draws a figure in the plan text. Indent that fence inside a YAML `body: |` block so it does not close the outer `phase`, `callout`, or `approve` fence.
 - Include one `workflow` block. `check` fails when it is missing.
 

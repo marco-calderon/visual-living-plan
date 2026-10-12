@@ -95,6 +95,28 @@ title: Implement gateway middleware
 status: active
 body: |
   Wire the limiter into the request path and add a feature flag defaulting to off.
+
+  ```ts
+  export function gate(req: Request, next: () => void) {
+    if (!flag.enabled) return next()
+    if (await limiter.over(req)) {
+      return reply.code(429).send()
+    }
+    return next()
+  }
+  ```
+
+  The 429 branch, as a hunk:
+
+  ```diff
+  --- a/gate.ts
+  +++ b/gate.ts
+  @@ -3,1 +3,3 @@
+  -  if (await limiter.over(req)) return reply.code(429).send()
+  +  if (await limiter.over(req)) {
+  +    return reply.code(429).send()
+  +  }
+  ```
 ```
 
 ```phase

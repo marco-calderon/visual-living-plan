@@ -15,6 +15,7 @@ export default defineConfig({
       input: {
         main: resolve(rootDir, 'client/main.tsx'),
         mermaid: resolve(rootDir, 'client/mermaid.ts'),
+        highlight: resolve(rootDir, 'client/highlight.tsx'),
       },
       output: {
         entryFileNames: 'assets/[name]-[hash].js',

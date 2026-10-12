@@ -770,20 +770,33 @@ body.has-review-bar .shell {
 .rich ul, .rich ol { margin: 0 0 0.75rem; padding-left: 1.2rem; }
 .rich code, .code-block code {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
-  font-size: 0.9em;
 }
-.rich code {
+.rich :not(pre) > code {
+  font-size: 0.9em;
   background: var(--code-inline-bg);
   padding: 0.1rem 0.35rem;
   border-radius: 0.35rem;
 }
+.code-block code {
+  font-size: 0.9em;
+}
 .code-block {
-  margin: 0;
+  margin: 0 0 0.85rem;
   overflow: auto;
   padding: 0.9rem 1rem;
   border-radius: 12px;
   background: var(--code-block-bg);
   color: var(--code-block-fg);
+}
+.code-host {
+  margin: 0 0 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.rich > .code-host:last-child,
+.rich > .code-block:last-child {
+  margin-bottom: 0;
 }
 .mermaid-diagram {
   margin: 0 0 0.85rem;
@@ -1425,9 +1438,11 @@ export function renderPlanPage(options: {
 
   const changed = diffs.filter((diff) => diff.status !== 'unchanged').length
   const hasMermaid = body.includes('class="mermaid-diagram"')
+  const hasCode = body.includes('class="code-block"')
   const assetCss = [
     ...(clientAssets?.cssHrefs ?? []),
     ...(hasMermaid ? (clientAssets?.mermaidCssHrefs ?? []) : []),
+    ...(hasCode ? (clientAssets?.highlightCssHrefs ?? []) : []),
   ]
     .map((href) => `<link rel="stylesheet" href="${escapeHtml(href)}" />`)
     .join('\n')
@@ -1437,6 +1452,10 @@ export function renderPlanPage(options: {
   const mermaidJs =
     hasMermaid && clientAssets?.mermaidHref
       ? `<script type="module" src="${escapeHtml(clientAssets.mermaidHref)}"></script>`
+      : ''
+  const highlightJs =
+    hasCode && clientAssets?.highlightHref
+      ? `<script type="module" src="${escapeHtml(clientAssets.highlightHref)}"></script>`
       : ''
   const executionFallback = clientAssets
     ? ''
@@ -1551,6 +1570,7 @@ export function renderPlanPage(options: {
   <script>${clientScript(mode, locked, theme, basePath)}
 ${processesPanelScript()}</script>
   ${mermaidJs}
+  ${highlightJs}
 </body>
 </html>`
 }

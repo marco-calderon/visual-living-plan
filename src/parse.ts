@@ -90,15 +90,15 @@ function markdownToHtml(source: string): string {
         i += 1
       }
       i += 1
-      const langToken = lang.split(/\s+/)[0]?.toLowerCase() ?? ''
+      const fence = fenceParts(lang)
       const diagram = code.join('\n')
-      if (langToken === 'mermaid' && diagram.trim()) {
+      if (fence.language === 'mermaid' && !fence.diff && diagram.trim()) {
         parts.push(
           `<figure class="mermaid-diagram" role="img" aria-label="Diagram"><pre class="mermaid">${escapeHtml(diagram)}</pre></figure>`,
         )
       } else {
         parts.push(
-          `<pre class="code-block"${lang ? ` data-lang="${escapeHtml(lang)}"` : ''}><code>${escapeHtml(diagram)}</code></pre>`,
+          `<pre class="code-block"${codeFenceAttrs(lang)}><code>${escapeHtml(diagram)}</code></pre>`,
         )
       }
       continue
@@ -113,6 +113,36 @@ function markdownToHtml(source: string): string {
   }
 
   return parts.join('\n')
+}
+
+function fenceParts(info: string): { language: string; diff: boolean; start: number } {
+  let language = ''
+  let diff = false
+  let start = 0
+  for (const raw of info.split(/\s+/)) {
+    if (!raw) continue
+    const token = raw.toLowerCase()
+    if (token === 'diff' || token === 'patch') {
+      diff = true
+      continue
+    }
+    const startMatch = /^start=(\d+)$/i.exec(raw)
+    if (startMatch) {
+      const value = Number(startMatch[1])
+      if (value >= 1) start = value
+      continue
+    }
+    if (!language) language = token
+  }
+  return { language, diff, start }
+}
+
+function codeFenceAttrs(info: string): string {
+  const { language, diff, start } = fenceParts(info)
+  const langAttr = language ? ` data-lang="${escapeHtml(language)}"` : ''
+  const startAttr = !diff && start >= 1 ? ` data-start="${start}"` : ''
+  const diffAttr = diff ? ` data-diff="true"` : ''
+  return `${langAttr}${startAttr}${diffAttr}`
 }
 
 function isBlockStart(line: string): boolean {
