@@ -275,3 +275,92 @@ test('opening the store reads finished runs stored as JSON payloads', async () =
     await rm(home, { recursive: true, force: true })
   }
 })
+
+test('finished runs are selected by the period window in sqlite', async () => {
+  const store = await openRegistryStore(':memory:')
+  const day = 86_400_000
+  const todayStart = Date.UTC(2026, 9, 12)
+  try {
+    store.saveRun(
+      plan({
+        id: 'before',
+        startedAt: todayStart - 2 * day,
+        endedAt: todayStart - day,
+        heartbeatAt: todayStart - day,
+      }),
+    )
+    store.saveRun(
+      plan({
+        id: 'spans',
+        startedAt: todayStart - day,
+        endedAt: todayStart + 3_600_000,
+        heartbeatAt: todayStart + 3_600_000,
+      }),
+    )
+    store.saveRun(
+      plan({
+        id: 'inside',
+        startedAt: todayStart + 1_000,
+        endedAt: todayStart + 2_000,
+        heartbeatAt: todayStart + 2_000,
+        status: 'interrupted',
+      }),
+    )
+    store.saveRun(
+      plan({
+        id: 'after',
+        startedAt: todayStart + day,
+        endedAt: todayStart + day + 1_000,
+        heartbeatAt: todayStart + day + 1_000,
+      }),
+    )
+
+    const window = { from: todayStart, to: todayStart + day - 1 }
+    assert.deepEqual(
+      store.listRuns(window).map((entry) => entry.id).sort(),
+      ['inside', 'spans'],
+    )
+    assert.equal(store.listRuns().length, 4)
+  } finally {
+    store.close()
+  }
+})
+
+test('opening the store backfills ended_at on legacy plan runs', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'live-plan-ended-'))
+  const dbPath = join(home, 'registry.sqlite')
+  try {
+    const legacy = new DatabaseSync(dbPath)
+    legacy.exec(`
+      CREATE TABLE plan_runs (
+        run_id TEXT PRIMARY KEY,
+        started_at INTEGER NOT NULL,
+        payload TEXT NOT NULL
+      )
+    `)
+    const insert = legacy.prepare('INSERT INTO plan_runs (run_id, started_at, payload) VALUES (?, ?, ?)')
+    insert.run(
+      'early:1000',
+      1_000,
+      JSON.stringify(plan({ id: 'early', startedAt: 1_000, endedAt: 2_000, heartbeatAt: 2_000 })),
+    )
+    insert.run(
+      'later:5000',
+      5_000,
+      JSON.stringify(plan({ id: 'later', startedAt: 5_000, endedAt: 9_000, heartbeatAt: 9_000 })),
+    )
+    legacy.close()
+
+    const store = await openRegistryStore(dbPath)
+    try {
+      assert.deepEqual(
+        store.listRuns({ from: 4_000, to: 8_000 }).map((entry) => entry.id),
+        ['later'],
+      )
+    } finally {
+      store.close()
+    }
+  } finally {
+    await rm(home, { recursive: true, force: true })
+  }
+})

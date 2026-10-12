@@ -22,12 +22,12 @@ The service and the private server are Elysia apps. Route handlers live in `src/
 
 | Path | What it is |
 |---|---|
-| `src/cli.ts` | Commands. Prefer the service. Fall back to the private server only for `--no-registry` or when the service cannot start |
+| `src/cli.ts` | Commands. Prefer the service. Fall back to the private server only for `--no-registry` or when the service cannot start. `tui` is the terminal dashboard |
 | `src/planSession.ts` | State for one plan, including both event streams |
 | `src/planRoutes.ts` | Elysia routes for that plan |
 | `src/planHost.ts` | Session map, registration, idle close, git cache |
 | `src/registryService.ts` | The long-lived Elysia app and its routes |
-| `src/registryStore.ts` | SQLite through Drizzle. `plans`, `plan_sessions`, and `plan_runs` |
+| `src/registryStore.ts` | SQLite through Drizzle. `plans`, `plan_sessions`, and `plan_runs`. Finished runs are filtered by `started_at` and `ended_at` |
 | `src/server.ts` | Private one-plan Elysia app |
 | `src/httpServer.ts` | `Bun.serve` binding for an Elysia app |
 | `src/agentEvents.ts` | Client-side SSE reader. Use `planApiUrl` so `/plans/<id>/` URLs resolve correctly |

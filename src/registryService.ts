@@ -1,7 +1,7 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { readFile, rm } from 'node:fs/promises'
 import { Elysia } from 'elysia'
-import { buildDashboard, parsePeriod } from './dashboard.js'
+import { buildDashboard, parsePeriod, periodRange } from './dashboard.js'
 import { renderDashboardPage } from './dashboardPage.js'
 import { assertBodyLimit, html, HttpError, jsonBody } from './http.js'
 import { bindElysia } from './httpServer.js'
@@ -12,7 +12,7 @@ import { readClientAsset } from './planSession.js'
 import { DEFAULT_REGISTRY_HOST, STALE_MS } from './registryConstants.js'
 import { registryDatabasePath, registryPlansDir, registryStartingPath, writeRegistryLock } from './registryLock.js'
 import { renderRegistryPage } from './registryPage.js'
-import { openRegistryStore, type RegistryStore } from './registryStore.js'
+import { openRegistryStore, type RegistryStore, type RunWindow } from './registryStore.js'
 import type { GitSnapshot, PlanRecord, ProcessRecord, ReviewOutcome } from './processRecord.js'
 import { emptyGitSnapshot, finishedPlan, runningPlan } from './processRecord.js'
 
@@ -193,8 +193,12 @@ export async function startRegistryServer(options: {
     onFinish: remember,
   })
 
-  function dashboardPlans(): PlanRecord[] {
-    return [...planHost.dashboardRecords(), ...store.list().map((record) => runningPlan(record)), ...store.listRuns()]
+  function dashboardPlans(window?: RunWindow): PlanRecord[] {
+    return [
+      ...planHost.dashboardRecords(),
+      ...store.list().map((record) => runningPlan(record)),
+      ...store.listRuns(window),
+    ]
   }
 
   const app = registerPlanRoutes(
@@ -222,7 +226,9 @@ export async function startRegistryServer(options: {
           return { error: 'period must be day, week, or month' }
         }
         store.prune({ staleMs })
-        return buildDashboard(dashboardPlans(), period)
+        const now = Date.now()
+        const range = periodRange(period, now)
+        return buildDashboard(dashboardPlans(range), period, now)
       })
       .get('/api/plans', () => {
         store.prune({ staleMs })

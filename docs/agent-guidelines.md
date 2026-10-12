@@ -65,6 +65,7 @@ Swap the `bunx visual-living-plan` prefix for `live-plan` when that command is o
 | `execution start\|push\|stop --url <url>` | Drive the live workflow overlay. `start` turns it on, `push` updates it, `stop` turns it off and unlocks plan forms. | `0` ok, `1` usage or HTTP error |
 | `processes` | List plans hosted by the service, including directory and git status. `ps` is the same command. | `0` |
 | `dashboard` | Open the registry dashboard of running and executed plans (day, week, and month). | `0` when the registry is up, `1` when it is not |
+| `tui` | Open that dashboard in the terminal. `--period` is `day` (default), `week`, or `month`. Active plans are listed first. Click the controls, or use Tab, arrows, `1`/`2`/`3`, `f`, `r`, `o`, and `q`. | `0` when you quit, `1` when the terminal is not interactive or the registry cannot start |
 | `theme get\|set` | Read or write the accent color. Prefer `--url` while `serve`/`review` is up; otherwise `--config` / `--plan` writes `live-plan.config.json`. | `0` ok, `1` usage or HTTP error |
 
 Flags:

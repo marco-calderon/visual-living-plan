@@ -104,7 +104,7 @@ While execution is active, plan forms and review return HTTP 409.
 
 ## Dashboard
 
-`/dashboard` summarizes running, executed, and interrupted plans for the local day, week, or month. The page is `src/dashboardPage.ts`. The grouping is `src/dashboard.ts`.
+`/dashboard` summarizes running, executed, and interrupted plans for the local day, week, or month. The page is `src/dashboardPage.ts`. The grouping is `src/dashboard.ts`. `live-plan tui` renders that same `GET /api/dashboard` payload in the terminal and lists running plans first.
 
 ```mermaid
 flowchart LR
@@ -116,7 +116,7 @@ flowchart LR
   Summary --> Page["/dashboard"]
 ```
 
-A row overlaps the selected window when it started before the end of the window and is still running, or it ended inside the window. Completion counts phases marked done plus interactions that already have an answer (`src/planProgress.ts`). Files modified is the git change count captured with the run. The plan markdown copied into the registry home is linked from the table at `/archive/<id>`.
+A row overlaps the selected window when it started before the end of the window and is still running, or it ended inside the window. Finished runs are stored in `plan_runs` with typed `started_at` and `ended_at` columns, and `GET /api/dashboard` selects that window through Drizzle. A missing `ended_at` uses `heartbeat_at`, then `started_at`. Open sessions and live private processes stay in memory and are still filtered with the same overlap rule. Completion counts phases marked done plus interactions that already have an answer (`src/planProgress.ts`). Files modified is the git change count captured with the run. The plan markdown copied into the registry home is linked from the table at `/archive/<id>`.
 
 ## What lives where
 
@@ -129,9 +129,9 @@ A row overlaps the selected window when it started before the end of the window 
 | `src/registryStore.ts` | SQLite through Drizzle: `plans` for private servers, `plan_sessions` for live hosted plans, `plan_runs` for finished runs |
 | `src/server.ts` | The private one-plan Elysia app used by `--no-registry` |
 | `src/httpServer.ts` | Binds an Elysia app with `Bun.serve` so event streams stay open |
-| `src/cli.ts` | Client of the service. `serve` registers and listens for that plan. `events`, `wait`, and `review` read the same stream. `dashboard` opens `/dashboard` |
+| `src/cli.ts` | Client of the service. `serve` registers and listens for that plan. `events`, `wait`, and `review` read the same stream. `dashboard` opens `/dashboard`. `tui` reads `/api/dashboard` |
 | `src/agentEvents.ts` | SSE reader and URL helper used by the CLI |
-| `src/dashboard.ts`, `src/dashboardPage.ts` | Period summary and the dashboard page |
+| `src/dashboard.ts`, `src/dashboardPage.ts`, `src/tui/` | Period summary, the dashboard page, and the terminal view of the same read |
 | `src/planArchive.ts` | Copy a plan file into the registry home and serve that copy |
 | `src/render.ts`, `client/` | The plan page. API calls are prefixed with the plan's base path |
 

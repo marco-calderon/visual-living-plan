@@ -51,6 +51,7 @@ Usage:
   live-plan dump <file.plan.md>
   live-plan processes
   live-plan dashboard
+  live-plan tui [--period day|week|month]
   live-plan registry [--port N] [--host HOST]
 
 Requires Bun (https://bun.sh). Invoke with \`bunx visual-living-plan <command>\` when the \`live-plan\` command is not installed. \`living-plan\` is the same binary.
@@ -66,6 +67,7 @@ Modes:
   check       Print plan summary. Exits 1 when the required workflow block is missing.
   processes   List plans hosted by the service. \`ps\` is the same command.
   dashboard   Open the control dashboard (running and executed plans, by day, week, or month).
+  tui         The same dashboard in the terminal. Day is the default. Week and month are the other periods. Active plans are listed first. Click a control, or use Tab, arrows, and the number keys.
   registry    Run the plan service in the foreground. serve and review start it on their own.
 
 Every plan includes a \`workflow\` block. That block is the execution path the Workflow tab draws.
@@ -773,6 +775,11 @@ async function main(): Promise<number> {
 
   if (command === 'dashboard') {
     return cmdDashboard(args.slice(1))
+  }
+
+  if (command === 'tui') {
+    const { runTui } = await import('./tui/runTui.js')
+    return runTui(args.slice(1), fileURLToPath(import.meta.url))
   }
 
   if (command === 'registry') {

@@ -177,4 +177,5 @@ export function migratePlanDatabase(db: PlanDatabase): void {
   migrateLegacyRuns(db)
   ensureTable(db, 'plan_runs', PLAN_RUN_COLUMNS)
   runSql(db, 'CREATE INDEX IF NOT EXISTS plan_runs_started_at_idx ON plan_runs (started_at)')
+  runSql(db, 'CREATE INDEX IF NOT EXISTS plan_runs_ended_at_idx ON plan_runs (ended_at)')
 }

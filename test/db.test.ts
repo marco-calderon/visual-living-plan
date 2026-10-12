@@ -17,7 +17,7 @@ test('drizzle tables match the migration column lists', () => {
     ['plans_started_at_idx', 'plans_status_idx'],
   )
   assert.deepEqual(
-    getTableConfig(planRuns).indexes.map((entry) => entry.config.name),
-    ['plan_runs_started_at_idx'],
+    getTableConfig(planRuns).indexes.map((entry) => entry.config.name).sort(),
+    ['plan_runs_ended_at_idx', 'plan_runs_started_at_idx'],
   )
 })

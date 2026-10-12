@@ -83,7 +83,10 @@ export const planRuns = sqliteTable(
     runId: text('run_id').primaryKey(),
     ...planColumns(),
   },
-  (table) => [index('plan_runs_started_at_idx').on(table.startedAt)],
+  (table) => [
+    index('plan_runs_started_at_idx').on(table.startedAt),
+    index('plan_runs_ended_at_idx').on(table.endedAt),
+  ],
 )
 
 /** Hosted plan session state that is not in the plan file. */

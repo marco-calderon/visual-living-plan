@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq, lte, sql } from 'drizzle-orm'
 import { openPlanDatabase } from './db/client.js'
 import { planInsertFromProcess, planRowToProcess, planRunInsert, planRunRowToRecord } from './db/rows.js'
 import {
@@ -32,6 +32,12 @@ export type StoredPlanSession = {
   lastSeenAt: number
 }
 
+/** Inclusive window. A finished run overlaps when it started at or before `to` and ended at or after `from`. */
+export type RunWindow = {
+  from: number
+  to: number
+}
+
 export type RegistryStore = {
   upsert(record: ProcessRecord): void
   get(id: string): ProcessRecord | undefined
@@ -45,7 +51,7 @@ export type RegistryStore = {
   listSessions(): StoredPlanSession[]
   deleteSession(id: string): boolean
   saveRun(record: PlanRecord): void
-  listRuns(): PlanRecord[]
+  listRuns(window?: RunWindow): PlanRecord[]
   close(): void
 }
 
@@ -238,10 +244,17 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
         })
         .run()
     },
-    listRuns() {
+    listRuns(window) {
+      const overlap = window
+        ? and(
+            lte(planRuns.startedAt, window.to),
+            sql`COALESCE(${planRuns.endedAt}, ${planRuns.heartbeatAt}, ${planRuns.startedAt}) >= ${window.from}`,
+          )
+        : undefined
       return db
         .select()
         .from(planRuns)
+        .where(overlap)
         .orderBy(desc(planRuns.startedAt))
         .all()
         .map((row) => planRunRowToRecord(row))
