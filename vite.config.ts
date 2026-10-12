@@ -12,7 +12,10 @@ export default defineConfig({
     emptyOutDir: true,
     manifest: true,
     rollupOptions: {
-      input: resolve(rootDir, 'client/main.tsx'),
+      input: {
+        main: resolve(rootDir, 'client/main.tsx'),
+        mermaid: resolve(rootDir, 'client/mermaid.ts'),
+      },
       output: {
         entryFileNames: 'assets/[name]-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',

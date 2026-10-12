@@ -10,20 +10,37 @@ The agent owns a `.plan.md` file. Humans open a browser URL to:
 
 Works for local agents (file + localhost URL) and is shaped so a cloud agent can host the same server and share the URL.
 
+Architecture and the decisions behind it: [docs/architecture](docs/architecture/README.md). Context for working in this repo: [docs/context.md](docs/context.md).
+
 ## Quick start
 
+The CLI and both HTTP servers run on [Bun](https://bun.sh). The plan page and the registry are [Elysia](https://elysiajs.com) apps. Sessions and finished runs are stored in SQLite.
+
 ```bash
-npm install
-npm run serve -- examples/rate-limit.plan.md --port 9410
+bun install
+bun run serve -- examples/rate-limit.plan.md
 ```
 
-Open `http://127.0.0.1:9410`. Edit the example file, change a phase `status`, and the page reloads. Click a choice or submit a form to send structured feedback to the agent.
+The command prints a URL and stays attached to that plan. Open the URL. Edit the example file, change a phase `status`, and the page reloads. Click a choice or submit a form. This command prints that submission. `--detach` registers the plan and returns; `events` or `wait` can attach later.
 
-The same server is what the other npm scripts call (`npm run review`, `npm run wait`, `npm run execution`, `npm run check`).
+### Running plans
+
+One plan service on `127.0.0.1:9477` hosts every plan. `serve` registers a plan, prints `http://127.0.0.1:9477/plans/<id>/`, and listens for that plan's submissions. Stopping the command leaves the page up. Sessions are stored in SQLite (`~/.visual-living-plan/registry.sqlite`) and come back if the service restarts. Every planner page has a **Plans** button that lists those plans: directory, git branch and dirty state, and a link that opens that plan. The service home page is the same list. **Dashboard** (`/dashboard`, or `live-plan dashboard`) summarizes the hosted plans and the ones that have finished, for the local day, week, and month. `live-plan tui` is that same dashboard in the terminal. It reads `GET /api/dashboard?period=day|week|month` (day by default), lists active plans first, and accepts clicks and the keyboard. A clean close is executed. An idle drop, or a private process whose heartbeat went stale, is interrupted. The plan file is copied into `~/.visual-living-plan/plans/`.
+
+A choice, form, question, approval, or review is pushed to every client listening on that plan, and to no other plan. `serve` is one of those clients. `events` is another. `wait` uses the same stream and returns when one id is answered.
+
+```bash
+npm run processes
+live-plan processes
+```
+
+`--no-registry` serves that one plan in its own process instead. `--registry-port` changes the service port. `live-plan registry` runs the service in the foreground; `serve` and `review` start it when it is not already up. `live-plan close --url <plan-url>` drops a plan.
 
 ### Install the command
 
 This is the same kind of install as [Visual Plan](https://visualplan.dev/)'s `npm i -g vplan`. The package name on the registry is `visual-living-plan`. Publishing runs `prepack`, which compiles `dist/cli.js` into the tarball. `npm i -g` downloads that tarball and links the `live-plan`, `living-plan`, and `visual-living-plan` commands onto your PATH. It does not clone the repo and does not compile anything on your machine.
+
+Bun has to be on `PATH`. The published command's shebang is `bun`.
 
 ```bash
 npm i -g visual-living-plan
@@ -31,11 +48,11 @@ living-plan --help
 living-plan check "$(npm root -g)/visual-living-plan/examples/rate-limit.plan.md"
 ```
 
-`check` prints the expected workflow (the `workflow` block, or phases and gates when that block is omitted). `serve` and `review` draw that diagram on the Workflow tab before a run starts. Pass `--no-open` when a browser should not launch.
+`check` prints the workflow block. That block is required: it is the execution path. `serve` and `review` draw it on the Workflow tab before a run starts. Pass `--no-open` when a browser should not launch.
 
 The name is not on the registry until it is published. From a checkout, `npm publish --access public` packs the built CLI and uploads it. A GitHub release runs the same publish through `.github/workflows/publish.yml`, after a trusted publisher for `visual-living-plan` is configured on npm.
 
-`check` prints the expected workflow (the `workflow` block, or phases and gates when that block is omitted). `serve` and `review` draw that diagram on the Workflow tab before a run starts. Pass `--no-open` when a browser should not launch.
+`check` prints the workflow block. That block is required: it is the execution path. `serve` and `review` draw it on the Workflow tab before a run starts. Pass `--no-open` when a browser should not launch.
 
 ### Review mode
 
@@ -47,29 +64,29 @@ Blocks until Approve (`0`), Deny (`1`), or Iterate (`2`).
 
 ### Wait for one interaction
 
-With `serve` already running:
+After `serve` prints a plan URL:
 
 ```bash
-npm run wait -- fail-mode --url http://127.0.0.1:9410
+npm run wait -- fail-mode --url <printed-plan-url>
 ```
 
 ### Workflow canvas
 
-The page has **Plan** and **Workflow** tabs. The Workflow tab is filled from the plan itself — a `workflow` block, or the phases and gates when that block is omitted — so the expected execution plan is visible before the agent starts the run. Select a step to jump to the matching section in the plan. A plan with neither a workflow nor phases shows the sample retry loop from `examples/execution-graph.json` until a graph arrives.
+The page has **Plan** and **Workflow** tabs. The Workflow tab draws the required `workflow` block, which is the execution path, before the agent starts the run. Select a step to jump to the matching section in the plan. A plan with no workflow block yet shows the sample retry loop from `examples/execution-graph.json` until that block is present.
 
 While execution is active, Plan forms/gates are disabled. The same Workflow tab then overlays the live [React Flow](https://reactflow.dev) graph the agent pushes. Node ids that match the plan keep their plan reference.
 
 ```bash
-npm run execution -- start --url http://127.0.0.1:9410 \
+npm run execution -- start --url <printed-plan-url> \
   --step "Implement middleware" \
   --detail "Editing gateway.ts" \
   --graph examples/execution-graph.json
 
-npm run execution -- push --url http://127.0.0.1:9410 \
+npm run execution -- push --url <printed-plan-url> \
   --step "Add coverage" \
   --graph examples/execution-graph.json
 
-npm run execution -- stop --url http://127.0.0.1:9410
+npm run execution -- stop --url <printed-plan-url>
 ```
 
 Agent payloads:
@@ -88,7 +105,8 @@ Visual builders optimize for humans drawing graphs. Living Plan optimizes for **
 | Show current status | `phase` blocks + file watch reload |
 | Ask for direction | `choice`, `form`, `questions`, `approve` |
 | Converge on a plan | review bar + iteration diffs |
-| Show the expected execution plan | `workflow` block, drawn on the Workflow tab before the run |
+| Show the execution path | required `workflow` block, drawn on the Workflow tab before the run |
+| Show a figure in the plan text | mermaid fence in the plan markdown or a block body |
 | Show live execution | Same Workflow tab, React Flow canvas via `/api/execution` |
 | Local + cloud | same file + HTTP server URL |
 
@@ -102,7 +120,8 @@ YAML fenced blocks:
 - `callout` — note / tip / risk / decision / warning
 - `choice` / `form` / `questions` / `approve` — human interactions
 - `checklist` — definition of done
-- `workflow` — expected execution diagram (`nodes` with `id`, `label`, `ref`, optional `status` / `x` / `y`, and `edges` with `from` / `to`, optional `label`, `fromSide`, `toSide`). `ref` is the plan block id a click jumps to. Omit the block and the diagram follows phases and gates in document order.
+- `workflow` — required execution path (`nodes` with `id`, `label`, `ref`, optional `status` / `x` / `y`, and `edges` with `from` / `to`, optional `label`, `fromSide`, `toSide`). `ref` is the plan block id a click jumps to. The Workflow tab draws this block before the run, and the live run follows it.
+- mermaid — a figure in the plan text. Use a fence whose language is `mermaid`, in the plan markdown or indented inside a phase, callout, or approve `body`.
 
 ## Execution canvas adapters
 
@@ -115,31 +134,50 @@ Execution rendering goes through a small port/adapter layer:
 
 To swap libraries later, add another adapter and change the active id. Keep agent payloads on `graph` so the API stays stable.
 
+## Theme
+
+The **Settings** tab offers **8 accent presets** (teal, cyan, sky, blue, violet, magenta, rose, amber) plus a custom color picker. Presets are chosen to stay readable on both light and dark surfaces. The choice is saved to `live-plan.config.json` beside the plan file (see `examples/live-plan.config.json`). Agents can change it through the CLI:
+
+```bash
+live-plan theme get --plan examples/rate-limit.plan.md
+live-plan theme set --accent #0369a1 --plan examples/rate-limit.plan.md
+live-plan theme set --accent #0369a1 --url <printed-plan-url>
+```
+
+`serve` / `review` accept `--config path/to/live-plan.config.json`. While the server is up, prefer `--url` so the UI updates live; the config file is also watched on disk.
+
 ## API
 
-- `GET /` — interactive HTML page (Plan + Workflow tabs)
-- `GET /api/plan` — plan metadata, responses, pending interaction ids, execution state, and `planned` workflow graph
+- `GET /` — interactive HTML page (Plan + Workflow + Settings tabs)
+- `GET /api/plan` — plan metadata, responses, pending interaction ids, execution state, `planned` workflow graph, and `theme`
 - `GET /api/execution` — current execution canvas state, including `planned` (the expected workflow from the plan) even while execution is idle
 - `PUT /api/execution` — set execution state (`active`, `step`, `detail`, `graph`, `scene`)
 - `POST /api/execution/start` / `POST /api/execution/stop` — convenience toggles
-- `GET /api/events` — SSE (`reload`, `interaction`, `review`, `execution`)
+- `GET /api/events` — browser SSE (`reload`, `interaction`, `review`, `execution`, `theme`)
+- `GET /api/agent-events` — agent SSE. On the shared service this requires the plan token or the service token. The first event is `hello` (current responses and review). Later events push each submission.
+- `GET /api/processes` — plans hosted by the service (directory, git status, site URL). `status` is `ok`, `offline`, or `disabled`
+- `GET /dashboard` — registry page for running and executed plans: day, week, and month summaries, plus a table (status, completion, folder, files modified, start time, duration)
+- `GET /api/dashboard?period=day|week|month` — the same summary and rows as JSON. `live-plan tui` reads this route.
+- `GET /api/plans` — every stored plan run, including executed and interrupted
+- `GET /api/theme` / `PUT /api/theme` — read or set accent color (`{ "accent": "#hex" }`), persisted to the theme config file
 - `POST /api/interactions/:id` — submit an interaction response (409 while execution is live)
 - `POST /api/review` — submit Approve / Deny / Iterate (review mode)
 
 ## For agents
 
-Agents should invoke the published CLI with npx, or `live-plan` when that command is installed. `living-plan` is the same binary. Do not use the `npm run` scripts above unless you are developing this repository.
+Agents should invoke the published CLI with bunx, or `live-plan` when that command is installed. `living-plan` is the same binary. Bun has to be installed. Do not use the `npm run` scripts above unless you are developing this repository.
 
 ```bash
-npx --yes visual-living-plan serve path/to/work.plan.md --port 9410
-live-plan serve path/to/work.plan.md --port 9410
+bunx visual-living-plan serve path/to/work.plan.md
+live-plan serve path/to/work.plan.md
+live-plan events --url <printed-plan-url>
 ```
 
 - Guideline: [`docs/agent-guidelines.md`](docs/agent-guidelines.md)
 - Skill (copy into `.cursor/skills/live-plan/` or `.claude/skills/live-plan/`): [`skills/live-plan/SKILL.md`](skills/live-plan/SKILL.md)
 - Primitive schemas: [`skills/live-plan/primitives.md`](skills/live-plan/primitives.md)
 
-`npm install -g visual-living-plan` installs the `live-plan` command (`living-plan` and `visual-living-plan` remain aliases). Put a `workflow` block in the plan when the human should see the expected execution path before the run starts.
+`npm install -g visual-living-plan` installs the `live-plan` command (`living-plan` and `visual-living-plan` remain aliases). Every plan includes a `workflow` block. That block is the execution path.
 
 ## License
 

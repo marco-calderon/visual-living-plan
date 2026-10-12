@@ -27,29 +27,38 @@
     "build": "node scripts/build-cli.mjs",
     "prepack": "npm run build",
     "build:client": "vite build",
-    "dev": "tsx src/cli.ts",
-    "serve": "tsx src/cli.ts serve",
-    "review": "tsx src/cli.ts review",
-    "wait": "tsx src/cli.ts wait",
-    "execution": "tsx src/cli.ts execution",
-    "check": "tsx src/cli.ts check",
-    "typecheck": "tsc --noEmit"
+    "dev": "bun src/cli.ts",
+    "serve": "bun src/cli.ts serve",
+    "review": "bun src/cli.ts review",
+    "wait": "bun src/cli.ts wait",
+    "execution": "bun src/cli.ts execution",
+    "check": "bun src/cli.ts check",
+    "processes": "bun src/cli.ts processes",
+    "dashboard": "bun src/cli.ts dashboard",
+    "tui": "bun src/cli.ts tui",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
   },
   "engines": {
+    "bun": ">=1.2.0",
     "node": ">=20"
   },
   "dependencies": {
+    "@semos-labs/glyph": "^0.2.10",
+    "drizzle-orm": "^0.45.4",
+    "elysia": "^1.4.30",
+    "react": "^19.3.0",
     "yaml": "^2.8.1"
   },
   "devDependencies": {
+    "@types/bun": "^1.4.2",
     "@types/node": "^24.6.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "@xyflow/react": "^12.12.0",
-    "react": "^19.3.0",
+    "mermaid": "^12.1.0",
     "react-dom": "^19.3.0",
-    "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "vite": "^8.3.4"
   }

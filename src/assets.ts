@@ -8,24 +8,43 @@ type ViteManifest = Record<
     file: string
     css?: string[]
     isEntry?: boolean
+    name?: string
   }
 >
 
+export type ClientAssets = {
+  jsHref: string
+  cssHrefs: string[]
+  mermaidHref: string | null
+  mermaidCssHrefs: string[]
+}
+
 const here = dirname(fileURLToPath(import.meta.url))
 
-export async function loadClientAssets(): Promise<{ jsHref: string; cssHrefs: string[] } | null> {
+function manifestEntry(manifest: ViteManifest, names: string[]): ViteManifest[string] | undefined {
+  for (const name of names) {
+    const entry = manifest[name]
+    if (entry) return entry
+  }
+  return undefined
+}
+
+export async function loadClientAssets(): Promise<ClientAssets | null> {
   const manifestPath = join(here, '../dist/client/.vite/manifest.json')
   try {
     const raw = await readFile(manifestPath, 'utf8')
     const manifest = JSON.parse(raw) as ViteManifest
     const entry =
-      manifest['client/main.tsx'] ??
-      Object.values(manifest).find((item) => item.isEntry)
+      manifestEntry(manifest, ['client/main.tsx', 'main']) ??
+      Object.values(manifest).find((item) => item.isEntry && item.name !== 'mermaid')
 
     if (!entry) return null
+    const mermaid = manifestEntry(manifest, ['client/mermaid.ts', 'mermaid'])
     return {
       jsHref: `/client/${entry.file}`,
       cssHrefs: (entry.css ?? []).map((file) => `/client/${file}`),
+      mermaidHref: mermaid ? `/client/${mermaid.file}` : null,
+      mermaidCssHrefs: (mermaid?.css ?? []).map((file) => `/client/${file}`),
     }
   } catch {
     return null

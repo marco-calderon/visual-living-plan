@@ -2,19 +2,21 @@
 
 Use Live Plan when a human needs a live view of what you are doing, or must answer something before you continue. You own one `.plan.md` file. The human watches a browser URL.
 
-Invoke the CLI with **npx** unless the `live-plan` command is already installed.
+The CLI runs on Bun. Invoke it with **bunx** unless the `live-plan` command is already installed.
 
 ```bash
 # Default. No global install.
-npx --yes visual-living-plan <command> [args]
+bunx visual-living-plan <command> [args]
 
 # After `npm install -g visual-living-plan` (or a local install that puts the bin on PATH).
 live-plan <command> [args]
 ```
 
-`npx --yes visual-living-plan` runs the published package. `live-plan` is the same program once installed. Do not use this repository's `npm run` scripts unless you are developing Live Plan itself.
+`bunx visual-living-plan` runs the published package. `live-plan` is the same program once installed. Bun must be on `PATH`. Do not use this repository's `npm run` scripts unless you are developing Live Plan itself.
 
 Copy [`skills/live-plan/`](../skills/live-plan/SKILL.md) into your agent's skills directory (`.cursor/skills/live-plan/` or `.claude/skills/live-plan/`) so the loop and primitives load automatically. Schemas live in [`skills/live-plan/primitives.md`](../skills/live-plan/primitives.md).
+
+Changing this repository: start with [`docs/context.md`](context.md) and [`docs/architecture`](architecture/README.md).
 
 ## When to use it
 
@@ -27,60 +29,75 @@ Skip it for a one-step change, when the user asked for prose only, or when nobod
 
 ## How to run it
 
-`serve` and `review` are long-running. Start them in the background, read the printed URL, and keep that URL for `wait` and `execution`.
+`serve` registers the plan on the one machine service and stays attached. It prints each submission for that plan until you stop it. The page stays up after it exits. Pass `--detach` to register and return, then use `events` or `wait` on the printed URL. `wait` and `review` block on that same stream.
 
 ```bash
-npx --yes visual-living-plan check path/to/work.plan.md
+bunx visual-living-plan check path/to/work.plan.md
 
-npx --yes visual-living-plan serve path/to/work.plan.md --port 9410
+bunx visual-living-plan serve path/to/work.plan.md
 
-npx --yes visual-living-plan wait fail-mode --url http://127.0.0.1:9410 --timeout 30m
+bunx visual-living-plan serve path/to/work.plan.md --detach
+bunx visual-living-plan events --url <printed-plan-url>
 
-npx --yes visual-living-plan review path/to/work.plan.md --iteration 1 --timeout 4h
+bunx visual-living-plan wait fail-mode --url <printed-plan-url> --timeout 30m
 
-npx --yes visual-living-plan execution start --url http://127.0.0.1:9410 \
+bunx visual-living-plan review path/to/work.plan.md --iteration 1 --timeout 4h
+
+bunx visual-living-plan execution start --url <printed-plan-url> \
   --step "Implement middleware" --detail "Editing gateway.ts" \
   --graph path/to/graph.json
-npx --yes visual-living-plan execution push --url http://127.0.0.1:9410 \
+bunx visual-living-plan execution push --url <printed-plan-url> \
   --step "Add coverage" --graph path/to/graph.json
-npx --yes visual-living-plan execution stop --url http://127.0.0.1:9410
+bunx visual-living-plan execution stop --url <printed-plan-url>
 ```
 
-Swap the `npx --yes visual-living-plan` prefix for `live-plan` when that command is on `PATH`.
+Swap the `bunx visual-living-plan` prefix for `live-plan` when that command is on `PATH`.
 
 | Command | What it does | Exit |
 |---|---|---|
-| `check <file>` | Parse the plan and print title, block types, interaction ids, and expected workflow nodes | `0` ok, `1` usage or parse error |
+| `check <file>` | Parse the plan and print title, block types, interaction ids, and workflow nodes. A missing workflow block is an error. | `0` ok, `1` usage, parse error, or missing workflow |
 | `dump <file>` | Print the parsed plan as JSON | `0` ok, `1` usage or parse error |
-| `serve <file>` | Watch the file and serve Plan + Workflow. The Workflow tab draws the plan before the run. Hot-reloads on save. | Stays up until SIGINT/SIGTERM |
-| `review <file>` | Same UI plus Approve / Deny / Iterate. Blocks until a decision. | `0` approve, `1` deny, `2` iterate, `3` timeout |
-| `wait <id> --url <url>` | Block until that interaction id has a response. Prints the response JSON. | `0` answered, `1` missing `--url`, `3` timeout |
+| `serve <file>` | Register the plan on the machine service and print each submission for that plan until stopped. `--detach` prints the URL and returns. The page stays up either way. | `0` stopped or detached, `1` the stream failed |
+| `review <file>` | Same page plus Approve / Deny / Iterate. Blocks on the agent event stream until a decision, then closes the plan. | `0` approve, `1` deny, `2` iterate, `3` timeout |
+| `wait <id> --url <url>` | Block on the agent event stream until that interaction id is answered. Prints the response JSON. | `0` answered, `1` missing `--url`, `3` timeout |
+| `events --url <url>` | Print each `hello`, `interaction`, and `review` event until the process is stopped. | `0` |
+| `close --url <url>` | Drop that plan from the service. | `0` closed, `1` usage |
 | `execution start\|push\|stop --url <url>` | Drive the live workflow overlay. `start` turns it on, `push` updates it, `stop` turns it off and unlocks plan forms. | `0` ok, `1` usage or HTTP error |
+| `processes` | List plans hosted by the service, including directory and git status. `ps` is the same command. | `0` |
+| `dashboard` | Open the registry dashboard of running and executed plans (day, week, and month). | `0` when the registry is up, `1` when it is not |
+| `tui` | Open that dashboard in the terminal. `--period` is `day` (default), `week`, or `month`. Active plans are listed first. Click the controls, or use Tab, arrows, `1`/`2`/`3`, `f`, `r`, `o`, and `q`. | `0` when you quit, `1` when the terminal is not interactive or the registry cannot start |
+| `theme get\|set` | Read or write the accent color. Prefer `--url` while `serve`/`review` is up; otherwise `--config` / `--plan` writes `live-plan.config.json`. | `0` ok, `1` usage or HTTP error |
 
 Flags:
 
-- `--port` defaults to an ephemeral port (`0`). Pass a fixed port when you need a stable URL.
+- `--port` is the private server port with `--no-registry`. Otherwise it is used only when the service is not already running.
 - `--host` defaults to `127.0.0.1`. Set a reachable host when a cloud agent must share the URL.
 - `--timeout` defaults to 4 hours. Always include a unit: `30s`, `45m`, `4h`. A bare number is milliseconds.
 - `--iteration N` labels a review round (default `1`). Bump it when you re-open review after Iterate.
 - `--out <file>` writes the review JSON as well as printing it.
 - `--no-open` skips launching a browser. Use it only for headless or CI runs. A person should get the page opened.
+- `--detach` on `serve` registers the plan and returns. Omit it to stay attached and print that plan's submissions.
+- `--no-registry` serves this plan in its own process. By default `serve` and `review` use the machine service, so every planner page can list running plans.
+- `--registry-port` sets the service port (default `9477`, loopback only).
+- `--token` authorizes `events`, `wait`, and `close`. When omitted, the CLI reads the local service token.
 - `--graph <file.json>` is the portable execution graph. `--scene <file.json>` is optional adapter-specific extras. Prefer `graph`.
 - `--step` and `--detail` are the current execution headline.
+- `--config <file>` points at the theme config (default `live-plan.config.json` beside the plan). `--accent #hex` sets the accent for `theme set`.
+- `--plan <file.plan.md>` with `theme` resolves the config path beside that plan.
 
 `check` before the first `serve` or `review`. Fix parse failures before asking a human to look.
 
 ## Agent loop
 
-1. Write or update one `.plan.md`. Title, a short summary, phases, a `workflow` block for the expected path, then only the interactions you need right now.
+1. Write or update one `.plan.md`. Title, a short summary, phases, a required `workflow` block (the execution path), then only the interactions you need right now.
 2. `check` the file.
-3. `serve` for ongoing status, or `review` when you need Approve / Deny / Iterate on the whole plan.
-4. If you need one answer first, `wait <id> --url <printed-url>`. You can also read `GET /api/plan` and look at `responses`.
+3. `serve` for ongoing status, or `review` when you need Approve / Deny / Iterate on the whole plan. `serve` prints submissions for that plan. Pass `--detach` when this process has to return before the person answers.
+4. After `--detach`, run `events --url <printed-url>` to hear every submission, or `wait <id> --url <printed-url>` to block on one answer. Both use the same agent event stream as `serve`.
 5. Apply the response. Update phase `status` and checklist `done` in the same file. The page reloads on save.
 6. While implementing, `execution start`, then `execution push` as the graph changes, then `execution stop` before the next plan interaction. Plan forms and review are rejected with HTTP 409 while execution is active.
 7. On review **approve**, proceed. On **deny**, stop. On **iterate**, edit the same file, bump `--iteration`, and run `review` again.
 
-Section diffs are computed from the previous in-memory snapshot of that server process. Editing the file while `serve` or `review` is running marks added, edited, and removed sections.
+Section diffs are computed from the previous snapshot of that plan session. Editing the file while the plan is hosted marks added, edited, and removed sections.
 
 ## Primitives
 
@@ -95,7 +112,7 @@ A plan is optional YAML frontmatter, then markdown, plus fenced YAML blocks. Eve
 | `questions` | Open questions, one string per item | One answer per item |
 | `approve` | Yes/no gate with an optional note | `approved` plus optional note |
 | `checklist` | Definition of done | No (you update `done`) |
-| `workflow` | Expected execution diagram on the Workflow tab before the run. Node `ref` is the plan block a click opens. Omit the block and the diagram follows phases and gates. | No |
+| `workflow` | Required. The execution path. The Workflow tab draws it before the run, and the live run follows it. Node `ref` is the plan block a click opens. | No |
 
 Frontmatter fields the parser reads: `title`, `summary`, `agent`, `mode` (`watch` or `review`). A leading `#` heading is the title when frontmatter has none.
 
@@ -108,6 +125,8 @@ Authoring rules:
 - Add an interaction only when you will block on the answer.
 - Prose is connective. Status, risks, and decisions belong in `phase` and `callout` blocks.
 - Phase and callout `body` is a small markdown subset: headings, lists, fenced code, `**bold**`, `*italic*`, and `` `code` ``.
+- A mermaid fence draws a figure in the plan text. Indent that fence inside a YAML `body: |` block so it does not close the outer `phase`, `callout`, or `approve` fence.
+- Include one `workflow` block. `check` fails when it is missing.
 
 ## Execution graph
 
@@ -124,16 +143,44 @@ Send a portable graph. The page maps it onto the current canvas (React Flow toda
 
 Node `status` is `pending`, `active`, `blocked`, `done`, or `failed`. `x` and `y` are optional layout hints. Edges may set `label`, `fromSide`, and `toSide` (`top`, `right`, `bottom`, `left`). A self-loop (`from` and `to` are the same id) is drawn as an arc.
 
+## Theme / accent color
+
+Humans can change the accent on the Settings tab. The choice is saved to `live-plan.config.json` beside the plan (override with `--config` on `serve` / `review`). Agents should use the CLI, not hand-edit CSS:
+
+```bash
+bunx visual-living-plan theme get --url <printed-plan-url>
+bunx visual-living-plan theme set --accent #0369a1 --url <printed-plan-url>
+
+# Offline / before serve: write the config file next to the plan
+bunx visual-living-plan theme set --accent #0369a1 --plan path/to/work.plan.md
+```
+
+Config shape:
+
+```json
+{
+  "theme": {
+    "accent": "#0f766e"
+  }
+}
+```
+
+While the server is running, prefer `--url` so the page updates live. Editing the config file on disk is also watched.
+
 ## HTTP, when the CLI is not enough
 
 The server URL from `serve` or `review` exposes:
 
-- `GET /` — Plan and Workflow tabs
-- `GET /api/plan` — parsed plan, `responses`, `pendingInteractionIds`, execution state, and the planned workflow graph
-- `GET /api/events` — server-sent events: `reload`, `interaction`, `review`, `execution`
+- `GET /` — Plan, Workflow, and Settings tabs
+- `GET /api/plan` — parsed plan, `responses`, `pendingInteractionIds`, execution state, planned workflow graph, and `theme`
+- `GET /api/events` — browser server-sent events: `reload`, `interaction`, `review`, `execution`, `theme`
+- `GET /api/agent-events` — the stream `events` and `wait` use. Requires a bearer token on the shared service. `hello` includes current responses and review; `interaction` and `review` follow as the user submits them.
 - `POST /api/interactions/:id` — submit one response (409 while execution is active)
 - `POST /api/review` — `{ "decision": "approve" \| "deny" \| "iterate", "note"?: "..." }` (review mode only; 409 while execution is active)
 - `GET /api/execution` and `PUT /api/execution` — read or replace execution state. `GET` includes `planned` (the expected workflow) even while execution is idle
 - `POST /api/execution/start` and `POST /api/execution/stop` — convenience toggles
+- `GET /api/processes` — other plans started through the CLI, with directory and git status. Each `url` opens that plan's site.
+- Registry `GET /dashboard` — running and executed plans, with day, week, and month summaries. `live-plan dashboard` opens it. Plan files are copied into the registry home under `plans/`.
+- `GET /api/theme` and `PUT /api/theme` — read or set `{ "accent": "#hex" }` (persists to the theme config file)
 
 Prefer the CLI. Use HTTP only to inspect state or when another process must submit on the human's behalf.

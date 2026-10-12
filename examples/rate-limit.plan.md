@@ -9,6 +9,14 @@ mode: watch
 
 We add a sliding-window limiter at the gateway, behind a flag. This living plan is the agent's status surface: phases update as work progresses, and interaction blocks pause for your direction.
 
+```mermaid
+flowchart LR
+  client[Client] --> gateway[API gateway]
+  gateway --> limiter[Sliding-window limiter]
+  limiter --> redis[(Redis)]
+  limiter --> api[Upstream API]
+```
+
 ```workflow
 id: rollout
 title: Expected execution
@@ -65,6 +73,20 @@ title: Confirm limiter design
 status: done
 body: |
   Use Redis for a shared sliding window. Return 429 with Retry-After when over limit.
+
+  ```mermaid
+  sequenceDiagram
+    participant Client
+    participant Gateway
+    participant Redis
+    Client->>Gateway: Request
+    Gateway->>Redis: Sliding window
+    alt Over limit
+      Gateway-->>Client: 429 Retry-After
+    else Within limit
+      Gateway-->>Client: Upstream response
+    end
+  ```
 ```
 
 ```phase
