@@ -8,7 +8,7 @@ import { readGitSnapshot } from '../src/gitStatus.ts'
 import { isPidAlive } from '../src/pid.ts'
 import { parsePlan } from '../src/parse.ts'
 import type { ProcessRecord } from '../src/processRecord.ts'
-import { emptyGitSnapshot } from '../src/processRecord.ts'
+import { emptyGitSnapshot, finishedPlan } from '../src/processRecord.ts'
 import { renderPlanPage } from '../src/render.ts'
 import { defaultThemeConfig, themePayload } from '../src/theme.ts'
 import {
@@ -19,7 +19,7 @@ import {
   watchRegisteredPlan,
 } from '../src/registryClient.ts'
 import { startRegistryServer } from '../src/registryService.ts'
-import { openRegistryStore } from '../src/registryStore.ts'
+import { openRegistryStore, type StoredPlanSession } from '../src/registryStore.ts'
 import { createIdleExecutionState } from '../src/execution.ts'
 import { startLivingPlanServer } from '../src/server.ts'
 
@@ -110,6 +110,52 @@ test('registry store keeps plans and prunes stale or dead pids', async () => {
     const runs = store.listRuns()
     assert.equal(runs.find((entry) => entry.id === stale.id)?.status, 'interrupted')
     assert.equal(runs.find((entry) => entry.id === dead.id)?.status, 'interrupted')
+  } finally {
+    store.close()
+  }
+})
+
+test('registry store round-trips sessions and finished runs', async () => {
+  const store = await openRegistryStore(':memory:')
+  try {
+    const session: StoredPlanSession = {
+      id: '66666666-6666-4666-8666-666666666666',
+      token: 'session-token',
+      planPath: '/workspace/examples/rate-limit.plan.md',
+      mode: 'review',
+      iteration: 1,
+      cwd: '/workspace',
+      configPath: null,
+      responsesJson: '{"ask":{"value":"yes"}}',
+      executionJson: '{}',
+      reviewJson: null,
+      startedAt: 1_700_000_000_000,
+      lastSeenAt: 1_700_000_000_500,
+    }
+    store.saveSession(session)
+    assert.deepEqual(store.getSession(session.id), session)
+    assert.deepEqual(store.getSessionByPath(session.planPath), session)
+    assert.equal(store.listSessions().length, 1)
+
+    store.saveSession({ ...session, iteration: 2, lastSeenAt: session.lastSeenAt + 10, reviewJson: '{"decision":"approve"}' })
+    const updated = store.getSession(session.id)
+    assert.equal(updated?.iteration, 2)
+    assert.equal(updated?.startedAt, session.startedAt)
+    assert.equal(updated?.reviewJson, '{"decision":"approve"}')
+    assert.equal(store.deleteSession(session.id), true)
+    assert.equal(store.getSession(session.id), undefined)
+    assert.equal(store.deleteSession(session.id), false)
+
+    const run = finishedPlan(sample(), 'executed', 'approve', sample().heartbeatAt)
+    store.saveRun(run)
+    store.saveRun({ ...run, title: 'Updated run' })
+    const listed = store.listRuns()
+    assert.equal(listed.length, 1)
+    assert.equal(listed[0]?.title, 'Updated run')
+    assert.equal(listed[0]?.outcome, 'approve')
+    assert.equal(listed[0]?.status, 'executed')
+    assert.equal(listed[0]?.git.summary, run.git.summary)
+    assert.deepEqual(listed[0]?.git.changedPaths, run.git.changedPaths)
   } finally {
     store.close()
   }
