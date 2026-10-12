@@ -126,7 +126,7 @@ A row overlaps the selected window when it started before the end of the window 
 | `src/planRoutes.ts` | Elysia routes for one plan, at the origin or under `/plans/<id>/` |
 | `src/planHost.ts` | All sessions on the service: register, close, idle timeout, git snapshot cache, dashboard rows for open sessions |
 | `src/registryService.ts` | The Elysia app: health, plan list, registration, dashboard, archive, and the hosted plan routes |
-| `src/registryStore.ts` | SQLite: `processes` for private servers, `plan_sessions` for live hosted plans, `plan_runs` for finished runs |
+| `src/registryStore.ts` | SQLite through Drizzle: `plans` for private servers, `plan_sessions` for live hosted plans, `plan_runs` for finished runs |
 | `src/server.ts` | The private one-plan Elysia app used by `--no-registry` |
 | `src/httpServer.ts` | Binds an Elysia app with `Bun.serve` so event streams stay open |
 | `src/cli.ts` | Client of the service. `serve` registers and listens for that plan. `events`, `wait`, and `review` read the same stream. `dashboard` opens `/dashboard` |
@@ -139,6 +139,6 @@ A row overlaps the selected window when it started before the end of the window 
 
 The service writes each open session to `~/.visual-living-plan/registry.sqlite` (`plan_sessions`): plan path, mode, responses, execution, review, and token. On startup it opens those files again and reattaches the watchers. A missing plan file drops that session.
 
-Finished runs stay in `plan_runs` and are not reopened. The copied markdown stays at `~/.visual-living-plan/plans/<id>.plan.md`.
+Finished runs stay in `plan_runs` and are not reopened. Live private servers are rows in `plans`. A database that still has the older `processes` table is copied into `plans` on open. The copied markdown stays at `~/.visual-living-plan/plans/<id>.plan.md`.
 
 When the installed package version differs from the version in the lock file, the CLI stops the running service and starts the current one.

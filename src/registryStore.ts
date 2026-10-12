@@ -1,12 +1,21 @@
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import { desc, eq } from 'drizzle-orm'
+import { openPlanDatabase } from './db/client.js'
+import { planInsertFromProcess, planRowToProcess, planRunInsert, planRunRowToRecord } from './db/rows.js'
+import {
+  planRuns,
+  planSessions,
+  plans,
+  type PlanInsert,
+  type PlanRunInsert,
+  type PlanSessionInsert,
+  type PlanSessionRow,
+} from './db/schema.js'
 import { STALE_MS } from './registryConstants.js'
 import { isPidAlive } from './pid.js'
-import type { GitSnapshot, PlanRecord, ProcessPulse, ProcessRecord } from './processRecord.js'
+import type { PlanRecord, ProcessPulse, ProcessRecord } from './processRecord.js'
 import { finishedPlan } from './processRecord.js'
-import { emptyGitSnapshot } from './processRecord.js'
-
-type SqlValue = string | number | null
 
 export type StoredPlanSession = {
   id: string
@@ -40,275 +49,118 @@ export type RegistryStore = {
   close(): void
 }
 
-let sqliteImport: Promise<typeof import('node:sqlite')> | undefined
-
-function loadSqlite(): Promise<typeof import('node:sqlite')> {
-  if (!sqliteImport) {
-    const emit = process.emitWarning.bind(process)
-    process.emitWarning = ((warning: unknown, ...args: unknown[]) => {
-      const message =
-        typeof warning === 'string' ? warning : warning instanceof Error ? warning.message : ''
-      if (message.includes('SQLite is an experimental feature')) return
-      return Reflect.apply(emit, process, [warning, ...args])
-    }) as typeof process.emitWarning
-    sqliteImport = import('node:sqlite')
-  }
-  return sqliteImport
-}
-
-function asNumber(value: unknown): number {
-  if (typeof value === 'number' && Number.isFinite(value)) return value
-  if (typeof value === 'bigint') return Number(value)
-  if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : 0
-  }
-  return 0
-}
-
-function asText(value: unknown): string | null {
-  if (typeof value !== 'string' || value.length === 0) return null
-  return value
-}
-
-function parsePaths(value: unknown): string[] {
-  if (typeof value !== 'string' || value.length === 0) return []
-  try {
-    const parsed = JSON.parse(value) as unknown
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter((entry): entry is string => typeof entry === 'string')
-  } catch {
-    return []
-  }
-}
-
-function rowToSession(row: Record<string, unknown>): StoredPlanSession {
+function sessionValues(session: StoredPlanSession): PlanSessionInsert {
   return {
-    id: asText(row.id) ?? '',
-    token: asText(row.token) ?? '',
-    planPath: asText(row.plan_path) ?? '',
-    mode: row.mode === 'review' ? 'review' : 'watch',
-    iteration: asNumber(row.iteration) || 1,
-    cwd: asText(row.cwd) ?? '',
-    configPath: asText(row.config_path),
-    responsesJson: asText(row.responses_json) ?? '{}',
-    executionJson: asText(row.execution_json) ?? '{}',
-    reviewJson: asText(row.review_json),
-    startedAt: asNumber(row.started_at),
-    lastSeenAt: asNumber(row.last_seen_at),
+    id: session.id,
+    token: session.token,
+    planPath: session.planPath,
+    mode: session.mode,
+    iteration: session.iteration,
+    cwd: session.cwd,
+    configPath: session.configPath,
+    responsesJson: session.responsesJson,
+    executionJson: session.executionJson,
+    reviewJson: session.reviewJson,
+    startedAt: session.startedAt,
+    lastSeenAt: session.lastSeenAt,
   }
 }
 
-function rowToRecord(row: Record<string, unknown>): ProcessRecord {
-  const git: GitSnapshot = {
-    isRepo: asNumber(row.git_is_repo) === 1,
-    root: asText(row.git_root),
-    branch: asText(row.git_branch),
-    commit: asText(row.git_commit),
-    dirty: asNumber(row.git_dirty) === 1,
-    ahead: asNumber(row.git_ahead),
-    behind: asNumber(row.git_behind),
-    changedFiles: asNumber(row.git_changed_files),
-    changedPaths: parsePaths(row.git_paths),
-    summary: asText(row.git_summary) ?? '',
-  }
+function toSession(row: PlanSessionRow): StoredPlanSession {
   return {
-    id: asText(row.id) ?? '',
-    pid: asNumber(row.pid),
-    title: asText(row.title) ?? '',
-    summary: asText(row.summary),
-    agent: asText(row.agent),
+    id: row.id,
+    token: row.token,
+    planPath: row.planPath,
     mode: row.mode === 'review' ? 'review' : 'watch',
-    planPath: asText(row.plan_path) ?? '',
-    directory: asText(row.directory) ?? '',
-    cwd: asText(row.cwd) ?? '',
-    url: asText(row.url) ?? '',
-    host: asText(row.host) ?? '',
-    port: asNumber(row.port),
-    startedAt: asNumber(row.started_at),
-    heartbeatAt: asNumber(row.heartbeat_at),
-    pendingCount: asNumber(row.pending_count),
-    executionActive: asNumber(row.execution_active) === 1,
-    executionStep: asText(row.execution_step),
-    git,
+    iteration: row.iteration,
+    cwd: row.cwd,
+    configPath: row.configPath,
+    responsesJson: row.responsesJson,
+    executionJson: row.executionJson,
+    reviewJson: row.reviewJson,
+    startedAt: row.startedAt,
+    lastSeenAt: row.lastSeenAt,
   }
 }
 
-function recordValues(record: ProcessRecord): SqlValue[] {
-  const git = record.git ?? emptyGitSnapshot()
-  return [
-    record.id,
-    record.pid,
-    record.title,
-    record.summary,
-    record.agent,
-    record.mode,
-    record.planPath,
-    record.directory,
-    record.cwd,
-    record.url,
-    record.host,
-    record.port,
-    record.startedAt,
-    record.heartbeatAt,
-    record.pendingCount,
-    record.executionActive ? 1 : 0,
-    record.executionStep,
-    git.isRepo ? 1 : 0,
-    git.root,
-    git.branch,
-    git.commit,
-    git.dirty ? 1 : 0,
-    git.ahead,
-    git.behind,
-    git.changedFiles,
-    JSON.stringify(git.changedPaths),
-    git.summary,
-  ]
+/** Fields replaced on conflict. `startedAt` and progress counters stay as first written. */
+function livePlanUpdate(values: PlanInsert): Omit<
+  PlanInsert,
+  | 'id'
+  | 'startedAt'
+  | 'status'
+  | 'storedPath'
+  | 'endedAt'
+  | 'durationMs'
+  | 'phaseTotal'
+  | 'phaseDone'
+  | 'interactionTotal'
+  | 'interactionDone'
+  | 'completionRatio'
+  | 'completionState'
+  | 'outcome'
+> {
+  const {
+    id: _id,
+    startedAt: _startedAt,
+    status: _status,
+    storedPath: _storedPath,
+    endedAt: _endedAt,
+    durationMs: _durationMs,
+    phaseTotal: _phaseTotal,
+    phaseDone: _phaseDone,
+    interactionTotal: _interactionTotal,
+    interactionDone: _interactionDone,
+    completionRatio: _completionRatio,
+    completionState: _completionState,
+    outcome: _outcome,
+    ...set
+  } = values
+  return set
 }
 
-const UPSERT = `
-  INSERT INTO processes (
-    id, pid, title, summary, agent, mode, plan_path, directory, cwd, url, host, port,
-    started_at, heartbeat_at, pending_count, execution_active, execution_step,
-    git_is_repo, git_root, git_branch, git_commit, git_dirty, git_ahead, git_behind,
-    git_changed_files, git_paths, git_summary
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  ON CONFLICT(id) DO UPDATE SET
-    pid = excluded.pid,
-    title = excluded.title,
-    summary = excluded.summary,
-    agent = excluded.agent,
-    mode = excluded.mode,
-    plan_path = excluded.plan_path,
-    directory = excluded.directory,
-    cwd = excluded.cwd,
-    url = excluded.url,
-    host = excluded.host,
-    port = excluded.port,
-    heartbeat_at = excluded.heartbeat_at,
-    pending_count = excluded.pending_count,
-    execution_active = excluded.execution_active,
-    execution_step = excluded.execution_step,
-    git_is_repo = excluded.git_is_repo,
-    git_root = excluded.git_root,
-    git_branch = excluded.git_branch,
-    git_commit = excluded.git_commit,
-    git_dirty = excluded.git_dirty,
-    git_ahead = excluded.git_ahead,
-    git_behind = excluded.git_behind,
-    git_changed_files = excluded.git_changed_files,
-    git_paths = excluded.git_paths,
-    git_summary = excluded.git_summary
-`
+function sessionUpdate(values: PlanSessionInsert): Omit<PlanSessionInsert, 'id' | 'startedAt'> {
+  const { id: _id, startedAt: _startedAt, ...set } = values
+  return set
+}
+
+function runUpdate(values: PlanRunInsert): Omit<PlanRunInsert, 'runId'> {
+  const { runId: _runId, ...set } = values
+  return set
+}
 
 export async function openRegistryStore(dbPath: string): Promise<RegistryStore> {
   if (dbPath !== ':memory:') {
     await mkdir(dirname(dbPath), { recursive: true })
   }
-  const { DatabaseSync } = await loadSqlite()
-  const database = new DatabaseSync(dbPath)
-  if (dbPath !== ':memory:') {
-    database.exec('PRAGMA journal_mode = WAL')
-  }
-  database.exec('PRAGMA busy_timeout = 3000')
-  database.exec(`
-    CREATE TABLE IF NOT EXISTS plan_sessions (
-      id TEXT PRIMARY KEY,
-      token TEXT NOT NULL,
-      plan_path TEXT NOT NULL UNIQUE,
-      mode TEXT NOT NULL,
-      iteration INTEGER NOT NULL DEFAULT 1,
-      cwd TEXT NOT NULL,
-      config_path TEXT,
-      responses_json TEXT NOT NULL DEFAULT '{}',
-      execution_json TEXT NOT NULL DEFAULT '{}',
-      review_json TEXT,
-      started_at INTEGER NOT NULL,
-      last_seen_at INTEGER NOT NULL
-    )
-  `)
-  database.exec(`
-    CREATE TABLE IF NOT EXISTS processes (
-      id TEXT PRIMARY KEY,
-      pid INTEGER NOT NULL,
-      title TEXT NOT NULL,
-      summary TEXT,
-      agent TEXT,
-      mode TEXT NOT NULL,
-      plan_path TEXT NOT NULL,
-      directory TEXT NOT NULL,
-      cwd TEXT NOT NULL,
-      url TEXT NOT NULL,
-      host TEXT NOT NULL,
-      port INTEGER NOT NULL,
-      started_at INTEGER NOT NULL,
-      heartbeat_at INTEGER NOT NULL,
-      pending_count INTEGER NOT NULL DEFAULT 0,
-      execution_active INTEGER NOT NULL DEFAULT 0,
-      execution_step TEXT,
-      git_is_repo INTEGER NOT NULL DEFAULT 0,
-      git_root TEXT,
-      git_branch TEXT,
-      git_commit TEXT,
-      git_dirty INTEGER NOT NULL DEFAULT 0,
-      git_ahead INTEGER NOT NULL DEFAULT 0,
-      git_behind INTEGER NOT NULL DEFAULT 0,
-      git_changed_files INTEGER NOT NULL DEFAULT 0,
-      git_paths TEXT NOT NULL DEFAULT '[]',
-      git_summary TEXT NOT NULL DEFAULT ''
-    )
-  `)
-
-  const upsertStatement = database.prepare(UPSERT)
-  const getStatement = database.prepare('SELECT * FROM processes WHERE id = ?')
-  const listStatement = database.prepare('SELECT * FROM processes ORDER BY started_at DESC')
-  const removeStatement = database.prepare('DELETE FROM processes WHERE id = ?')
-  const saveSessionStatement = database.prepare(`
-    INSERT INTO plan_sessions (
-      id, token, plan_path, mode, iteration, cwd, config_path,
-      responses_json, execution_json, review_json, started_at, last_seen_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
-      token = excluded.token,
-      plan_path = excluded.plan_path,
-      mode = excluded.mode,
-      iteration = excluded.iteration,
-      cwd = excluded.cwd,
-      config_path = excluded.config_path,
-      responses_json = excluded.responses_json,
-      execution_json = excluded.execution_json,
-      review_json = excluded.review_json,
-      last_seen_at = excluded.last_seen_at
-  `)
-  const getSessionStatement = database.prepare('SELECT * FROM plan_sessions WHERE id = ?')
-  const getSessionByPathStatement = database.prepare('SELECT * FROM plan_sessions WHERE plan_path = ?')
-  const listSessionsStatement = database.prepare('SELECT * FROM plan_sessions ORDER BY started_at DESC')
-  database.exec(`
-    CREATE TABLE IF NOT EXISTS plan_runs (
-      run_id TEXT PRIMARY KEY,
-      started_at INTEGER NOT NULL,
-      payload TEXT NOT NULL
-    )
-  `)
-  const deleteSessionStatement = database.prepare('DELETE FROM plan_sessions WHERE id = ?')
-  const saveRunStatement = database.prepare(`
-    INSERT INTO plan_runs (run_id, started_at, payload) VALUES (?, ?, ?)
-    ON CONFLICT(run_id) DO UPDATE SET payload = excluded.payload
-  `)
-  const listRunsStatement = database.prepare('SELECT payload FROM plan_runs ORDER BY started_at DESC')
+  const opened = openPlanDatabase(dbPath)
+  const db = opened.db
   let closed = false
 
   const store: RegistryStore = {
     upsert(record) {
-      upsertStatement.run(...recordValues(record))
+      const values = planInsertFromProcess(record)
+      db.insert(plans)
+        .values(values)
+        .onConflictDoUpdate({
+          target: plans.id,
+          set: livePlanUpdate(values),
+        })
+        .run()
     },
     get(id) {
-      const row = getStatement.get(id)
-      return row ? rowToRecord(row) : undefined
+      const row = db.select().from(plans).where(eq(plans.id, id)).get()
+      if (!row || row.status !== 'running') return undefined
+      return planRowToProcess(row)
     },
     list() {
-      return listStatement.all().map((row) => rowToRecord(row))
+      return db
+        .select()
+        .from(plans)
+        .where(eq(plans.status, 'running'))
+        .orderBy(desc(plans.startedAt))
+        .all()
+        .map((row) => planRowToProcess(row))
     },
     heartbeat(id, pulse) {
       const current = store.get(id)
@@ -328,8 +180,8 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
       return store.get(id)
     },
     remove(id) {
-      const result = removeStatement.run(id)
-      return result.changes > 0
+      const removed = db.delete(plans).where(eq(plans.id, id)).returning({ id: plans.id }).all()
+      return removed.length > 0
     },
     prune(options) {
       const now = options?.now ?? Date.now()
@@ -347,54 +199,57 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
       return removed
     },
     saveSession(session) {
-      saveSessionStatement.run(
-        session.id,
-        session.token,
-        session.planPath,
-        session.mode,
-        session.iteration,
-        session.cwd,
-        session.configPath,
-        session.responsesJson,
-        session.executionJson,
-        session.reviewJson,
-        session.startedAt,
-        session.lastSeenAt,
-      )
+      const values = sessionValues(session)
+      db.insert(planSessions)
+        .values(values)
+        .onConflictDoUpdate({
+          target: planSessions.id,
+          set: sessionUpdate(values),
+        })
+        .run()
     },
     getSession(id) {
-      const row = getSessionStatement.get(id)
-      return row ? rowToSession(row) : undefined
+      const row = db.select().from(planSessions).where(eq(planSessions.id, id)).get()
+      return row ? toSession(row) : undefined
     },
     getSessionByPath(planPath) {
-      const row = getSessionByPathStatement.get(planPath)
-      return row ? rowToSession(row) : undefined
+      const row = db.select().from(planSessions).where(eq(planSessions.planPath, planPath)).get()
+      return row ? toSession(row) : undefined
     },
     listSessions() {
-      return listSessionsStatement.all().map((row) => rowToSession(row))
+      return db
+        .select()
+        .from(planSessions)
+        .orderBy(desc(planSessions.startedAt))
+        .all()
+        .map((row) => toSession(row))
     },
     deleteSession(id) {
-      const result = deleteSessionStatement.run(id)
-      return result.changes > 0
+      const removed = db.delete(planSessions).where(eq(planSessions.id, id)).returning({ id: planSessions.id }).all()
+      return removed.length > 0
     },
     saveRun(record) {
-      saveRunStatement.run(`${record.id}:${record.startedAt}`, record.startedAt, JSON.stringify(record))
+      const values = planRunInsert(record)
+      db.insert(planRuns)
+        .values(values)
+        .onConflictDoUpdate({
+          target: planRuns.runId,
+          set: runUpdate(values),
+        })
+        .run()
     },
     listRuns() {
-      return listRunsStatement.all().flatMap((row) => {
-        const payload = (row as { payload?: unknown }).payload
-        if (typeof payload !== 'string') return []
-        try {
-          return [JSON.parse(payload) as PlanRecord]
-        } catch {
-          return []
-        }
-      })
+      return db
+        .select()
+        .from(planRuns)
+        .orderBy(desc(planRuns.startedAt))
+        .all()
+        .map((row) => planRunRowToRecord(row))
     },
     close() {
       if (closed) return
       closed = true
-      database.close()
+      opened.close()
     },
   }
 

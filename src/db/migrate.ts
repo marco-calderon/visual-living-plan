@@ -1,4 +1,7 @@
-import type { Database } from 'bun:sqlite'
+import { sql } from 'drizzle-orm'
+import type { PlanDatabase } from './client.js'
+import { parseStoredRun, planRunInsert } from './rows.js'
+import { planRuns } from './schema.js'
 
 type ColumnSpec = {
   name: string
@@ -7,9 +10,9 @@ type ColumnSpec = {
   alter: string | null
 }
 
-/** SQL columns for `plans`. Names match `src/db/schema.ts`. */
-export const PLAN_COLUMNS: ColumnSpec[] = [
-  { name: 'id', create: 'id TEXT PRIMARY KEY', alter: null },
+type KnownTable = 'plans' | 'plan_sessions' | 'plan_runs' | 'processes'
+
+const SHARED_PLAN_COLUMNS: ColumnSpec[] = [
   { name: 'pid', create: 'pid INTEGER', alter: 'pid INTEGER' },
   { name: 'title', create: 'title TEXT NOT NULL', alter: "title TEXT NOT NULL DEFAULT ''" },
   { name: 'summary', create: 'summary TEXT', alter: 'summary TEXT' },
@@ -50,17 +53,33 @@ export const PLAN_COLUMNS: ColumnSpec[] = [
   { name: 'git_summary', create: "git_summary TEXT NOT NULL DEFAULT ''", alter: "git_summary TEXT NOT NULL DEFAULT ''" },
 ]
 
-function tableExists(sqlite: Database, name: string): boolean {
-  const row = sqlite
-    .query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
-    .get(name) as { name: string } | null
-  return Boolean(row)
-}
+/** SQL columns for `plans`. Names match `src/db/schema.ts`. */
+export const PLAN_COLUMNS: ColumnSpec[] = [
+  { name: 'id', create: 'id TEXT PRIMARY KEY', alter: null },
+  ...SHARED_PLAN_COLUMNS,
+]
 
-function columnNames(sqlite: Database, table: string): Set<string> {
-  const rows = sqlite.query(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>
-  return new Set(rows.map((row) => row.name))
-}
+/** SQL columns for typed `plan_runs`. `id` is the plan id; `run_id` is the primary key. */
+export const PLAN_RUN_COLUMNS: ColumnSpec[] = [
+  { name: 'run_id', create: 'run_id TEXT PRIMARY KEY', alter: null },
+  { name: 'id', create: 'id TEXT NOT NULL', alter: "id TEXT NOT NULL DEFAULT ''" },
+  ...SHARED_PLAN_COLUMNS,
+]
+
+export const PLAN_SESSION_COLUMNS: ColumnSpec[] = [
+  { name: 'id', create: 'id TEXT PRIMARY KEY', alter: null },
+  { name: 'token', create: 'token TEXT NOT NULL', alter: "token TEXT NOT NULL DEFAULT ''" },
+  { name: 'plan_path', create: 'plan_path TEXT NOT NULL UNIQUE', alter: "plan_path TEXT NOT NULL DEFAULT ''" },
+  { name: 'mode', create: 'mode TEXT NOT NULL', alter: "mode TEXT NOT NULL DEFAULT 'watch'" },
+  { name: 'iteration', create: 'iteration INTEGER NOT NULL DEFAULT 1', alter: 'iteration INTEGER NOT NULL DEFAULT 1' },
+  { name: 'cwd', create: 'cwd TEXT NOT NULL', alter: "cwd TEXT NOT NULL DEFAULT ''" },
+  { name: 'config_path', create: 'config_path TEXT', alter: 'config_path TEXT' },
+  { name: 'responses_json', create: "responses_json TEXT NOT NULL DEFAULT '{}'", alter: "responses_json TEXT NOT NULL DEFAULT '{}'" },
+  { name: 'execution_json', create: "execution_json TEXT NOT NULL DEFAULT '{}'", alter: "execution_json TEXT NOT NULL DEFAULT '{}'" },
+  { name: 'review_json', create: 'review_json TEXT', alter: 'review_json TEXT' },
+  { name: 'started_at', create: 'started_at INTEGER NOT NULL', alter: 'started_at INTEGER NOT NULL DEFAULT 0' },
+  { name: 'last_seen_at', create: 'last_seen_at INTEGER NOT NULL', alter: 'last_seen_at INTEGER NOT NULL DEFAULT 0' },
+]
 
 const COPY_FROM_PROCESSES = `
   INSERT INTO plans (
@@ -82,30 +101,80 @@ const COPY_FROM_PROCESSES = `
   WHERE NOT EXISTS (SELECT 1 FROM plans WHERE plans.id = processes.id)
 `
 
-/** Create `plans`, add any columns added after an older build, and fold in the legacy `processes` table. */
-export function migratePlanDatabase(sqlite: Database): void {
-  if (!tableExists(sqlite, 'plans')) {
-    sqlite.exec(`CREATE TABLE plans (\n${PLAN_COLUMNS.map((column) => column.create).join(',\n')}\n)`)
-  } else {
-    const present = columnNames(sqlite, 'plans')
-    for (const column of PLAN_COLUMNS) {
-      if (!column.alter || present.has(column.name)) continue
-      sqlite.exec(`ALTER TABLE plans ADD COLUMN ${column.alter}`)
+/** Schema changes stay as SQL text. Drizzle runs them; table rows are read and written with the query builder. */
+function runSql(db: PlanDatabase, statement: string): void {
+  db.run(sql.raw(statement))
+}
+
+function tableExists(db: PlanDatabase, name: string): boolean {
+  const rows = db.all<{ name: string }>(
+    sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ${name}`,
+  )
+  return rows.length > 0
+}
+
+function columnNames(db: PlanDatabase, table: KnownTable): Set<string> {
+  const rows = db.all<{ name: string }>(sql.raw(`PRAGMA table_info(${table})`))
+  return new Set(rows.map((row) => row.name))
+}
+
+function createTableSql(table: KnownTable, columns: ColumnSpec[]): string {
+  return `CREATE TABLE ${table} (\n${columns.map((column) => column.create).join(',\n')}\n)`
+}
+
+function ensureTable(db: PlanDatabase, table: KnownTable, columns: ColumnSpec[]): void {
+  if (!tableExists(db, table)) {
+    runSql(db, createTableSql(table, columns))
+    return
+  }
+  const present = columnNames(db, table)
+  for (const column of columns) {
+    if (!column.alter || present.has(column.name)) continue
+    runSql(db, `ALTER TABLE ${table} ADD COLUMN ${column.alter}`)
+  }
+}
+
+function foldProcesses(db: PlanDatabase): void {
+  if (!tableExists(db, 'processes')) return
+  db.transaction((tx) => {
+    runSql(tx, COPY_FROM_PROCESSES)
+    runSql(tx, 'DROP TABLE processes')
+  })
+}
+
+type LegacyRunRow = {
+  run_id: string
+  started_at: number
+  payload: string
+}
+
+function migrateLegacyRuns(db: PlanDatabase): void {
+  if (!tableExists(db, 'plan_runs')) return
+  const present = columnNames(db, 'plan_runs')
+  if (!present.has('payload') || present.has('title')) return
+  const legacy = db.all<LegacyRunRow>(sql`SELECT run_id, started_at, payload FROM plan_runs`)
+  const parsed = legacy.flatMap((row) => {
+    const record = parseStoredRun(row.payload)
+    return record ? [{ runId: row.run_id, record }] : []
+  })
+  db.transaction((tx) => {
+    runSql(tx, 'ALTER TABLE plan_runs RENAME TO plan_runs_legacy')
+    runSql(tx, createTableSql('plan_runs', PLAN_RUN_COLUMNS))
+    for (const row of parsed) {
+      tx.insert(planRuns).values(planRunInsert(row.record, row.runId)).run()
     }
-  }
+    runSql(tx, 'DROP TABLE plan_runs_legacy')
+  })
+}
 
-  sqlite.exec('CREATE INDEX IF NOT EXISTS plans_started_at_idx ON plans (started_at)')
-  sqlite.exec('CREATE INDEX IF NOT EXISTS plans_status_idx ON plans (status)')
-
-  if (!tableExists(sqlite, 'processes')) return
-
-  sqlite.exec('BEGIN')
-  try {
-    sqlite.exec(COPY_FROM_PROCESSES)
-    sqlite.exec('DROP TABLE processes')
-    sqlite.exec('COMMIT')
-  } catch (error) {
-    sqlite.exec('ROLLBACK')
-    throw error
-  }
+/** Create `plans`, add any columns added after an older build, and fold in legacy tables. */
+export function migratePlanDatabase(db: PlanDatabase): void {
+  ensureTable(db, 'plans', PLAN_COLUMNS)
+  runSql(db, 'CREATE INDEX IF NOT EXISTS plans_started_at_idx ON plans (started_at)')
+  runSql(db, 'CREATE INDEX IF NOT EXISTS plans_status_idx ON plans (status)')
+  foldProcesses(db)
+  ensureTable(db, 'plan_sessions', PLAN_SESSION_COLUMNS)
+  migrateLegacyRuns(db)
+  ensureTable(db, 'plan_runs', PLAN_RUN_COLUMNS)
+  runSql(db, 'CREATE INDEX IF NOT EXISTS plan_runs_started_at_idx ON plan_runs (started_at)')
 }

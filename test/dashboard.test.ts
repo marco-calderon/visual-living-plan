@@ -130,7 +130,7 @@ test('dashboard groups plans by local day, week, and month', () => {
   assert.equal(month.summary.durationMs, 4_000 + 19_000 + 50_000)
 })
 
-test('opening the store keeps legacy process rows and adds session tables', async () => {
+test('opening the store keeps legacy process rows in plans and adds session tables', async () => {
   const home = await mkdtemp(join(tmpdir(), 'live-plan-migrate-'))
   const dbPath = join(home, 'registry.sqlite')
   try {
@@ -220,10 +220,57 @@ test('opening the store keeps legacy process rows and adds session tables', asyn
 
     const check = new DatabaseSync(dbPath, { readOnly: true })
     const tables = check.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>
-    assert.equal(tables.some((table) => table.name === 'processes'), true)
+    assert.equal(tables.some((table) => table.name === 'plans'), true)
+    assert.equal(tables.some((table) => table.name === 'processes'), false)
     assert.equal(tables.some((table) => table.name === 'plan_sessions'), true)
     assert.equal(tables.some((table) => table.name === 'plan_runs'), true)
+    const runColumns = check.prepare('PRAGMA table_info(plan_runs)').all() as Array<{ name: string }>
+    assert.equal(runColumns.some((column) => column.name === 'title'), true)
+    assert.equal(runColumns.some((column) => column.name === 'payload'), false)
     check.close()
+  } finally {
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
+test('opening the store reads finished runs stored as JSON payloads', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'live-plan-runs-'))
+  const dbPath = join(home, 'registry.sqlite')
+  const stored = plan({
+    id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+    title: 'Archived run',
+    status: 'executed',
+    outcome: 'approve',
+    directory: '/tmp/archived',
+    git: { ...emptyGitSnapshot(), isRepo: true, branch: 'main', changedFiles: 2, changedPaths: ['src/a.ts'], summary: 'main' },
+  })
+  try {
+    const legacy = new DatabaseSync(dbPath)
+    legacy.exec(`
+      CREATE TABLE plan_runs (
+        run_id TEXT PRIMARY KEY,
+        started_at INTEGER NOT NULL,
+        payload TEXT NOT NULL
+      )
+    `)
+    legacy
+      .prepare('INSERT INTO plan_runs (run_id, started_at, payload) VALUES (?, ?, ?)')
+      .run(`${stored.id}:${stored.startedAt}`, stored.startedAt, JSON.stringify(stored))
+    legacy.close()
+
+    const store = await openRegistryStore(dbPath)
+    try {
+      const runs = store.listRuns()
+      assert.equal(runs.length, 1)
+      assert.equal(runs[0]?.title, 'Archived run')
+      assert.equal(runs[0]?.status, 'executed')
+      assert.equal(runs[0]?.outcome, 'approve')
+      assert.equal(runs[0]?.directory, '/tmp/archived')
+      assert.equal(runs[0]?.git.branch, 'main')
+      assert.deepEqual(runs[0]?.git.changedPaths, ['src/a.ts'])
+    } finally {
+      store.close()
+    }
   } finally {
     await rm(home, { recursive: true, force: true })
   }
