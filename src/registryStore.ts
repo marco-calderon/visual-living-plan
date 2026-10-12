@@ -23,6 +23,12 @@ export type StoredPlanSession = {
   lastSeenAt: number
 }
 
+/** Inclusive window. A finished run overlaps when it started at or before `to` and ended at or after `from`. */
+export type RunWindow = {
+  from: number
+  to: number
+}
+
 export type RegistryStore = {
   upsert(record: ProcessRecord): void
   get(id: string): ProcessRecord | undefined
@@ -36,7 +42,7 @@ export type RegistryStore = {
   listSessions(): StoredPlanSession[]
   deleteSession(id: string): boolean
   saveRun(record: PlanRecord): void
-  listRuns(): PlanRecord[]
+  listRuns(window?: RunWindow): PlanRecord[]
   close(): void
 }
 
@@ -54,6 +60,42 @@ function loadSqlite(): Promise<typeof import('node:sqlite')> {
     sqliteImport = import('node:sqlite')
   }
   return sqliteImport
+}
+
+type PlanRunDatabase = {
+  exec(sql: string): void
+  prepare(sql: string): {
+    all(): unknown[]
+  }
+}
+
+/** Older databases stored only `started_at` and the JSON payload. The window query needs the end time as a column. */
+function ensurePlanRunWindow(database: PlanRunDatabase): void {
+  const columns = database.prepare('PRAGMA table_info(plan_runs)').all() as Array<{ name?: unknown }>
+  if (!columns.some((column) => column.name === 'ended_at')) {
+    database.exec('ALTER TABLE plan_runs ADD COLUMN ended_at INTEGER')
+  }
+  database.exec(`
+    UPDATE plan_runs
+    SET ended_at = COALESCE(
+      CAST(json_extract(payload, '$.endedAt') AS INTEGER),
+      CAST(json_extract(payload, '$.heartbeatAt') AS INTEGER),
+      started_at
+    )
+    WHERE ended_at IS NULL
+  `)
+  database.exec('CREATE INDEX IF NOT EXISTS plan_runs_started_at_idx ON plan_runs (started_at)')
+  database.exec('CREATE INDEX IF NOT EXISTS plan_runs_ended_at_idx ON plan_runs (ended_at)')
+}
+
+function parseRunPayload(row: unknown): PlanRecord[] {
+  const payload = (row as { payload?: unknown }).payload
+  if (typeof payload !== 'string') return []
+  try {
+    return [JSON.parse(payload) as PlanRecord]
+  } catch {
+    return []
+  }
 }
 
 function asNumber(value: unknown): number {
@@ -291,12 +333,21 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
       payload TEXT NOT NULL
     )
   `)
+  ensurePlanRunWindow(database)
   const deleteSessionStatement = database.prepare('DELETE FROM plan_sessions WHERE id = ?')
   const saveRunStatement = database.prepare(`
-    INSERT INTO plan_runs (run_id, started_at, payload) VALUES (?, ?, ?)
-    ON CONFLICT(run_id) DO UPDATE SET payload = excluded.payload
+    INSERT INTO plan_runs (run_id, started_at, ended_at, payload) VALUES (?, ?, ?, ?)
+    ON CONFLICT(run_id) DO UPDATE SET
+      started_at = excluded.started_at,
+      ended_at = excluded.ended_at,
+      payload = excluded.payload
   `)
   const listRunsStatement = database.prepare('SELECT payload FROM plan_runs ORDER BY started_at DESC')
+  const listRunsInWindowStatement = database.prepare(`
+    SELECT payload FROM plan_runs
+    WHERE started_at <= ? AND ended_at >= ?
+    ORDER BY started_at DESC
+  `)
   let closed = false
 
   const store: RegistryStore = {
@@ -378,18 +429,18 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
       return result.changes > 0
     },
     saveRun(record) {
-      saveRunStatement.run(`${record.id}:${record.startedAt}`, record.startedAt, JSON.stringify(record))
+      saveRunStatement.run(
+        `${record.id}:${record.startedAt}`,
+        record.startedAt,
+        record.endedAt ?? record.heartbeatAt,
+        JSON.stringify(record),
+      )
     },
-    listRuns() {
-      return listRunsStatement.all().flatMap((row) => {
-        const payload = (row as { payload?: unknown }).payload
-        if (typeof payload !== 'string') return []
-        try {
-          return [JSON.parse(payload) as PlanRecord]
-        } catch {
-          return []
-        }
-      })
+    listRuns(window) {
+      const rows = window
+        ? listRunsInWindowStatement.all(window.to, window.from)
+        : listRunsStatement.all()
+      return rows.flatMap((row) => parseRunPayload(row))
     },
     close() {
       if (closed) return

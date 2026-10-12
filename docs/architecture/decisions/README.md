@@ -11,5 +11,6 @@ Decisions are numbered in the order they were made. Superseded decisions stay he
 | [0005](0005-private-server-escape-hatch.md) | 2026-10-10 | Accepted | `--no-registry` keeps a private one-plan server |
 | [0006](0006-session-durability.md) | 2026-10-10 | Accepted | Persist sessions, idle them out, restart on version change |
 | [0007](0007-serve-stays-a-client.md) | 2026-10-11 | Accepted | `serve` stays a client and hears that plan's submissions |
+| [0008](0008-dashboard-window-query.md) | 2026-10-12 | Accepted | Dashboard period filters run inside the finished-run query |
 
-Add the next decision as `0007-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.
+Add the next decision as `0009-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.
