@@ -142,6 +142,135 @@ function toHex({ r, g, b }: { r: number; g: number; b: number }): string {
   return `#${[r, g, b].map((n) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, '0')).join('')}`
 }
 
+type Hsl = { h: number; s: number; l: number }
+type Chroma = { h: number; chromatic: boolean }
+
+/** Below this saturation the hue is noise, so surfaces stay neutral gray. */
+const CHROMA_FLOOR = 0.08
+
+function rgbToHsl({ r, g, b }: { r: number; g: number; b: number }): Hsl {
+  const rn = r / 255
+  const gn = g / 255
+  const bn = b / 255
+  const max = Math.max(rn, gn, bn)
+  const min = Math.min(rn, gn, bn)
+  const l = (max + min) / 2
+  const delta = max - min
+  if (delta === 0) return { h: 0, s: 0, l }
+  const s = delta / (1 - Math.abs(2 * l - 1))
+  let hue: number
+  if (max === rn) hue = ((gn - bn) / delta) % 6
+  else if (max === gn) hue = (bn - rn) / delta + 2
+  else hue = (rn - gn) / delta + 4
+  hue *= 60
+  if (hue < 0) hue += 360
+  return { h: hue, s, l }
+}
+
+function hslToRgb({ h, s, l }: Hsl): { r: number; g: number; b: number } {
+  const c = (1 - Math.abs(2 * l - 1)) * s
+  const hp = (((h % 360) + 360) % 360) / 60
+  const x = c * (1 - Math.abs((hp % 2) - 1))
+  const m = l - c / 2
+  let r = 0
+  let g = 0
+  let b = 0
+  if (hp < 1) {
+    r = c
+    g = x
+  } else if (hp < 2) {
+    r = x
+    g = c
+  } else if (hp < 3) {
+    g = c
+    b = x
+  } else if (hp < 4) {
+    g = x
+    b = c
+  } else if (hp < 5) {
+    r = x
+    b = c
+  } else {
+    r = c
+    b = x
+  }
+  return {
+    r: Math.round((r + m) * 255),
+    g: Math.round((g + m) * 255),
+    b: Math.round((b + m) * 255),
+  }
+}
+
+function accentChroma(accent: string): Chroma {
+  const hsl = rgbToHsl(hexToRgb(accent))
+  return { h: hsl.h, chromatic: hsl.s >= CHROMA_FLOOR }
+}
+
+/** Repaint a neutral at the accent hue, keeping the original saturation and lightness. */
+function paint(chroma: Chroma, saturation: number, lightness: number): { r: number; g: number; b: number } {
+  return hslToRgb({
+    h: chroma.h,
+    s: chroma.chromatic ? saturation : 0,
+    l: lightness,
+  })
+}
+
+/**
+ * Page surfaces keep the same lightness as the built-in green cast, but take
+ * their hue from the configured accent so the background follows the theme.
+ */
+function surfaceCustomProperties(accent: string, mode: 'light' | 'dark'): string {
+  const chroma = accentChroma(accentForMode(accent, mode))
+  if (mode === 'light') {
+    const ink = paint(chroma, 0.23, 0.102)
+    const pageTop = paint(chroma, 0.231, 0.975)
+    return `
+  --ink: ${toHex(ink)};
+  --muted: ${toHex(paint(chroma, 0.081, 0.388))};
+  --paper: ${toHex(paint(chroma, 0.172, 0.943))};
+  --paper-2: ${toHex(paint(chroma, 0.167, 0.906))};
+  --page-top: ${toHex(pageTop)};
+  --stage-bg: ${toHex(pageTop)};
+  --line: ${rgba(ink, 0.12)};
+  --shadow: 0 18px 50px ${rgba(ink, 0.08)};
+  --dot: ${rgba(ink, 0.12)};
+  --node-shadow: 0 10px 24px ${rgba(ink, 0.08)};
+  --code-block-bg: ${toHex(paint(chroma, 0.281, 0.098))};
+  --code-block-fg: ${toHex(paint(chroma, 0.599, 0.922))};
+  --toast-bg: ${toHex(ink)};
+  --minimap-mask: ${rgba(pageTop, 0.65)};`
+  }
+
+  const ink = paint(chroma, 0.314, 0.931)
+  const pageTop = paint(chroma, 0.236, 0.067)
+  const stage = paint(chroma, 0.222, 0.071)
+  const control = paint(chroma, 0.279, 0.043)
+  const onLight = paint(chroma, 0.335, 0.094)
+  return `
+  --ink: ${toHex(ink)};
+  --muted: ${toHex(paint(chroma, 0.125, 0.749))};
+  --paper: ${toHex(paint(chroma, 0.2, 0.078))};
+  --paper-2: ${toHex(paint(chroma, 0.199, 0.059))};
+  --page-top: ${toHex(pageTop)};
+  --stage-bg: ${toHex(stage)};
+  --panel: ${rgba(paint(chroma, 0.241, 0.114), 0.78)};
+  --panel-strong: ${rgba(paint(chroma, 0.236, 0.082), 0.92)};
+  --node-bg: ${rgba(paint(chroma, 0.28, 0.098), 0.96)};
+  --line: ${rgba(ink, 0.14)};
+  --dot: ${rgba(ink, 0.14)};
+  --control-bg: ${rgba(control, 0.55)};
+  --control-solid: ${rgba(control, 0.45)};
+  --code-block-bg: ${toHex(paint(chroma, 0.415, 0.047))};
+  --code-block-fg: ${toHex(paint(chroma, 0.599, 0.922))};
+  --tab-active-bg: ${toHex(ink)};
+  --tab-active-fg: ${toHex(onLight)};
+  --toast-bg: ${toHex(ink)};
+  --toast-fg: ${toHex(onLight)};
+  --handle-border: ${toHex(onLight)};
+  --review-bg: ${toHex(paint(chroma, 0.221, 0.116))};
+  --minimap-mask: ${rgba(control, 0.55)};`
+}
+
 /** Lift dark accents toward a readable mid luminance on dark surfaces. */
 export function accentForMode(accent: string, mode: 'light' | 'dark'): string {
   const normalized = normalizeAccent(accent) ?? DEFAULT_ACCENT
@@ -163,7 +292,8 @@ export function accentForMode(accent: string, mode: 'light' | 'dark'): string {
 export function deriveAccentVars(accent: string, mode: 'light' | 'dark'): ThemeAccentVars {
   const resolved = accentForMode(accent, mode)
   const rgb = hexToRgb(resolved)
-  const onAccent = relativeLuminance(rgb) > 0.55 ? '#06221e' : '#ffffff'
+  const onAccent =
+    relativeLuminance(rgb) > 0.55 ? toHex(paint(accentChroma(resolved), 0.35, 0.16)) : '#ffffff'
   const soft = mode === 'dark' ? 0.14 : 0.08
   const border = mode === 'dark' ? 0.32 : 0.22
   const hover = mode === 'dark' ? 0.55 : 0.45
@@ -186,7 +316,7 @@ export function deriveAccentVars(accent: string, mode: 'light' | 'dark'): ThemeA
 export function accentCssCustomProperties(accent: string): string {
   const light = deriveAccentVars(accent, 'light')
   const dark = deriveAccentVars(accent, 'dark')
-  const lines = (vars: ThemeAccentVars) => `
+  const lines = (vars: ThemeAccentVars, mode: 'light' | 'dark') => `
   --accent: ${vars.accent};
   --on-accent: ${vars.onAccent};
   --wash-accent: ${vars.washAccent};
@@ -198,13 +328,14 @@ export function accentCssCustomProperties(accent: string): string {
   --pulse: ${vars.pulse};
   --node-active-border: ${vars.nodeActiveBorder};
   --node-active-ring: ${vars.nodeActiveRing};
+${surfaceCustomProperties(accent, mode)}
 `
   return `
 :root {
-${lines(light)}
+${lines(light, 'light')}
 }
 :root[data-theme="dark"] {
-${lines(dark)}
+${lines(dark, 'dark')}
 }
 `
 }

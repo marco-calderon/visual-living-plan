@@ -460,6 +460,7 @@ const STYLES = `
   --node-blocked-border: rgba(251, 191, 36, 0.7);
   --handle-border: #10201b;
   --minimap-idle: #64748b;
+  --review-bg: #172420;
 }
 
 * { box-sizing: border-box; }
@@ -1014,8 +1015,8 @@ textarea { min-height: 88px; resize: vertical; }
 .review-note:focus { outline: none; }
 .review-note::placeholder { color: var(--muted); }
 :root[data-theme="dark"] .review-bar {
-  background: #172420;
-  border-color: rgba(232, 243, 238, 0.16);
+  background: var(--review-bg);
+  border-color: var(--line);
 }
 
 .toast {

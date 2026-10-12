@@ -138,6 +138,10 @@ function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: Execu
     () => ({
       dot: cssVar('--dot', theme.mode === 'dark' ? 'rgba(232, 243, 238, 0.14)' : 'rgba(20, 32, 27, 0.12)'),
       idle: cssVar('--minimap-idle', theme.mode === 'dark' ? '#64748b' : '#94a3b8'),
+      mask: cssVar(
+        '--minimap-mask',
+        theme.mode === 'dark' ? 'rgba(8, 14, 12, 0.55)' : 'rgba(247, 250, 248, 0.65)',
+      ),
     }),
     [theme],
   )
@@ -208,7 +212,7 @@ function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: Execu
         pannable
         zoomable
         style={{ width: 112, height: 74 }}
-        maskColor={theme.mode === 'dark' ? 'rgba(8, 14, 12, 0.55)' : 'rgba(247, 250, 248, 0.65)'}
+        maskColor={canvasColors.mask}
         nodeColor={(node) => {
           const status = (node.data as { status?: string } | undefined)?.status
           if (status === 'done') return theme.mode === 'dark' ? '#4ade80' : '#166534'
