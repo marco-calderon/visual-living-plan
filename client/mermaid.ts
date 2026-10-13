@@ -1,4 +1,5 @@
 import mermaid from 'mermaid'
+import { attachMermaidViewer, collapseMermaidViewer, releaseMermaidViewer, watchMermaidViewer } from './mermaidViewer.ts'
 
 const FONT = '"IBM Plex Sans", "Helvetica Neue", Arial, sans-serif'
 
@@ -30,6 +31,8 @@ function sourceOf(node: HTMLElement): string {
 }
 
 function showSource(node: HTMLElement, source: string, message: string): void {
+  collapseMermaidViewer(node)
+  releaseMermaidViewer(node)
   node.replaceChildren()
   const pre = document.createElement('pre')
   pre.className = 'code-block mermaid-fallback'
@@ -107,6 +110,7 @@ async function renderDiagrams(): Promise<void> {
     if (ticket !== generation) return
     const source = sourceOf(node).trim()
     if (!source) continue
+    releaseMermaidViewer(node)
     const id = `living-plan-mermaid-${index}-${ticket}`
     try {
       const parsed = await mermaid.parse(source, { suppressErrors: true })
@@ -119,8 +123,7 @@ async function renderDiagrams(): Promise<void> {
       if (ticket !== generation) return
       node.innerHTML = svg
       const svgEl = node.querySelector('svg')
-      svgEl?.setAttribute('role', 'img')
-      svgEl?.setAttribute('aria-label', 'Diagram')
+      if (svgEl instanceof SVGSVGElement) attachMermaidViewer(node, svgEl)
     } catch {
       if (ticket !== generation) return
       document.getElementById(id)?.remove()
@@ -131,6 +134,7 @@ async function renderDiagrams(): Promise<void> {
 
 function boot(): void {
   if (diagramNodes().length === 0) return
+  watchMermaidViewer()
   void renderDiagrams()
   window.addEventListener('living-plan-theme', () => {
     void renderDiagrams()

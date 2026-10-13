@@ -799,23 +799,88 @@ body.has-review-bar .shell {
   margin-bottom: 0;
 }
 .mermaid-diagram {
+  position: relative;
+  display: flex;
+  flex-direction: column;
   margin: 0 0 0.85rem;
-  padding: 0.85rem 1rem;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--panel-strong);
-  overflow: auto;
+  overflow: hidden;
 }
 .mermaid-diagram .mermaid {
   margin: 0;
+  padding: 0.85rem 1rem;
   white-space: pre-wrap;
   color: var(--muted);
 }
-.mermaid-diagram svg {
+.mermaid-stage {
+  overflow: hidden;
+  min-height: 10rem;
+  cursor: grab;
+  user-select: none;
+}
+.mermaid-stage:active { cursor: grabbing; }
+.mermaid-stage:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.mermaid-stage > svg {
   display: block;
-  max-width: 100%;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+}
+.mermaid-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid var(--line);
+}
+.mermaid-control {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--control-bg);
+  color: var(--ink);
+  cursor: pointer;
+}
+.mermaid-control svg {
+  width: 1rem;
+  height: 1rem;
+}
+.mermaid-control:hover {
+  border-color: var(--accent-hover-border);
+}
+.mermaid-control:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.mermaid-control[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.mermaid-placeholder { margin: 0 0 0.85rem; }
+body.mermaid-maximized { overflow: hidden; }
+.mermaid-diagram.is-maximized {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--paper);
+}
+.mermaid-diagram.is-maximized .mermaid-stage {
+  flex: 1 1 auto;
+  min-height: 0;
   height: auto;
-  margin: 0 auto;
 }
 .mermaid-error {
   margin: 0.65rem 0 0;

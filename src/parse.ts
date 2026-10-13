@@ -94,7 +94,7 @@ function markdownToHtml(source: string): string {
       const diagram = code.join('\n')
       if (fence.language === 'mermaid' && !fence.diff && diagram.trim()) {
         parts.push(
-          `<figure class="mermaid-diagram" role="img" aria-label="Diagram"><pre class="mermaid">${escapeHtml(diagram)}</pre></figure>`,
+          `<figure class="mermaid-diagram"><pre class="mermaid">${escapeHtml(diagram)}</pre></figure>`,
         )
       } else {
         parts.push(
