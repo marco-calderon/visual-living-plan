@@ -195,3 +195,219 @@ test('the plan page loads the highlighter only when a code block is present', ()
   assert.doesNotMatch(plainHtml, /highlight\.js/)
   assert.doesNotMatch(plainHtml, /highlight\.css/)
 })
+
+function renderSource(source: string, diffs: Array<{ index: number; status: 'added' | 'edited' | 'removed' | 'unchanged' }> = []) {
+  return renderPlanPage({
+    plan: parsePlan(source),
+    mode: 'watch',
+    responses: {},
+    diffs,
+    iteration: 1,
+    pendingInteractionIds: [],
+    execution: createIdleExecutionState(),
+    clientAssets: null,
+    theme: themePayload(defaultThemeConfig(), 'live-plan.config.json'),
+  })
+}
+
+function stack(html: string): string {
+  const start = html.indexOf('<main class="stack">')
+  const end = html.indexOf('</main>', start)
+  return html.slice(start, end)
+}
+
+test('a heading-only chunk renders inside the following card', () => {
+  const html = stack(renderSource(`## What I found before planning
+
+\`\`\`callout
+kind: note
+title: Facts
+body: |
+  The note body.
+\`\`\`
+`))
+
+  assert.equal(html.match(/class="block callout/g)?.length, 1)
+  assert.equal(html.includes('class="block markdown'), false)
+  const callout = html.slice(html.indexOf('class="block callout'))
+  assert.match(callout, /<h2>What I found before planning<\/h2>/)
+  assert.match(callout, /The note body\./)
+})
+
+test('a diagram-only chunk renders inside the previous card', () => {
+  const html = stack(renderSource(`\`\`\`callout
+kind: note
+title: Facts
+body: |
+  The note body.
+\`\`\`
+
+\`\`\`mermaid
+flowchart LR
+  heading[Heading chunk] --> note[Note card]
+\`\`\`
+`))
+
+  assert.equal(html.match(/class="block callout/g)?.length, 1)
+  assert.equal(html.includes('class="block markdown'), false)
+  const callout = html.slice(html.indexOf('class="block callout'), html.lastIndexOf('</section>') + '</section>'.length)
+  assert.match(callout, /class="mermaid-diagram"/)
+  assert.match(callout, /The note body\./)
+})
+
+test('choices and questions stay separate cards', () => {
+  const html = stack(renderSource(`## Before the choice
+
+\`\`\`choice
+id: sink
+prompt: Add the override?
+options:
+  - id: yes
+    label: Add it
+  - id: no
+    label: Omit it
+\`\`\`
+
+\`\`\`mermaid
+flowchart LR
+  A --> B
+\`\`\`
+
+\`\`\`choice
+id: drift
+prompt: Where does the check run?
+options:
+  - id: jenkins
+    label: Jenkins
+  - id: dag
+    label: The DAG
+\`\`\`
+
+\`\`\`questions
+id: one
+prompt: First
+items:
+  - One?
+\`\`\`
+
+\`\`\`questions
+id: two
+prompt: Second
+items:
+  - Two?
+\`\`\`
+`))
+
+  assert.equal(html.match(/class="block interaction choice/g)?.length, 2)
+  assert.equal(html.match(/class="block interaction questions/g)?.length, 2)
+  assert.equal(html.includes('class="block markdown'), false)
+  const firstChoice = html.slice(html.indexOf('data-interaction-id="sink"'), html.indexOf('data-interaction-id="drift"'))
+  assert.match(firstChoice, /<h2>Before the choice<\/h2>/)
+  assert.match(firstChoice, /class="mermaid-diagram"/)
+})
+
+test('a run of phases shares one card and a single phase stays one card', () => {
+  const grouped = stack(renderSource(`\`\`\`phase
+id: group
+title: Attach
+status: pending
+body: |
+  First step.
+\`\`\`
+
+\`\`\`phase
+id: wrap
+title: Wrap
+status: pending
+body: |
+  Second step.
+\`\`\`
+
+\`\`\`phase
+id: prove
+title: Prove
+status: pending
+body: |
+  Third step.
+\`\`\`
+
+\`\`\`callout
+kind: note
+body: |
+  Split.
+\`\`\`
+
+\`\`\`phase
+id: alone
+title: Alone
+status: active
+body: |
+  Just this step.
+\`\`\`
+`))
+
+  assert.equal(grouped.match(/class="block phase-group"/g)?.length, 1)
+  assert.equal(grouped.match(/data-plan-ref="group"/g)?.length, 1)
+  assert.equal(grouped.match(/data-plan-ref="wrap"/g)?.length, 1)
+  assert.equal(grouped.match(/data-plan-ref="prove"/g)?.length, 1)
+  assert.equal(grouped.match(/class="block phase status-/g)?.length, 1)
+  assert.match(grouped, /data-plan-ref="alone"/)
+  const group = grouped.slice(grouped.indexOf('class="block phase-group"'), grouped.indexOf('class="block callout'))
+  assert.equal(group.match(/class="phase status-/g)?.length, 3)
+})
+
+test('mixed markdown stays one card and a phase body keeps its diagram', () => {
+  const mixed = stack(renderSource(`Intro paragraph.
+
+\`\`\`mermaid
+flowchart LR
+  A --> B
+\`\`\`
+`))
+  assert.equal(mixed.match(/class="block markdown/g)?.length, 1)
+  assert.match(mixed, /class="mermaid-diagram"/)
+
+  const phase = stack(renderSource(`\`\`\`phase
+id: design
+title: Design
+status: active
+body: |
+  Request path:
+
+  \`\`\`mermaid
+  flowchart LR
+    Gateway --> Redis
+  \`\`\`
+\`\`\`
+`))
+  assert.equal(phase.match(/class="block phase status-/g)?.length, 1)
+  assert.equal(phase.includes('class="block markdown'), false)
+  assert.match(phase, /Gateway --&gt; Redis/)
+})
+
+test('a lone document title that repeats the hero is dropped', () => {
+  const html = stack(renderSource('---\ntitle: Test plan\n---\n\n# Test plan\n'))
+  assert.equal(html.includes('class="block markdown'), false)
+  assert.equal(html.includes('<h1>Test plan</h1>'), false)
+})
+
+test('a moved heading keeps its own diff class', () => {
+  const html = stack(
+    renderSource(
+      `## What I found before planning
+
+\`\`\`callout
+kind: note
+body: |
+  Facts.
+\`\`\`
+`,
+      [
+        { index: 0, status: 'added' },
+        { index: 1, status: 'unchanged' },
+      ],
+    ),
+  )
+  assert.match(html, /class="card-preface rich diff-added"/)
+  assert.match(html, /class="block callout kind-note diff-unchanged"/)
+})

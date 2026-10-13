@@ -1,0 +1,52 @@
+{
+  "title": "Live overlay",
+  "nodes": [
+    {
+      "id": "author",
+      "label": "Author the plan",
+      "detail": "Plan file written",
+      "status": "done",
+      "x": 40,
+      "y": 80
+    },
+    {
+      "id": "check",
+      "label": "Check the plan",
+      "detail": "Comparing skill to CLI",
+      "status": "active",
+      "x": 340,
+      "y": 80
+    },
+    {
+      "id": "serve",
+      "label": "Serve the page",
+      "status": "pending",
+      "x": 640,
+      "y": 80
+    },
+    {
+      "id": "sign-off",
+      "label": "Sign off",
+      "status": "pending",
+      "x": 940,
+      "y": 80
+    },
+    {
+      "id": "revise",
+      "label": "Revise the skill",
+      "detail": "Only if check disagrees",
+      "status": "pending",
+      "x": 340,
+      "y": 300
+    }
+  ],
+  "edges": [
+    { "from": "author", "to": "check" },
+    { "from": "check", "to": "serve", "label": "valid" },
+    { "from": "check", "to": "revise", "label": "invalid", "fromSide": "bottom", "toSide": "top" },
+    { "from": "revise", "to": "revise", "label": "again" },
+    { "from": "revise", "to": "check", "label": "recheck", "fromSide": "left", "toSide": "bottom" },
+    { "from": "serve", "to": "sign-off" },
+    { "from": "sign-off", "to": "author", "label": "iterate", "fromSide": "bottom", "toSide": "left" }
+  ]
+}
