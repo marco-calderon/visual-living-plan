@@ -21,6 +21,8 @@ bun install
 bun run serve -- examples/rate-limit.plan.md
 ```
 
+`examples/tables.plan.md` is the table showcase: a pipe table in the plan text, and the same syntax inside a phase and a callout.
+
 The command prints a URL and stays attached to that plan. Open the URL. Edit the example file, change a phase `status`, and the page reloads. Click a choice or submit a form. This command prints that submission. `--detach` registers the plan and returns; `events` or `wait` can attach later.
 
 ### Running plans

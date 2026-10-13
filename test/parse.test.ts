@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { createIdleExecutionState } from '../src/execution.ts'
 import { parsePlan } from '../src/parse.ts'
@@ -305,6 +306,23 @@ body: |
     phase.bodyHtml,
     '<div class="rich-table"><table><thead><tr><th>Step</th><th class="align-center">State</th></tr></thead><tbody><tr><td>Parse</td><td class="align-center">done</td></tr></tbody></table></div>',
   )
+})
+
+test('the table showcase renders tables in the plan, a phase, and a callout', () => {
+  const plan = parsePlan(readFileSync(new URL('../examples/tables.plan.md', import.meta.url), 'utf8'))
+  const markdown = plan.blocks.find((block) => block.type === 'markdown')
+  const phase = plan.blocks.find((block) => block.type === 'phase' && block.id === 'queue')
+  const callout = plan.blocks.find((block) => block.type === 'callout')
+  assert.ok(markdown && markdown.type === 'markdown')
+  assert.ok(phase && phase.type === 'phase')
+  assert.ok(callout && callout.type === 'callout')
+  assert.match(markdown.html, /<th>Status<\/th><th>Meaning<\/th><th class="align-right">Lease<\/th>/)
+  assert.match(phase.bodyHtml, /<th>Column<\/th><th>Purpose<\/th>/)
+  assert.match(phase.bodyHtml, /<code>google_ads_operation_id<\/code>/)
+  assert.match(phase.bodyHtml, /<li><code>enqueue\(db, operations\)<\/code>/)
+  assert.doesNotMatch(phase.bodyHtml, /\| --- \|/)
+  assert.match(callout.bodyHtml, /<th>Producer<\/th><th>When<\/th>/)
+  assert.match(callout.bodyHtml, /<td>COE<\/td><td>now<\/td>/)
 })
 
 test('a following block ends the table', () => {
