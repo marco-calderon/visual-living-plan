@@ -6,6 +6,33 @@ import { renderPlanPage } from '../src/render.ts'
 import { defaultThemeConfig, themePayload } from '../src/theme.ts'
 import { workflowRequirementError } from '../src/workflow.ts'
 
+test('rendered plan parts carry a stable comment target', () => {
+  const plan = parsePlan(`# Demo
+
+A paragraph of context.
+
+- First item
+
+\`\`\`phase
+id: design
+title: Design
+status: active
+body: |
+  Request path.
+\`\`\`
+`)
+  const markdown = plan.blocks.find((block) => block.type === 'markdown')
+  assert.ok(markdown && markdown.type === 'markdown')
+  assert.match(markdown.html, /data-plan-part="markdown:0\/heading:1"/)
+  assert.match(markdown.html, /data-plan-kind="heading"/)
+  assert.match(markdown.html, /data-plan-part="markdown:0\/paragraph:1"/)
+  assert.match(markdown.html, /data-plan-part="markdown:0\/list-item:1"/)
+
+  const phase = plan.blocks.find((block) => block.type === 'phase')
+  assert.ok(phase && phase.type === 'phase')
+  assert.match(phase.bodyHtml, /data-plan-part="phase:design\/paragraph:1"/)
+})
+
 test('mermaid fences in plan markdown become diagram hosts', () => {
   const plan = parsePlan(`# Demo
 

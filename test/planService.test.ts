@@ -168,6 +168,85 @@ test('a private server still serves one plan and its agent stream', async () => 
   }
 })
 
+test('a plan comment reaches the agent and can be addressed', async () => {
+  const home = await tempHome()
+  const registry = await startRegistryServer({ home, port: 0, token: 'test-token-value' })
+  try {
+    const hosted = await registerHostedPlan(registry.url, registry.token, {
+      planPath,
+      mode: 'watch',
+      cwd: process.cwd(),
+    })
+    const seen: Array<{ event: string; data: unknown }> = []
+    const controller = new AbortController()
+    const reading = readAgentEvents(
+      hosted.url,
+      hosted.token,
+      (event) => {
+        seen.push(event)
+        if (event.event === 'comment' && (event.data as { addressedAt?: number | null }).addressedAt) {
+          controller.abort()
+        }
+      },
+      controller.signal,
+    )
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 40))
+
+    const posted = await fetch(new URL('api/comments', hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        partId: 'phase:implement/paragraph:1',
+        kind: 'paragraph',
+        blockId: 'implement',
+        excerpt: 'Wire the limiter',
+        text: 'Default the flag on in staging.',
+      }),
+    })
+    assert.equal(posted.status, 200)
+    const created = (await posted.json()) as { comment: { id: string; addressedAt: number | null } }
+    assert.match(created.comment.id, /^cmt_/)
+    assert.equal(created.comment.addressedAt, null)
+
+    const addressed = await fetch(new URL(`api/comments/${created.comment.id}/address`, hosted.url), {
+      method: 'POST',
+    })
+    assert.equal(addressed.status, 200)
+
+    await Promise.race([
+      reading.catch((error: unknown) => {
+        if (error instanceof Error && error.name === 'AbortError') return
+        throw error
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timed out waiting for comment')), 2_000)),
+    ])
+
+    const open = seen.find(
+      (event) => event.event === 'comment' && (event.data as { addressedAt?: number | null }).addressedAt == null,
+    )
+    const closed = seen.find(
+      (event) => event.event === 'comment' && (event.data as { addressedAt?: number | null }).addressedAt,
+    )
+    assert.equal((open?.data as { text?: string }).text, 'Default the flag on in staging.')
+    assert.equal(typeof (closed?.data as { addressedAt?: number }).addressedAt, 'number')
+
+    await registry.close()
+    const restored = await startRegistryServer({ home, port: 0, token: 'test-token-value' })
+    try {
+      const plan = (await (await fetch(new URL(`/plans/${hosted.id}/api/plan`, restored.url))).json()) as {
+        comments: Array<{ id: string; addressedAt: number | null }>
+      }
+      assert.equal(plan.comments[0]?.id, created.comment.id)
+      assert.equal(typeof plan.comments[0]?.addressedAt, 'number')
+    } finally {
+      await restored.close()
+    }
+  } finally {
+    await registry.close().catch(() => undefined)
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
 test('a late client hears stored submissions from hello', () => {
   const notices = planClientNotices({
     event: 'hello',
@@ -176,9 +255,12 @@ test('a late client hears stored submissions from hello', () => {
         'fail-mode': { id: 'fail-mode', optionId: 'open' },
       },
       review: { decision: 'approve' },
+      comments: [{ id: 'cmt_test', text: 'Look here' }],
     },
   })
-  assert.equal(notices.length, 2)
+  assert.equal(notices.length, 3)
+  assert.equal(notices[2]?.event, 'comment')
+  assert.equal((notices[2]?.data as { text?: string }).text, 'Look here')
   assert.equal(notices[0]?.event, 'interaction')
   assert.equal((notices[0]?.data as { optionId?: string }).optionId, 'open')
   assert.equal(notices[1]?.event, 'review')

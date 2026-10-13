@@ -129,6 +129,7 @@ test('registry store round-trips sessions and finished runs', async () => {
       responsesJson: '{"ask":{"value":"yes"}}',
       executionJson: '{}',
       reviewJson: null,
+      commentsJson: '[]',
       startedAt: 1_700_000_000_000,
       lastSeenAt: 1_700_000_000_500,
     }

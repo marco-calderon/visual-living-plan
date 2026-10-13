@@ -9,7 +9,7 @@ import type { GitSnapshot, PlanRecord, ProcessRecord, ReviewOutcome } from './pr
 import { runningPlan } from './processRecord.js'
 import { SESSION_IDLE_MS } from './registryConstants.js'
 import type { RegistryStore, StoredPlanSession } from './registryStore.js'
-import type { InteractionResponse, ReviewResult } from './types.js'
+import type { InteractionResponse, PlanComment, ReviewResult } from './types.js'
 
 const GIT_CACHE_MS = 10_000
 
@@ -75,6 +75,7 @@ function toStored(snapshot: PlanSessionSnapshot): StoredPlanSession {
     responsesJson: JSON.stringify(snapshot.responses),
     executionJson: JSON.stringify(snapshot.execution),
     reviewJson: snapshot.review ? JSON.stringify(snapshot.review) : null,
+    commentsJson: JSON.stringify(snapshot.comments),
     startedAt: snapshot.startedAt,
     lastSeenAt: snapshot.lastSeenAt,
   }
@@ -138,6 +139,7 @@ export async function createPlanHost(options: {
       responses: parseJson<Record<string, InteractionResponse>>(row.responsesJson, {}),
       execution: parseJson<ExecutionState>(row.executionJson, createIdleExecutionState()),
       review: row.reviewJson ? parseJson<ReviewResult | null>(row.reviewJson, null) : null,
+      comments: parseJson<PlanComment[]>(row.commentsJson, []),
       onChange: persist,
     })
     sessions.set(session.id, session)

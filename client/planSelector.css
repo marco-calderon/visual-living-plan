@@ -1,0 +1,163 @@
+.plan-grab-toggle {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 40;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 0.55rem 0.9rem;
+  font: 600 0.92rem/1 "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  cursor: pointer;
+}
+
+.plan-grab-toggle[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--paper);
+  border-color: var(--accent);
+}
+
+body.has-review-bar .plan-grab-toggle {
+  bottom: 7.5rem;
+}
+
+body.plan-grab-armed [data-tab-panel='plan'],
+body.plan-grab-armed [data-tab-panel='plan'] :is(button, a, input, textarea, select, label) {
+  cursor: crosshair;
+}
+
+.plan-grab-overlay {
+  position: fixed;
+  z-index: 30;
+  box-sizing: border-box;
+  pointer-events: none;
+  border: 1.5px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: 4px;
+}
+
+.plan-grab-label {
+  position: absolute;
+  left: 0;
+  top: -1.45rem;
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--paper);
+  font: 500 0.72rem/1.3 "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+}
+
+.plan-grab-label.is-inside {
+  top: 0.2rem;
+  left: 0.2rem;
+}
+
+.plan-grab-mark {
+  position: fixed;
+  z-index: 35;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 3px;
+  background: var(--accent);
+  color: var(--paper);
+  cursor: pointer;
+}
+
+.plan-popover-positioner {
+  z-index: 70;
+}
+
+.plan-popover {
+  box-sizing: border-box;
+  width: 18rem;
+  max-width: calc(100vw - 32px);
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  padding: 0.75rem;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+}
+
+.plan-popover-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.7rem;
+}
+
+.plan-popover-title {
+  margin: 0;
+  font: 600 0.95rem/1.3 "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+}
+
+.plan-popover-description {
+  margin: 0;
+  color: var(--muted, var(--ink));
+  font: 400 0.8rem/1.4 "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+}
+
+.plan-comment-list {
+  list-style: none;
+  margin: 0 0 0.7rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.plan-comment-list li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.plan-comment-list p {
+  margin: 0;
+  font: 400 0.85rem/1.4 "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+}
+
+.plan-comment-state {
+  font: 500 0.75rem/1 "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  color: var(--accent);
+}
+
+.plan-comment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.plan-comment-input {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 4.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  padding: 0.45rem 0.55rem;
+  font: 400 0.85rem/1.4 "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+}
+
+.plan-comment-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.plan-comment-error {
+  margin: 0;
+  color: var(--danger, #b42318);
+  font: 500 0.75rem/1.3 "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+}

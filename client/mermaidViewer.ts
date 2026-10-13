@@ -62,6 +62,7 @@ function controlButton(action: string, label: string, glyph: string[]): HTMLButt
 function createControls(): HTMLElement {
   const bar = document.createElement('div')
   bar.className = 'mermaid-controls'
+  bar.setAttribute('data-plan-grab-ignore', '')
   bar.setAttribute('role', 'toolbar')
   bar.setAttribute('aria-label', 'Diagram controls')
   bar.append(

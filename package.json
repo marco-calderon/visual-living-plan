@@ -44,9 +44,11 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@base-ui/react": "^1.9.0",
     "@semos-labs/glyph": "^0.2.10",
     "drizzle-orm": "^0.45.4",
     "elysia": "^1.4.30",
+    "nanoid": "^6.0.2",
     "react": "^19.3.0",
     "yaml": "^2.8.1"
   },

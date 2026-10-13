@@ -94,6 +94,18 @@ export type ReviewResult = {
   iteration: number
 }
 
+/** A message pinned to one rendered part of the plan. `addressedAt` stays empty until it is resolved. */
+export type PlanComment = {
+  id: string
+  partId: string
+  kind: string
+  blockId?: string
+  excerpt: string
+  text: string
+  createdAt: number
+  addressedAt: number | null
+}
+
 export type SectionDiff = {
   index: number
   status: 'added' | 'edited' | 'removed' | 'unchanged'

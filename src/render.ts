@@ -1,11 +1,12 @@
 import type { ClientAssets } from './assets.js'
 import type { ExecutionState } from './execution.js'
-import { blockAnchorId } from './parse.js'
+import { blockAnchorId, planPartScope } from './parse.js'
 import { PROCESSES_PANEL_STYLES, processesPanelMarkup, processesPanelScript } from './processesPanel.js'
 import { accentCssCustomProperties } from './theme.js'
 import type {
   InteractionResponse,
   PlanBlock,
+  PlanComment,
   PlanDocument,
   ReviewDecision,
   SectionDiff,
@@ -38,18 +39,23 @@ function anchorAttrs(anchorId?: string): string {
   return ` id="plan-${escapeHtml(anchorId)}" data-plan-ref="${escapeHtml(anchorId)}" tabindex="-1"`
 }
 
+function partAttrs(partId: string, kind: string): string {
+  return ` data-plan-part="${escapeHtml(partId)}" data-plan-kind="${escapeHtml(kind)}"`
+}
+
 function renderPhase(
   block: Extract<PlanBlock, { type: 'phase' }>,
   anchorId: string | undefined,
+  scope: string,
   diff?: SectionDiff,
 ): string {
   return `
-    <section class="block phase status-${block.status} diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}>
+    <section class="block phase status-${block.status} diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}${partAttrs(scope, 'section')}>
       <div class="phase-rail" aria-hidden="true"></div>
       <div class="phase-body">
         <div class="phase-meta">
           <span class="phase-status">${escapeHtml(block.status)}</span>
-          <h3>${escapeHtml(block.title)}</h3>
+          <h3${partAttrs(`${scope}/title`, 'title')}>${escapeHtml(block.title)}</h3>
         </div>
         <div class="rich">${block.bodyHtml}</div>
       </div>
@@ -60,11 +66,12 @@ function renderPhase(
 function renderCallout(
   block: Extract<PlanBlock, { type: 'callout' }>,
   anchorId: string | undefined,
+  scope: string,
   diff?: SectionDiff,
 ): string {
   return `
-    <section class="block callout kind-${block.kind} diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}>
-      <div class="callout-label">${escapeHtml(block.kind)}${block.title ? ` · ${escapeHtml(block.title)}` : ''}</div>
+    <section class="block callout kind-${block.kind} diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}${partAttrs(scope, 'section')}>
+      <div class="callout-label"${partAttrs(`${scope}/label`, 'label')}>${escapeHtml(block.kind)}${block.title ? ` · ${escapeHtml(block.title)}` : ''}</div>
       <div class="rich">${block.bodyHtml}</div>
     </section>
   `
@@ -75,6 +82,7 @@ function renderChoice(
   responses: Record<string, InteractionResponse>,
   locked: boolean,
   anchorId: string | undefined,
+  scope: string,
   diff?: SectionDiff,
 ): string {
   const existing = responseFor(responses, block.id)
@@ -90,6 +98,7 @@ function renderChoice(
           data-choice-id="${escapeHtml(block.id)}"
           data-option-id="${escapeHtml(option.id)}"
           data-option-label="${escapeHtml(option.label)}"
+          ${partAttrs(`${scope}/option:${option.id}`, 'choice')}
           ${disabled ? 'disabled' : ''}
         >
           <span class="choice-label">${escapeHtml(option.label)}</span>
@@ -100,9 +109,9 @@ function renderChoice(
     .join('')
 
   return `
-    <section class="block interaction choice diff-${diff?.status ?? 'unchanged'}" data-section data-interaction-id="${escapeHtml(block.id)}"${anchorAttrs(anchorId)}>
+    <section class="block interaction choice diff-${diff?.status ?? 'unchanged'}" data-section data-interaction-id="${escapeHtml(block.id)}"${anchorAttrs(anchorId)}${partAttrs(scope, 'section')}>
       <div class="interaction-kicker">Needs your choice</div>
-      <h3>${escapeHtml(block.prompt)}</h3>
+      <h3${partAttrs(`${scope}/prompt`, 'prompt')}>${escapeHtml(block.prompt)}</h3>
       <div class="choice-grid">${options}</div>
       <div class="interaction-state" data-state-for="${escapeHtml(block.id)}">
         ${
@@ -122,6 +131,7 @@ function renderApprove(
   responses: Record<string, InteractionResponse>,
   locked: boolean,
   anchorId: string | undefined,
+  scope: string,
   diff?: SectionDiff,
 ): string {
   const existing = responseFor(responses, block.id)
@@ -129,9 +139,9 @@ function renderApprove(
   const disabled = Boolean(decided) || locked
 
   return `
-    <section class="block interaction approve diff-${diff?.status ?? 'unchanged'}" data-section data-interaction-id="${escapeHtml(block.id)}"${anchorAttrs(anchorId)}>
+    <section class="block interaction approve diff-${diff?.status ?? 'unchanged'}" data-section data-interaction-id="${escapeHtml(block.id)}"${anchorAttrs(anchorId)}${partAttrs(scope, 'section')}>
       <div class="interaction-kicker">Approval gate</div>
-      <h3>${escapeHtml(block.prompt)}</h3>
+      <h3${partAttrs(`${scope}/prompt`, 'prompt')}>${escapeHtml(block.prompt)}</h3>
       <div class="rich">${block.bodyHtml}</div>
       <label class="field">
         <span>Optional note</span>
@@ -161,6 +171,7 @@ function renderForm(
   responses: Record<string, InteractionResponse>,
   locked: boolean,
   anchorId: string | undefined,
+  scope: string,
   diff?: SectionDiff,
 ): string {
   const existing = responseFor(responses, block.id)
@@ -169,9 +180,10 @@ function renderForm(
   const fields = block.fields
     .map((field) => {
       const current = values[field.name] ?? field.default ?? ''
+      const fieldAttrs = partAttrs(`${scope}/field:${field.name}`, 'field')
       if (field.type === 'textarea') {
         return `
-          <label class="field">
+          <label class="field"${fieldAttrs}>
             <span>${escapeHtml(field.label)}${field.required ? ' *' : ''}</span>
             <textarea name="${escapeHtml(field.name)}" ${field.required ? 'required' : ''} ${disabled ? 'disabled' : ''} placeholder="${escapeHtml(field.placeholder ?? '')}">${escapeHtml(String(current))}</textarea>
           </label>
@@ -185,14 +197,14 @@ function renderForm(
           )
           .join('')
         return `
-          <label class="field">
+          <label class="field"${fieldAttrs}>
             <span>${escapeHtml(field.label)}${field.required ? ' *' : ''}</span>
             <select name="${escapeHtml(field.name)}" ${field.required ? 'required' : ''} ${disabled ? 'disabled' : ''}>${options}</select>
           </label>
         `
       }
       return `
-        <label class="field">
+        <label class="field"${fieldAttrs}>
           <span>${escapeHtml(field.label)}${field.required ? ' *' : ''}</span>
           <input
             type="${field.type === 'number' ? 'number' : 'text'}"
@@ -208,9 +220,9 @@ function renderForm(
     .join('')
 
   return `
-    <section class="block interaction form diff-${diff?.status ?? 'unchanged'}" data-section data-interaction-id="${escapeHtml(block.id)}"${anchorAttrs(anchorId)}>
+    <section class="block interaction form diff-${diff?.status ?? 'unchanged'}" data-section data-interaction-id="${escapeHtml(block.id)}"${anchorAttrs(anchorId)}${partAttrs(scope, 'section')}>
       <div class="interaction-kicker">Needs input</div>
-      <h3>${escapeHtml(block.prompt)}</h3>
+      <h3${partAttrs(`${scope}/prompt`, 'prompt')}>${escapeHtml(block.prompt)}</h3>
       <form data-form-id="${escapeHtml(block.id)}">
         ${fields}
         <button type="submit" class="btn primary" ${disabled ? 'disabled' : ''}>Submit</button>
@@ -227,6 +239,7 @@ function renderQuestions(
   responses: Record<string, InteractionResponse>,
   locked: boolean,
   anchorId: string | undefined,
+  scope: string,
   diff?: SectionDiff,
 ): string {
   const existing = responseFor(responses, block.id)
@@ -236,7 +249,7 @@ function renderQuestions(
     .map((item, index) => {
       const key = String(index)
       return `
-        <label class="field">
+        <label class="field"${partAttrs(`${scope}/question:${index + 1}`, 'question')}>
           <span>${index + 1}. ${escapeHtml(item)}</span>
           <textarea name="${key}" ${disabled ? 'disabled' : ''} placeholder="Your answer">${escapeHtml(String(answers[key] ?? ''))}</textarea>
         </label>
@@ -245,9 +258,9 @@ function renderQuestions(
     .join('')
 
   return `
-    <section class="block interaction questions diff-${diff?.status ?? 'unchanged'}" data-section data-interaction-id="${escapeHtml(block.id)}"${anchorAttrs(anchorId)}>
+    <section class="block interaction questions diff-${diff?.status ?? 'unchanged'}" data-section data-interaction-id="${escapeHtml(block.id)}"${anchorAttrs(anchorId)}${partAttrs(scope, 'section')}>
       <div class="interaction-kicker">Open questions</div>
-      ${block.prompt ? `<h3>${escapeHtml(block.prompt)}</h3>` : '<h3>Please answer</h3>'}
+      ${block.prompt ? `<h3${partAttrs(`${scope}/prompt`, 'prompt')}>${escapeHtml(block.prompt)}</h3>` : `<h3${partAttrs(`${scope}/prompt`, 'prompt')}>Please answer</h3>`}
       <form data-questions-id="${escapeHtml(block.id)}">
         ${items}
         <button type="submit" class="btn primary" ${disabled ? 'disabled' : ''}>Send answers</button>
@@ -262,17 +275,18 @@ function renderQuestions(
 function renderChecklist(
   block: Extract<PlanBlock, { type: 'checklist' }>,
   anchorId: string | undefined,
+  scope: string,
   diff?: SectionDiff,
 ): string {
   const items = block.items
     .map(
-      (item) =>
-        `<li class="${item.done ? 'done' : ''}"><span class="check">${item.done ? 'done' : 'todo'}</span>${escapeHtml(item.text)}</li>`,
+      (item, index) =>
+        `<li class="${item.done ? 'done' : ''}"${partAttrs(`${scope}/item:${index + 1}`, 'checklist-item')}><span class="check">${item.done ? 'done' : 'todo'}</span>${escapeHtml(item.text)}</li>`,
     )
     .join('')
   return `
-    <section class="block checklist diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}>
-      ${block.title ? `<h3>${escapeHtml(block.title)}</h3>` : ''}
+    <section class="block checklist diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}${partAttrs(scope, 'section')}>
+      ${block.title ? `<h3${partAttrs(`${scope}/title`, 'title')}>${escapeHtml(block.title)}</h3>` : ''}
       <ul>${items}</ul>
     </section>
   `
@@ -281,6 +295,7 @@ function renderChecklist(
 function renderWorkflow(
   block: Extract<PlanBlock, { type: 'workflow' }>,
   anchorId: string | undefined,
+  scope: string,
   diff?: SectionDiff,
 ): string {
   const steps = block.nodes
@@ -289,7 +304,7 @@ function renderWorkflow(
       const label = node.label ?? node.id
       return `
         <li>
-          <button type="button" class="workflow-step" data-plan-jump="${escapeHtml(ref)}">
+          <button type="button" class="workflow-step" data-plan-jump="${escapeHtml(ref)}"${partAttrs(`${scope}/step:${node.id}`, 'workflow-step')}>
             <span class="workflow-step-label">${escapeHtml(label)}</span>
             <span class="workflow-step-ref">Plan · ${escapeHtml(ref)}</span>
           </button>
@@ -299,10 +314,10 @@ function renderWorkflow(
     .join('')
 
   return `
-    <section class="block workflow diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}>
+    <section class="block workflow diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}${partAttrs(scope, 'section')}>
       <div class="interaction-kicker">Expected workflow</div>
-      <h3>${escapeHtml(block.title ?? 'Execution plan')}</h3>
-      <p class="workflow-note">These steps are the execution plan before the run is laid down. The Workflow tab draws the same path. Select a step there to jump to the matching place in this plan.</p>
+      <h3${partAttrs(`${scope}/title`, 'title')}>${escapeHtml(block.title ?? 'Execution plan')}</h3>
+      <p class="workflow-note"${partAttrs(`${scope}/note`, 'paragraph')}>These steps are the execution plan before the run is laid down. The Workflow tab draws the same path. Select a step there to jump to the matching place in this plan.</p>
       <ol class="workflow-steps">${steps}</ol>
       <button type="button" class="btn" data-tab-jump="workflow">Open workflow diagram</button>
     </section>
@@ -318,25 +333,26 @@ function renderBlock(
 ): string {
   const diff = diffs.find((entry) => entry.index === index)
   const anchorId = blockAnchorId(block, index)
+  const scope = planPartScope(block, index)
   switch (block.type) {
     case 'markdown':
-      return `<section class="block markdown diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}><div class="rich">${block.html}</div></section>`
+      return `<section class="block markdown diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}${partAttrs(scope, 'section')}><div class="rich">${block.html}</div></section>`
     case 'phase':
-      return renderPhase(block, anchorId, diff)
+      return renderPhase(block, anchorId, scope, diff)
     case 'callout':
-      return renderCallout(block, anchorId, diff)
+      return renderCallout(block, anchorId, scope, diff)
     case 'choice':
-      return renderChoice(block, responses, locked, anchorId, diff)
+      return renderChoice(block, responses, locked, anchorId, scope, diff)
     case 'approve':
-      return renderApprove(block, responses, locked, anchorId, diff)
+      return renderApprove(block, responses, locked, anchorId, scope, diff)
     case 'form':
-      return renderForm(block, responses, locked, anchorId, diff)
+      return renderForm(block, responses, locked, anchorId, scope, diff)
     case 'questions':
-      return renderQuestions(block, responses, locked, anchorId, diff)
+      return renderQuestions(block, responses, locked, anchorId, scope, diff)
     case 'checklist':
-      return renderChecklist(block, anchorId, diff)
+      return renderChecklist(block, anchorId, scope, diff)
     case 'workflow':
-      return renderWorkflow(block, anchorId, diff)
+      return renderWorkflow(block, anchorId, scope, diff)
   }
 }
 
@@ -1477,6 +1493,7 @@ export function renderPlanPage(options: {
   /** Prefix for this plan's API. Empty when the plan owns the origin. */
   basePath?: string
   selfId?: string
+  comments?: PlanComment[]
 }): string {
   const {
     plan,
@@ -1492,6 +1509,7 @@ export function renderPlanPage(options: {
   } = options
   const basePath = options.basePath ?? ''
   const selfId = options.selfId
+  const commentsJson = JSON.stringify(options.comments ?? []).replaceAll('<', '\\u003c')
 
   const locked = Boolean(execution.active)
   const showReviewBar = mode === 'review' && !reviewDecision && !locked
@@ -1506,6 +1524,7 @@ export function renderPlanPage(options: {
   const hasCode = body.includes('class="code-block"')
   const assetCss = [
     ...(clientAssets?.cssHrefs ?? []),
+    ...(clientAssets?.selectorCssHrefs ?? []),
     ...(hasMermaid ? (clientAssets?.mermaidCssHrefs ?? []) : []),
     ...(hasCode ? (clientAssets?.highlightCssHrefs ?? []) : []),
   ]
@@ -1522,6 +1541,9 @@ export function renderPlanPage(options: {
     hasCode && clientAssets?.highlightHref
       ? `<script type="module" src="${escapeHtml(clientAssets.highlightHref)}"></script>`
       : ''
+  const selectorJs = clientAssets?.selectorHref
+    ? `<script type="module" src="${escapeHtml(clientAssets.selectorHref)}"></script>`
+    : ''
   const executionFallback = clientAssets
     ? ''
     : `<div class="execution-empty">Build the client with <code>npm run build:client</code> to enable the workflow canvas.</div>`
@@ -1632,10 +1654,12 @@ export function renderPlanPage(options: {
       : ''
   }
   <div id="toast" class="toast" role="status"></div>
+  <script type="application/json" id="living-plan-comments">${commentsJson}</script>
   <script>${clientScript(mode, locked, theme, basePath)}
 ${processesPanelScript()}</script>
   ${mermaidJs}
   ${highlightJs}
+  ${selectorJs}
 </body>
 </html>`
 }

@@ -30,10 +30,19 @@ function inlineMarkdown(text: string): string {
     .replace(/\*([^*]+)\*/g, '<em>$1</em>')
 }
 
-function markdownToHtml(source: string): string {
+function partAttr(scope: string, kind: string, index: number): string {
+  return ` data-plan-part="${escapeHtml(`${scope}/${kind}:${index}`)}" data-plan-kind="${kind}"`
+}
+
+function markdownToHtml(source: string, scope: string): string {
   const lines = source.replace(/\r\n/g, '\n').split('\n')
   const parts: string[] = []
   let i = 0
+  let headings = 0
+  let paragraphs = 0
+  let listItems = 0
+  let diagrams = 0
+  let codeBlocks = 0
 
   while (i < lines.length) {
     const line = lines[i] ?? ''
@@ -44,19 +53,22 @@ function markdownToHtml(source: string): string {
     }
 
     if (line.startsWith('### ')) {
-      parts.push(`<h3>${inlineMarkdown(line.slice(4))}</h3>`)
+      headings += 1
+      parts.push(`<h3${partAttr(scope, 'heading', headings)}>${inlineMarkdown(line.slice(4))}</h3>`)
       i += 1
       continue
     }
 
     if (line.startsWith('## ')) {
-      parts.push(`<h2>${inlineMarkdown(line.slice(3))}</h2>`)
+      headings += 1
+      parts.push(`<h2${partAttr(scope, 'heading', headings)}>${inlineMarkdown(line.slice(3))}</h2>`)
       i += 1
       continue
     }
 
     if (line.startsWith('# ')) {
-      parts.push(`<h1>${inlineMarkdown(line.slice(2))}</h1>`)
+      headings += 1
+      parts.push(`<h1${partAttr(scope, 'heading', headings)}>${inlineMarkdown(line.slice(2))}</h1>`)
       i += 1
       continue
     }
@@ -64,7 +76,10 @@ function markdownToHtml(source: string): string {
     if (line.startsWith('- ') || line.startsWith('* ')) {
       const items: string[] = []
       while (i < lines.length && /^[-*] /.test(lines[i] ?? '')) {
-        items.push(`<li>${inlineMarkdown((lines[i] ?? '').replace(/^[-*] /, ''))}</li>`)
+        listItems += 1
+        items.push(
+          `<li${partAttr(scope, 'list-item', listItems)}>${inlineMarkdown((lines[i] ?? '').replace(/^[-*] /, ''))}</li>`,
+        )
         i += 1
       }
       parts.push(`<ul>${items.join('')}</ul>`)
@@ -74,7 +89,10 @@ function markdownToHtml(source: string): string {
     if (/^\d+\.\s+/.test(line)) {
       const items: string[] = []
       while (i < lines.length && /^\d+\.\s+/.test(lines[i] ?? '')) {
-        items.push(`<li>${inlineMarkdown((lines[i] ?? '').replace(/^\d+\.\s+/, ''))}</li>`)
+        listItems += 1
+        items.push(
+          `<li${partAttr(scope, 'list-item', listItems)}>${inlineMarkdown((lines[i] ?? '').replace(/^\d+\.\s+/, ''))}</li>`,
+        )
         i += 1
       }
       parts.push(`<ol>${items.join('')}</ol>`)
@@ -93,12 +111,14 @@ function markdownToHtml(source: string): string {
       const fence = fenceParts(lang)
       const diagram = code.join('\n')
       if (fence.language === 'mermaid' && !fence.diff && diagram.trim()) {
+        diagrams += 1
         parts.push(
-          `<figure class="mermaid-diagram"><pre class="mermaid">${escapeHtml(diagram)}</pre></figure>`,
+          `<figure class="mermaid-diagram"${partAttr(scope, 'diagram', diagrams)}><pre class="mermaid">${escapeHtml(diagram)}</pre></figure>`,
         )
       } else {
+        codeBlocks += 1
         parts.push(
-          `<pre class="code-block"${codeFenceAttrs(lang)}><code>${escapeHtml(diagram)}</code></pre>`,
+          `<pre class="code-block"${partAttr(scope, 'code', codeBlocks)}${codeFenceAttrs(lang)}><code>${escapeHtml(diagram)}</code></pre>`,
         )
       }
       continue
@@ -109,7 +129,8 @@ function markdownToHtml(source: string): string {
       para.push(lines[i] ?? '')
       i += 1
     }
-    parts.push(`<p>${inlineMarkdown(para.join(' '))}</p>`)
+    paragraphs += 1
+    parts.push(`<p${partAttr(scope, 'paragraph', paragraphs)}>${inlineMarkdown(para.join(' '))}</p>`)
   }
 
   return parts.join('\n')
@@ -183,7 +204,7 @@ function parsePhase(body: string, source: string): PlanBlock {
     id,
     title,
     status,
-    bodyHtml: markdownToHtml(content),
+    bodyHtml: markdownToHtml(content, `phase:${id}`),
     source,
   }
 }
@@ -214,7 +235,7 @@ function parseApprove(body: string, source: string): PlanBlock {
     type: 'approve',
     id,
     prompt,
-    bodyHtml: markdownToHtml(content),
+    bodyHtml: markdownToHtml(content, `approve:${id}`),
     source,
   }
 }
@@ -277,7 +298,7 @@ function parseChecklist(body: string, source: string): PlanBlock {
   return { type: 'checklist', id, title, items, source }
 }
 
-function parseCallout(body: string, source: string): PlanBlock {
+function parseCallout(body: string, source: string, index: number): PlanBlock {
   const data = asRecord(parseYaml(body))
   const kindRaw = String(data.kind ?? 'note')
   const kind =
@@ -295,7 +316,7 @@ function parseCallout(body: string, source: string): PlanBlock {
     id,
     kind,
     title,
-    bodyHtml: markdownToHtml(content),
+    bodyHtml: markdownToHtml(content, `callout:${id ?? index}`),
     source,
   }
 }
@@ -340,7 +361,7 @@ function parseWorkflow(body: string, source: string): PlanBlock {
   return { type: 'workflow', id, title, nodes, edges, source }
 }
 
-function parseFence(kind: string, body: string, source: string): PlanBlock {
+function parseFence(kind: string, body: string, source: string, index: number): PlanBlock {
   switch (kind) {
     case 'phase':
       return parsePhase(body, source)
@@ -355,11 +376,11 @@ function parseFence(kind: string, body: string, source: string): PlanBlock {
     case 'checklist':
       return parseChecklist(body, source)
     case 'callout':
-      return parseCallout(body, source)
+      return parseCallout(body, source, index)
     case 'workflow':
       return parseWorkflow(body, source)
     default:
-      return { type: 'markdown', html: markdownToHtml(source), source }
+      return { type: 'markdown', html: markdownToHtml(source, `markdown:${index}`), source }
   }
 }
 
@@ -389,7 +410,7 @@ export function parsePlan(source: string, sourcePath?: string): PlanDocument {
       if (chunk.trim()) {
         blocks.push({
           type: 'markdown',
-          html: markdownToHtml(chunk),
+          html: markdownToHtml(chunk, `markdown:${blocks.length}`),
           source: chunk,
         })
       }
@@ -397,7 +418,7 @@ export function parsePlan(source: string, sourcePath?: string): PlanDocument {
 
     const kind = match[1] ?? 'markdown'
     const fenceBody = match[2] ?? ''
-    blocks.push(parseFence(kind, fenceBody, match[0]))
+    blocks.push(parseFence(kind, fenceBody, match[0], blocks.length))
     cursor = index + match[0].length
   }
 
@@ -406,7 +427,7 @@ export function parsePlan(source: string, sourcePath?: string): PlanDocument {
     if (chunk.trim()) {
       blocks.push({
         type: 'markdown',
-        html: markdownToHtml(chunk),
+        html: markdownToHtml(chunk, `markdown:${blocks.length}`),
         source: chunk,
       })
     }
@@ -442,6 +463,30 @@ export function parsePlan(source: string, sourcePath?: string): PlanDocument {
 
 export function collectSectionSources(plan: PlanDocument): string[] {
   return plan.blocks.map((block) => block.source.trim())
+}
+
+/** Scope shared by a block and the parts rendered inside it. */
+export function planPartScope(block: PlanBlock, index: number): string {
+  switch (block.type) {
+    case 'markdown':
+      return `markdown:${index}`
+    case 'phase':
+      return `phase:${block.id}`
+    case 'callout':
+      return `callout:${block.id ?? index}`
+    case 'choice':
+      return `choice:${block.id}`
+    case 'approve':
+      return `approve:${block.id}`
+    case 'form':
+      return `form:${block.id}`
+    case 'questions':
+      return `questions:${block.id}`
+    case 'checklist':
+      return `checklist:${block.id ?? index}`
+    case 'workflow':
+      return `workflow:${block.id}`
+  }
 }
 
 /** Stable id used to link a workflow step back to a plan section. */

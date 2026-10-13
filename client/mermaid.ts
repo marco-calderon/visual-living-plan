@@ -98,6 +98,30 @@ function configure(): void {
   })
 }
 
+const DIAGRAM_PARTS = 'g.node, g.actor, g.edgePath, g.edgeLabel, g.note, g.cluster, g.messageText, g.loop'
+
+function partToken(value: string, fallback: number): string {
+  const token = value.replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-|-$/g, '').slice(0, 80)
+  return token || String(fallback)
+}
+
+function stampDiagramParts(figure: HTMLElement): void {
+  const scope = figure.dataset.planPart
+  const svg = figure.querySelector('svg')
+  if (!scope || !svg) return
+  let index = 0
+  for (const part of svg.querySelectorAll<SVGGElement>(DIAGRAM_PARTS)) {
+    index += 1
+    const kind = part.classList.contains('edgePath')
+      ? 'edge'
+      : part.classList.contains('edgeLabel')
+        ? 'edge-label'
+        : 'node'
+    part.dataset.planPart = `${scope}/${kind}:${partToken(part.id, index)}`
+    part.dataset.planKind = kind
+  }
+}
+
 let generation = 0
 
 async function renderDiagrams(): Promise<void> {
@@ -123,7 +147,10 @@ async function renderDiagrams(): Promise<void> {
       if (ticket !== generation) return
       node.innerHTML = svg
       const svgEl = node.querySelector('svg')
-      if (svgEl instanceof SVGSVGElement) attachMermaidViewer(node, svgEl)
+      if (svgEl instanceof SVGSVGElement) {
+        stampDiagramParts(node)
+        attachMermaidViewer(node, svgEl)
+      }
     } catch {
       if (ticket !== generation) return
       document.getElementById(id)?.remove()

@@ -70,7 +70,7 @@ Replace the bunx prefix with `live-plan` when the command is installed.
 | `serve <file>` | Register the plan on the machine service, print its URL, and print that plan's submissions until stopped. `--detach` returns after the URL. The page reloads when the file changes. |
 | `review <file>` | Same page plus Approve / Deny / Iterate. Blocks on the event stream until a decision. |
 | `wait <id> --url <url>` | Block on the event stream until that interaction is answered. Prints the response JSON. |
-| `events --url <url>` | Print each user interaction until stopped. |
+| `events --url <url>` | Print each user interaction and plan comment until stopped. |
 | `close --url <url>` | Drop the plan from the service. |
 | `execution start\|push\|stop --url <url>` | Turn the live workflow overlay on, update it, or turn it off. |
 | `processes` | List plans hosted by the service (directory, git status, site URL). |

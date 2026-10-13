@@ -1,3 +1,4 @@
+import { nanoid } from 'nanoid'
 import { watch } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import { basename, dirname, extname, join, normalize, resolve } from 'node:path'
@@ -16,7 +17,14 @@ import {
   type ThemeConfig,
 } from './theme.js'
 import { planToExpectedGraph, withPlannedWorkflow } from './workflow.js'
-import type { InteractionResponse, PlanDocument, ReviewDecision, ReviewResult, SectionDiff } from './types.js'
+import type {
+  InteractionResponse,
+  PlanComment,
+  PlanDocument,
+  ReviewDecision,
+  ReviewResult,
+  SectionDiff,
+} from './types.js'
 
 type SseClient = {
   write: (event: string, data: unknown) => void
@@ -56,6 +64,7 @@ export type PlanSessionSnapshot = {
   responses: Record<string, InteractionResponse>
   execution: ExecutionState
   review: ReviewResult | null
+  comments: PlanComment[]
   startedAt: number
   lastSeenAt: number
 }
@@ -92,6 +101,8 @@ export type PlanSession = {
   browserEvents: (request: Request) => Response
   agentEvents: (request: Request) => Response
   submitInteraction: (interactionId: string, body: unknown) => unknown
+  submitComment: (body: unknown) => unknown
+  addressComment: (commentId: string) => unknown
   submitReview: (body: unknown) => unknown
   close: () => Promise<void>
   waitForInteraction: (id: string, timeoutMs?: number) => Promise<InteractionResponse>
@@ -134,6 +145,7 @@ export async function openPlanSession(options: {
   responses?: Record<string, InteractionResponse>
   execution?: ExecutionState
   review?: ReviewResult | null
+  comments?: PlanComment[]
   onChange?: (snapshot: PlanSessionSnapshot) => void
 }): Promise<PlanSession> {
   const id = options.id
@@ -166,6 +178,7 @@ export async function openPlanSession(options: {
   let execution = options.execution ? { ...options.execution } : createIdleExecutionState()
   let reviewResult: ReviewResult | undefined = options.review ?? undefined
   let reviewWaiters: ReviewWaiter[] = []
+  const comments: PlanComment[] = [...(options.comments ?? [])]
 
   function persist(): void {
     if (closed) return
@@ -200,6 +213,7 @@ export async function openPlanSession(options: {
       responses: { ...responses },
       execution: { ...execution },
       review: reviewResult ?? null,
+      comments: comments.map((comment) => ({ ...comment })),
       startedAt,
       lastSeenAt,
     }
@@ -358,6 +372,7 @@ export async function openPlanSession(options: {
         pendingInteractionIds: pendingInteractionIds(),
         reviewDecision: reviewResult?.decision,
         execution,
+        comments,
         clientAssets,
         theme: currentTheme(),
         basePath,
@@ -381,6 +396,7 @@ export async function openPlanSession(options: {
       responses,
       pendingInteractionIds: pendingInteractionIds(),
       review: reviewResult ?? null,
+      comments,
       diffs,
       execution: executionView(),
       planned: planToExpectedGraph(plan) ?? null,
@@ -453,6 +469,7 @@ export async function openPlanSession(options: {
       {
         mode,
         pendingInteractionIds: pendingInteractionIds(),
+        comments,
         execution: executionView(),
         theme: currentTheme(),
       },
@@ -469,6 +486,7 @@ export async function openPlanSession(options: {
         pendingInteractionIds: pendingInteractionIds(),
         responses,
         review: reviewResult ?? null,
+        comments,
         execution: executionView(),
       },
       request.signal,
@@ -492,6 +510,49 @@ export async function openPlanSession(options: {
       response: payload,
       pendingInteractionIds: pendingInteractionIds(),
     }
+  }
+
+  function submitComment(body: unknown): unknown {
+    touch()
+    const payload = jsonBody(body, true) as {
+      partId?: unknown
+      kind?: unknown
+      blockId?: unknown
+      excerpt?: unknown
+      text?: unknown
+    }
+    const partId = String(payload.partId ?? '').trim()
+    const text = String(payload.text ?? '').trim()
+    if (!/^[A-Za-z0-9_.:/-]{1,200}$/.test(partId)) throw new HttpError(400, 'Missing plan part')
+    if (!text || text.length > 4000) throw new HttpError(400, 'Missing comment')
+    const blockId = String(payload.blockId ?? '').trim().slice(0, 80)
+    const kind = String(payload.kind ?? '').trim().slice(0, 40)
+    const comment: PlanComment = {
+      id: `cmt_${nanoid()}`,
+      partId,
+      kind: kind || 'part',
+      ...(blockId ? { blockId } : {}),
+      excerpt: String(payload.excerpt ?? '').replace(/\s+/g, ' ').trim().slice(0, 180),
+      text,
+      createdAt: Date.now(),
+      addressedAt: null,
+    }
+    comments.push(comment)
+    broadcast('comment', comment)
+    persist()
+    return { ok: true, comment }
+  }
+
+  function addressComment(commentId: string): unknown {
+    touch()
+    const comment = comments.find((entry) => entry.id === commentId)
+    if (!comment) throw new HttpError(404, 'Unknown comment')
+    if (!comment.addressedAt) {
+      comment.addressedAt = Date.now()
+      broadcast('comment', { ...comment })
+      persist()
+    }
+    return { ok: true, comment }
   }
 
   function submitReview(body: unknown): unknown {
@@ -565,6 +626,8 @@ export async function openPlanSession(options: {
     browserEvents,
     agentEvents,
     submitInteraction,
+    submitComment,
+    addressComment,
     submitReview,
     async close() {
       if (closed) return

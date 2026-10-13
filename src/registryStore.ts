@@ -28,6 +28,7 @@ export type StoredPlanSession = {
   responsesJson: string
   executionJson: string
   reviewJson: string | null
+  commentsJson: string
   startedAt: number
   lastSeenAt: number
 }
@@ -67,6 +68,7 @@ function sessionValues(session: StoredPlanSession): PlanSessionInsert {
     responsesJson: session.responsesJson,
     executionJson: session.executionJson,
     reviewJson: session.reviewJson,
+    commentsJson: session.commentsJson,
     startedAt: session.startedAt,
     lastSeenAt: session.lastSeenAt,
   }
@@ -84,6 +86,7 @@ function toSession(row: PlanSessionRow): StoredPlanSession {
     responsesJson: row.responsesJson,
     executionJson: row.executionJson,
     reviewJson: row.reviewJson,
+    commentsJson: row.commentsJson,
     startedAt: row.startedAt,
     lastSeenAt: row.lastSeenAt,
   }
