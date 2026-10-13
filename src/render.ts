@@ -42,18 +42,24 @@ function renderPhase(
   block: Extract<PlanBlock, { type: 'phase' }>,
   anchorId: string | undefined,
   diff?: SectionDiff,
+  extras?: { preface?: string; figures?: string; chrome?: 'card' | 'inset' },
 ): string {
+  const chrome = extras?.chrome ?? 'card'
+  const tag = chrome === 'card' ? 'section' : 'article'
+  const blockClass = chrome === 'card' ? 'block phase' : 'phase'
   return `
-    <section class="block phase status-${block.status} diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}>
+    <${tag} class="${blockClass} status-${block.status} diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}>
       <div class="phase-rail" aria-hidden="true"></div>
       <div class="phase-body">
+        ${extras?.preface ?? ''}
         <div class="phase-meta">
           <span class="phase-status">${escapeHtml(block.status)}</span>
           <h3>${escapeHtml(block.title)}</h3>
         </div>
         <div class="rich">${block.bodyHtml}</div>
+        ${extras?.figures ?? ''}
       </div>
-    </section>
+    </${tag}>
   `
 }
 
@@ -307,6 +313,210 @@ function renderWorkflow(
       <button type="button" class="btn" data-tab-jump="workflow">Open workflow diagram</button>
     </section>
   `
+}
+
+type CardFragment = { html: string; diff: SectionDiff['status'] }
+
+type AttachedBlock = {
+  block: PlanBlock
+  index: number
+  preface: CardFragment[]
+  figures: CardFragment[]
+}
+
+type SequenceItem = { kind: 'loose'; pieces: CardFragment[] } | { kind: 'host'; item: AttachedBlock }
+
+type PlanCard =
+  | { kind: 'loose'; pieces: CardFragment[] }
+  | { kind: 'host'; item: AttachedBlock }
+  | { kind: 'phases'; items: AttachedBlock[] }
+
+function diffStatus(diffs: SectionDiff[], index: number): SectionDiff['status'] {
+  return diffs.find((entry) => entry.index === index)?.status ?? 'unchanged'
+}
+
+function markdownRole(source: string, title: string): 'drop' | 'preface' | 'figure' | 'card' {
+  const lines = source.replace(/\r\n/g, '\n').split('\n')
+  const content = lines.map((line) => line.trim()).filter(Boolean)
+  if (content.length === 0) return 'card'
+  const onlyLine = content[0] ?? ''
+  if (content.length === 1 && /^#\s+/.test(onlyLine) && !onlyLine.startsWith('##')) {
+    const heading = onlyLine.replace(/^#\s+/, '').trim()
+    if (heading === title.trim()) return 'drop'
+  }
+  if (content.every((line) => /^#{1,3}\s+/.test(line))) return 'preface'
+  if (isMermaidOnly(lines)) return 'figure'
+  return 'card'
+}
+
+function isMermaidOnly(lines: string[]): boolean {
+  let index = 0
+  let sawFence = false
+  while (index < lines.length) {
+    const line = lines[index] ?? ''
+    if (!line.trim()) {
+      index += 1
+      continue
+    }
+    if (!line.startsWith('```')) return false
+    const lang = line.slice(3).trim().split(/\s+/)[0]?.toLowerCase() ?? ''
+    if (lang !== 'mermaid') return false
+    sawFence = true
+    index += 1
+    while (index < lines.length && !(lines[index] ?? '').startsWith('```')) index += 1
+    if (index >= lines.length) return false
+    index += 1
+  }
+  return sawFence
+}
+
+function fragments(pieces: CardFragment[], kind: 'card-preface' | 'card-figures'): string {
+  return pieces
+    .map((piece) => `<div class="${kind} rich diff-${piece.diff}">${piece.html}</div>`)
+    .join('')
+}
+
+function lastHost(items: SequenceItem[]): AttachedBlock | undefined {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index]
+    if (item?.kind === 'host') return item.item
+  }
+  return undefined
+}
+
+/** Fold heading-only and diagram-only markdown into the neighboring card. */
+function attachBlocks(plan: PlanDocument, diffs: SectionDiff[]): SequenceItem[] {
+  const items: SequenceItem[] = []
+  let preface: CardFragment[] = []
+
+  function pushHost(block: PlanBlock, index: number): void {
+    items.push({ kind: 'host', item: { block, index, preface, figures: [] } })
+    preface = []
+  }
+
+  plan.blocks.forEach((block, index) => {
+    if (block.type === 'markdown') {
+      const role = markdownRole(block.source, plan.title)
+      const diff = diffStatus(diffs, index)
+      if (role === 'drop') return
+      if (role === 'preface') {
+        preface.push({ html: block.html, diff })
+        return
+      }
+      if (role === 'figure') {
+        const previous = lastHost(items)
+        if (previous) previous.figures.push({ html: block.html, diff })
+        else pushHost(block, index)
+        return
+      }
+    }
+    pushHost(block, index)
+  })
+
+  if (preface.length > 0) items.push({ kind: 'loose', pieces: preface })
+  return items
+}
+
+function intoCards(items: SequenceItem[]): PlanCard[] {
+  const cards: PlanCard[] = []
+  let run: AttachedBlock[] = []
+
+  function flush(): void {
+    if (run.length === 1) {
+      const item = run[0]
+      if (item) cards.push({ kind: 'host', item })
+    } else if (run.length > 1) {
+      cards.push({ kind: 'phases', items: run })
+    }
+    run = []
+  }
+
+  for (const item of items) {
+    if (item.kind === 'host' && item.item.block.type === 'phase') {
+      run.push(item.item)
+      continue
+    }
+    flush()
+    if (item.kind === 'loose') cards.push({ kind: 'loose', pieces: item.pieces })
+    else cards.push({ kind: 'host', item: item.item })
+  }
+  flush()
+  return cards
+}
+
+function insertExtras(sectionHtml: string, preface: string, figures: string): string {
+  if (!preface && !figures) return sectionHtml
+  const trimmed = sectionHtml.trim()
+  const openEnd = trimmed.indexOf('>')
+  const closeAt = trimmed.lastIndexOf('</section>')
+  if (openEnd < 0 || closeAt < 0) return `${preface}${trimmed}${figures}`
+  return `${trimmed.slice(0, openEnd + 1)}${preface}${trimmed.slice(openEnd + 1, closeAt)}${figures}${trimmed.slice(closeAt)}`
+}
+
+function renderLoose(pieces: CardFragment[]): string {
+  if (pieces.length === 1) {
+    const piece = pieces[0]
+    if (!piece) return ''
+    return `<section class="block markdown diff-${piece.diff}" data-section><div class="rich">${piece.html}</div></section>`
+  }
+  const inner = pieces.map((piece) => `<div class="rich diff-${piece.diff}">${piece.html}</div>`).join('')
+  return `<section class="block markdown diff-unchanged" data-section>${inner}</section>`
+}
+
+function renderPhaseGroup(
+  items: AttachedBlock[],
+  diffs: SectionDiff[],
+): string {
+  const lead = items[0] ? fragments(items[0].preface, 'card-preface') : ''
+  const articles = items
+    .map((item, index) => {
+      if (item.block.type !== 'phase') return ''
+      return renderPhase(item.block, blockAnchorId(item.block, item.index), diffs.find((entry) => entry.index === item.index), {
+        preface: index === 0 ? '' : fragments(item.preface, 'card-preface'),
+        figures: fragments(item.figures, 'card-figures'),
+        chrome: 'inset',
+      })
+    })
+    .join('\n')
+  return `
+    <section class="block phase-group" data-section>
+      ${lead}
+      ${articles}
+    </section>
+  `
+}
+
+function renderHostCard(
+  item: AttachedBlock,
+  responses: Record<string, InteractionResponse>,
+  diffs: SectionDiff[],
+  locked: boolean,
+): string {
+  const preface = fragments(item.preface, 'card-preface')
+  const figures = fragments(item.figures, 'card-figures')
+  if (item.block.type === 'phase') {
+    return renderPhase(item.block, blockAnchorId(item.block, item.index), diffs.find((entry) => entry.index === item.index), {
+      preface,
+      figures,
+      chrome: 'card',
+    })
+  }
+  return insertExtras(renderBlock(item.block, item.index, responses, diffs, locked), preface, figures)
+}
+
+function renderPlanBody(
+  plan: PlanDocument,
+  responses: Record<string, InteractionResponse>,
+  diffs: SectionDiff[],
+  locked: boolean,
+): string {
+  return intoCards(attachBlocks(plan, diffs))
+    .map((card) => {
+      if (card.kind === 'loose') return renderLoose(card.pieces)
+      if (card.kind === 'phases') return renderPhaseGroup(card.items, diffs)
+      return renderHostCard(card.item, responses, diffs, locked)
+    })
+    .join('\n')
 }
 
 function renderBlock(
@@ -795,6 +1005,7 @@ body.has-review-bar .shell {
   overflow: hidden;
 }
 .rich > .code-host:last-child,
+.card-figures .code-host:last-child,
 .rich > .code-block:last-child {
   margin-bottom: 0;
 }
@@ -888,6 +1099,16 @@ body.mermaid-maximized { overflow: hidden; }
   font-size: 0.85rem;
 }
 
+.card-preface { margin: 0 0 0.85rem; }
+.card-preface :is(h1, h2, h3) { margin: 0; }
+.card-figures { margin-top: 0.85rem; }
+.card-figures .mermaid-diagram:last-child { margin-bottom: 0; }
+.phase-group { display: flex; flex-direction: column; }
+.phase-group > .phase + .phase {
+  margin-top: 0.85rem;
+  padding-top: 0.95rem;
+  border-top: 1px solid var(--line);
+}
 .phase { display: grid; grid-template-columns: 18px 1fr; gap: 0.9rem; }
 .phase-rail {
   width: 4px;
@@ -1497,9 +1718,7 @@ export function renderPlanPage(options: {
   const showReviewBar = mode === 'review' && !reviewDecision && !locked
   const planned = planToExpectedGraph(plan)
   const workflowState = locked ? 'live' : planned ? 'planned' : 'idle'
-  const body = plan.blocks
-    .map((block, index) => renderBlock(block, index, responses, diffs, locked))
-    .join('\n')
+  const body = renderPlanBody(plan, responses, diffs, locked)
 
   const changed = diffs.filter((diff) => diff.status !== 'unchanged').length
   const hasMermaid = body.includes('class="mermaid-diagram"')
