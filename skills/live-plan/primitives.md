@@ -1,6 +1,6 @@
 # Live Plan primitives
 
-Fenced blocks are YAML. The fence language is the block type (`phase`, `callout`, `choice`, `form`, `questions`, `approve`, `checklist`, `workflow`). Anything outside those fences is markdown. A mermaid fence in that markdown draws a figure. Any other fence is highlighted source.
+Fenced blocks are YAML. The fence language is the block type (`phase`, `callout`, `choice`, `form`, `questions`, `approve`, `checklist`, `workflow`). Anything outside those fences is markdown. A pipe table in that markdown renders as a table. A mermaid fence draws a figure. Any other fence is highlighted source.
 
 Every plan includes one `workflow` block. That block is the execution path.
 

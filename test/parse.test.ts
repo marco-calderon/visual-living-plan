@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { createIdleExecutionState } from '../src/execution.ts'
 import { parsePlan } from '../src/parse.ts'
@@ -194,4 +195,150 @@ test('the plan page loads the highlighter only when a code block is present', ()
   assert.doesNotMatch(codeHtml, /mermaid\.js/)
   assert.doesNotMatch(plainHtml, /highlight\.js/)
   assert.doesNotMatch(plainHtml, /highlight\.css/)
+})
+
+test('pipe tables render as tables', () => {
+  const plan = parsePlan(`# Demo
+
+| Name | Count |
+| --- | ---: |
+| **Ada** | \`3\` |
+| <b> | 4 |
+
+After.
+`)
+  const markdown = plan.blocks.find((block) => block.type === 'markdown')
+  assert.ok(markdown && markdown.type === 'markdown')
+  assert.equal(
+    markdown.html,
+    [
+      '<h1>Demo</h1>',
+      '<div class="rich-table"><table><thead><tr><th>Name</th><th class="align-right">Count</th></tr></thead><tbody><tr><td><strong>Ada</strong></td><td class="align-right"><code>3</code></td></tr><tr><td>&lt;b&gt;</td><td class="align-right">4</td></tr></tbody></table></div>',
+      '<p>After.</p>',
+    ].join('\n'),
+  )
+})
+
+test('table columns follow the separator alignment', () => {
+  const plan = parsePlan(`| abc | defghi |
+:-: | -----------:
+bar | baz
+`)
+  const markdown = plan.blocks.find((block) => block.type === 'markdown')
+  assert.ok(markdown && markdown.type === 'markdown')
+  assert.equal(
+    markdown.html,
+    '<div class="rich-table"><table><thead><tr><th class="align-center">abc</th><th class="align-right">defghi</th></tr></thead><tbody><tr><td class="align-center">bar</td><td class="align-right">baz</td></tr></tbody></table></div>',
+  )
+})
+
+test('escaped pipes and pipes inside code stay in the cell', () => {
+  const plan = parsePlan(`| Call | Note |
+| --- | --- |
+| b \`\\|\` az | \`foo | bar\` |
+| f\\|oo | kept |
+`)
+  const markdown = plan.blocks.find((block) => block.type === 'markdown')
+  assert.ok(markdown && markdown.type === 'markdown')
+  assert.equal(
+    markdown.html,
+    '<div class="rich-table"><table><thead><tr><th>Call</th><th>Note</th></tr></thead><tbody><tr><td>b <code>|</code> az</td><td><code>foo | bar</code></td></tr><tr><td>f|oo</td><td>kept</td></tr></tbody></table></div>',
+  )
+})
+
+test('a table ends at a blank line and pads short rows', () => {
+  const plan = parsePlan(`| abc | def |
+| --- | --- |
+| bar | baz |
+bar
+| bar | baz | boo |
+
+Next
+`)
+  const markdown = plan.blocks.find((block) => block.type === 'markdown')
+  assert.ok(markdown && markdown.type === 'markdown')
+  assert.equal(
+    markdown.html,
+    [
+      '<div class="rich-table"><table><thead><tr><th>abc</th><th>def</th></tr></thead><tbody><tr><td>bar</td><td>baz</td></tr><tr><td>bar</td><td></td></tr><tr><td>bar</td><td>baz</td></tr></tbody></table></div>',
+      '<p>Next</p>',
+    ].join('\n'),
+  )
+})
+
+test('a header without a matching separator stays a paragraph', () => {
+  const plan = parsePlan(`| abc | def |
+| --- |
+| bar |
+`)
+  const markdown = plan.blocks.find((block) => block.type === 'markdown')
+  assert.ok(markdown && markdown.type === 'markdown')
+  assert.equal(markdown.html, '<p>| abc | def | | --- | | bar |</p>')
+})
+
+test('a header-only table has no body', () => {
+  const plan = parsePlan(`| abc | def |
+| --- | --- |
+`)
+  const markdown = plan.blocks.find((block) => block.type === 'markdown')
+  assert.ok(markdown && markdown.type === 'markdown')
+  assert.equal(
+    markdown.html,
+    '<div class="rich-table"><table><thead><tr><th>abc</th><th>def</th></tr></thead></table></div>',
+  )
+})
+
+test('a table inside a phase body stays inside that phase', () => {
+  const plan = parsePlan(`\`\`\`phase
+id: design
+title: Design
+status: active
+body: |
+  | Step | State |
+  | --- | :---: |
+  | Parse | done |
+\`\`\`
+`)
+  assert.equal(plan.blocks.length, 1)
+  const phase = plan.blocks[0]
+  assert.ok(phase && phase.type === 'phase')
+  assert.equal(
+    phase.bodyHtml,
+    '<div class="rich-table"><table><thead><tr><th>Step</th><th class="align-center">State</th></tr></thead><tbody><tr><td>Parse</td><td class="align-center">done</td></tr></tbody></table></div>',
+  )
+})
+
+test('the table showcase renders tables in the plan, a phase, and a callout', () => {
+  const plan = parsePlan(readFileSync(new URL('../examples/tables.plan.md', import.meta.url), 'utf8'))
+  const markdown = plan.blocks.find((block) => block.type === 'markdown')
+  const phase = plan.blocks.find((block) => block.type === 'phase' && block.id === 'queue')
+  const callout = plan.blocks.find((block) => block.type === 'callout')
+  assert.ok(markdown && markdown.type === 'markdown')
+  assert.ok(phase && phase.type === 'phase')
+  assert.ok(callout && callout.type === 'callout')
+  assert.match(markdown.html, /<th>Status<\/th><th>Meaning<\/th><th class="align-right">Lease<\/th>/)
+  assert.match(phase.bodyHtml, /<th>Column<\/th><th>Purpose<\/th>/)
+  assert.match(phase.bodyHtml, /<code>google_ads_operation_id<\/code>/)
+  assert.match(phase.bodyHtml, /<li><code>enqueue\(db, operations\)<\/code>/)
+  assert.doesNotMatch(phase.bodyHtml, /\| --- \|/)
+  assert.match(callout.bodyHtml, /<th>Producer<\/th><th>When<\/th>/)
+  assert.match(callout.bodyHtml, /<td>COE<\/td><td>now<\/td>/)
+})
+
+test('a following block ends the table', () => {
+  const plan = parsePlan(`| A | B |
+| --- | --- |
+| 1 | 2 |
+## Next
+
+\`\`\`ts
+const n = 1
+\`\`\`
+`)
+  const markdown = plan.blocks.find((block) => block.type === 'markdown')
+  assert.ok(markdown && markdown.type === 'markdown')
+  assert.match(
+    markdown.html,
+    /^<div class="rich-table"><table><thead><tr><th>A<\/th><th>B<\/th><\/tr><\/thead><tbody><tr><td>1<\/td><td>2<\/td><\/tr><\/tbody><\/table><\/div>\n<h2>Next<\/h2>\n<pre class="code-block"/,
+  )
 })
