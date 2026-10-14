@@ -4,7 +4,6 @@ export type GrabOverlayProps = {
 }
 
 export function GrabOverlay({ rect, label }: GrabOverlayProps) {
-  const above = rect.top > 28
   return (
     <div
       data-plan-grab-ignore=""
@@ -16,7 +15,7 @@ export function GrabOverlay({ rect, label }: GrabOverlayProps) {
         height: Math.max(rect.height, 8),
       }}
     >
-      <span className={above ? 'plan-grab-label' : 'plan-grab-label is-inside'}>{label}</span>
+      <span className="plan-grab-label">{label}</span>
     </div>
   )
 }
