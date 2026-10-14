@@ -34,6 +34,126 @@ function partAttr(scope: string, kind: string, index: number): string {
   return ` data-plan-part="${escapeHtml(`${scope}/${kind}:${index}`)}" data-plan-kind="${kind}"`
 }
 
+type ColumnAlign = 'left' | 'center' | 'right'
+
+/** A GitHub-style pipe table: header, `| --- |` separator, then body rows. */
+function isTableStart(lines: string[], index: number): boolean {
+  const header = lines[index] ?? ''
+  const delimiter = lines[index + 1]
+  if (delimiter === undefined || !header.trim() || !rowHasSeparator(header)) return false
+  const headerCells = splitTableRow(header)
+  const delimiterCells = splitTableRow(delimiter)
+  if (headerCells.length === 0 || headerCells.length !== delimiterCells.length) return false
+  return columnAlignments(delimiterCells) !== null
+}
+
+function readTable(lines: string[], index: number): { html: string; next: number } {
+  const header = splitTableRow(lines[index] ?? '')
+  const alignments = columnAlignments(splitTableRow(lines[index + 1] ?? '')) ?? []
+  const rows: string[][] = []
+  let next = index + 2
+  while (next < lines.length) {
+    const line = lines[next] ?? ''
+    if (!line.trim() || isBlockStart(line)) break
+    const cells = splitTableRow(line)
+    rows.push(header.map((_, column) => cells[column] ?? ''))
+    next += 1
+  }
+  return { html: tableHtml(header, alignments, rows), next }
+}
+
+function tableHtml(header: string[], alignments: ColumnAlign[], rows: string[][]): string {
+  const head = header
+    .map((cell, column) => `<th${alignClass(alignments[column])}>${inlineMarkdown(cell)}</th>`)
+    .join('')
+  const body = rows
+    .map((row) => {
+      const cells = row
+        .map((cell, column) => `<td${alignClass(alignments[column])}>${inlineMarkdown(cell)}</td>`)
+        .join('')
+      return `<tr>${cells}</tr>`
+    })
+    .join('')
+  const tbody = body ? `<tbody>${body}</tbody>` : ''
+  return `<div class="rich-table"><table><thead><tr>${head}</tr></thead>${tbody}</table></div>`
+}
+
+function alignClass(align: ColumnAlign | undefined): string {
+  if (align === 'center') return ' class="align-center"'
+  if (align === 'right') return ' class="align-right"'
+  return ''
+}
+
+function columnAlignments(cells: string[]): ColumnAlign[] | null {
+  if (cells.length === 0) return null
+  const alignments: ColumnAlign[] = []
+  for (const cell of cells) {
+    const compact = cell.replace(/\s/g, '')
+    if (!/^:?-+:?$/.test(compact)) return null
+    const left = compact.startsWith(':')
+    const right = compact.endsWith(':')
+    alignments.push(left && right ? 'center' : right ? 'right' : 'left')
+  }
+  return alignments
+}
+
+/** Split a row on separator pipes. `\|` is a literal pipe, including inside inline code. */
+function splitTableRow(line: string): string[] {
+  const text = line.trim()
+  const cells: string[] = []
+  let current = ''
+  let codeSpan = 0
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i] ?? ''
+    if (ch === '\\' && text[i + 1] === '|') {
+      current += '|'
+      i += 1
+      continue
+    }
+    if (ch === '`') {
+      let run = 1
+      while (text[i + run] === '`') run += 1
+      if (codeSpan === 0) codeSpan = run
+      else if (run === codeSpan) codeSpan = 0
+      current += '`'.repeat(run)
+      i += run - 1
+      continue
+    }
+    if (ch === '|' && codeSpan === 0) {
+      cells.push(current.trim())
+      current = ''
+      continue
+    }
+    current += ch
+  }
+  cells.push(current.trim())
+  if (text.startsWith('|')) cells.shift()
+  if (text.endsWith('|') && cells[cells.length - 1] === '') cells.pop()
+  return cells.length > 0 ? cells : ['']
+}
+
+function rowHasSeparator(line: string): boolean {
+  const text = line.trim()
+  let codeSpan = 0
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i] ?? ''
+    if (ch === '\\' && text[i + 1] === '|') {
+      i += 1
+      continue
+    }
+    if (ch === '`') {
+      let run = 1
+      while (text[i + run] === '`') run += 1
+      if (codeSpan === 0) codeSpan = run
+      else if (run === codeSpan) codeSpan = 0
+      i += run - 1
+      continue
+    }
+    if (ch === '|' && codeSpan === 0) return true
+  }
+  return false
+}
+
 function markdownToHtml(source: string, scope: string): string {
   const lines = source.replace(/\r\n/g, '\n').split('\n')
   const parts: string[] = []
@@ -124,8 +244,20 @@ function markdownToHtml(source: string, scope: string): string {
       continue
     }
 
+    if (isTableStart(lines, i)) {
+      const table = readTable(lines, i)
+      parts.push(table.html)
+      i = table.next
+      continue
+    }
+
     const para: string[] = []
-    while (i < lines.length && (lines[i] ?? '').trim() && !isBlockStart(lines[i] ?? '')) {
+    while (
+      i < lines.length &&
+      (lines[i] ?? '').trim() &&
+      !isBlockStart(lines[i] ?? '') &&
+      !isTableStart(lines, i)
+    ) {
       para.push(lines[i] ?? '')
       i += 1
     }

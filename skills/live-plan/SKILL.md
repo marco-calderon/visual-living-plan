@@ -108,7 +108,7 @@ Copy-paste schemas and response examples: [primitives.md](primitives.md).
 - Add an interaction only if you will `wait` on it or the human must answer it inside `review`.
 - `execution stop` before `wait` or before expecting a review decision.
 - Open the browser for the human. Do not pass `--no-open` unless they cannot use a local browser.
-- Phase and callout bodies support headings, lists, fenced code, bold, italic, and inline code.
+- Phase and callout bodies support headings, lists, pipe tables, fenced code, bold, italic, and inline code. The row under a table header is `| --- |`. A blank line ends the table.
 - A mermaid fence draws a figure in the plan text. Put it in the plan markdown, or indent it inside a phase, callout, or approve `body`.
 - Include one `workflow` block. `check` fails when that block is missing.
 

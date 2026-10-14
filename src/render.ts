@@ -784,6 +784,35 @@ body.has-review-bar .shell {
 .rich p, .rich li { line-height: 1.55; color: var(--ink); }
 .rich p { margin: 0 0 0.75rem; }
 .rich ul, .rich ol { margin: 0 0 0.75rem; padding-left: 1.2rem; }
+.rich-table {
+  margin: 0 0 0.85rem;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-strong);
+}
+.rich-table table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0;
+}
+.rich-table th,
+.rich-table td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.45;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+}
+.rich-table th {
+  font-weight: 600;
+  background: var(--surface-soft);
+}
+.rich-table tr:last-child :is(th, td) { border-bottom: 0; }
+.rich-table .align-center { text-align: center; }
+.rich-table .align-right { text-align: right; }
+.rich > .rich-table:last-child { margin-bottom: 0; }
 .rich code, .code-block code {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
 }
