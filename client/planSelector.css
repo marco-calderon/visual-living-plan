@@ -73,8 +73,8 @@ body.plan-grab-armed [data-tab-panel='plan'] :is(button, a, input, textarea, sel
 
 .plan-popover {
   box-sizing: border-box;
-  width: min(18rem, var(--available-width, 18rem));
-  max-width: calc(100vw - 32px);
+  width: 18rem;
+  max-width: min(18rem, calc(100vw - 24px));
   border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--paper);

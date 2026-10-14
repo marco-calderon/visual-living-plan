@@ -51,7 +51,7 @@ export function CommentPopover({
         align="start"
         sideOffset={10}
         collisionPadding={12}
-        collisionAvoidance={{ side: 'flip', align: 'shift', fallbackAxisSide: 'none' }}
+        collisionAvoidance={{ side: 'shift', align: 'shift', fallbackAxisSide: 'none' }}
         finalFocus={false}
       >
         <PopoverHeader>
