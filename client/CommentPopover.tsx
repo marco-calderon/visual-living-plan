@@ -55,7 +55,7 @@ export function CommentPopover({
         finalFocus={false}
       >
         <PopoverHeader>
-          <PopoverTitle>{title}</PopoverTitle>
+          <PopoverTitle title={title}>{title}</PopoverTitle>
           {excerpt ? <PopoverDescription>{excerpt}</PopoverDescription> : null}
         </PopoverHeader>
         {comments.length > 0 ? (

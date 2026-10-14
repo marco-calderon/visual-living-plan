@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { spawn } from 'node:child_process'
+import { writeSync } from 'node:fs'
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -147,9 +148,13 @@ function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError'
 }
 
-/** Stay subscribed to one hosted plan and print that plan's submissions. */
-async function followPlan(url: string, token: string): Promise<number> {
-  console.log('Listening for submissions on this plan. Stopping this command leaves the page up.')
+/** Write one JSON line to stdout without waiting for a block buffer. Agents read this pipe live. */
+function printJsonLine(value: unknown): void {
+  writeSync(1, `${JSON.stringify(value)}\n`)
+}
+
+/** Stay subscribed and print each submission as soon as it arrives. */
+async function listenForSubmissions(url: string, token?: string): Promise<number> {
   const controller = new AbortController()
   const stop = () => controller.abort()
   process.once('SIGINT', stop)
@@ -159,9 +164,7 @@ async function followPlan(url: string, token: string): Promise<number> {
       url,
       token,
       (event) => {
-        for (const notice of planClientNotices(event)) {
-          console.log(JSON.stringify(notice))
-        }
+        for (const notice of planClientNotices(event)) printJsonLine(notice)
       },
       controller.signal,
     )
@@ -172,6 +175,12 @@ async function followPlan(url: string, token: string): Promise<number> {
     }
   }
   return 0
+}
+
+/** Stay subscribed to one hosted plan and print that plan's submissions. */
+async function followPlan(url: string, token: string): Promise<number> {
+  console.log('Listening for submissions on this plan. Stopping this command leaves the page up.')
+  return listenForSubmissions(url, token)
 }
 
 async function putExecution(url: string, body: ExecutionState): Promise<ExecutionState> {
@@ -285,12 +294,10 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
   console.log(`Theme config: ${server.getState().theme.configPath}`)
   console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent).')
   await openBrowser(server.url)
-  await new Promise<void>((resolveWait) => {
-    process.on('SIGINT', () => resolveWait())
-    process.on('SIGTERM', () => resolveWait())
-  })
+  console.log('Listening for submissions on this plan.')
+  const code = await listenForSubmissions(server.url)
   await server.close()
-  return 0
+  return code
 }
 
 type ReviewPayload = {
@@ -471,7 +478,7 @@ async function cmdEvents(args: string[]): Promise<number> {
       url,
       token,
       ({ event, data }) => {
-        console.log(JSON.stringify({ event, data }))
+        printJsonLine({ event, data })
       },
       controller.signal,
     )

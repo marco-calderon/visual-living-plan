@@ -295,7 +295,7 @@ export function PlanSelector() {
   }
 
   const overlay = open ? locked : hover
-  const heading = locked ? locked.kind.replaceAll('-', ' ') : 'Comment'
+  const heading = locked?.excerpt.trim() || (locked ? locked.kind.replaceAll('-', ' ') : 'Comment')
 
   return (
     <>
@@ -314,7 +314,7 @@ export function PlanSelector() {
         open={open}
         anchor={locked?.element ?? null}
         title={heading}
-        excerpt={locked?.excerpt ?? ''}
+        excerpt=""
         comments={thread}
         sending={sending}
         error={error}

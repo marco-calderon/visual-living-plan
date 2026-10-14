@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { spawn } from 'node:child_process'
 import { copyFile, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -333,5 +334,74 @@ test('the service notifies each client of its own plan', async () => {
   } finally {
     await registry.close()
     await rm(home, { recursive: true, force: true })
+  }
+})
+
+test('serve prints a plan comment on stdout as soon as it is sent', async () => {
+  const child = spawn(
+    process.execPath,
+    ['src/cli.ts', 'serve', planPath, '--no-registry', '--no-open', '--port', '0'],
+    { cwd: resolve('.'), stdio: ['ignore', 'pipe', 'pipe'] },
+  )
+  let output = ''
+  child.stdout?.setEncoding('utf8')
+  child.stderr?.setEncoding('utf8')
+  child.stdout?.on('data', (chunk: string) => {
+    output += chunk
+  })
+  child.stderr?.on('data', (chunk: string) => {
+    output += chunk
+  })
+  const kill = () => {
+    if (child.exitCode === null && !child.killed) child.kill('SIGINT')
+  }
+  try {
+    const url = await new Promise<string>((resolveUrl, reject) => {
+      const timer = setTimeout(() => reject(new Error(`timed out waiting for serve\n${output}`)), 8_000)
+      const check = () => {
+        const match = output.match(/Living Plan \(watch\): (http:\/\/\S+)/)
+        if (!match?.[1]) return
+        clearTimeout(timer)
+        child.stdout?.off('data', check)
+        resolveUrl(match[1])
+      }
+      child.stdout?.on('data', check)
+      check()
+    })
+
+    const posted = await fetch(new URL('/api/comments', url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        partId: 'phase:implement/paragraph:1',
+        kind: 'paragraph',
+        blockId: 'implement',
+        excerpt: 'Wire the limiter',
+        text: 'Send this to the agent now.',
+      }),
+    })
+    assert.equal(posted.status, 200)
+
+    await new Promise<void>((resolveNotice, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`timed out waiting for comment on stdout\n${output}`)),
+        4_000,
+      )
+      const check = () => {
+        if (!output.includes('Send this to the agent now.')) return
+        clearTimeout(timer)
+        child.stdout?.off('data', check)
+        resolveNotice()
+      }
+      child.stdout?.on('data', check)
+      check()
+    })
+    assert.match(output, /"event":"comment"/)
+  } finally {
+    kill()
+    await new Promise((resolveExit) => {
+      if (child.exitCode !== null) resolveExit(child.exitCode)
+      else child.once('exit', resolveExit)
+    })
   }
 })
