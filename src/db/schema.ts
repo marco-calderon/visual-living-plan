@@ -101,6 +101,7 @@ export const planSessions = sqliteTable('plan_sessions', {
   responsesJson: text('responses_json').notNull().default('{}'),
   executionJson: text('execution_json').notNull().default('{}'),
   reviewJson: text('review_json'),
+  commentsJson: text('comments_json').notNull().default('[]'),
   startedAt: integer('started_at').notNull(),
   lastSeenAt: integer('last_seen_at').notNull(),
 })

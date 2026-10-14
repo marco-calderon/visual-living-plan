@@ -7,6 +7,33 @@ import { renderPlanPage } from '../src/render.ts'
 import { defaultThemeConfig, themePayload } from '../src/theme.ts'
 import { workflowRequirementError } from '../src/workflow.ts'
 
+test('rendered plan parts carry a stable comment target', () => {
+  const plan = parsePlan(`# Demo
+
+A paragraph of context.
+
+- First item
+
+\`\`\`phase
+id: design
+title: Design
+status: active
+body: |
+  Request path.
+\`\`\`
+`)
+  const markdown = plan.blocks.find((block) => block.type === 'markdown')
+  assert.ok(markdown && markdown.type === 'markdown')
+  assert.match(markdown.html, /data-plan-part="markdown:0\/heading:1"/)
+  assert.match(markdown.html, /data-plan-kind="heading"/)
+  assert.match(markdown.html, /data-plan-part="markdown:0\/paragraph:1"/)
+  assert.match(markdown.html, /data-plan-part="markdown:0\/list-item:1"/)
+
+  const phase = plan.blocks.find((block) => block.type === 'phase')
+  assert.ok(phase && phase.type === 'phase')
+  assert.match(phase.bodyHtml, /data-plan-part="phase:design\/paragraph:1"/)
+})
+
 test('mermaid fences in plan markdown become diagram hosts', () => {
   const plan = parsePlan(`# Demo
 
@@ -212,9 +239,9 @@ After.
   assert.equal(
     markdown.html,
     [
-      '<h1>Demo</h1>',
+      '<h1 data-plan-part="markdown:0/heading:1" data-plan-kind="heading">Demo</h1>',
       '<div class="rich-table"><table><thead><tr><th>Name</th><th class="align-right">Count</th></tr></thead><tbody><tr><td><strong>Ada</strong></td><td class="align-right"><code>3</code></td></tr><tr><td>&lt;b&gt;</td><td class="align-right">4</td></tr></tbody></table></div>',
-      '<p>After.</p>',
+      '<p data-plan-part="markdown:0/paragraph:1" data-plan-kind="paragraph">After.</p>',
     ].join('\n'),
   )
 })
@@ -261,7 +288,7 @@ Next
     markdown.html,
     [
       '<div class="rich-table"><table><thead><tr><th>abc</th><th>def</th></tr></thead><tbody><tr><td>bar</td><td>baz</td></tr><tr><td>bar</td><td></td></tr><tr><td>bar</td><td>baz</td></tr></tbody></table></div>',
-      '<p>Next</p>',
+      '<p data-plan-part="markdown:0/paragraph:1" data-plan-kind="paragraph">Next</p>',
     ].join('\n'),
   )
 })
@@ -273,7 +300,10 @@ test('a header without a matching separator stays a paragraph', () => {
 `)
   const markdown = plan.blocks.find((block) => block.type === 'markdown')
   assert.ok(markdown && markdown.type === 'markdown')
-  assert.equal(markdown.html, '<p>| abc | def | | --- | | bar |</p>')
+  assert.equal(
+    markdown.html,
+    '<p data-plan-part="markdown:0/paragraph:1" data-plan-kind="paragraph">| abc | def | | --- | | bar |</p>',
+  )
 })
 
 test('a header-only table has no body', () => {
@@ -319,7 +349,7 @@ test('the table showcase renders tables in the plan, a phase, and a callout', ()
   assert.match(markdown.html, /<th>Status<\/th><th>Meaning<\/th><th class="align-right">Lease<\/th>/)
   assert.match(phase.bodyHtml, /<th>Column<\/th><th>Purpose<\/th>/)
   assert.match(phase.bodyHtml, /<code>google_ads_operation_id<\/code>/)
-  assert.match(phase.bodyHtml, /<li><code>enqueue\(db, operations\)<\/code>/)
+  assert.match(phase.bodyHtml, /<li[^>]*><code>enqueue\(db, operations\)<\/code>/)
   assert.doesNotMatch(phase.bodyHtml, /\| --- \|/)
   assert.match(callout.bodyHtml, /<th>Producer<\/th><th>When<\/th>/)
   assert.match(callout.bodyHtml, /<td>COE<\/td><td>now<\/td>/)
@@ -339,6 +369,6 @@ const n = 1
   assert.ok(markdown && markdown.type === 'markdown')
   assert.match(
     markdown.html,
-    /^<div class="rich-table"><table><thead><tr><th>A<\/th><th>B<\/th><\/tr><\/thead><tbody><tr><td>1<\/td><td>2<\/td><\/tr><\/tbody><\/table><\/div>\n<h2>Next<\/h2>\n<pre class="code-block"/,
+    /^<div class="rich-table"><table><thead><tr><th>A<\/th><th>B<\/th><\/tr><\/thead><tbody><tr><td>1<\/td><td>2<\/td><\/tr><\/tbody><\/table><\/div>\n<h2 data-plan-part="markdown:0\/heading:1" data-plan-kind="heading">Next<\/h2>\n<pre class="code-block" data-plan-part="markdown:0\/code:1" data-plan-kind="code"/,
   )
 })

@@ -77,6 +77,7 @@ export const PLAN_SESSION_COLUMNS: ColumnSpec[] = [
   { name: 'responses_json', create: "responses_json TEXT NOT NULL DEFAULT '{}'", alter: "responses_json TEXT NOT NULL DEFAULT '{}'" },
   { name: 'execution_json', create: "execution_json TEXT NOT NULL DEFAULT '{}'", alter: "execution_json TEXT NOT NULL DEFAULT '{}'" },
   { name: 'review_json', create: 'review_json TEXT', alter: 'review_json TEXT' },
+  { name: 'comments_json', create: "comments_json TEXT NOT NULL DEFAULT '[]'", alter: "comments_json TEXT NOT NULL DEFAULT '[]'" },
   { name: 'started_at', create: 'started_at INTEGER NOT NULL', alter: 'started_at INTEGER NOT NULL DEFAULT 0' },
   { name: 'last_seen_at', create: 'last_seen_at INTEGER NOT NULL', alter: 'last_seen_at INTEGER NOT NULL DEFAULT 0' },
 ]

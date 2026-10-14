@@ -24,11 +24,12 @@ export function planIdFromPlanUrl(planUrl: string): string | null {
  * A late client also hears answers already stored in `hello`.
  */
 export function planClientNotices(event: AgentEvent): AgentEvent[] {
-  if (event.event === 'interaction' || event.event === 'review') return [event]
+  if (event.event === 'interaction' || event.event === 'review' || event.event === 'comment') return [event]
   if (event.event !== 'hello' || !event.data || typeof event.data !== 'object') return []
   const hello = event.data as {
     responses?: Record<string, unknown>
     review?: { decision?: string } | null
+    comments?: unknown[]
   }
   const notices: AgentEvent[] = []
   for (const data of Object.values(hello.responses ?? {})) {
@@ -36,6 +37,9 @@ export function planClientNotices(event: AgentEvent): AgentEvent[] {
   }
   if (hello.review && typeof hello.review === 'object' && hello.review.decision) {
     notices.push({ event: 'review', data: hello.review })
+  }
+  for (const data of hello.comments ?? []) {
+    notices.push({ event: 'comment', data })
   }
   return notices
 }

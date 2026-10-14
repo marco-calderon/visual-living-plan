@@ -83,5 +83,9 @@ export function registerPlanRoutes(app: any, options: PlanRouteOptions): any {
       const interactionId = context.params?.interactionId ?? ''
       return sessionFor(idOf(context)).submitInteraction(interactionId, context.body)
     })
+    .post(route('/api/comments'), (context: RouteContext) => sessionFor(idOf(context)).submitComment(context.body))
+    .post(route('/api/comments/:commentId/address'), (context: RouteContext) =>
+      sessionFor(idOf(context)).addressComment(context.params?.commentId ?? ''),
+    )
     .post(route('/api/review'), (context: RouteContext) => sessionFor(idOf(context)).submitReview(context.body))
 }

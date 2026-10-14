@@ -21,6 +21,9 @@ function mount(node: HTMLElement): void {
   const code = node.querySelector('code')?.textContent ?? ''
   const host = document.createElement('div')
   host.className = 'code-host'
+  if (node.dataset.planPart) host.dataset.planPart = node.dataset.planPart
+  if (node.dataset.planKind) host.dataset.planKind = node.dataset.planKind
+  if (node.dataset.start) host.dataset.start = node.dataset.start
   node.replaceWith(host)
   createRoot(host).render(
     <CodeBlock

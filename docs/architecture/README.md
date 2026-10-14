@@ -22,7 +22,7 @@ flowchart LR
   Service -->|"watch"| File
   Service -->|"sessions and finished runs"| DB
   Service -->|"copy the plan file"| Archive
-  Service -->|"interaction and review"| Agent
+  Service -->|"interaction, review, and comment"| Agent
 ```
 
 Each plan is a session under `/plans/<id>/`. The id is a stable hash of the plan path, so registering the same file again returns the same URL.
@@ -49,7 +49,7 @@ flowchart TD
 | Surface | Path |
 |---|---|
 | Plan page | `/plans/<id>/` |
-| Plan API | `/plans/<id>/api/plan`, `/api/interactions/:id`, `/api/review`, `/api/execution`, `/api/theme` |
+| Plan API | `/plans/<id>/api/plan`, `/api/interactions/:id`, `/api/comments`, `/api/comments/:id/address`, `/api/review`, `/api/execution`, `/api/theme` |
 | Browser events | `/plans/<id>/api/events` |
 | Agent events | `/plans/<id>/api/agent-events` (bearer token) |
 | Plan list | `/api/processes` and `GET /` |

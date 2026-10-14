@@ -93,7 +93,7 @@ Flags:
 2. `check` the file.
 3. `serve` for ongoing status, or `review` when you need Approve / Deny / Iterate on the whole plan. `serve` prints submissions for that plan. Pass `--detach` when this process has to return before the person answers.
 4. After `--detach`, run `events --url <printed-url>` to hear every submission, or `wait <id> --url <printed-url>` to block on one answer. Both use the same agent event stream as `serve`.
-5. Apply the response. Update phase `status` and checklist `done` in the same file. The page reloads on save.
+5. Apply the response. Update phase `status` and checklist `done` in the same file. The page reloads on save. A comment on a plan part arrives as a `comment` event on that same stream, with `partId`, `kind`, `excerpt`, and `text`. It is allowed while execution is live. `POST /api/comments/:id/address` marks it addressed and clears the corner icon.
 6. While implementing, `execution start`, then `execution push` as the graph changes, then `execution stop` before the next plan interaction. Plan forms and review are rejected with HTTP 409 while execution is active.
 7. On review **approve**, proceed. On **deny**, stop. On **iterate**, edit the same file, bump `--iteration`, and run `review` again.
 
