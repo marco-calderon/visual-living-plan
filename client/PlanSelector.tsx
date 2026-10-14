@@ -145,6 +145,7 @@ export function PlanSelector() {
       const described = describe(part)
       setLocked(described)
       setHover(described)
+      setHoverRect(described.element.getBoundingClientRect())
       setError('')
       setOpen(true)
     }
@@ -161,7 +162,13 @@ export function PlanSelector() {
         return
       }
       const part = resolvePart(hit)
-      setHover(part ? describe(part) : null)
+      if (!part) {
+        setHover(null)
+        return
+      }
+      const described = describe(part)
+      setHover(described)
+      setHoverRect(described.element.getBoundingClientRect())
     }
     document.addEventListener('pointermove', onMove)
     return () => document.removeEventListener('pointermove', onMove)
@@ -183,7 +190,9 @@ export function PlanSelector() {
       const next = event.key === 'ArrowUp' ? parentPart(current) : childPart(current)
       if (!next) return
       event.preventDefault()
-      setHover(describe(next))
+      const described = describe(next)
+      setHover(described)
+      setHoverRect(described.element.getBoundingClientRect())
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
@@ -242,7 +251,9 @@ export function PlanSelector() {
   function openPart(partId: string) {
     const element = findPartElement(partId)
     if (!element) return
-    setLocked(describe(element))
+    const described = describe(element)
+    setLocked(described)
+    setHoverRect(described.element.getBoundingClientRect())
     setError('')
     setOpen(true)
   }
@@ -288,7 +299,9 @@ export function PlanSelector() {
 
   return (
     <>
-      {overlay && hoverRect ? <GrabOverlay rect={hoverRect} label={partLabel(overlay.kind, overlay.excerpt)} /> : null}
+      {overlay && hoverRect ? (
+        <GrabOverlay partId={overlay.partId} rect={hoverRect} label={partLabel(overlay.kind, overlay.excerpt)} />
+      ) : null}
       {marks.map((mark) => (
         <UnaddressedMark
           key={mark.partId}

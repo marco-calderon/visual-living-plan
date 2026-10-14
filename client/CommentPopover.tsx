@@ -45,7 +45,15 @@ export function CommentPopover({
 
   return (
     <Popover open={open} onOpenChange={onOpenChange} modal={false}>
-      <PopoverContent anchor={anchor} side="bottom" align="start" sideOffset={8} finalFocus={false}>
+      <PopoverContent
+        anchor={anchor}
+        side="right"
+        align="start"
+        sideOffset={10}
+        collisionPadding={12}
+        collisionAvoidance={{ side: 'flip', align: 'shift', fallbackAxisSide: 'none' }}
+        finalFocus={false}
+      >
         <PopoverHeader>
           <PopoverTitle>{title}</PopoverTitle>
           {excerpt ? <PopoverDescription>{excerpt}</PopoverDescription> : null}
