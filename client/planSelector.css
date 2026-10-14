@@ -82,39 +82,74 @@ body.plan-grab-armed [data-tab-panel='plan'] :is(button, a, input, textarea, sel
   padding: 0.75rem;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
   transform-origin: var(--transform-origin);
-  opacity: 1;
-  transform: translate3d(0, 0, 0) scale(1);
-  transition:
-    opacity 180ms ease,
-    transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.plan-popover[data-starting-style],
-.plan-popover[data-ending-style] {
-  opacity: 0;
-  transform: translate3d(-8px, 0, 0) scale(0.96);
+.plan-popover[data-open] {
+  animation: plan-popover-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.plan-popover[data-side='left'][data-starting-style],
-.plan-popover[data-side='left'][data-ending-style],
-.plan-popover[data-side='inline-start'][data-starting-style],
-.plan-popover[data-side='inline-start'][data-ending-style] {
-  transform: translate3d(8px, 0, 0) scale(0.96);
+.plan-popover[data-closed] {
+  animation: plan-popover-out 240ms ease both;
 }
 
-.plan-popover[data-side='top'][data-starting-style],
-.plan-popover[data-side='top'][data-ending-style] {
-  transform: translate3d(0, 8px, 0) scale(0.96);
+.plan-popover[data-side='left'][data-open],
+.plan-popover[data-side='inline-start'][data-open] {
+  animation-name: plan-popover-in-left;
 }
 
-.plan-popover[data-side='bottom'][data-starting-style],
-.plan-popover[data-side='bottom'][data-ending-style] {
-  transform: translate3d(0, -8px, 0) scale(0.96);
+.plan-popover[data-side='left'][data-closed],
+.plan-popover[data-side='inline-start'][data-closed] {
+  animation-name: plan-popover-out-left;
+}
+
+@keyframes plan-popover-in {
+  from {
+    opacity: 0;
+    transform: translate3d(-12px, 0, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes plan-popover-out {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(-12px, 0, 0) scale(0.96);
+  }
+}
+
+@keyframes plan-popover-in-left {
+  from {
+    opacity: 0;
+    transform: translate3d(12px, 0, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes plan-popover-out-left {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(12px, 0, 0) scale(0.96);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .plan-popover {
-    transition: none;
+  .plan-popover[data-open],
+  .plan-popover[data-closed] {
+    animation: none;
   }
 }
 

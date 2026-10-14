@@ -162,10 +162,10 @@ export function PlanSelector() {
         return
       }
       const part = resolvePart(hit)
-      if (!part) {
-        setHover(null)
-        return
-      }
+      const current = hoverRef.current?.element
+      // Keep the current part across padding and parent wrappers so the box glides
+      // to the next leaf instead of expanding to the whole section in the gap.
+      if (!part || part === current || (current && part.contains(current))) return
       const described = describe(part)
       setHover(described)
       setHoverRect(described.element.getBoundingClientRect())

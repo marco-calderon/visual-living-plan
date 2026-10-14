@@ -14,8 +14,9 @@ type Placed = {
   height: number
 }
 
+const GLIDE_MS = 420
 const GLIDE =
-  'left 240ms cubic-bezier(0.22, 1, 0.36, 1), top 240ms cubic-bezier(0.22, 1, 0.36, 1), width 240ms cubic-bezier(0.22, 1, 0.36, 1), height 240ms cubic-bezier(0.22, 1, 0.36, 1)'
+  'left 420ms cubic-bezier(0.22, 1, 0.36, 1), top 420ms cubic-bezier(0.22, 1, 0.36, 1), width 420ms cubic-bezier(0.22, 1, 0.36, 1), height 420ms cubic-bezier(0.22, 1, 0.36, 1)'
 
 function placeOf(partId: string, rect: DOMRect): Placed {
   return {
@@ -39,6 +40,7 @@ function sameBox(left: Placed, right: Placed): boolean {
 export function GrabOverlay({ partId, rect, label }: GrabOverlayProps) {
   const node = useRef<HTMLDivElement>(null)
   const placed = useRef<Placed | null>(null)
+  const glidingUntil = useRef(0)
 
   useLayoutEffect(() => {
     const element = node.current
@@ -49,8 +51,14 @@ export function GrabOverlay({ partId, rect, label }: GrabOverlayProps) {
 
     const partChanged = previous !== null && previous.partId !== next.partId
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    element.style.transition = partChanged && !reduce ? GLIDE : 'none'
-    if (partChanged && !reduce) void element.getBoundingClientRect()
+    const gliding = performance.now() < glidingUntil.current
+    if (partChanged && !reduce) {
+      element.style.transition = GLIDE
+      void element.getBoundingClientRect()
+      glidingUntil.current = performance.now() + GLIDE_MS
+    } else if (!gliding) {
+      element.style.transition = 'none'
+    }
     element.style.left = `${next.left}px`
     element.style.top = `${next.top}px`
     element.style.width = `${next.width}px`
