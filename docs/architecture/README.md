@@ -6,7 +6,7 @@ Read [the decisions](decisions/README.md) for why it is shaped this way. Read [t
 
 ## How the pieces talk
 
-A single process listens on `127.0.0.1:9477`. `serve` and `review` start it when it is not already running, then register a plan. `serve` stays connected as a client of that plan and prints each submission. Stopping it leaves the page up. `review` waits for the decision, then closes that plan.
+A single process listens on `127.0.0.1:9477`. `serve` and `review` start it when it is not already running, then register a plan. That process is detached into its own session. It keeps running after `serve`, `review`, `events`, and `wait` exit, and after the terminal that started them closes. `serve` stays connected as a client of that plan and prints each submission. Stopping that client leaves the page up. `review` waits for the decision, then closes that plan.
 
 ```mermaid
 flowchart LR

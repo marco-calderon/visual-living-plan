@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
+import { spawn, type ChildProcess } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test } from 'node:test'
@@ -14,7 +17,9 @@ import { defaultThemeConfig, themePayload } from '../src/theme.ts'
 import {
   ensureRegistry,
   listProcesses,
+  readRegistryLock,
   registerProcess,
+  registryHealthy,
   unregisterProcess,
   watchRegisteredPlan,
 } from '../src/registryClient.ts'
@@ -397,6 +402,146 @@ test('ensureRegistry starts one shared server and reuses it', async () => {
         await new Promise((resolveDelay) => setTimeout(resolveDelay, 50))
       }
     }
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
+function freePort(): Promise<number> {
+  return new Promise((resolvePort, reject) => {
+    const server = createServer()
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address()
+      const port = typeof address === 'object' && address ? address.port : 0
+      server.close(() => resolvePort(port))
+    })
+  })
+}
+
+function collectOutput(child: ChildProcess): () => string {
+  let output = ''
+  child.stdout?.setEncoding('utf8')
+  child.stderr?.setEncoding('utf8')
+  child.stdout?.on('data', (chunk: string) => {
+    output += chunk
+  })
+  child.stderr?.on('data', (chunk: string) => {
+    output += chunk
+  })
+  return () => output
+}
+
+function waitForExit(child: ChildProcess, timeoutMs: number, output: () => string): Promise<number | null> {
+  if (child.exitCode !== null) return Promise.resolve(child.exitCode)
+  return new Promise((resolveExit, reject) => {
+    const timer = setTimeout(() => reject(new Error(`timed out waiting for exit\n${output()}`)), timeoutMs)
+    child.once('exit', (code) => {
+      clearTimeout(timer)
+      resolveExit(code)
+    })
+  })
+}
+
+async function waitForOutput(output: () => string, pattern: RegExp, timeoutMs: number): Promise<void> {
+  const started = Date.now()
+  while (Date.now() - started < timeoutMs) {
+    if (pattern.test(output())) return
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 50))
+  }
+  throw new Error(`timed out waiting for ${pattern}\n${output()}`)
+}
+
+async function stopProcess(pid: number): Promise<void> {
+  if (!pid || !isPidAlive(pid)) return
+  try {
+    process.kill(pid, 'SIGTERM')
+  } catch {
+    return
+  }
+  const started = Date.now()
+  while (isPidAlive(pid) && Date.now() - started < 5_000) {
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 50))
+  }
+  if (isPidAlive(pid)) {
+    try {
+      process.kill(pid, 'SIGKILL')
+    } catch {
+      // Already gone.
+    }
+  }
+}
+
+/** Session id from `/proc`. A detached service is the leader of its own session. */
+function sessionId(pid: number): number | null {
+  if (process.platform !== 'linux') return null
+  try {
+    const stat = readFileSync(`/proc/${pid}/stat`, 'utf8')
+    const fields = stat.slice(stat.lastIndexOf(')') + 2).trim().split(/\s+/)
+    const sid = Number(fields[3])
+    return Number.isInteger(sid) ? sid : null
+  } catch {
+    return null
+  }
+}
+
+test('spawned registry keeps running after CLI clients disconnect', { timeout: 30_000 }, async () => {
+  const home = await tempHome()
+  const port = await freePort()
+  const plan = resolve('examples/rate-limit.plan.md')
+  const env = { ...process.env, LIVE_PLAN_HOME: home }
+  let servicePid = 0
+
+  const spawnCli = (args: string[], detached = false): ChildProcess =>
+    spawn(process.execPath, [entryFile, ...args], {
+      cwd: resolve('.'),
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached,
+    })
+
+  try {
+    const detached = spawnCli(['serve', plan, '--detach', '--no-open', '--registry-port', String(port)])
+    const detachedOutput = collectOutput(detached)
+    const detachedCode = await waitForExit(detached, 20_000, detachedOutput)
+    assert.equal(detachedCode, 0, detachedOutput())
+
+    const lock = await readRegistryLock(home)
+    assert.ok(lock)
+    servicePid = lock.pid
+    assert.equal(isPidAlive(servicePid), true)
+    assert.equal(await registryHealthy(lock.url), true)
+    if (process.platform === 'linux') assert.equal(sessionId(servicePid), servicePid)
+    const planUrl = detachedOutput().match(/Living Plan \(watch\): (http:\/\/\S+)/)?.[1]
+    assert.ok(planUrl)
+
+    const events = spawnCli(['events', '--url', planUrl])
+    const eventsOutput = collectOutput(events)
+    await waitForOutput(eventsOutput, /"event"/, 8_000)
+    events.kill('SIGKILL')
+    await waitForExit(events, 5_000, eventsOutput)
+    assert.equal(isPidAlive(servicePid), true)
+    assert.equal(await registryHealthy(lock.url), true)
+    const listed = (await (await fetch(new URL('/api/processes', lock.url))).json()) as {
+      processes: unknown[]
+    }
+    assert.equal(listed.processes.length > 0, true)
+
+    const attached = spawnCli(['serve', plan, '--no-open', '--registry-port', String(port)], true)
+    const attachedOutput = collectOutput(attached)
+    await waitForOutput(attachedOutput, /Listening for submissions/, 8_000)
+    assert.ok(attached.pid)
+    process.kill(-attached.pid, 'SIGINT')
+    await waitForExit(attached, 8_000, attachedOutput)
+    assert.equal(isPidAlive(servicePid), true)
+    assert.equal((await readRegistryLock(home))?.pid, servicePid)
+    assert.equal(await registryHealthy(lock.url), true)
+
+    process.kill(servicePid, 'SIGHUP')
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 300))
+    assert.equal(isPidAlive(servicePid), true)
+    assert.equal(await registryHealthy(lock.url), true)
+  } finally {
+    await stopProcess(servicePid)
     await rm(home, { recursive: true, force: true })
   }
 })

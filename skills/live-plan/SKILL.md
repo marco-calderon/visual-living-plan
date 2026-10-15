@@ -26,7 +26,7 @@ live-plan <command> [args]
 
 Do not call this repo's `npm run` scripts from a consuming project. Those are for developing Live Plan itself.
 
-`serve` registers the plan on one machine service and stays attached. It prints each submission for that plan until you stop it. The page stays up after it exits. Pass `--detach` to register and return. `events` and `wait` are extra clients of that same plan. `wait` and `review` block until the human responds or `--timeout` fires.
+`serve` registers the plan on one machine service and stays attached. It prints each submission for that plan until you stop it. The page and the service stay up after it exits. Pass `--detach` to register and return. `events` and `wait` are extra clients of that same plan. `wait` and `review` block until the human responds or `--timeout` fires.
 
 ## When to use
 
