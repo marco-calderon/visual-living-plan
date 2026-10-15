@@ -57,7 +57,7 @@ Swap the `bunx visual-living-plan` prefix for `live-plan` when that command is o
 |---|---|---|
 | `check <file>` | Parse the plan and print title, block types, interaction ids, and workflow nodes. A missing workflow block is an error. | `0` ok, `1` usage, parse error, or missing workflow |
 | `dump <file>` | Print the parsed plan as JSON | `0` ok, `1` usage or parse error |
-| `serve <file>` | Register the plan on the machine service and print each submission for that plan until stopped. `--detach` prints the URL and returns. The page stays up either way. | `0` stopped or detached, `1` the stream failed |
+| `serve <file>` | Register the plan on the machine service and print each submission for that plan until stopped. `--detach` prints the URL and returns. The page and the service stay up either way. | `0` stopped or detached, `1` the stream failed |
 | `review <file>` | Same page plus Approve / Deny / Iterate. Blocks on the agent event stream until a decision, then closes the plan. | `0` approve, `1` deny, `2` iterate, `3` timeout |
 | `wait <id> --url <url>` | Block on the agent event stream until that interaction id is answered. Prints the response JSON. | `0` answered, `1` missing `--url`, `3` timeout |
 | `events --url <url>` | Print each `hello`, `interaction`, and `review` event until the process is stopped. | `0` |

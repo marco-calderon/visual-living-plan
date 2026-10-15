@@ -194,6 +194,37 @@ async function stopOwnedRegistry(home: string): Promise<void> {
   }
 }
 
+/** Start the service in its own session, with stdio pointed at the registry log. */
+function spawnDetachedRegistry(
+  entryFile: string,
+  port: number,
+  host: string,
+  home: string,
+  env: NodeJS.ProcessEnv,
+) {
+  const logPath = join(home, 'registry.log')
+  const stdoutFd = openSync(logPath, 'a')
+  const stderrFd = openSync(logPath, 'a')
+  try {
+    const spawnOptions: SpawnOptions = {
+      detached: true,
+      stdio: ['ignore', stdoutFd, stderrFd],
+      env: { ...env, LIVE_PLAN_HOME: home, LIVE_PLAN_DAEMON: '1' },
+      windowsHide: true,
+    }
+    const child = spawn(
+      process.execPath,
+      childArgs(entryFile, ['registry', '--port', String(port), '--host', host]),
+      spawnOptions,
+    )
+    child.unref()
+    return child
+  } finally {
+    closeSync(stdoutFd)
+    closeSync(stderrFd)
+  }
+}
+
 /**
  * A same-version service can stay up when its URL is already the local name,
  * or when that name cannot be installed. Otherwise the caller starts a new process.
@@ -214,7 +245,7 @@ async function keepRunningService(lock: RegistryLock, useLocalName: boolean): Pr
 
 /**
  * Connect to the shared plan service, starting a detached one when none is running.
- * One service hosts every plan. Agents are clients of it.
+ * One service hosts every plan. It keeps running after the spawning CLI and later clients exit.
  */
 export async function ensureRegistry(options: {
   entryFile: string
@@ -260,24 +291,10 @@ export async function ensureRegistry(options: {
     throw new Error('Timed out waiting for the living-plan registry to start')
   }
 
-  const logFd = openSync(join(home, 'registry.log'), 'a')
-  const spawnOptions: SpawnOptions = {
-    detached: true,
-    stdio: ['ignore', logFd, logFd],
-    env: {
-      ...process.env,
-      LIVE_PLAN_HOME: home,
-      ...(useLocalName ? {} : { LIVE_PLAN_LOCAL_NAME: '0' }),
-    },
-    windowsHide: true,
-  }
-  const child = spawn(
-    process.execPath,
-    childArgs(options.entryFile, ['registry', '--port', String(port), '--host', host]),
-    spawnOptions,
-  )
-  child.unref()
-  closeSync(logFd)
+  const child = spawnDetachedRegistry(options.entryFile, port, host, home, {
+    ...process.env,
+    ...(useLocalName ? {} : { LIVE_PLAN_LOCAL_NAME: '0' }),
+  })
 
   const waited = await waitForRunning(home, STARTING_STALE_MS)
   await rm(registryStartingPath(home), { force: true })
