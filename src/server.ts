@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { Elysia } from 'elysia'
 import { HttpError } from './http.js'
 import { bindElysia } from './httpServer.js'
+import { formatHttpOrigin } from './localName.js'
 import { registerPlanRoutes } from './planRoutes.js'
 import { openPlanSession, type PlanSession } from './planSession.js'
 import type { InteractionResponse, ReviewResult } from './types.js'
@@ -21,6 +22,8 @@ export async function startLivingPlanServer(options: {
   port?: number
   iteration?: number
   host?: string
+  /** Name to print in the URL. The socket still binds to `host`. */
+  publicHost?: string
   /** Shared registry this page proxies so the plans panel stays same-origin. */
   registry?: {
     url: string
@@ -105,7 +108,7 @@ export async function startLivingPlanServer(options: {
   )
 
   const bound = bindElysia(app, host, options.port ?? 0)
-  const url = `http://${host}:${bound.port}`
+  const url = formatHttpOrigin(options.publicHost ?? host, bound.port)
 
   return {
     port: bound.port,

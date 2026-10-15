@@ -8,11 +8,13 @@ Read [the decisions](decisions/README.md) for why it is shaped this way. Read [t
 
 A single process listens on `127.0.0.1:9477`. `serve` and `review` start it when it is not already running, then register a plan. That process is detached into its own session. It keeps running after `serve`, `review`, `events`, and `wait` exit, and after the terminal that started them closes. `serve` stays connected as a client of that plan and prints each submission. Stopping that client leaves the page up. `review` waits for the decision, then closes that plan.
 
+On loopback, that printed URL uses `living-plan.local` when the name resolves only to loopback ([ADR 0010](decisions/0010-local-hostname.md)). The service adds the hosts-file line when it can. It also accepts port 80 on loopback when that port is free, so the URL can be `http://living-plan.local/plans/<id>/` with no port. If port 80 cannot be opened, the URL keeps `:9477`. The socket stays on `127.0.0.1`. `--host` other than loopback is unchanged, so a cloud agent can still share a reachable address.
+
 ```mermaid
 flowchart LR
   Agent["Agent CLI"]
   Browser["Browser"]
-  Service["Plan service :9477"]
+  Service["Plan service living-plan.local"]
   File["plan.md"]
   DB[("registry.sqlite")]
   Archive["plans/id.plan.md"]

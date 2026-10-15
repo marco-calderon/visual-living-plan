@@ -13,5 +13,6 @@ Decisions are numbered in the order they were made. Superseded decisions stay he
 | [0007](0007-serve-stays-a-client.md) | 2026-10-11 | Accepted | `serve` stays a client and hears that plan's submissions |
 | [0008](0008-dashboard-window-query.md) | 2026-10-12 | Accepted | Dashboard period filters run inside the finished-run query |
 | [0009](0009-plan-part-comments.md) | 2026-10-13 | Accepted | Comments on plan parts use the same agent event stream |
+| [0010](0010-local-hostname.md) | 2026-10-15 | Accepted | Loopback plans are published as living-plan.local |
 
-Add the next decision as `0009-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.
+Add the next decision as `0011-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.

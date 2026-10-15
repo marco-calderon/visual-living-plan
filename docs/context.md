@@ -12,7 +12,7 @@ Authoring rules for agents who *use* the tool live in [docs/agent-guidelines.md]
 
 ## How a plan is hosted
 
-One service per machine, default `127.0.0.1:9477`, hosts every plan. `serve` registers the file, prints `http://127.0.0.1:9477/plans/<id>/`, and stays subscribed to that plan's agent stream. It prints each submission until stopped. The page and the service stay up after it exits. `--detach` registers and returns. `events` and `wait` are further clients of the same stream. A client of another plan does not see the event. The service is a detached process and keeps running when a CLI client disconnects.
+One service per machine, default `127.0.0.1:9477`, hosts every plan. `serve` registers the file and stays subscribed to that plan's agent stream. On loopback it prints `http://living-plan.local/plans/<id>/` when that name resolves to loopback and port 80 can be opened; otherwise `http://living-plan.local:9477/plans/<id>/` or `http://127.0.0.1:9477/plans/<id>/`. It prints each submission until stopped. The page and the service stay up after it exits. `--detach` registers and returns. `events` and `wait` are further clients of the same stream. A client of another plan does not see the event. The service is a detached process and keeps running when a CLI client disconnects. `--no-local-name` and `LIVE_PLAN_LOCAL_NAME=0` keep the IP URL. `--host` other than loopback is the address a cloud agent shares.
 
 `--no-registry` is the exception: one private server for one plan. Keep that path working.
 
