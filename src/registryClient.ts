@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import { readGitSnapshot } from './gitStatus.js'
 import { isPidAlive } from './pid.js'
 import type { CompletionState, GitSnapshot, ProcessPulse, ProcessRecord, ProcessRegistration } from './processRecord.js'
+import { ensureLocalHostname, LOCAL_PLAN_HOSTNAME, localNameDesired } from './localName.js'
 import { DEFAULT_REGISTRY_HOST, DEFAULT_REGISTRY_PORT, HEARTBEAT_MS } from './registryConstants.js'
 import {
   defaultRegistryHome,
@@ -194,6 +195,24 @@ async function stopOwnedRegistry(home: string): Promise<void> {
 }
 
 /**
+ * A same-version service can stay up when its URL is already the local name,
+ * or when that name cannot be installed. Otherwise the caller starts a new process.
+ */
+async function keepRunningService(lock: RegistryLock, useLocalName: boolean): Promise<RegistryLock | null> {
+  if (!useLocalName) return lock
+  let published = ''
+  try {
+    published = new URL(lock.url).hostname
+  } catch {
+    return lock
+  }
+  if (published === LOCAL_PLAN_HOSTNAME) return lock
+  const status = await ensureLocalHostname({ elevate: 'passwordless' })
+  if (status.outcome !== 'ready') return lock
+  return null
+}
+
+/**
  * Connect to the shared plan service, starting a detached one when none is running.
  * One service hosts every plan. Agents are clients of it.
  */
@@ -202,16 +221,24 @@ export async function ensureRegistry(options: {
   home?: string
   port?: number
   host?: string
+  /** False keeps the service URL on the bind address. Omit to follow the loopback default. */
+  localName?: boolean
 }): Promise<RegistryLock> {
   const home = options.home ?? defaultRegistryHome()
   const host = options.host ?? DEFAULT_REGISTRY_HOST
   const port = options.port ?? DEFAULT_REGISTRY_PORT
+  const useLocalName = options.localName ?? localNameDesired(host, port)
   const version = await readPackageVersion(options.entryFile)
   await mkdir(home, { recursive: true, mode: 0o700 })
 
   const already = await runningRegistry(home)
-  if (already?.version === version) return already
-  if (already) await stopOwnedRegistry(home)
+  if (already?.version === version) {
+    const kept = await keepRunningService(already, useLocalName)
+    if (kept) return kept
+    await stopOwnedRegistry(home)
+  } else if (already) {
+    await stopOwnedRegistry(home)
+  }
 
   const age = await startingLockAge(home)
   if (age !== null && age < STARTING_STALE_MS) {
@@ -237,7 +264,11 @@ export async function ensureRegistry(options: {
   const spawnOptions: SpawnOptions = {
     detached: true,
     stdio: ['ignore', logFd, logFd],
-    env: { ...process.env, LIVE_PLAN_HOME: home },
+    env: {
+      ...process.env,
+      LIVE_PLAN_HOME: home,
+      ...(useLocalName ? {} : { LIVE_PLAN_LOCAL_NAME: '0' }),
+    },
     windowsHide: true,
   }
   const child = spawn(
