@@ -34,6 +34,12 @@ import { DEFAULT_REGISTRY_HOST, DEFAULT_REGISTRY_PORT } from './registryConstant
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
+if (process.env.LIVE_PLAN_DAEMON === '1' && process.platform !== 'win32') {
+  process.on('SIGHUP', () => {
+    // Started detached. The process stays up when the client's terminal closes.
+  })
+}
+
 function printHelp(): void {
   console.log(`live-plan — agent-authored plans humans can interact with
 
@@ -75,6 +81,7 @@ Every plan includes a \`workflow\` block. That block is the execution path the W
 Accent color is saved in live-plan.config.json beside the plan (override with --config).
 --no-open skips launching a browser.
 --detach registers the plan and returns. Without it, serve stays connected and prints that plan's submissions.
+The machine service keeps running after serve, events, wait, and review exit.
 --no-registry serves this plan in its own process instead of the machine service.
 --port sets that private process port. With the service, --port is used only when the service is not already running.
 --registry-port and --registry-host choose the service (default ${DEFAULT_REGISTRY_HOST}:${DEFAULT_REGISTRY_PORT}).

@@ -12,7 +12,7 @@ Authoring rules for agents who *use* the tool live in [docs/agent-guidelines.md]
 
 ## How a plan is hosted
 
-One service per machine, default `127.0.0.1:9477`, hosts every plan. `serve` registers the file, prints `http://127.0.0.1:9477/plans/<id>/`, and stays subscribed to that plan's agent stream. It prints each submission until stopped. The page stays up after it exits. `--detach` registers and returns. `events` and `wait` are further clients of the same stream. A client of another plan does not see the event.
+One service per machine, default `127.0.0.1:9477`, hosts every plan. `serve` registers the file, prints `http://127.0.0.1:9477/plans/<id>/`, and stays subscribed to that plan's agent stream. It prints each submission until stopped. The page and the service stay up after it exits. `--detach` registers and returns. `events` and `wait` are further clients of the same stream. A client of another plan does not see the event. The service is a detached process and keeps running when a CLI client disconnects.
 
 `--no-registry` is the exception: one private server for one plan. Keep that path working.
 
@@ -49,6 +49,7 @@ Home directory for the service is `~/.visual-living-plan`, or `LIVE_PLAN_HOME` w
 - The agent stream on the service requires a bearer token. Browser submission routes stay open on loopback.
 - A plan session is closed after 6 hours with no browser and no agent stream, on `live-plan close`, and after `review` finishes.
 - Restart the service when the package version in the lock file does not match the CLI.
+- The service process stays running after `serve`, `events`, `wait`, and `review` exit.
 - A `workflow` block is required in a plan. `check` fails without it.
 - While execution is active, plan forms and review return HTTP 409.
 
