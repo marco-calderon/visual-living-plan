@@ -1,5 +1,5 @@
 import type { GitSnapshot, PlanRecord, ProcessRecord } from '../processRecord.js'
-import { emptyGitSnapshot } from '../processRecord.js'
+import { emptyGitSnapshot, isPlanMode } from '../processRecord.js'
 import {
   completionStateValues,
   planModeValues,
@@ -146,7 +146,7 @@ export function planRowToProcess(row: PlanRow): ProcessRecord {
     title: row.title,
     summary: row.summary,
     agent: row.agent,
-    mode: row.mode === 'review' ? 'review' : 'watch',
+    mode: isPlanMode(row.mode) ? row.mode : 'watch',
     planPath: row.planPath,
     directory: row.directory,
     cwd: row.cwd,

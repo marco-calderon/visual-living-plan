@@ -3,8 +3,8 @@ import { attachMermaidViewer, collapseMermaidViewer, releaseMermaidViewer, watch
 
 const FONT = '"IBM Plex Sans", "Helvetica Neue", Arial, sans-serif'
 
-function diagramNodes(): HTMLElement[] {
-  return [...document.querySelectorAll<HTMLElement>('.mermaid-diagram')]
+function diagramNodes(root: ParentNode = document): HTMLElement[] {
+  return [...root.querySelectorAll<HTMLElement>('.mermaid-diagram')]
 }
 
 function readVar(name: string): string {
@@ -124,8 +124,8 @@ function stampDiagramParts(figure: HTMLElement): void {
 
 let generation = 0
 
-async function renderDiagrams(): Promise<void> {
-  const nodes = diagramNodes()
+async function renderDiagrams(root: ParentNode = document): Promise<void> {
+  const nodes = diagramNodes(root)
   if (nodes.length === 0) return
   const ticket = ++generation
   configure()
@@ -160,11 +160,14 @@ async function renderDiagrams(): Promise<void> {
 }
 
 function boot(): void {
-  if (diagramNodes().length === 0) return
   watchMermaidViewer()
   void renderDiagrams()
   window.addEventListener('living-plan-theme', () => {
     void renderDiagrams()
+  })
+  window.addEventListener('living-plan-document', (event) => {
+    const root = (event as CustomEvent<{ root?: ParentNode }>).detail?.root
+    void renderDiagrams(root instanceof Element ? root : document)
   })
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
     void renderDiagrams()

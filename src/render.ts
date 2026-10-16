@@ -1,6 +1,7 @@
 import type { ClientAssets } from './assets.js'
 import type { ExecutionState } from './execution.js'
 import { blockAnchorId, planPartScope } from './parse.js'
+import type { PlanMode } from './processRecord.js'
 import { PROCESSES_PANEL_STYLES, processesPanelMarkup, processesPanelScript } from './processesPanel.js'
 import { accentCssCustomProperties } from './theme.js'
 import type {
@@ -324,6 +325,19 @@ function renderWorkflow(
   `
 }
 
+function sourceStamp(source: string): string {
+  let hash = 2166136261
+  for (let index = 0; index < source.length; index += 1) {
+    hash ^= source.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0).toString(36)
+}
+
+function withStamp(html: string, source: string): string {
+  return html.replace('<section ', `<section data-plan-stamp="${sourceStamp(source)}" `)
+}
+
 function renderBlock(
   block: PlanBlock,
   index: number,
@@ -336,23 +350,26 @@ function renderBlock(
   const scope = planPartScope(block, index)
   switch (block.type) {
     case 'markdown':
-      return `<section class="block markdown diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}${partAttrs(scope, 'section')}><div class="rich">${block.html}</div></section>`
+      return withStamp(
+        `<section class="block markdown diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}${partAttrs(scope, 'section')}><div class="rich">${block.html}</div></section>`,
+        block.source,
+      )
     case 'phase':
-      return renderPhase(block, anchorId, scope, diff)
+      return withStamp(renderPhase(block, anchorId, scope, diff), block.source)
     case 'callout':
-      return renderCallout(block, anchorId, scope, diff)
+      return withStamp(renderCallout(block, anchorId, scope, diff), block.source)
     case 'choice':
-      return renderChoice(block, responses, locked, anchorId, scope, diff)
+      return withStamp(renderChoice(block, responses, locked, anchorId, scope, diff), block.source)
     case 'approve':
-      return renderApprove(block, responses, locked, anchorId, scope, diff)
+      return withStamp(renderApprove(block, responses, locked, anchorId, scope, diff), block.source)
     case 'form':
-      return renderForm(block, responses, locked, anchorId, scope, diff)
+      return withStamp(renderForm(block, responses, locked, anchorId, scope, diff), block.source)
     case 'questions':
-      return renderQuestions(block, responses, locked, anchorId, scope, diff)
+      return withStamp(renderQuestions(block, responses, locked, anchorId, scope, diff), block.source)
     case 'checklist':
-      return renderChecklist(block, anchorId, scope, diff)
+      return withStamp(renderChecklist(block, anchorId, scope, diff), block.source)
     case 'workflow':
-      return renderWorkflow(block, anchorId, scope, diff)
+      return withStamp(renderWorkflow(block, anchorId, scope, diff), block.source)
   }
 }
 
@@ -723,6 +740,12 @@ body.has-review-bar .shell {
   box-shadow: var(--shadow);
   animation: rise 0.55s ease both;
 }
+body.plan-live .block {
+  animation: none;
+}
+body.plan-live .block.change-applied {
+  animation: change-applied 1.15s ease;
+}
 
 .block.diff-added { box-shadow: inset 3px 0 0 var(--ok), var(--shadow); }
 .block.diff-edited { box-shadow: inset 3px 0 0 var(--accent-2), var(--shadow); }
@@ -1080,6 +1103,8 @@ textarea { min-height: 88px; resize: vertical; }
 .checklist li.done { opacity: 0.72; }
 .checklist li.done .check { color: var(--ok); }
 
+.review-dock[hidden],
+.chip[hidden] { display: none; }
 .review-dock {
   position: fixed;
   inset-inline: 0;
@@ -1161,6 +1186,10 @@ textarea { min-height: 88px; resize: vertical; }
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+@keyframes change-applied {
+  0% { background-color: var(--wash-accent); }
+  100% { background-color: var(--panel); }
+}
 @keyframes pulse {
   0% { box-shadow: 0 0 0 0 var(--pulse); }
   70% { box-shadow: 0 0 0 10px transparent; }
@@ -1186,17 +1215,20 @@ textarea { min-height: 88px; resize: vertical; }
   .review-bar { border-radius: 18px; }
   body.has-review-bar .shell { padding-bottom: 16rem; }
 }
+@media (prefers-reduced-motion: reduce) {
+  body.plan-live .block.change-applied { animation: none; }
+}
 `
 
 function clientScript(
-  mode: 'watch' | 'review',
+  mode: PlanMode,
   executionActive: boolean,
   theme: RenderTheme,
   basePath: string,
 ): string {
   return `
 (() => {
-  const mode = ${JSON.stringify(mode)};
+  let mode = ${JSON.stringify(mode)};
   const apiBase = ${JSON.stringify(basePath)};
   const interactionsLocked = ${JSON.stringify(executionActive)};
   let currentAccent = ${JSON.stringify(theme.accent)};
@@ -1303,10 +1335,12 @@ function clientScript(
     });
   });
 
-  document.querySelectorAll('[data-tab-jump]').forEach((button) => {
-    button.addEventListener('click', () => {
-      activateTab(button.getAttribute('data-tab-jump') || 'workflow');
-    });
+  document.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const tabJump = target.closest('[data-tab-jump]');
+    if (!tabJump) return;
+    activateTab(tabJump.getAttribute('data-tab-jump') || 'workflow');
   });
 
   function focusPlanRef(ref) {
@@ -1326,10 +1360,12 @@ function clientScript(
     });
   }
 
-  document.querySelectorAll('[data-plan-jump]').forEach((button) => {
-    button.addEventListener('click', () => {
-      focusPlanRef(button.getAttribute('data-plan-jump'));
-    });
+  document.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const planJump = target.closest('[data-plan-jump]');
+    if (!planJump) return;
+    focusPlanRef(planJump.getAttribute('data-plan-jump'));
   });
 
   window.livingPlanFocusPlanRef = focusPlanRef;
@@ -1359,12 +1395,14 @@ function clientScript(
     if (el) el.innerHTML = text;
   }
 
-  document.querySelectorAll('[data-choice-id]').forEach((button) => {
-    button.addEventListener('click', async () => {
-      if (interactionsLocked) return;
-      const id = button.getAttribute('data-choice-id');
-      const optionId = button.getAttribute('data-option-id');
-      const label = button.getAttribute('data-option-label');
+  document.addEventListener('click', async (event) => {
+    const target = event.target;
+    if (!(target instanceof Element) || interactionsLocked) return;
+    const choice = target.closest('[data-choice-id]');
+    if (choice instanceof HTMLButtonElement) {
+      const id = choice.getAttribute('data-choice-id');
+      const optionId = choice.getAttribute('data-option-id');
+      const label = choice.getAttribute('data-option-label');
       if (!id || !optionId || !label) return;
       await postJson(apiBase + '/api/interactions/' + encodeURIComponent(id), {
         kind: 'choice',
@@ -1378,37 +1416,36 @@ function clientScript(
       });
       markState(id, 'Selected: <strong>' + label + '</strong>');
       showToast('Choice sent to agent');
+      return;
+    }
+    const approve = target.closest('[data-approve-id]');
+    if (!(approve instanceof HTMLButtonElement)) return;
+    const id = approve.getAttribute('data-approve-id');
+    const approved = approve.getAttribute('data-approved') === 'true';
+    if (!id) return;
+    const note = document.querySelector('[data-approve-note="' + id + '"]');
+    await postJson(apiBase + '/api/interactions/' + encodeURIComponent(id), {
+      kind: 'approve',
+      id,
+      approved,
+      note: note && 'value' in note ? note.value : undefined,
     });
+    document.querySelectorAll('[data-approve-id="' + id + '"]').forEach((node) => {
+      node.disabled = true;
+    });
+    if (note) note.disabled = true;
+    markState(id, approved ? 'Approved' : 'Denied');
+    showToast(approved ? 'Approved' : 'Denied');
   });
 
-  document.querySelectorAll('[data-approve-id]').forEach((button) => {
-    button.addEventListener('click', async () => {
-      if (interactionsLocked) return;
-      const id = button.getAttribute('data-approve-id');
-      const approved = button.getAttribute('data-approved') === 'true';
-      if (!id) return;
-      const note = document.querySelector('[data-approve-note="' + id + '"]');
-      await postJson(apiBase + '/api/interactions/' + encodeURIComponent(id), {
-        kind: 'approve',
-        id,
-        approved,
-        note: note && 'value' in note ? note.value : undefined,
-      });
-      document.querySelectorAll('[data-approve-id="' + id + '"]').forEach((node) => {
-        node.disabled = true;
-      });
-      if (note) note.disabled = true;
-      markState(id, approved ? 'Approved' : 'Denied');
-      showToast(approved ? 'Approved' : 'Denied');
-    });
-  });
-
-  document.querySelectorAll('form[data-form-id]').forEach((form) => {
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      if (interactionsLocked) return;
-      const id = form.getAttribute('data-form-id');
-      if (!id) return;
+  document.addEventListener('submit', async (event) => {
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement) || interactionsLocked) return;
+    const formId = form.getAttribute('data-form-id');
+    const questionsId = form.getAttribute('data-questions-id');
+    if (!formId && !questionsId) return;
+    event.preventDefault();
+    if (formId) {
       const data = new FormData(form);
       const values = {};
       data.forEach((value, key) => {
@@ -1416,71 +1453,188 @@ function clientScript(
           ? Number(value)
           : value;
       });
-      await postJson(apiBase + '/api/interactions/' + encodeURIComponent(id), {
+      await postJson(apiBase + '/api/interactions/' + encodeURIComponent(formId), {
         kind: 'form',
-        id,
+        id: formId,
         values,
       });
       form.querySelectorAll('input, textarea, select, button').forEach((node) => {
         node.disabled = true;
       });
-      markState(id, 'Submitted');
+      markState(formId, 'Submitted');
       showToast('Form submitted');
-    });
-  });
-
-  document.querySelectorAll('form[data-questions-id]').forEach((form) => {
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      if (interactionsLocked) return;
-      const id = form.getAttribute('data-questions-id');
-      if (!id) return;
-      const data = new FormData(form);
-      const answers = {};
-      data.forEach((value, key) => {
-        answers[key] = String(value);
-      });
-      await postJson(apiBase + '/api/interactions/' + encodeURIComponent(id), {
-        kind: 'questions',
-        id,
-        answers,
-      });
-      form.querySelectorAll('textarea, button').forEach((node) => {
-        node.disabled = true;
-      });
-      markState(id, 'Answers sent');
-      showToast('Answers sent');
-    });
-  });
-
-  if (mode === 'review') {
-    const reviewNote = document.getElementById('review-note');
-    if (reviewNote instanceof HTMLTextAreaElement) {
-      const fitReviewNote = () => {
-        reviewNote.style.height = 'auto';
-        const next = Math.min(reviewNote.scrollHeight, 144);
-        reviewNote.style.height = next + 'px';
-      };
-      reviewNote.addEventListener('input', fitReviewNote);
-      fitReviewNote();
+      return;
     }
-    document.querySelectorAll('[data-review-decision]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        const decision = button.getAttribute('data-review-decision');
-        const note = document.getElementById('review-note');
-        await postJson(apiBase + '/api/review', {
-          decision,
-          note: note && 'value' in note ? note.value : undefined,
-          comments: [],
-        });
-        showToast('Review ' + decision);
+    const data = new FormData(form);
+    const answers = {};
+    data.forEach((value, key) => {
+      answers[key] = String(value);
+    });
+    await postJson(apiBase + '/api/interactions/' + encodeURIComponent(questionsId), {
+      kind: 'questions',
+      id: questionsId,
+      answers,
+    });
+    form.querySelectorAll('textarea, button').forEach((node) => {
+      node.disabled = true;
+    });
+    markState(questionsId, 'Answers sent');
+    showToast('Answers sent');
+  });
+
+  function applyMode(payload) {
+    if (!payload || (payload.mode !== 'watch' && payload.mode !== 'comment' && payload.mode !== 'review')) return;
+    mode = payload.mode;
+    const chip = document.querySelector('[data-plan-mode-chip]');
+    if (chip) chip.textContent = mode;
+    document.body.dataset.planMode = mode;
+    const decision = payload.review && payload.review.decision;
+    const reviewChip = document.querySelector('[data-review-chip]');
+    const reviewValue = document.querySelector('[data-review-decision]');
+    if (reviewChip) {
+      reviewChip.hidden = !decision;
+      if (reviewValue && decision) reviewValue.textContent = decision;
+    }
+    const showBar = mode === 'review' && !decision && !interactionsLocked;
+    document.body.classList.toggle('has-review-bar', showBar);
+    const dock = document.getElementById('review-dock');
+    if (dock) dock.hidden = !showBar;
+    window.dispatchEvent(new CustomEvent('living-plan-mode', { detail: { mode: mode } }));
+  }
+
+  const reviewNote = document.getElementById('review-note');
+  if (reviewNote instanceof HTMLTextAreaElement) {
+    const fitReviewNote = () => {
+      reviewNote.style.height = 'auto';
+      const next = Math.min(reviewNote.scrollHeight, 144);
+      reviewNote.style.height = next + 'px';
+    };
+    reviewNote.addEventListener('input', fitReviewNote);
+    fitReviewNote();
+  }
+  document.querySelectorAll('[data-review-decision]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const decision = button.getAttribute('data-review-decision');
+      const note = document.getElementById('review-note');
+      await postJson(apiBase + '/api/review', {
+        decision,
+        note: note && 'value' in note ? note.value : undefined,
+        comments: [],
+      });
+      showToast('Review ' + decision);
+    });
+  });
+
+  function blockKey(node) {
+    return node.getAttribute('data-plan-part') || node.id || '';
+  }
+
+  function animateBlockHeight(node, from, to, done) {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || Math.abs(from - to) < 1) {
+      if (done) done();
+      return;
+    }
+    node.style.overflow = 'hidden';
+    node.style.height = from + 'px';
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        node.style.transition = 'height 0.4s ease';
+        node.style.height = to + 'px';
       });
     });
+    node.addEventListener('transitionend', function onEnd(event) {
+      if (event.propertyName !== 'height') return;
+      node.removeEventListener('transitionend', onEnd);
+      node.style.height = '';
+      node.style.overflow = '';
+      node.style.transition = '';
+      if (done) done();
+    });
+  }
+
+  function syncDiffClass(previous, next) {
+    ['diff-added', 'diff-edited', 'diff-unchanged', 'diff-removed'].forEach((name) => {
+      previous.classList.toggle(name, next.classList.contains(name));
+    });
+  }
+
+  function patchStack(stack, nextStack) {
+    const incoming = [...nextStack.querySelectorAll(':scope > .block')];
+    const live = new Map();
+    stack.querySelectorAll(':scope > .block').forEach((node) => {
+      const key = blockKey(node);
+      if (key && !live.has(key)) live.set(key, node);
+    });
+    let applied = 0;
+    let anchor = null;
+    incoming.forEach((next) => {
+      const key = blockKey(next);
+      const previous = key ? live.get(key) : undefined;
+      if (previous) live.delete(key);
+      const same = previous
+        && previous.getAttribute('data-plan-stamp')
+        && previous.getAttribute('data-plan-stamp') === next.getAttribute('data-plan-stamp');
+      if (previous && same) {
+        syncDiffClass(previous, next);
+        const expected = anchor ? anchor.nextElementSibling : stack.querySelector(':scope > .block');
+        if (previous !== expected) stack.insertBefore(previous, anchor ? anchor.nextSibling : stack.firstChild);
+        anchor = previous;
+        return;
+      }
+      next.classList.add('change-applied');
+      if (next instanceof HTMLElement) next.style.animationDelay = (applied * 70) + 'ms';
+      applied += 1;
+      const from = previous instanceof HTMLElement ? previous.getBoundingClientRect().height : 0;
+      if (previous) previous.replaceWith(next);
+      else stack.insertBefore(next, anchor ? anchor.nextSibling : stack.firstChild);
+      if (next instanceof HTMLElement && !next.querySelector('.mermaid-diagram, pre.code-block')) {
+        animateBlockHeight(next, from, next.getBoundingClientRect().height);
+      }
+      window.dispatchEvent(new CustomEvent('living-plan-document', { detail: { root: next } }));
+      anchor = next;
+    });
+    live.forEach((node) => {
+      if (!(node instanceof HTMLElement)) {
+        node.remove();
+        return;
+      }
+      const from = node.getBoundingClientRect().height;
+      animateBlockHeight(node, from, 0, () => node.remove());
+    });
+  }
+
+  let refreshing = false;
+  async function refreshPlan() {
+    if (refreshing) return;
+    refreshing = true;
+    try {
+      const response = await fetch(window.location.href, { headers: { accept: 'text/html' } });
+      if (!response.ok) throw new Error('refresh failed');
+      const parsed = new DOMParser().parseFromString(await response.text(), 'text/html');
+      const nextStack = parsed.querySelector('main.stack');
+      const stack = document.querySelector('main.stack');
+      document.body.classList.add('plan-live');
+      if (nextStack && stack) patchStack(stack, nextStack);
+      const nextTitle = parsed.querySelector('h1.brand');
+      const title = document.querySelector('h1.brand');
+      if (nextTitle && title) title.textContent = nextTitle.textContent || '';
+      const nextLede = parsed.querySelector('p.lede');
+      const lede = document.querySelector('p.lede');
+      if (nextLede && lede) lede.textContent = nextLede.textContent || '';
+      const nextPending = parsed.querySelector('[data-pending-count]');
+      const pending = document.querySelector('[data-pending-count]');
+      if (nextPending && pending) pending.textContent = nextPending.textContent || '';
+      if (parsed.title) document.title = parsed.title;
+    } catch {
+      showToast('Could not update the plan');
+    } finally {
+      refreshing = false;
+    }
   }
 
   const source = new EventSource(apiBase + '/api/events');
   source.addEventListener('reload', () => {
-    window.location.reload();
+    void refreshPlan();
   });
   source.addEventListener('theme', (event) => {
     try {
@@ -1504,13 +1658,18 @@ function clientScript(
   source.addEventListener('review', () => {
     showToast('Review submitted');
   });
+  source.addEventListener('mode', (event) => {
+    try {
+      applyMode(JSON.parse(event.data));
+    } catch {}
+  });
 })();
 `
 }
 
 export function renderPlanPage(options: {
   plan: PlanDocument
-  mode: 'watch' | 'review'
+  mode: PlanMode
   responses: Record<string, InteractionResponse>
   diffs: SectionDiff[]
   iteration: number
@@ -1607,7 +1766,7 @@ export function renderPlanPage(options: {
   ${accentStyleTag(theme.accent)}
   ${assetCss}
 </head>
-<body class="${showReviewBar ? 'has-review-bar' : ''}">
+<body class="${showReviewBar ? 'has-review-bar' : ''}" data-plan-mode="${escapeHtml(mode)}">
   ${processesPanelMarkup(selfId)}
   <div class="shell">
     <header class="hero">
@@ -1615,13 +1774,13 @@ export function renderPlanPage(options: {
       <h1 class="brand">${escapeHtml(plan.title)}</h1>
       ${plan.summary ? `<p class="lede">${escapeHtml(plan.summary)}</p>` : ''}
       <div class="meta-row">
-        <span class="chip">Mode <strong>${escapeHtml(mode)}</strong></span>
+        <span class="chip">Mode <strong data-plan-mode-chip>${escapeHtml(mode)}</strong></span>
         ${plan.agent ? `<span class="chip">Agent <strong>${escapeHtml(plan.agent)}</strong></span>` : ''}
         <span class="chip">Iteration <strong>v${iteration}</strong></span>
-        <span class="chip">Pending <strong>${pendingInteractionIds.length}</strong></span>
+        <span class="chip">Pending <strong data-pending-count>${pendingInteractionIds.length}</strong></span>
         <span class="chip">Workflow <strong>${workflowState}</strong></span>
         ${changed ? `<span class="chip">Changed <strong>${changed}</strong></span>` : ''}
-        ${reviewDecision ? `<span class="chip">Review <strong>${escapeHtml(reviewDecision)}</strong></span>` : ''}
+        <span class="chip" data-review-chip${reviewDecision ? '' : ' hidden'}>Review <strong data-review-decision>${escapeHtml(reviewDecision ?? '')}</strong></span>
       </div>
       <div class="tabs" role="tablist" aria-label="Living Plan views">
         <button type="button" class="tab-btn" role="tab" data-tab-target="plan" aria-selected="true">Plan</button>
@@ -1668,20 +1827,16 @@ export function renderPlanPage(options: {
       </main>
     </section>
   </div>
-  ${
-    showReviewBar
-      ? `<div class="review-dock">
-          <div class="review-bar" role="region" aria-label="Review this plan">
-            <textarea id="review-note" class="review-note" rows="2" placeholder="Optional overall note for the agent" aria-label="Optional overall note for the agent"></textarea>
-            <div class="actions">
-              <button class="btn danger" data-review-decision="deny">Deny</button>
-              <button class="btn" data-review-decision="iterate">Iterate</button>
-              <button class="btn primary" data-review-decision="approve">Approve</button>
-            </div>
-          </div>
-        </div>`
-      : ''
-  }
+  <div id="review-dock" class="review-dock"${showReviewBar ? '' : ' hidden'}>
+    <div class="review-bar" role="region" aria-label="Review this plan">
+      <textarea id="review-note" class="review-note" rows="2" placeholder="Optional overall note for the agent" aria-label="Optional overall note for the agent"></textarea>
+      <div class="actions">
+        <button class="btn danger" data-review-decision="deny">Deny</button>
+        <button class="btn" data-review-decision="iterate">Iterate</button>
+        <button class="btn primary" data-review-decision="approve">Approve</button>
+      </div>
+    </div>
+  </div>
   <div id="toast" class="toast" role="status"></div>
   <script type="application/json" id="living-plan-comments">${commentsJson}</script>
   <script>${clientScript(mode, locked, theme, basePath)}

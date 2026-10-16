@@ -58,7 +58,8 @@ Swap the `bunx visual-living-plan` prefix for `live-plan` when that command is o
 | `check <file>` | Parse the plan and print title, block types, interaction ids, and workflow nodes. A missing workflow block is an error. | `0` ok, `1` usage, parse error, or missing workflow |
 | `dump <file>` | Print the parsed plan as JSON | `0` ok, `1` usage or parse error |
 | `serve <file>` | Register the plan on the machine service and print each submission for that plan until stopped. `--detach` prints the URL and returns. The page and the service stay up either way. | `0` stopped or detached, `1` the stream failed |
-| `review <file>` | Same page plus Approve / Deny / Iterate. Blocks on the agent event stream until a decision, then closes the plan. | `0` approve, `1` deny, `2` iterate, `3` timeout |
+| `review <file>` | Same page plus Approve / Deny / Iterate. Blocks on the agent event stream until a decision, then leaves the plan open in watch. | `0` approve, `1` deny, `2` iterate, `3` timeout |
+| `mode <watch\|comment\|review> --url <url>` | Switch that session. Comment arms the part selector. Review shows the verdict bar. Watch is the status page. The open tab follows. A comment does not leave comment mode. | `0` switched, `1` usage or HTTP error |
 | `wait <id> --url <url>` | Block on the agent event stream until that interaction id is answered. Prints the response JSON. | `0` answered, `1` missing `--url`, `3` timeout |
 | `events --url <url>` | Print each `hello`, `interaction`, and `review` event until the process is stopped. | `0` |
 | `close --url <url>` | Drop that plan from the service. | `0` closed, `1` usage |
@@ -95,7 +96,7 @@ Flags:
 4. After `--detach`, run `events --url <printed-url>` to hear every submission, or `wait <id> --url <printed-url>` to block on one answer. Both use the same agent event stream as `serve`.
 5. Apply the response. Update phase `status` and checklist `done` in the same file. The page reloads on save. A comment on a plan part arrives as a `comment` event on that same stream, with `partId`, `kind`, `excerpt`, and `text`. It is allowed while execution is live. `POST /api/comments/:id/address` marks it addressed and clears the corner icon.
 6. While implementing, `execution start`, then `execution push` as the graph changes, then `execution stop` before the next plan interaction. Plan forms and review are rejected with HTTP 409 while execution is active.
-7. On review **approve**, proceed. On **deny**, stop. On **iterate**, edit the same file, bump `--iteration`, and run `review` again.
+7. On review **approve**, proceed. On **deny**, stop. On **iterate**, edit the same file, bump `--iteration`, and run `review` again. The plan stays open in watch after the decision. `close` is what drops it. Switch the open tab with `mode comment`, `mode watch`, or `mode review` on that same URL. `serve` keeps printing while you do.
 
 Section diffs are computed from the previous snapshot of that plan session. Editing the file while the plan is hosted marks added, edited, and removed sections.
 

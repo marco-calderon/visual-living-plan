@@ -47,7 +47,7 @@ Home directory for the service is `~/.visual-living-plan`, or `LIVE_PLAN_HOME` w
 - `new URL('/api/plan', planUrl)` is wrong for a plan URL that has a path. Use `planApiUrl`.
 - User submissions are pushed on the agent stream. Do not poll `/api/plan` from the CLI.
 - The agent stream on the service requires a bearer token. Browser submission routes stay open on loopback.
-- A plan session is closed after 6 hours with no browser and no agent stream, on `live-plan close`, and after `review` finishes.
+- A plan session is closed after 6 hours with no browser and no agent stream, and on `live-plan close`. A review decision returns that session to watch and leaves it open.
 - Restart the service when the package version in the lock file does not match the CLI.
 - The service process stays running after `serve`, `events`, `wait`, and `review` exit.
 - A `workflow` block is required in a plan. `check` fails without it.

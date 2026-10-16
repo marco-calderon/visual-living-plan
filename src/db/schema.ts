@@ -1,12 +1,12 @@
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import type { CompletionState, PlanStatus, ReviewOutcome } from '../processRecord.js'
+import type { CompletionState, PlanMode, PlanStatus, ReviewOutcome } from '../processRecord.js'
 
 /**
  * Live private-server registration.
  * One row is the current serve for that id. Finished history lives in `plan_runs`.
  * `processes` was the previous table; `migratePlanDatabase` copies those rows here.
  */
-export const planModeValues = ['watch', 'review'] as const
+export const planModeValues = ['watch', 'comment', 'review'] as const
 export const planStatusValues = ['running', 'executed', 'interrupted'] as const
 export const completionStateValues = ['idle', 'in_progress', 'partial', 'complete'] as const
 export const reviewOutcomeValues = ['approve', 'deny', 'iterate'] as const
@@ -18,7 +18,7 @@ type ExactEnum<TValues extends readonly string[], TUnion extends string> = [TUni
   : never
 type AssertExact<T extends true> = T
 
-type _planModes = AssertExact<ExactEnum<typeof planModeValues, 'watch' | 'review'>>
+type _planModes = AssertExact<ExactEnum<typeof planModeValues, PlanMode>>
 type _planStatuses = AssertExact<ExactEnum<typeof planStatusValues, PlanStatus>>
 type _completionStates = AssertExact<ExactEnum<typeof completionStateValues, CompletionState>>
 type _reviewOutcomes = AssertExact<ExactEnum<typeof reviewOutcomeValues, ReviewOutcome>>

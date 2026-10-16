@@ -5,7 +5,7 @@ import { createIdleExecutionState, type ExecutionState } from './execution.js'
 import { readGitSnapshot } from './gitStatus.js'
 import { openPlanSession, type PlanSession, type PlanSessionSnapshot } from './planSession.js'
 import { measurePlan } from './planProgress.js'
-import type { GitSnapshot, PlanRecord, ProcessRecord, ReviewOutcome } from './processRecord.js'
+import type { GitSnapshot, PlanMode, PlanRecord, ProcessRecord, ReviewOutcome } from './processRecord.js'
 import { runningPlan } from './processRecord.js'
 import { SESSION_IDLE_MS } from './registryConstants.js'
 import type { RegistryStore, StoredPlanSession } from './registryStore.js'
@@ -18,13 +18,13 @@ export type HostedPlan = {
   url: string
   token: string
   planPath: string
-  mode: 'watch' | 'review'
+  mode: PlanMode
 }
 
 export type PlanHost = {
   register(input: {
     planPath: string
-    mode: 'watch' | 'review'
+    mode: PlanMode
     iteration?: number
     cwd?: string
     configPath?: string
@@ -197,7 +197,7 @@ export async function createPlanHost(options: {
 
   async function register(input: {
     planPath: string
-    mode: 'watch' | 'review'
+    mode: PlanMode
     iteration?: number
     cwd?: string
     configPath?: string
@@ -206,14 +206,14 @@ export async function createPlanHost(options: {
     await access(planPath)
     const existing = [...sessions.values()].find((session) => session.planPath === planPath)
     if (existing) {
-      existing.setMode(input.mode, input.iteration)
+      if (input.mode !== 'watch') existing.setMode(input.mode, input.iteration)
       existing.touch()
       return {
         id: existing.id,
         url: planUrl(existing.id),
         token: existing.token,
         planPath,
-        mode: input.mode,
+        mode: existing.mode,
       }
     }
     const stored = options.store.getSessionByPath(planPath)

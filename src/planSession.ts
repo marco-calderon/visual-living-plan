@@ -17,6 +17,7 @@ import {
   type ThemeConfig,
 } from './theme.js'
 import { planToExpectedGraph, withPlannedWorkflow } from './workflow.js'
+import type { PlanMode } from './processRecord.js'
 import type {
   InteractionResponse,
   PlanComment,
@@ -57,7 +58,7 @@ export type PlanSessionSnapshot = {
   id: string
   token: string
   planPath: string
-  mode: 'watch' | 'review'
+  mode: PlanMode
   iteration: number
   cwd: string
   configPath: string | null
@@ -82,14 +83,15 @@ export type PlanSession = {
   id: string
   token: string
   planPath: string
-  mode: 'watch' | 'review'
+  mode: PlanMode
   startedAt: number
   lastSeenAt: number
   browserClients: number
   agentClients: number
   touch: () => void
   snapshot: () => PlanSessionSnapshot
-  setMode: (mode: 'watch' | 'review', iteration?: number) => void
+  setMode: (mode: PlanMode, iteration?: number) => void
+  updateMode: (body: unknown) => unknown
   page: () => Response
   planPayload: () => unknown
   themeView: () => ReturnType<typeof themePayload>
@@ -133,7 +135,7 @@ export async function openPlanSession(options: {
   id: string
   token: string
   planPath: string
-  mode: 'watch' | 'review'
+  mode: PlanMode
   iteration?: number
   cwd?: string
   configPath?: string
@@ -357,6 +359,8 @@ export async function openPlanSession(options: {
     }
     reviewWaiters = []
     broadcast('review', reviewResult)
+    mode = 'watch'
+    broadcast('mode', { mode, iteration, review: reviewResult })
     persist()
   }
 
@@ -568,6 +572,23 @@ export async function openPlanSession(options: {
     return { ok: true, review: reviewResult }
   }
 
+  function setMode(nextMode: PlanMode, nextIteration?: number): void {
+    mode = nextMode
+    if (nextIteration !== undefined && Number.isFinite(nextIteration)) iteration = nextIteration
+    if (nextMode === 'review') reviewResult = undefined
+    broadcast('mode', { mode, iteration, review: reviewResult ?? null })
+    persist()
+  }
+
+  function updateMode(body: unknown): unknown {
+    touch()
+    const payload = jsonBody(body, true) as { mode?: unknown }
+    const next = payload.mode
+    if (next !== 'watch' && next !== 'comment' && next !== 'review') throw new HttpError(400, 'Invalid mode')
+    setMode(next)
+    return { ok: true, mode }
+  }
+
   const watcher = watch(planPath, { persistent: true }, () => {
     void reloadFromDisk().catch((error) => {
       broadcast('error', {
@@ -610,11 +631,8 @@ export async function openPlanSession(options: {
     },
     touch,
     snapshot,
-    setMode(nextMode, nextIteration) {
-      mode = nextMode
-      if (nextIteration !== undefined && Number.isFinite(nextIteration)) iteration = nextIteration
-      persist()
-    },
+    setMode,
+    updateMode,
     page,
     planPayload,
     themeView,

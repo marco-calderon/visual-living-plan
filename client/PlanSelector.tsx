@@ -33,16 +33,12 @@ function apiPath(path: string): string {
   return `${base}${path}`
 }
 
-function storageKey(): string {
-  return `living-plan-comments:${window.location.pathname}`
-}
+type SessionMode = 'watch' | 'comment' | 'review'
 
-function readEnabled(): boolean {
-  try {
-    return localStorage.getItem(storageKey()) === 'on'
-  } catch {
-    return false
-  }
+function readMode(): SessionMode {
+  const value = document.body.dataset.planMode
+  if (value === 'comment' || value === 'review' || value === 'watch') return value
+  return 'watch'
 }
 
 function readComments(): PlanComment[] {
@@ -82,7 +78,8 @@ function upsert(comments: PlanComment[], comment: PlanComment): PlanComment[] {
 }
 
 export function PlanSelector() {
-  const [enabled, setEnabled] = useState(readEnabled)
+  const [mode, setMode] = useState<SessionMode>(readMode)
+  const enabled = mode !== 'watch'
   const [comments, setComments] = useState<PlanComment[]>(readComments)
   const [hover, setHover] = useState<PlanPart | null>(null)
   const [locked, setLocked] = useState<PlanPart | null>(null)
@@ -106,15 +103,62 @@ export function PlanSelector() {
   )
 
   useEffect(() => {
-    try {
-      localStorage.setItem(storageKey(), enabled ? 'on' : 'off')
-    } catch {
-      // Private mode can reject storage. The toggle still works for this view.
+    const onDocument = (event: Event) => {
+      const root = (event as CustomEvent<{ root?: Element }>).detail?.root
+      setHover(null)
+      if (!(root instanceof Element)) {
+        setLocked(null)
+        setOpen(false)
+        return
+      }
+      const lockedPart = lockedRef.current?.partId
+      const scope = root.getAttribute('data-plan-part')
+      const touched =
+        lockedPart != null &&
+        (lockedPart === scope ||
+          (scope != null && lockedPart.startsWith(scope + '/')) ||
+          root.querySelector(`[data-plan-part="${CSS.escape(lockedPart)}"]`) != null)
+      if (touched) {
+        setLocked(null)
+        setOpen(false)
+      }
     }
+    window.addEventListener('living-plan-document', onDocument)
+    return () => window.removeEventListener('living-plan-document', onDocument)
+  }, [])
+
+  useEffect(() => {
+    const onMode = (event: Event) => {
+      const next = (event as CustomEvent<{ mode?: SessionMode }>).detail?.mode
+      if (next === 'watch' || next === 'comment' || next === 'review') setMode(next)
+    }
+    window.addEventListener('living-plan-mode', onMode)
+    return () => window.removeEventListener('living-plan-mode', onMode)
+  }, [])
+
+  useEffect(() => {
     document.body.classList.toggle('plan-grab-armed', enabled)
-    if (!enabled) setHover(null)
+    if (!enabled) {
+      setHover(null)
+      setOpen(false)
+      setLocked(null)
+    }
     return () => document.body.classList.remove('plan-grab-armed')
   }, [enabled])
+
+  async function toggleMode() {
+    const next = mode === 'watch' ? 'comment' : 'watch'
+    const response = await fetch(apiPath('/api/mode'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mode: next }),
+    })
+    if (!response.ok) {
+      setError('Could not change mode')
+      return
+    }
+    setMode(next)
+  }
 
   useEffect(() => {
     const source = new EventSource(apiPath('/api/events'))
@@ -325,7 +369,7 @@ export function PlanSelector() {
         onSend={send}
         onAddress={(id) => void address(id)}
       />
-      <CommentToggle enabled={enabled} onToggle={() => setEnabled((current) => !current)} />
+      <CommentToggle enabled={enabled} onToggle={() => void toggleMode()} />
     </>
   )
 }

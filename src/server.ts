@@ -5,6 +5,7 @@ import { bindElysia } from './httpServer.js'
 import { formatHttpOrigin } from './localName.js'
 import { registerPlanRoutes } from './planRoutes.js'
 import { openPlanSession, type PlanSession } from './planSession.js'
+import type { PlanMode } from './processRecord.js'
 import type { InteractionResponse, ReviewResult } from './types.js'
 
 export type LivingPlanServer = {
@@ -18,7 +19,7 @@ export type LivingPlanServer = {
 
 export async function startLivingPlanServer(options: {
   planPath: string
-  mode: 'watch' | 'review'
+  mode: PlanMode
   port?: number
   iteration?: number
   host?: string

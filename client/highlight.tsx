@@ -1,12 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { CodeBlock } from './CodeBlock'
 
-function codeHosts(): HTMLElement[] {
-  return [...document.querySelectorAll<HTMLElement>('pre.code-block')].filter(
-    (node) => !node.classList.contains('mermaid-fallback'),
-  )
-}
-
 function languageOf(node: HTMLElement): string {
   return node.dataset.lang?.trim().split(/\s+/)[0]?.toLowerCase() ?? ''
 }
@@ -36,7 +30,17 @@ function mount(node: HTMLElement): void {
 }
 
 function boot(): void {
-  for (const node of codeHosts()) mount(node)
+  const render = (root: ParentNode = document) => {
+    const hosts = [...root.querySelectorAll<HTMLElement>('pre.code-block')].filter(
+      (node) => !node.classList.contains('mermaid-fallback'),
+    )
+    for (const node of hosts) mount(node)
+  }
+  render()
+  window.addEventListener('living-plan-document', (event) => {
+    const root = (event as CustomEvent<{ root?: ParentNode }>).detail?.root
+    render(root instanceof Element ? root : document)
+  })
 }
 
 if (document.readyState === 'loading') {

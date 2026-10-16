@@ -14,14 +14,14 @@ import {
 } from './db/schema.js'
 import { STALE_MS } from './registryConstants.js'
 import { isPidAlive } from './pid.js'
-import type { PlanRecord, ProcessPulse, ProcessRecord } from './processRecord.js'
-import { finishedPlan } from './processRecord.js'
+import type { PlanMode, PlanRecord, ProcessPulse, ProcessRecord } from './processRecord.js'
+import { finishedPlan, isPlanMode } from './processRecord.js'
 
 export type StoredPlanSession = {
   id: string
   token: string
   planPath: string
-  mode: 'watch' | 'review'
+  mode: PlanMode
   iteration: number
   cwd: string
   configPath: string | null
@@ -79,7 +79,7 @@ function toSession(row: PlanSessionRow): StoredPlanSession {
     id: row.id,
     token: row.token,
     planPath: row.planPath,
-    mode: row.mode === 'review' ? 'review' : 'watch',
+    mode: isPlanMode(row.mode) ? row.mode : 'watch',
     iteration: row.iteration,
     cwd: row.cwd,
     configPath: row.configPath,

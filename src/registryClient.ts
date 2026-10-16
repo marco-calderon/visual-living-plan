@@ -316,7 +316,7 @@ export type HostedPlan = {
   url: string
   token: string
   planPath: string
-  mode: 'watch' | 'review'
+  mode: 'watch' | 'comment' | 'review'
 }
 
 export async function registerHostedPlan(
@@ -324,7 +324,7 @@ export async function registerHostedPlan(
   token: string,
   body: {
     planPath: string
-    mode: 'watch' | 'review'
+    mode: 'watch' | 'comment' | 'review'
     iteration?: number
     cwd?: string
     configPath?: string

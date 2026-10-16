@@ -405,3 +405,175 @@ test('serve prints a plan comment on stdout as soon as it is sent', async () => 
     })
   }
 })
+
+function parseSseChunk(chunk: string): { event: string; data: unknown } | null {
+  let event = 'message'
+  const dataLines: string[] = []
+  for (const line of chunk.split('\n')) {
+    if (!line || line.startsWith(':')) continue
+    if (line.startsWith('event:')) event = line.slice(6).trim()
+    else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim())
+  }
+  if (dataLines.length === 0) return null
+  return { event, data: JSON.parse(dataLines.join('\n')) as unknown }
+}
+
+async function readBrowserEvents(
+  url: string,
+  onEvent: (event: { event: string; data: unknown }) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  const response = await fetch(url, { headers: { accept: 'text/event-stream' }, signal })
+  if (!response.ok || !response.body) throw new Error(await response.text())
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  while (!signal.aborted) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    let splitAt = buffer.indexOf('\n\n')
+    while (splitAt !== -1) {
+      const parsed = parseSseChunk(buffer.slice(0, splitAt))
+      buffer = buffer.slice(splitAt + 2)
+      if (parsed) onEvent(parsed)
+      splitAt = buffer.indexOf('\n\n')
+    }
+  }
+}
+
+function waitForEvent(
+  seen: Array<{ event: string; data: unknown }>,
+  match: (event: { event: string; data: unknown }) => boolean,
+): Promise<{ event: string; data: unknown }> {
+  return new Promise((resolveEvent, reject) => {
+    const timer = setTimeout(() => reject(new Error('timed out waiting for event')), 2_000)
+    const poll = setInterval(() => {
+      const found = seen.find(match)
+      if (!found) return
+      clearInterval(poll)
+      clearTimeout(timer)
+      resolveEvent(found)
+    }, 20)
+  })
+}
+
+test('mode changes stay on the open session and a review returns to watch', async () => {
+  const home = await tempHome()
+  const registry = await startRegistryServer({ home, port: 0, token: 'test-token-value' })
+  const controller = new AbortController()
+  const lateController = new AbortController()
+  try {
+    const hosted = await registerHostedPlan(registry.url, registry.token, {
+      planPath,
+      mode: 'watch',
+    })
+    const seen: Array<{ event: string; data: unknown }> = []
+    const reading = readBrowserEvents(
+      new URL('api/events', hosted.url).href,
+      (event) => {
+        seen.push(event)
+        const mode = (event.data as { mode?: string } | null)?.mode
+        if (event.event === 'mode' && mode === 'watch' && seen.some((entry) => entry.event === 'review')) {
+          controller.abort()
+        }
+      },
+      controller.signal,
+    )
+
+    const hello = await waitForEvent(seen, (event) => event.event === 'hello')
+    assert.equal((hello.data as { mode?: string }).mode, 'watch')
+
+    const commentMode = await fetch(new URL('api/mode', hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mode: 'comment' }),
+    })
+    assert.equal(commentMode.status, 200)
+    const invalid = await fetch(new URL('api/mode', hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mode: 'edit' }),
+    })
+    assert.equal(invalid.status, 400)
+
+    const commented = await fetch(new URL('api/comments', hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        partId: 'phase:implement/paragraph:1',
+        kind: 'paragraph',
+        text: 'Stay in comment mode',
+      }),
+    })
+    assert.equal(commented.status, 200)
+    const afterComment = (await (await fetch(new URL('api/plan', hosted.url))).json()) as { mode?: string }
+    assert.equal(afterComment.mode, 'comment')
+
+    const again = await registerHostedPlan(registry.url, registry.token, { planPath, mode: 'watch' })
+    assert.equal(again.mode, 'comment')
+
+    const late: Array<{ event: string; data: unknown }> = []
+    const lateReading = readBrowserEvents(
+      new URL('api/events', hosted.url).href,
+      (event) => {
+        late.push(event)
+        if (event.event === 'hello') lateController.abort()
+      },
+      lateController.signal,
+    )
+    const lateHello = await waitForEvent(late, (event) => event.event === 'hello')
+    assert.equal((lateHello.data as { mode?: string }).mode, 'comment')
+    await lateReading.catch((error: unknown) => {
+      if (error instanceof Error && error.name === 'AbortError') return
+      throw error
+    })
+
+    const reviewMode = await fetch(new URL('api/mode', hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mode: 'review' }),
+    })
+    assert.equal(reviewMode.status, 200)
+    const reviewing = await (await fetch(hosted.url)).text()
+    assert.match(reviewing, /data-plan-mode="review"/)
+    assert.match(reviewing, /id="review-dock" class="review-dock">/)
+
+    const decision = await fetch(new URL('api/review', hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ decision: 'iterate', note: 'next' }),
+    })
+    assert.equal(decision.status, 200)
+
+    await reading.catch((error: unknown) => {
+      if (error instanceof Error && error.name === 'AbortError') return
+      throw error
+    })
+
+    const after = (await (await fetch(new URL('api/plan', hosted.url))).json()) as {
+      mode?: string
+      review?: { decision?: string }
+    }
+    assert.equal(after.mode, 'watch')
+    assert.equal(after.review?.decision, 'iterate')
+    const watching = await (await fetch(hosted.url)).text()
+    assert.match(watching, /data-plan-mode="watch"/)
+    assert.match(watching, /id="review-dock" class="review-dock" hidden/)
+    assert.match(watching, /data-review-decision>iterate/)
+
+    const listed = (await (await fetch(new URL('/api/processes', registry.url))).json()) as {
+      processes: Array<{ id: string }>
+    }
+    assert.equal(listed.processes.some((entry) => entry.id === hosted.id), true)
+    assert.deepEqual(
+      seen.filter((event) => event.event === 'mode').map((event) => (event.data as { mode?: string }).mode),
+      ['comment', 'review', 'watch'],
+    )
+  } finally {
+    controller.abort()
+    lateController.abort()
+    await registry.close()
+    await rm(home, { recursive: true, force: true })
+  }
+})

@@ -11,13 +11,19 @@ export type GitSnapshot = {
   summary: string
 }
 
+export type PlanMode = 'watch' | 'comment' | 'review'
+
+export function isPlanMode(value: unknown): value is PlanMode {
+  return value === 'watch' || value === 'comment' || value === 'review'
+}
+
 export type ProcessRecord = {
   id: string
   pid: number
   title: string
   summary: string | null
   agent: string | null
-  mode: 'watch' | 'review'
+  mode: PlanMode
   planPath: string
   directory: string
   cwd: string
@@ -38,7 +44,7 @@ export type ProcessRegistration = {
   title: string
   summary?: string | null
   agent?: string | null
-  mode: 'watch' | 'review'
+  mode: PlanMode
   planPath: string
   directory: string
   cwd: string

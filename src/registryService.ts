@@ -102,7 +102,7 @@ function parseRegistration(body: unknown, now: number): ProcessRecord | { error:
   if (!Number.isInteger(pid) || pid <= 0) return { error: 'Invalid pid' }
   const port = Number(raw.port)
   if (!Number.isInteger(port) || port <= 0 || port > 65_535) return { error: 'Invalid port' }
-  const mode = raw.mode === 'review' ? 'review' : raw.mode === 'watch' ? 'watch' : null
+  const mode = raw.mode === 'review' ? 'review' : raw.mode === 'comment' ? 'comment' : raw.mode === 'watch' ? 'watch' : null
   if (!mode) return { error: 'Invalid mode' }
   const title = requireText(raw.title, 200)
   const planPath = requireText(raw.planPath, 1000)
@@ -293,7 +293,7 @@ export async function startRegistryServer(options: {
         assertBodyLimit(request)
         const payload = jsonBody(body, true) as Record<string, unknown>
         const planPath = requireText(payload.planPath, 1000)
-        const mode = payload.mode === 'review' ? 'review' : payload.mode === 'watch' ? 'watch' : null
+        const mode = payload.mode === 'review' ? 'review' : payload.mode === 'comment' ? 'comment' : payload.mode === 'watch' ? 'watch' : null
         if (!planPath || !mode) {
           set.status = 400
           return { error: 'planPath and mode are required' }

@@ -46,7 +46,7 @@ Skip when the change is a single obvious step, the user asked for plain prose, o
 4. After `--detach`, block with `wait <id> --url <printed-url>` when you cannot continue without that answer.
 5. Apply the JSON response. Update phase `status` and checklist `done` in the same file.
 6. During implementation, `execution start`, `execution push` as the graph changes, then `execution stop` before the next plan interaction. Forms and review return HTTP 409 while execution is active.
-7. Review exits `0` approve (proceed), `1` deny (stop), `2` iterate (edit the same file, bump `--iteration`, run `review` again), `3` timeout.
+7. Review exits `0` approve (proceed), `1` deny (stop), `2` iterate (edit the same file, bump `--iteration`, run `review` again), `3` timeout. The hosted plan stays open in watch. `mode comment`, `mode watch`, and `mode review` switch the open tab on that same URL.
 
 ```bash
 bunx visual-living-plan serve path/to/work.plan.md
@@ -68,9 +68,10 @@ Replace the bunx prefix with `live-plan` when the command is installed.
 | `check <file>` | Parse check before showing the plan. Prints title, block types, interaction ids, and workflow nodes. Exits 1 when the workflow block is missing. |
 | `dump <file>` | Full parsed plan as JSON. |
 | `serve <file>` | Register the plan on the machine service, print its URL, and print that plan's submissions until stopped. `--detach` returns after the URL. The page reloads when the file changes. |
-| `review <file>` | Same page plus Approve / Deny / Iterate. Blocks on the event stream until a decision. |
+| `review <file>` | Same page plus Approve / Deny / Iterate. Blocks until a decision, then leaves the plan open in watch. |
 | `wait <id> --url <url>` | Block on the event stream until that interaction is answered. Prints the response JSON. |
 | `events --url <url>` | Print each user interaction and plan comment until stopped. |
+| `mode <watch\|comment\|review> --url <url>` | Switch the open session. The tab follows: comment arms the part selector, review shows the verdict bar, watch is the status page. A comment stays in comment mode until the next `mode` command. |
 | `close --url <url>` | Drop the plan from the service. |
 | `execution start\|push\|stop --url <url>` | Turn the live workflow overlay on, update it, or turn it off. |
 | `processes` | List plans hosted by the service (directory, git status, site URL). |

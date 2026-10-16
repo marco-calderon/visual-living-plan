@@ -62,6 +62,7 @@ Usage:
   live-plan wait <id> --url <plan-url> [--token TOKEN] [--timeout 30m]
   live-plan events --url <plan-url> [--token TOKEN]
   live-plan close --url <plan-url> [--token TOKEN]
+  live-plan mode <watch|comment|review> --url <plan-url>
   live-plan execution start --url <plan-url> [--step TEXT] [--detail TEXT] [--graph file.json]
   live-plan execution push --url <plan-url> [--step TEXT] [--detail TEXT] [--graph file.json] [--scene file.json]
   live-plan execution stop --url <plan-url>
@@ -83,6 +84,7 @@ Modes:
   wait        Block until one interaction id is answered.
   events      Print each user interaction as it arrives on the agent event stream.
   close       Drop a plan from the machine service.
+  mode        Switch the open session between watch, comment, and review. The open tab follows.
   execution   Start/push/stop the live workflow canvas (locks plan forms while active).
   theme       Read or write the accent color in live-plan.config.json (or via a running server).
   check       Print plan summary. Exits 1 when the required workflow block is missing.
@@ -427,10 +429,8 @@ async function cmdReview(file: string, args: string[]): Promise<number> {
     try {
       const review = await readReviewEvent(hosted.url, hosted.token, timeoutMs)
       await writeReviewOutput(args, review)
-      await closeHostedPlan(registry.url, registry.token, hosted.id)
       return reviewExitCode(review.decision)
     } catch (error) {
-      await closeHostedPlan(registry.url, registry.token, hosted.id)
       console.error(error instanceof Error ? error.message : error)
       return 3
     }
@@ -537,6 +537,30 @@ async function cmdEvents(args: string[]): Promise<number> {
   } catch (error) {
     if (!isAbortError(error)) throw error
   }
+  return 0
+}
+
+async function cmdMode(args: string[]): Promise<number> {
+  const mode = args[0]
+  if (mode !== 'watch' && mode !== 'comment' && mode !== 'review') {
+    console.error('Usage: live-plan mode <watch|comment|review> --url <plan-url>')
+    return 1
+  }
+  const url = getFlag(args, '--url')
+  if (!url) {
+    console.error('live-plan mode requires --url <plan-url>')
+    return 1
+  }
+  const response = await fetch(planApiUrl(url, '/api/mode'), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ mode }),
+  })
+  if (!response.ok) {
+    console.error(await response.text())
+    return 1
+  }
+  console.log(JSON.stringify(await response.json(), null, 2))
   return 0
 }
 
@@ -914,6 +938,10 @@ async function main(): Promise<number> {
 
   if (command === 'close') {
     return cmdClose(args.slice(1))
+  }
+
+  if (command === 'mode') {
+    return cmdMode(args.slice(1))
   }
 
   if (command === 'execution') {
