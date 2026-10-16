@@ -105,6 +105,7 @@ export type PlanSession = {
   submitInteraction: (interactionId: string, body: unknown) => unknown
   submitComment: (body: unknown) => unknown
   addressComment: (commentId: string) => unknown
+  markAddressing: (commentId: string) => unknown
   submitReview: (body: unknown) => unknown
   close: () => Promise<void>
   waitForInteraction: (id: string, timeoutMs?: number) => Promise<InteractionResponse>
@@ -346,10 +347,19 @@ export async function openPlanSession(options: {
       throw new Error('Review is locked while execution is live')
     }
     if (reviewResult) return
+    const sent = decision === 'iterate' ? comments.filter((comment) => comment.addressedAt == null) : []
+    const startedAt = Date.now()
+    for (const comment of sent) {
+      if (!comment.addressingAt) comment.addressingAt = startedAt
+    }
     reviewResult = {
       decision,
       note,
-      comments: [],
+      comments: sent.map((comment) => ({
+        id: comment.id,
+        sectionId: comment.blockId ?? comment.partId,
+        text: comment.text,
+      })),
       responses: Object.values(responses),
       iteration,
     }
@@ -358,9 +368,14 @@ export async function openPlanSession(options: {
       waiter.resolve(reviewResult)
     }
     reviewWaiters = []
+    for (const comment of sent) broadcast('comment', { ...comment })
     broadcast('review', reviewResult)
-    mode = 'watch'
-    broadcast('mode', { mode, iteration, review: reviewResult })
+    if (decision === 'iterate') {
+      broadcast('mode', { mode, iteration, review: reviewResult })
+    } else {
+      mode = 'watch'
+      broadcast('mode', { mode, iteration, review: reviewResult })
+    }
     persist()
   }
 
@@ -375,6 +390,7 @@ export async function openPlanSession(options: {
         iteration,
         pendingInteractionIds: pendingInteractionIds(),
         reviewDecision: reviewResult?.decision,
+        review: reviewResult ?? null,
         execution,
         comments,
         clientAssets,
@@ -539,6 +555,7 @@ export async function openPlanSession(options: {
       excerpt: String(payload.excerpt ?? '').replace(/\s+/g, ' ').trim().slice(0, 180),
       text,
       createdAt: Date.now(),
+      addressingAt: null,
       addressedAt: null,
     }
     comments.push(comment)
@@ -547,12 +564,29 @@ export async function openPlanSession(options: {
     return { ok: true, comment }
   }
 
-  function addressComment(commentId: string): unknown {
+  function addressComment(commentId: string, body?: unknown): unknown {
+    touch()
+    const payload = jsonBody(body, false) as { outcome?: unknown }
+    const outcome = payload.outcome
+    if (outcome != null && outcome !== 'implemented' && outcome !== 'errored' && outcome !== 'issues') {
+      throw new HttpError(400, 'Invalid outcome')
+    }
+    const comment = comments.find((entry) => entry.id === commentId)
+    if (!comment) throw new HttpError(404, 'Unknown comment')
+    comment.outcome = outcome === 'errored' || outcome === 'issues' || outcome === 'implemented' ? outcome : 'implemented'
+    if (!comment.addressedAt) comment.addressedAt = Date.now()
+    comment.addressingAt = null
+    broadcast('comment', { ...comment })
+    persist()
+    return { ok: true, comment }
+  }
+
+  function markAddressing(commentId: string): unknown {
     touch()
     const comment = comments.find((entry) => entry.id === commentId)
     if (!comment) throw new HttpError(404, 'Unknown comment')
-    if (!comment.addressedAt) {
-      comment.addressedAt = Date.now()
+    if (!comment.addressedAt && !comment.addressingAt) {
+      comment.addressingAt = Date.now()
       broadcast('comment', { ...comment })
       persist()
     }
@@ -646,6 +680,7 @@ export async function openPlanSession(options: {
     submitInteraction,
     submitComment,
     addressComment,
+    markAddressing,
     submitReview,
     async close() {
       if (closed) return

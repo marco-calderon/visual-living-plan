@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import type { FormEvent } from 'react'
+import type { FormEvent, KeyboardEvent } from 'react'
 import type { PlanComment } from '../src/types.ts'
+import { CommentProgress } from './CommentProgress.tsx'
 import type { PlanPartElement } from './planParts.ts'
+import { isSendShortcut, SendShortcut } from './ui/Kbd.tsx'
 import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle } from './ui/Popover.tsx'
 
 export type CommentPopoverProps = {
@@ -43,6 +45,13 @@ export function CommentPopover({
     }
   }
 
+  function onDraftKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (!isSendShortcut(event)) return
+    event.preventDefault()
+    if (sending || event.currentTarget.value.trim().length === 0) return
+    event.currentTarget.form?.requestSubmit()
+  }
+
   return (
     <Popover open={open} onOpenChange={onOpenChange} modal={false}>
       <PopoverContent
@@ -65,6 +74,8 @@ export function CommentPopover({
                 <p>{comment.text}</p>
                 {comment.addressedAt ? (
                   <span className="plan-comment-state">Addressed</span>
+                ) : comment.addressingAt ? (
+                  <CommentProgress />
                 ) : (
                   <button type="button" className="btn" onClick={() => onAddress(comment.id)}>
                     Mark addressed
@@ -81,10 +92,13 @@ export function CommentPopover({
             rows={3}
             placeholder="Message for the agent"
             aria-label="Message for the agent"
+            aria-keyshortcuts="Control+Enter Meta+Enter"
             onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={onDraftKeyDown}
           />
           {error ? <p className="plan-comment-error">{error}</p> : null}
           <div className="plan-comment-actions">
+            <SendShortcut />
             <button type="submit" className="btn primary" disabled={sending || draft.trim().length === 0}>
               {sending ? 'Sending' : 'Send'}
             </button>

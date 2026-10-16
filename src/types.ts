@@ -86,15 +86,17 @@ export type InteractionResponse =
 
 export type ReviewDecision = 'approve' | 'deny' | 'iterate'
 
+export type CommentOutcome = 'implemented' | 'errored' | 'issues'
+
 export type ReviewResult = {
   decision: ReviewDecision
-  comments: Array<{ sectionId?: string; text: string }>
+  comments: Array<{ id?: string; sectionId?: string; text: string }>
   note?: string
   responses: InteractionResponse[]
   iteration: number
 }
 
-/** A message pinned to one rendered part of the plan. `addressedAt` stays empty until it is resolved. */
+/** A message pinned to one rendered part of the plan. `addressingAt` is set while it is being worked on. `addressedAt` stays empty until it is resolved. */
 export type PlanComment = {
   id: string
   partId: string
@@ -103,7 +105,9 @@ export type PlanComment = {
   excerpt: string
   text: string
   createdAt: number
+  addressingAt?: number | null
   addressedAt: number | null
+  outcome?: CommentOutcome | null
 }
 
 export type SectionDiff = {

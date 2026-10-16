@@ -10,6 +10,7 @@ import type {
   PlanComment,
   PlanDocument,
   ReviewDecision,
+  ReviewResult,
   SectionDiff,
 } from './types.js'
 import { planToExpectedGraph, withPlannedWorkflow } from './workflow.js'
@@ -1111,25 +1112,25 @@ textarea { min-height: 88px; resize: vertical; }
   bottom: 0;
   z-index: 5;
   display: flex;
-  justify-content: center;
-  padding: 2.75rem 1rem 1rem;
+  justify-content: flex-start;
+  align-items: flex-end;
+  padding: 1rem;
   pointer-events: none;
-  background: linear-gradient(to top, var(--paper) 0%, var(--paper) 58%, transparent 100%);
+  background: none;
   animation: rise 0.5s ease both;
 }
 .review-bar {
   pointer-events: auto;
-  width: min(920px, 100%);
+  width: auto;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 0.35rem;
-  padding: 0.7rem 0.7rem 0.6rem;
-  border-radius: 22px;
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.96);
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--ink);
-  box-shadow: var(--shadow);
+  box-shadow: none;
 }
 .review-bar:focus-within {
   border-color: var(--accent-hover-border);
@@ -1163,8 +1164,8 @@ textarea { min-height: 88px; resize: vertical; }
 .review-note:focus { outline: none; }
 .review-note::placeholder { color: var(--muted); }
 :root[data-theme="dark"] .review-bar {
-  background: var(--review-bg);
-  border-color: var(--line);
+  background: transparent;
+  border-color: transparent;
 }
 
 .toast {
@@ -1655,8 +1656,20 @@ function clientScript(
       markState(payload.id, 'Updated');
     } catch {}
   });
-  source.addEventListener('review', () => {
+  source.addEventListener('review', (event) => {
     showToast('Review submitted');
+    try {
+      const payload = JSON.parse(event.data);
+      if (!payload || payload.decision !== 'iterate') return;
+      document.body.classList.remove('has-review-bar');
+      const dock = document.getElementById('review-dock');
+      if (dock) dock.hidden = true;
+      const reviewChip = document.querySelector('[data-review-chip]');
+      const reviewValue = document.querySelector('[data-review-decision]');
+      if (reviewChip) reviewChip.hidden = false;
+      if (reviewValue) reviewValue.textContent = 'iterate';
+      window.dispatchEvent(new CustomEvent('living-plan-review', { detail: payload }));
+    } catch {}
   });
   source.addEventListener('mode', (event) => {
     try {
@@ -1675,6 +1688,7 @@ export function renderPlanPage(options: {
   iteration: number
   pendingInteractionIds: string[]
   reviewDecision?: ReviewDecision
+  review?: ReviewResult | null
   execution: ExecutionState
   clientAssets?: ClientAssets | null
   theme: RenderTheme
@@ -1698,6 +1712,7 @@ export function renderPlanPage(options: {
   const basePath = options.basePath ?? ''
   const selfId = options.selfId
   const commentsJson = JSON.stringify(options.comments ?? []).replaceAll('<', '\\u003c')
+  const reviewJson = JSON.stringify(options.review ?? null).replaceAll('<', '\\u003c')
 
   const locked = Boolean(execution.active)
   const showReviewBar = mode === 'review' && !reviewDecision && !locked
@@ -1829,16 +1844,14 @@ export function renderPlanPage(options: {
   </div>
   <div id="review-dock" class="review-dock"${showReviewBar ? '' : ' hidden'}>
     <div class="review-bar" role="region" aria-label="Review this plan">
-      <textarea id="review-note" class="review-note" rows="2" placeholder="Optional overall note for the agent" aria-label="Optional overall note for the agent"></textarea>
       <div class="actions">
         <button class="btn danger" data-review-decision="deny">Deny</button>
-        <button class="btn" data-review-decision="iterate">Iterate</button>
-        <button class="btn primary" data-review-decision="approve">Approve</button>
       </div>
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
   <script type="application/json" id="living-plan-comments">${commentsJson}</script>
+  <script type="application/json" id="living-plan-review">${reviewJson}</script>
   <script>${clientScript(mode, locked, theme, basePath)}
 ${processesPanelScript()}</script>
   ${mermaidJs}

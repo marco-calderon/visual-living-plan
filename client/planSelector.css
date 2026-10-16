@@ -1,11 +1,30 @@
-.plan-grab-toggle {
+.plan-corner-actions {
   position: fixed;
   right: 16px;
   bottom: 16px;
   z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.plan-grab-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   border: 1px solid var(--line);
   background: var(--paper);
   color: var(--ink);
+  border-radius: 999px;
+  padding: 0.55rem 0.9rem;
+  font: 600 0.92rem/1 "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  cursor: pointer;
+}
+
+.plan-approve-button {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--on-accent, var(--paper));
   border-radius: 999px;
   padding: 0.55rem 0.9rem;
   font: 600 0.92rem/1 "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
@@ -16,10 +35,6 @@
   background: var(--accent);
   color: var(--paper);
   border-color: var(--accent);
-}
-
-body.has-review-bar .plan-grab-toggle {
-  bottom: 7.5rem;
 }
 
 body.plan-grab-armed [data-tab-panel='plan'],
@@ -66,6 +81,232 @@ body.plan-grab-armed [data-tab-panel='plan'] :is(button, a, input, textarea, sel
   background: var(--accent);
   color: var(--paper);
   cursor: pointer;
+}
+
+.plan-comment-progress {
+  display: grid;
+  place-items: center;
+  color: inherit;
+}
+
+.plan-comment-progress svg {
+  animation: plan-comment-spin 0.8s linear infinite;
+}
+
+@keyframes plan-comment-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-comment-progress svg { animation: none; }
+}
+
+.plan-agent-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 45;
+  display: flex;
+  justify-content: center;
+  padding: 0 1rem 1rem;
+  pointer-events: none;
+}
+
+.plan-agent-tray {
+  pointer-events: auto;
+  position: relative;
+  width: min(28rem, calc(100vw - 10rem));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.plan-agent-toggle {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 0.45rem 0.85rem;
+  font: 600 0.85rem/1 "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+
+.plan-agent-toggle.is-working {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  color: var(--accent);
+}
+
+.plan-agent-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  padding: 0.75rem 0.85rem;
+  max-height: min(22rem, 50vh);
+  transform-origin: bottom center;
+  opacity: 0;
+  transform: scale(0.86, 0.42);
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 220ms cubic-bezier(0.22, 1, 0.36, 1), transform 220ms cubic-bezier(0.22, 1, 0.36, 1), visibility 0s linear 220ms;
+}
+
+.plan-agent-tray.is-open .plan-agent-panel {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+  visibility: visible;
+  transition: opacity 220ms cubic-bezier(0.22, 1, 0.36, 1), transform 220ms cubic-bezier(0.22, 1, 0.36, 1), visibility 0s linear 0s;
+}
+
+.plan-agent-messages {
+  overflow: auto;
+  min-height: 0;
+}
+
+.plan-kbd-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  pointer-events: none;
+  user-select: none;
+}
+
+.plan-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 1.25rem;
+  min-width: 1.25rem;
+  width: fit-content;
+  margin: 0;
+  padding: 0 0.25rem;
+  border: 0;
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper));
+  color: var(--muted, var(--ink));
+  font: 500 0.75rem/1 "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  pointer-events: none;
+  user-select: none;
+}
+
+.plan-grab-toggle[aria-pressed='true'] .plan-kbd {
+  background: color-mix(in srgb, var(--paper) 18%, transparent);
+  color: inherit;
+}
+
+.plan-agent-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.plan-agent-submit {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.plan-agent-input {
+  width: 100%;
+  min-height: 4.2rem;
+  margin: 0;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  padding: 0.45rem 0.55rem;
+  font: 400 0.85rem/1.4 "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+}
+
+.plan-agent-send {
+  align-self: flex-end;
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  padding: 0;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent, var(--paper));
+  cursor: pointer;
+}
+
+.plan-agent-send:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.plan-agent-state {
+  flex: 0 0 auto;
+  margin-top: 0.15rem;
+}
+
+.plan-agent-state.is-working {
+  color: var(--accent);
+  animation: plan-comment-spin 0.8s linear infinite;
+}
+
+.plan-agent-state.is-implemented { color: var(--ok); }
+.plan-agent-state.is-errored { color: var(--danger); }
+.plan-agent-state.is-issues { color: var(--warn, #b45309); }
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-agent-panel { transition: none; }
+  .plan-agent-state.is-working { animation: none; }
+}
+
+.plan-agent-note,
+.plan-agent-empty,
+.plan-agent-list p {
+  margin: 0;
+  font: 400 0.85rem/1.4 "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+}
+
+.plan-agent-list {
+  list-style: none;
+  margin: 0.55rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.plan-agent-list li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.plan-agent-list .plan-comment-progress {
+  color: var(--accent);
+  flex: 0 0 auto;
 }
 
 .plan-popover-positioner {
@@ -224,7 +465,9 @@ body.plan-grab-armed [data-tab-panel='plan'] :is(button, a, input, textarea, sel
 
 .plan-comment-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 0.45rem;
 }
 
 .plan-comment-error {

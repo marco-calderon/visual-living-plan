@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import type { PlanComment } from '../src/types.ts'
+import type { PlanComment, ReviewResult } from '../src/types.ts'
+import { AgentMessageTray, type AgentMessageStatus } from './AgentMessageTray.tsx'
+import { ApproveButton } from './ApproveButton.tsx'
 import { CommentPopover } from './CommentPopover.tsx'
 import { CommentToggle } from './CommentToggle.tsx'
 import { GrabOverlay } from './GrabOverlay.tsx'
@@ -26,6 +28,12 @@ type Mark = {
   count: number
   top: number
   left: number
+  busy: boolean
+}
+
+type SentReview = {
+  note?: string
+  ids: string[]
 }
 
 type HeldOverlay = {
@@ -48,6 +56,20 @@ function readMode(): SessionMode {
   return 'watch'
 }
 
+function readSentReview(): SentReview | null {
+  const node = document.getElementById('living-plan-review')
+  if (!node?.textContent) return null
+  try {
+    const parsed = JSON.parse(node.textContent) as ReviewResult | null
+    if (parsed?.decision !== 'iterate') return null
+    return {
+      note: parsed.note,
+      ids: (parsed.comments ?? []).flatMap((comment) => (comment.id ? [comment.id] : [])),
+    }
+  } catch {
+    return null
+  }
+}
 function readComments(): PlanComment[] {
   const node = document.getElementById('living-plan-comments')
   if (!node?.textContent) return []
@@ -76,6 +98,15 @@ function planPanelOwns(target: Element): boolean {
   return root instanceof ShadowRoot && panel.contains(root.host)
 }
 
+function messageStatus(comment: PlanComment): AgentMessageStatus {
+  if (comment.outcome === 'implemented' || comment.outcome === 'errored' || comment.outcome === 'issues') {
+    return comment.outcome
+  }
+  if (comment.addressedAt) return 'implemented'
+  if (comment.addressingAt) return 'working'
+  return 'pending'
+}
+
 function upsert(comments: PlanComment[], comment: PlanComment): PlanComment[] {
   const index = comments.findIndex((entry) => entry.id === comment.id)
   if (index === -1) return [...comments, comment]
@@ -97,7 +128,9 @@ export function PlanSelector() {
   const [hoverRect, setHoverRect] = useState<DOMRect | null>(null)
   const [enterFrom, setEnterFrom] = useState<{ x: number; y: number } | null>(null)
   const [heldOverlay, setHeldOverlay] = useState<HeldOverlay | null>(null)
+  const [sentReview, setSentReview] = useState<SentReview | null>(readSentReview)
   const overlayVisibleRef = useRef(false)
+  const iterateLocked = useRef(false)
   const [marks, setMarks] = useState<Mark[]>([])
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
@@ -161,6 +194,35 @@ export function PlanSelector() {
     }
     return () => document.body.classList.remove('plan-grab-armed')
   }, [enabled])
+
+  async function approvePlan() {
+    const response = await fetch(apiPath('/api/review'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ decision: 'approve' }),
+    })
+    if (!response.ok) setError('Could not approve')
+  }
+
+  async function sendTrayMessage(text: string) {
+    setSending(true)
+    setError('')
+    try {
+      const response = await fetch(apiPath('/api/comments'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ partId: 'review:message', kind: 'message', text }),
+      })
+      if (!response.ok) throw new Error((await response.text()) || 'Could not send the message')
+      const body = (await response.json()) as { comment?: PlanComment }
+      if (body.comment) setComments((current) => upsert(current, body.comment as PlanComment))
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not send the message')
+      throw cause
+    } finally {
+      setSending(false)
+    }
+  }
 
   async function toggleMode() {
     if (mode === 'review') {
@@ -267,6 +329,53 @@ export function PlanSelector() {
   }, [enabled, open])
 
   useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'c' && event.key !== 'C') return
+      if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) return
+      const target = event.target
+      if (
+        target instanceof HTMLElement &&
+        (target.closest('input, textarea, select') || target.isContentEditable)
+      ) {
+        return
+      }
+      event.preventDefault()
+      void toggleMode()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [mode, commentsOn])
+
+  useEffect(() => {
+    const onReview = (event: Event) => {
+      const detail = (event as CustomEvent<ReviewResult>).detail
+      if (detail?.decision !== 'iterate') return
+      setSentReview({
+        note: detail.note,
+        ids: (detail.comments ?? []).flatMap((comment) => (comment.id ? [comment.id] : [])),
+      })
+    }
+    window.addEventListener('living-plan-review', onReview)
+    return () => window.removeEventListener('living-plan-review', onReview)
+  }, [])
+
+  useEffect(() => {
+    if (!sentReview || iterateLocked.current) return
+    const first = comments.find(
+      (comment) => sentReview.ids.includes(comment.id) && comment.addressingAt && comment.addressedAt == null,
+    )
+    if (!first) return
+    const element = findPartElement(first.partId)
+    if (!element) return
+    iterateLocked.current = true
+    const described = describe(element)
+    setLocked(described)
+    setHover(described)
+    setHoverRect(element.getBoundingClientRect())
+    setOpen(true)
+  }, [sentReview, comments])
+
+  useEffect(() => {
     const tracking = enabled || openComments.length > 0 || open
     if (!tracking) {
       setHoverRect(null)
@@ -283,17 +392,27 @@ export function PlanSelector() {
         setHoverRect(null)
       }
 
-      const groups = new Map<string, number>()
+      const groups = new Map<string, { count: number; busy: boolean }>()
       for (const comment of openComments) {
-        groups.set(comment.partId, (groups.get(comment.partId) ?? 0) + 1)
+        const current = groups.get(comment.partId) ?? { count: 0, busy: false }
+        groups.set(comment.partId, {
+          count: current.count + 1,
+          busy: current.busy || comment.addressingAt != null,
+        })
       }
       const next: Mark[] = []
-      for (const [partId, count] of groups) {
+      for (const [partId, group] of groups) {
         const element = findPartElement(partId)
         if (!element?.isConnected || element.closest('[hidden]')) continue
         const rect = element.getBoundingClientRect()
         if (rect.width < 2 && rect.height < 2) continue
-        next.push({ partId, count, top: rect.top - 8, left: rect.right - 8 })
+        next.push({
+          partId,
+          count: group.count,
+          busy: group.busy,
+          top: rect.top - 8,
+          left: rect.right - 8,
+        })
       }
       setMarks((current) => {
         if (
@@ -302,6 +421,7 @@ export function PlanSelector() {
             (mark, index) =>
               mark.partId === next[index]?.partId &&
               mark.count === next[index]?.count &&
+              mark.busy === next[index]?.busy &&
               Math.abs(mark.top - (next[index]?.top ?? 0)) < 0.5 &&
               Math.abs(mark.left - (next[index]?.left ?? 0)) < 0.5,
           )
@@ -405,6 +525,7 @@ export function PlanSelector() {
         <UnaddressedMark
           key={mark.partId}
           count={mark.count}
+          busy={mark.busy}
           style={{ top: mark.top, left: mark.left }}
           onClick={() => openPart(mark.partId)}
         />
@@ -424,7 +545,26 @@ export function PlanSelector() {
         onSend={send}
         onAddress={(id) => void address(id)}
       />
-      <CommentToggle enabled={enabled} onToggle={() => void toggleMode()} />
+      <div className="plan-corner-actions">
+        <CommentToggle enabled={enabled} onToggle={() => void toggleMode()} />
+        {mode === 'review' && !sentReview ? <ApproveButton onApprove={() => void approvePlan()} /> : null}
+      </div>
+      {mode === 'review' ? (
+        <AgentMessageTray
+          sending={sending}
+          onSend={sendTrayMessage}
+          messages={[
+            ...(sentReview?.note?.trim()
+              ? [{ id: 'review-note', text: sentReview.note.trim(), status: 'pending' as const }]
+              : []),
+            ...comments.map((comment) => ({
+              id: comment.id,
+              text: comment.text,
+              status: messageStatus(comment),
+            })),
+          ]}
+        />
+      ) : null}
     </>
   )
 }

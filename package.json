@@ -48,6 +48,7 @@
     "@semos-labs/glyph": "^0.2.10",
     "drizzle-orm": "^0.45.4",
     "elysia": "^1.4.30",
+    "lucide-react": "^1.58.0",
     "nanoid": "^6.0.2",
     "react": "^19.3.0",
     "yaml": "^2.8.1"

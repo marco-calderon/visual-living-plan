@@ -458,7 +458,7 @@ function waitForEvent(
   })
 }
 
-test('mode changes stay on the open session and a review returns to watch', async () => {
+test('mode changes stay on the open session and iterate keeps review open', async () => {
   const home = await tempHome()
   const registry = await startRegistryServer({ home, port: 0, token: 'test-token-value' })
   const controller = new AbortController()
@@ -473,8 +473,7 @@ test('mode changes stay on the open session and a review returns to watch', asyn
       new URL('api/events', hosted.url).href,
       (event) => {
         seen.push(event)
-        const mode = (event.data as { mode?: string } | null)?.mode
-        if (event.event === 'mode' && mode === 'watch' && seen.some((entry) => entry.event === 'review')) {
+        if (event.event === 'review' && (event.data as { decision?: string }).decision === 'iterate') {
           controller.abort()
         }
       },
@@ -553,14 +552,34 @@ test('mode changes stay on the open session and a review returns to watch', asyn
 
     const after = (await (await fetch(new URL('api/plan', hosted.url))).json()) as {
       mode?: string
-      review?: { decision?: string }
+      review?: { decision?: string; comments?: Array<{ text?: string }> }
+      comments?: Array<{ text?: string; addressingAt?: number | null; addressedAt?: number | null }>
     }
-    assert.equal(after.mode, 'watch')
+    assert.equal(after.mode, 'review')
     assert.equal(after.review?.decision, 'iterate')
+    assert.equal(after.review?.comments?.[0]?.text, 'Stay in comment mode')
+    assert.equal(typeof after.comments?.[0]?.addressingAt, 'number')
+    assert.equal(after.comments?.[0]?.addressedAt, null)
     const watching = await (await fetch(hosted.url)).text()
-    assert.match(watching, /data-plan-mode="watch"/)
+    assert.match(watching, /data-plan-mode="review"/)
     assert.match(watching, /id="review-dock" class="review-dock" hidden/)
     assert.match(watching, /data-review-decision>iterate/)
+
+    const more = await fetch(new URL('api/comments', hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        partId: 'phase:implement/paragraph:1',
+        kind: 'paragraph',
+        text: 'Add one more while the first is in progress',
+      }),
+    })
+    assert.equal(more.status, 200)
+    const later = (await (await fetch(new URL('api/plan', hosted.url))).json()) as {
+      comments?: Array<{ text?: string; addressingAt?: number | null }>
+    }
+    assert.equal(later.comments?.length, 2)
+    assert.equal(later.comments?.[1]?.addressingAt, null)
 
     const listed = (await (await fetch(new URL('/api/processes', registry.url))).json()) as {
       processes: Array<{ id: string }>
@@ -568,7 +587,7 @@ test('mode changes stay on the open session and a review returns to watch', asyn
     assert.equal(listed.processes.some((entry) => entry.id === hosted.id), true)
     assert.deepEqual(
       seen.filter((event) => event.event === 'mode').map((event) => (event.data as { mode?: string }).mode),
-      ['comment', 'review', 'watch'],
+      ['comment', 'review'],
     )
   } finally {
     controller.abort()

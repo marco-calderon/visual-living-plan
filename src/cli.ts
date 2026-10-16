@@ -51,6 +51,9 @@ if (process.env.LIVE_PLAN_DAEMON === '1' && process.platform !== 'win32') {
   process.on('SIGHUP', () => {
     // Started detached. The process stays up when the client's terminal closes.
   })
+  process.on('SIGPIPE', () => {
+    // The parent CLI closes its pipes when it exits after Iterate.
+  })
 }
 
 function printHelp(): void {
@@ -406,7 +409,99 @@ async function readReviewEvent(url: string, token: string | undefined, timeoutMs
   return review
 }
 
+async function readHeldUrl(child: ReturnType<typeof spawn>): Promise<string> {
+  const stdout = child.stdout
+  if (!stdout) throw new Error('Review server did not report its URL')
+  return await new Promise<string>((resolveUrl, reject) => {
+    let buffer = ''
+    const timer = setTimeout(() => {
+      cleanup()
+      reject(new Error('Timed out waiting for the review server'))
+    }, 15_000)
+    const onData = (chunk: Buffer | string) => {
+      buffer += typeof chunk === 'string' ? chunk : chunk.toString('utf8')
+      const match = buffer.match(/LIVING_PLAN_URL (\S+)/)
+      const url = match?.[1]
+      if (!url) return
+      cleanup()
+      resolveUrl(url)
+    }
+    const onExit = (code: number | null) => {
+      cleanup()
+      reject(new Error(`Review server exited before it was ready (${code ?? 'unknown'})`))
+    }
+    const cleanup = () => {
+      clearTimeout(timer)
+      stdout.off('data', onData)
+      child.off('exit', onExit)
+    }
+    stdout.on('data', onData)
+    child.on('exit', onExit)
+    child.on('error', (error) => {
+      cleanup()
+      reject(error)
+    })
+  })
+}
+
+async function holdPrivateReview(file: string, args: string[]): Promise<number> {
+  const iteration = Number(getFlag(args, '--iteration') ?? 1)
+  const timeoutMs = parseTimeout(getFlag(args, '--timeout'), 4 * 60 * 60 * 1000)
+  const planPath = resolve(file)
+  const configPath = getFlag(args, '--config')
+  const port = Number(getFlag(args, '--port') ?? 0)
+  const host = getFlag(args, '--host') ?? '127.0.0.1'
+  const publicHost = await loopbackPublicHost(host, args)
+  const server = await startLivingPlanServer({
+    planPath,
+    mode: 'review',
+    port: Number.isFinite(port) ? port : 0,
+    host,
+    publicHost,
+    iteration: Number.isFinite(iteration) ? iteration : 1,
+    configPath,
+  })
+  writeSync(1, `LIVING_PLAN_URL ${server.url}\n`)
+  try {
+    const review = await server.waitForReview(timeoutMs)
+    if (review.decision === 'iterate') {
+      await new Promise<void>(() => {})
+    }
+    return reviewExitCode(review.decision)
+  } finally {
+    await server.close()
+  }
+}
+
+async function privateReview(file: string, args: string[]): Promise<number> {
+  const timeoutMs = parseTimeout(getFlag(args, '--timeout'), 4 * 60 * 60 * 1000)
+  const planPath = resolve(file)
+  const entry = fileURLToPath(import.meta.url)
+  const child = spawn(process.execPath, [entry, ...process.argv.slice(2)], {
+    detached: true,
+    stdio: ['ignore', 'pipe', 'ignore'],
+    env: { ...process.env, LIVE_PLAN_REVIEW_HOLD: '1', LIVE_PLAN_DAEMON: '1' },
+  })
+  try {
+    const url = await readHeldUrl(child)
+    child.unref()
+    child.stdout?.unref()
+    console.log(`Living Plan (review): ${url}`)
+    console.log(`Plan file: ${planPath}`)
+    logLocalNameHint(url, args)
+    await openBrowser(url)
+    const review = await readReviewEvent(url, undefined, timeoutMs)
+    await writeReviewOutput(args, review)
+    return reviewExitCode(review.decision)
+  } catch (error) {
+    if (child.exitCode == null && !child.killed) child.kill()
+    console.error(error instanceof Error ? error.message : error)
+    return 3
+  }
+}
+
 async function cmdReview(file: string, args: string[]): Promise<number> {
+  if (process.env.LIVE_PLAN_REVIEW_HOLD === '1') return holdPrivateReview(file, args)
   await ensureClientBuild()
   const iteration = Number(getFlag(args, '--iteration') ?? 1)
   const timeoutMs = parseTimeout(getFlag(args, '--timeout'), 4 * 60 * 60 * 1000)
@@ -436,33 +531,7 @@ async function cmdReview(file: string, args: string[]): Promise<number> {
     }
   }
 
-  const port = Number(getFlag(args, '--port') ?? 0)
-  const host = getFlag(args, '--host') ?? '127.0.0.1'
-  const publicHost = await loopbackPublicHost(host, args)
-  const server = await startLivingPlanServer({
-    planPath,
-    mode: 'review',
-    port: Number.isFinite(port) ? port : 0,
-    host,
-    publicHost,
-    iteration: Number.isFinite(iteration) ? iteration : 1,
-    configPath,
-  })
-  console.log(`Living Plan (review): ${server.url}`)
-  console.log(`Plan file: ${planPath}`)
-  logLocalNameHint(server.url, args)
-  console.log(`Theme config: ${server.getState().theme.configPath}`)
-  await openBrowser(server.url)
-  try {
-    const review = await server.waitForReview(timeoutMs)
-    await writeReviewOutput(args, review)
-    await server.close()
-    return reviewExitCode(review.decision)
-  } catch (error) {
-    await server.close()
-    console.error(error instanceof Error ? error.message : error)
-    return 3
-  }
+  return privateReview(file, args)
 }
 
 async function cmdWait(id: string, args: string[]): Promise<number> {

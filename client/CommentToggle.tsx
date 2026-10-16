@@ -1,3 +1,5 @@
+import { Kbd } from './ui/Kbd.tsx'
+
 export type CommentToggleProps = {
   enabled: boolean
   onToggle: () => void
@@ -14,6 +16,7 @@ export function CommentToggle({ enabled, onToggle }: CommentToggleProps) {
       onClick={onToggle}
     >
       Comment
+      <Kbd aria-hidden="true">C</Kbd>
     </button>
   )
 }
