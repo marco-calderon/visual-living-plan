@@ -28,6 +28,13 @@ type Mark = {
   left: number
 }
 
+type HeldOverlay = {
+  partId: string
+  rect: DOMRect
+  label: string
+  enterFrom: { x: number; y: number } | null
+}
+
 function apiPath(path: string): string {
   const base = (window as PlanWindow).__LIVE_PLAN_BASE__ ?? ''
   return `${base}${path}`
@@ -79,12 +86,18 @@ function upsert(comments: PlanComment[], comment: PlanComment): PlanComment[] {
 
 export function PlanSelector() {
   const [mode, setMode] = useState<SessionMode>(readMode)
-  const enabled = mode !== 'watch'
+  const [commentsOn, setCommentsOn] = useState(() => readMode() !== 'watch')
+  const modeRef = useRef(mode)
+  modeRef.current = mode
+  const enabled = mode === 'review' ? commentsOn : mode !== 'watch'
   const [comments, setComments] = useState<PlanComment[]>(readComments)
   const [hover, setHover] = useState<PlanPart | null>(null)
   const [locked, setLocked] = useState<PlanPart | null>(null)
   const [open, setOpen] = useState(false)
   const [hoverRect, setHoverRect] = useState<DOMRect | null>(null)
+  const [enterFrom, setEnterFrom] = useState<{ x: number; y: number } | null>(null)
+  const [heldOverlay, setHeldOverlay] = useState<HeldOverlay | null>(null)
+  const overlayVisibleRef = useRef(false)
   const [marks, setMarks] = useState<Mark[]>([])
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
@@ -130,7 +143,10 @@ export function PlanSelector() {
   useEffect(() => {
     const onMode = (event: Event) => {
       const next = (event as CustomEvent<{ mode?: SessionMode }>).detail?.mode
-      if (next === 'watch' || next === 'comment' || next === 'review') setMode(next)
+      if (next !== 'watch' && next !== 'comment' && next !== 'review') return
+      if (next === modeRef.current) return
+      setMode(next)
+      setCommentsOn(next !== 'watch')
     }
     window.addEventListener('living-plan-mode', onMode)
     return () => window.removeEventListener('living-plan-mode', onMode)
@@ -147,6 +163,10 @@ export function PlanSelector() {
   }, [enabled])
 
   async function toggleMode() {
+    if (mode === 'review') {
+      setCommentsOn((current) => !current)
+      return
+    }
     const next = mode === 'watch' ? 'comment' : 'watch'
     const response = await fetch(apiPath('/api/mode'), {
       method: 'POST',
@@ -158,6 +178,7 @@ export function PlanSelector() {
       return
     }
     setMode(next)
+    setCommentsOn(next !== 'watch')
   }
 
   useEffect(() => {
@@ -207,9 +228,12 @@ export function PlanSelector() {
       }
       const part = resolvePart(hit)
       const current = hoverRef.current?.element
-      // Keep the current part across padding and parent wrappers so the box glides
-      // to the next leaf instead of expanding to the whole section in the gap.
-      if (!part || part === current || (current && part.contains(current))) return
+      if (!part) {
+        setHover(null)
+        return
+      }
+      if (part === current) return
+      if (!current) setEnterFrom({ x: event.clientX, y: event.clientY })
       const described = describe(part)
       setHover(described)
       setHoverRect(described.element.getBoundingClientRect())
@@ -340,11 +364,42 @@ export function PlanSelector() {
 
   const overlay = open ? locked : hover
   const heading = locked?.excerpt.trim() || (locked ? locked.kind.replaceAll('-', ' ') : 'Comment')
+  const overlayLive = Boolean(overlay && hoverRect)
+  overlayVisibleRef.current = overlayLive
+  const shownOverlay =
+    overlay && hoverRect
+      ? {
+          partId: overlay.partId,
+          rect: hoverRect,
+          label: partLabel(overlay.kind, overlay.excerpt),
+          enterFrom,
+        }
+      : heldOverlay
+
+  useEffect(() => {
+    if (!overlay || !hoverRect) return
+    setHeldOverlay({
+      partId: overlay.partId,
+      rect: hoverRect,
+      label: partLabel(overlay.kind, overlay.excerpt),
+      enterFrom,
+    })
+  }, [overlay, hoverRect, enterFrom])
 
   return (
     <>
-      {overlay && hoverRect ? (
-        <GrabOverlay partId={overlay.partId} rect={hoverRect} label={partLabel(overlay.kind, overlay.excerpt)} />
+      {shownOverlay ? (
+        <GrabOverlay
+          partId={shownOverlay.partId}
+          rect={shownOverlay.rect}
+          label={shownOverlay.label}
+          enterFrom={shownOverlay.enterFrom}
+          visible={overlayLive}
+          onExited={() => {
+            if (overlayVisibleRef.current) return
+            setHeldOverlay(null)
+          }}
+        />
       ) : null}
       {marks.map((mark) => (
         <UnaddressedMark

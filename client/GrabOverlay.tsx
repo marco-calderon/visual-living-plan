@@ -1,9 +1,17 @@
 import { useLayoutEffect, useRef } from 'react'
 
+export type GrabPoint = {
+  x: number
+  y: number
+}
+
 export type GrabOverlayProps = {
   partId: string
   rect: DOMRect
   label: string
+  enterFrom?: GrabPoint | null
+  visible: boolean
+  onExited: () => void
 }
 
 type Placed = {
@@ -15,8 +23,9 @@ type Placed = {
 }
 
 const GLIDE_MS = 420
-const GLIDE =
-  'left 420ms cubic-bezier(0.22, 1, 0.36, 1), top 420ms cubic-bezier(0.22, 1, 0.36, 1), width 420ms cubic-bezier(0.22, 1, 0.36, 1), height 420ms cubic-bezier(0.22, 1, 0.36, 1)'
+const FADE_MS = 280
+const FADE = `opacity ${FADE_MS}ms ease`
+const GLIDE = `left 420ms cubic-bezier(0.22, 1, 0.36, 1), top 420ms cubic-bezier(0.22, 1, 0.36, 1), width 420ms cubic-bezier(0.22, 1, 0.36, 1), height 420ms cubic-bezier(0.22, 1, 0.36, 1), ${FADE}`
 
 function placeOf(partId: string, rect: DOMRect): Placed {
   return {
@@ -37,10 +46,12 @@ function sameBox(left: Placed, right: Placed): boolean {
   )
 }
 
-export function GrabOverlay({ partId, rect, label }: GrabOverlayProps) {
+export function GrabOverlay({ partId, rect, label, enterFrom, visible, onExited }: GrabOverlayProps) {
   const node = useRef<HTMLDivElement>(null)
   const placed = useRef<Placed | null>(null)
   const glidingUntil = useRef(0)
+  const onExitedRef = useRef(onExited)
+  onExitedRef.current = onExited
 
   useLayoutEffect(() => {
     const element = node.current
@@ -49,10 +60,21 @@ export function GrabOverlay({ partId, rect, label }: GrabOverlayProps) {
     const previous = placed.current
     if (previous && previous.partId === next.partId && sameBox(previous, next)) return
 
+    const entering = previous === null
     const partChanged = previous !== null && previous.partId !== next.partId
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const gliding = performance.now() < glidingUntil.current
-    if (partChanged && !reduce) {
+    if (entering && enterFrom && !reduce) {
+      const size = 14
+      element.style.transition = 'none'
+      element.style.left = `${enterFrom.x - size / 2}px`
+      element.style.top = `${enterFrom.y - size / 2}px`
+      element.style.width = `${size}px`
+      element.style.height = `${size}px`
+      void element.getBoundingClientRect()
+      element.style.transition = GLIDE
+      glidingUntil.current = performance.now() + GLIDE_MS
+    } else if (partChanged && !reduce) {
       element.style.transition = GLIDE
       void element.getBoundingClientRect()
       glidingUntil.current = performance.now() + GLIDE_MS
@@ -64,7 +86,31 @@ export function GrabOverlay({ partId, rect, label }: GrabOverlayProps) {
     element.style.width = `${next.width}px`
     element.style.height = `${next.height}px`
     placed.current = next
-  }, [partId, rect])
+  }, [partId, rect, enterFrom])
+
+  useLayoutEffect(() => {
+    const element = node.current
+    if (!element) return
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (visible) {
+      element.style.opacity = '1'
+      return
+    }
+    if (reduce) {
+      element.style.opacity = '0'
+      onExitedRef.current()
+      return
+    }
+    const current = element.style.transition
+    element.style.transition = !current || current === 'none' ? FADE : current.includes('opacity') ? current : `${current}, ${FADE}`
+    element.style.opacity = '0'
+    const onEnd = (event: TransitionEvent) => {
+      if (event.propertyName !== 'opacity' || element.style.opacity !== '0') return
+      onExitedRef.current()
+    }
+    element.addEventListener('transitionend', onEnd)
+    return () => element.removeEventListener('transitionend', onEnd)
+  }, [visible])
 
   return (
     <div ref={node} data-plan-grab-ignore="" className="plan-grab-overlay">

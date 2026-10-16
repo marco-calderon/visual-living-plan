@@ -35,6 +35,7 @@ body.plan-grab-armed [data-tab-panel='plan'] :is(button, a, input, textarea, sel
   border: 1.5px solid var(--accent);
   background: var(--accent-soft);
   border-radius: 4px;
+  opacity: 1;
 }
 
 .plan-grab-label {
