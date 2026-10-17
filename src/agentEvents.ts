@@ -116,7 +116,8 @@ export async function readAgentEvents(
 ): Promise<void> {
   const headers: Record<string, string> = { accept: 'text/event-stream' }
   if (token) headers.authorization = `Bearer ${token}`
-  const response = await fetch(planApiUrl(planUrl, 'api/agent-events'), { headers, signal })
+  // Bun resets an idle fetch after five minutes. events and watch have to stay open until a person submits or the process is stopped.
+  const response = await fetch(planApiUrl(planUrl, 'api/agent-events'), { headers, signal, timeout: false })
   if (!response.ok || !response.body) {
     const text = await response.text()
     throw new Error(text || `Agent event stream failed (${response.status})`)
