@@ -32,10 +32,14 @@ import {
   defaultRegistryHome,
   ensureRegistry,
   listProcesses,
+  localServiceUrl,
   readPackageVersion,
   readRegistryLock,
   registerHostedPlan,
+  registryBindUrl,
   registryHealthy,
+  rewriteToBindUrl,
+  type RegistryLock,
 } from './registryClient.js'
 import { isPidAlive } from './pid.js'
 import {
@@ -327,7 +331,7 @@ async function cmdDump(file: string): Promise<number> {
   return 0
 }
 
-async function openRegistry(args: string[]): Promise<{ url: string; token: string } | null> {
+async function openRegistry(args: string[]): Promise<RegistryLock | null> {
   if (hasFlag(args, '--no-registry')) return null
   const portFlag = getFlag(args, '--registry-port') ?? getFlag(args, '--port')
   const port = portFlag ? Number(portFlag) : undefined
@@ -371,7 +375,7 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
   const configPath = getFlag(args, '--config')
   const registry = await openRegistry(args)
   if (registry) {
-    const hosted = await registerHostedPlan(registry.url, registry.token, {
+    const hosted = await registerHostedPlan(registryBindUrl(registry), registry.token, {
       planPath,
       mode: 'watch',
       cwd: process.cwd(),
@@ -387,7 +391,7 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
       console.log(`Events: live-plan events --url ${hosted.url}`)
       return 0
     }
-    return followPlan(hosted.url, hosted.token)
+    return followPlan(rewriteToBindUrl(registry, hosted.url), hosted.token)
   }
 
   const port = Number(getFlag(args, '--port') ?? 0)
@@ -583,7 +587,7 @@ async function cmdReview(file: string, args: string[]): Promise<number> {
   const configPath = getFlag(args, '--config')
   const registry = await openRegistry(args)
   if (registry) {
-    const hosted = await registerHostedPlan(registry.url, registry.token, {
+    const hosted = await registerHostedPlan(registryBindUrl(registry), registry.token, {
       planPath,
       mode: 'review',
       iteration: Number.isFinite(iteration) ? iteration : 1,
@@ -596,9 +600,10 @@ async function cmdReview(file: string, args: string[]): Promise<number> {
     logLocalNameHint(hosted.url, args)
     await openBrowser(hosted.url)
     try {
-      const held = await readReviewEvent(hosted.url, hosted.token, timeoutMs)
+      const apiUrl = rewriteToBindUrl(registry, hosted.url)
+      const held = await readReviewEvent(apiUrl, hosted.token, timeoutMs)
       await writeReviewOutput(args, held.review)
-      await acknowledgeSubmissions(hosted.url, hosted.token, held.eventIds)
+      await acknowledgeSubmissions(apiUrl, hosted.token, held.eventIds)
       return reviewExitCode(held.review.decision)
     } catch (error) {
       console.error(error instanceof Error ? error.message : error)
@@ -610,11 +615,12 @@ async function cmdReview(file: string, args: string[]): Promise<number> {
 }
 
 async function cmdWait(id: string, args: string[]): Promise<number> {
-  const url = getFlag(args, '--url')
-  if (!url) {
+  const published = getFlag(args, '--url')
+  if (!published) {
     console.error('live-plan wait requires --url <plan-url>')
     return 1
   }
+  const url = await localServiceUrl(published)
   const timeoutMs = parseTimeout(getFlag(args, '--timeout'), 4 * 60 * 60 * 1000)
   const token = await resolveAgentToken(args)
   const controller = new AbortController()
@@ -666,22 +672,24 @@ async function cmdWait(id: string, args: string[]): Promise<number> {
 }
 
 async function cmdEvents(args: string[]): Promise<number> {
-  const url = getFlag(args, '--url')
-  if (!url) {
+  const published = getFlag(args, '--url')
+  if (!published) {
     console.error('live-plan events requires --url <plan-url>')
     return 1
   }
+  const url = await localServiceUrl(published)
   const token = await resolveAgentToken(args)
   console.error('Listening for the next submission.')
   return listenForSubmissions(url, token, true)
 }
 
 async function cmdWatch(args: string[]): Promise<number> {
-  const url = getFlag(args, '--url')
-  if (!url) {
+  const published = getFlag(args, '--url')
+  if (!published) {
     console.error('live-plan watch requires --url <plan-url>')
     return 1
   }
+  const url = await localServiceUrl(published)
   const token = await resolveAgentToken(args)
   const response = await fetch(planApiUrl(url, '/api/mode'), {
     method: 'POST',
@@ -702,11 +710,12 @@ async function cmdMode(args: string[]): Promise<number> {
     console.error('Usage: live-plan mode <watch|comment|review> --url <plan-url>')
     return 1
   }
-  const url = getFlag(args, '--url')
-  if (!url) {
+  const published = getFlag(args, '--url')
+  if (!published) {
     console.error('live-plan mode requires --url <plan-url>')
     return 1
   }
+  const url = await localServiceUrl(published)
   const response = await fetch(planApiUrl(url, '/api/mode'), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -736,7 +745,7 @@ async function cmdClose(args: string[]): Promise<number> {
     console.error('No service token found. Pass --token.')
     return 1
   }
-  const origin = new URL(url).origin
+  const origin = new URL(await localServiceUrl(url)).origin
   await closeHostedPlan(origin, token, id)
   console.log(`Closed ${url}`)
   return 0
@@ -762,11 +771,12 @@ async function buildExecutionPayload(
 async function cmdExecution(args: string[]): Promise<number> {
   const action = args[0]
   const rest = args.slice(1)
-  const url = getFlag(rest, '--url')
-  if (!url) {
+  const published = getFlag(rest, '--url')
+  if (!published) {
     console.error('live-plan execution requires --url <server-url>')
     return 1
   }
+  const url = await localServiceUrl(published)
 
   if (action === 'start') {
     const execution = await putExecution(url, await buildExecutionPayload(rest, true))
@@ -807,11 +817,11 @@ async function cmdExecution(args: string[]): Promise<number> {
 async function cmdProcesses(): Promise<number> {
   const home = defaultRegistryHome()
   const lock = await readRegistryLock(home)
-  if (!lock || !isPidAlive(lock.pid) || !(await registryHealthy(lock.url))) {
+  if (!lock || !isPidAlive(lock.pid) || !(await registryHealthy(registryBindUrl(lock)))) {
     console.log('No living-plan registry is running.')
     return 0
   }
-  const processes = await listProcesses(lock.url)
+  const processes = await listProcesses(registryBindUrl(lock))
   const noun = processes.length === 1 ? 'plan' : 'plans'
   console.log(`${processes.length} running ${noun} · ${lock.url}`)
   console.log(`Dashboard: ${new URL('/dashboard', lock.url).href}`)
@@ -848,11 +858,11 @@ async function cmdRegistry(args: string[]): Promise<number> {
   const host = getFlag(args, '--host') ?? DEFAULT_REGISTRY_HOST
   const version = await readPackageVersion(fileURLToPath(import.meta.url))
   const existing = await readRegistryLock(home)
-  if (existing && existing.version === version && isPidAlive(existing.pid) && (await registryHealthy(existing.url))) {
+  if (existing && existing.version === version && isPidAlive(existing.pid) && (await registryHealthy(registryBindUrl(existing)))) {
     console.log(`Living Plan service already running: ${existing.url}`)
     return 0
   }
-  if (existing && isPidAlive(existing.pid) && (await registryHealthy(existing.url))) {
+  if (existing && isPidAlive(existing.pid) && (await registryHealthy(registryBindUrl(existing)))) {
     try {
       process.kill(existing.pid, 'SIGTERM')
     } catch {
@@ -892,7 +902,8 @@ function resolveThemeConfigPath(args: string[]): string {
 async function cmdTheme(args: string[]): Promise<number> {
   const action = args[0]
   const rest = args.slice(1)
-  const url = getFlag(rest, '--url')
+  const published = getFlag(rest, '--url')
+  const url = published ? await localServiceUrl(published) : undefined
 
   if (action === 'get') {
     if (url) {
@@ -1029,7 +1040,7 @@ async function cmdHostname(args: string[]): Promise<number> {
 
   const home = defaultRegistryHome()
   const lock = await readRegistryLock(home)
-  if (lock && isPidAlive(lock.pid) && (await registryHealthy(lock.url))) console.log(`Service: ${lock.url}`)
+  if (lock && isPidAlive(lock.pid) && (await registryHealthy(registryBindUrl(lock)))) console.log(`Service: ${lock.url}`)
   else console.log('Service: not running')
   return 0
 }

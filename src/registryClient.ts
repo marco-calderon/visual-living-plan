@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path'
 import { readGitSnapshot } from './gitStatus.js'
 import { isPidAlive } from './pid.js'
 import type { CompletionState, GitSnapshot, ProcessPulse, ProcessRecord, ProcessRegistration } from './processRecord.js'
-import { ensureLocalHostname, LOCAL_PLAN_HOSTNAME, localNameDesired } from './localName.js'
+import { ensureLocalHostname, formatHttpOrigin, LOCAL_PLAN_HOSTNAME, localNameDesired } from './localName.js'
 import { DEFAULT_REGISTRY_HOST, DEFAULT_REGISTRY_PORT, HEARTBEAT_MS } from './registryConstants.js'
 import {
   defaultRegistryHome,
@@ -42,6 +42,44 @@ function authHeaders(token: string): Record<string, string> {
   }
 }
 
+/** Address the CLI uses to reach the service. The published URL may be a slow `.local` name. */
+export function registryBindUrl(lock: Pick<RegistryLock, 'host' | 'port'>): string {
+  const normalized = lock.host.trim().toLowerCase()
+  const host =
+    normalized === '0.0.0.0' || normalized === '::' || normalized === '[::]' || normalized === 'localhost'
+      ? '127.0.0.1'
+      : lock.host.trim()
+  return formatHttpOrigin(host, lock.port)
+}
+
+/**
+ * Keep a plan or service URL's path, but dial the bind address.
+ * A different origin is left alone.
+ */
+export function rewriteToBindUrl(lock: RegistryLock, publicUrl: string): string {
+  let published: URL
+  let target: URL
+  try {
+    published = new URL(lock.url)
+    target = new URL(publicUrl)
+  } catch {
+    return publicUrl
+  }
+  if (target.origin !== published.origin) return publicUrl
+  const bind = new URL(registryBindUrl(lock))
+  target.protocol = bind.protocol
+  target.hostname = bind.hostname
+  target.port = bind.port
+  return target.toString()
+}
+
+/** Rewrite a published service URL onto the running registry's bind address. */
+export async function localServiceUrl(publicUrl: string, home = defaultRegistryHome()): Promise<string> {
+  const lock = await readRegistryLock(home)
+  if (!lock) return publicUrl
+  return rewriteToBindUrl(lock, publicUrl)
+}
+
 export async function registryHealthy(url: string): Promise<boolean> {
   try {
     const response = await fetch(new URL('/api/health', url), {
@@ -58,7 +96,8 @@ export async function registryHealthy(url: string): Promise<boolean> {
 async function runningRegistry(home: string): Promise<RegistryLock | null> {
   const lock = await readRegistryLock(home)
   if (!lock || !isPidAlive(lock.pid)) return null
-  if (!(await registryHealthy(lock.url))) return null
+  // living-plan.local is resolved through mDNS and can outlast this probe.
+  if (!(await registryHealthy(registryBindUrl(lock)))) return null
   return lock
 }
 
@@ -300,6 +339,10 @@ export async function ensureRegistry(options: {
   await rm(registryStartingPath(home), { force: true })
   if (waited?.version === version) return waited
   if (waited) await stopOwnedRegistry(home)
+
+  const late = await runningRegistry(home)
+  if (late?.version === version) return late
+  if (late) await stopOwnedRegistry(home)
 
   if (child.pid && isPidAlive(child.pid)) {
     try {

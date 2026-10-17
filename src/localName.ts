@@ -179,18 +179,59 @@ export async function removeHostsName(hostsPath: string, hostname = LOCAL_PLAN_H
   return wrote === 'denied' ? 'denied' : 'removed'
 }
 
-export async function resolveLocalName(hostname = LOCAL_PLAN_HOSTNAME): Promise<ResolvedName> {
-  try {
-    const records = await lookup(hostname, { all: true, verbatim: true })
-    const addresses = records.map((record) => record.address)
-    if (addresses.length === 0) return { kind: 'missing' }
-    if (addresses.every((address) => isLoopbackAddress(address))) return { kind: 'ready', addresses }
-    return { kind: 'conflict', addresses }
-  } catch (error) {
-    const code = systemErrorCode(error)
-    if (code === 'ENOTFOUND' || code === 'EAI_AGAIN' || code === 'ENODATA') return { kind: 'missing' }
-    throw error
+/** `.local` goes through mDNS and can take seconds even when the hosts file already has the name. */
+const LOOKUP_TIMEOUT_MS = 400
+
+async function resolutionFromHosts(hostsPath: string, hostname: string): Promise<ResolvedName | null> {
+  const read = await readHosts(hostsPath)
+  if (read === 'denied' || read === 'missing') return null
+  const name = hostname.toLowerCase()
+  const addresses: string[] = []
+  for (const line of read.text.split(/\r?\n/)) {
+    const parsed = parseHostsLine(line)
+    if (!parsed?.names.includes(name)) continue
+    addresses.push(parsed.address)
   }
+  if (addresses.length === 0) return null
+  if (addresses.every((address) => isLoopbackAddress(address))) return { kind: 'ready', addresses }
+  return { kind: 'conflict', addresses }
+}
+
+function resolutionFromLookup(hostname: string, timeoutMs: number): Promise<ResolvedName> {
+  return new Promise((resolveLookup, reject) => {
+    let settled = false
+    const finish = (value: ResolvedName) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolveLookup(value)
+    }
+    const timer = setTimeout(() => finish({ kind: 'missing' }), timeoutMs)
+    lookup(hostname, { all: true, verbatim: true })
+      .then((records) => {
+        const addresses = records.map((record) => record.address)
+        if (addresses.length === 0) return finish({ kind: 'missing' })
+        if (addresses.every((address) => isLoopbackAddress(address))) return finish({ kind: 'ready', addresses })
+        return finish({ kind: 'conflict', addresses })
+      })
+      .catch((error: unknown) => {
+        if (settled) return
+        const code = systemErrorCode(error)
+        if (code === 'ENOTFOUND' || code === 'EAI_AGAIN' || code === 'ENODATA') return finish({ kind: 'missing' })
+        settled = true
+        clearTimeout(timer)
+        reject(error)
+      })
+  })
+}
+
+export async function resolveLocalName(
+  hostname = LOCAL_PLAN_HOSTNAME,
+  options?: { hostsPath?: string; lookupTimeoutMs?: number },
+): Promise<ResolvedName> {
+  const fromHosts = await resolutionFromHosts(options?.hostsPath ?? hostsFilePath(), hostname)
+  if (fromHosts) return fromHosts
+  return resolutionFromLookup(hostname, options?.lookupTimeoutMs ?? LOOKUP_TIMEOUT_MS)
 }
 
 function statusFromResolution(resolved: ResolvedName, hostname: string): LocalNameStatus {
@@ -248,7 +289,7 @@ export async function ensureLocalHostname(options?: {
   const shouldResolve = options?.resolve ?? !options?.hostsPath
 
   if (shouldResolve) {
-    const current = await resolveLocalName(hostname)
+    const current = await resolveLocalName(hostname, { hostsPath })
     if (current.kind === 'ready' || current.kind === 'conflict') return statusFromResolution(current, hostname)
   }
 
@@ -265,7 +306,7 @@ export async function ensureLocalHostname(options?: {
     }
   }
   if (shouldResolve) {
-    const again = await resolveLocalName(hostname)
+    const again = await resolveLocalName(hostname, { hostsPath })
     if (again.kind === 'ready' || again.kind === 'conflict') return statusFromResolution(again, hostname)
     return statusFromResolution({ kind: 'missing' }, hostname)
   }

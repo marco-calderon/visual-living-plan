@@ -14,15 +14,20 @@ import type { ProcessRecord } from '../src/processRecord.ts'
 import { emptyGitSnapshot, finishedPlan } from '../src/processRecord.ts'
 import { renderPlanPage } from '../src/render.ts'
 import { defaultThemeConfig, themePayload } from '../src/theme.ts'
+import { LOCAL_PLAN_HOSTNAME } from '../src/localName.ts'
 import {
   ensureRegistry,
   listProcesses,
+  readPackageVersion,
   readRegistryLock,
   registerProcess,
+  registryBindUrl,
   registryHealthy,
+  rewriteToBindUrl,
   unregisterProcess,
   watchRegisteredPlan,
 } from '../src/registryClient.ts'
+import { writeRegistryLock } from '../src/registryLock.ts'
 import { startRegistryServer } from '../src/registryService.ts'
 import { openRegistryStore, type StoredPlanSession } from '../src/registryStore.ts'
 import { createIdleExecutionState } from '../src/execution.ts'
@@ -377,6 +382,51 @@ test('watchRegisteredPlan keeps an executed plan when the process stops', async 
   }
 })
 
+test('rewriteToBindUrl keeps the plan path on the bind address', () => {
+  const lock = {
+    pid: 1,
+    port: 9477,
+    host: '127.0.0.1',
+    url: `http://${LOCAL_PLAN_HOSTNAME}:9477`,
+    token: 't',
+    startedAt: 0,
+  }
+  assert.equal(registryBindUrl(lock), 'http://127.0.0.1:9477')
+  assert.equal(
+    rewriteToBindUrl(lock, `http://${LOCAL_PLAN_HOSTNAME}:9477/plans/abcdefghi/`),
+    'http://127.0.0.1:9477/plans/abcdefghi/',
+  )
+  assert.equal(
+    rewriteToBindUrl({ ...lock, url: `http://${LOCAL_PLAN_HOSTNAME}` }, `http://${LOCAL_PLAN_HOSTNAME}/plans/abcdefghi/`),
+    'http://127.0.0.1:9477/plans/abcdefghi/',
+  )
+  assert.equal(
+    rewriteToBindUrl(lock, 'http://10.0.0.8:9477/plans/abcdefghi/'),
+    'http://10.0.0.8:9477/plans/abcdefghi/',
+  )
+})
+
+test('ensureRegistry reuses a service advertised on a slow public name', async () => {
+  const home = await tempHome()
+  const version = await readPackageVersion(entryFile)
+  const registry = await startRegistryServer({ home, port: 0, localName: false, version, token: 'bind-health-token' })
+  try {
+    const lock = await readRegistryLock(home)
+    assert.ok(lock)
+    assert.equal(lock.pid, process.pid)
+    await writeRegistryLock(home, { ...lock, url: `http://${LOCAL_PLAN_HOSTNAME}:${lock.port}` })
+    const started = Date.now()
+    const again = await ensureRegistry({ entryFile, home, localName: false })
+    assert.ok(Date.now() - started < 2_000)
+    assert.equal(again.pid, lock.pid)
+    assert.equal(again.token, lock.token)
+    assert.equal(await registryHealthy(registryBindUrl(again)), true)
+  } finally {
+    await registry.close()
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
 test('ensureRegistry starts one shared server and reuses it', async () => {
   const home = await tempHome()
   let pid = 0
@@ -509,18 +559,19 @@ test('spawned registry keeps running after CLI clients disconnect', { timeout: 3
     assert.ok(lock)
     servicePid = lock.pid
     assert.equal(isPidAlive(servicePid), true)
-    assert.equal(await registryHealthy(lock.url), true)
+    assert.equal(await registryHealthy(registryBindUrl(lock)), true)
     if (process.platform === 'linux') assert.equal(sessionId(servicePid), servicePid)
     const planUrl = detachedOutput().match(/Living Plan \(watch\): (http:\/\/\S+)/)?.[1]
     assert.ok(planUrl)
+    const apiPlanUrl = rewriteToBindUrl(lock, planUrl)
 
-    const queuedChoice = await fetch(new URL('api/interactions/fail-mode', planUrl), {
+    const queuedChoice = await fetch(new URL('api/interactions/fail-mode', apiPlanUrl), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ kind: 'choice', id: 'fail-mode', optionId: 'open', label: 'Fail open' }),
     })
     assert.equal(queuedChoice.status, 200)
-    const queuedComment = await fetch(new URL('api/comments', planUrl), {
+    const queuedComment = await fetch(new URL('api/comments', apiPlanUrl), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ partId: 'phase:design/paragraph:1', kind: 'paragraph', text: 'Check the limit.' }),
@@ -545,8 +596,8 @@ test('spawned registry keeps running after CLI clients disconnect', { timeout: 3
     waiting.kill('SIGINT')
     await waitForExit(waiting, 5_000, waitingOutput)
     assert.equal(isPidAlive(servicePid), true)
-    assert.equal(await registryHealthy(lock.url), true)
-    const listed = (await (await fetch(new URL('/api/processes', lock.url))).json()) as {
+    assert.equal(await registryHealthy(registryBindUrl(lock)), true)
+    const listed = (await (await fetch(new URL('/api/processes', registryBindUrl(lock)))).json()) as {
       processes: unknown[]
     }
     assert.equal(listed.processes.length > 0, true)
@@ -559,12 +610,21 @@ test('spawned registry keeps running after CLI clients disconnect', { timeout: 3
     await waitForExit(attached, 8_000, attachedOutput)
     assert.equal(isPidAlive(servicePid), true)
     assert.equal((await readRegistryLock(home))?.pid, servicePid)
-    assert.equal(await registryHealthy(lock.url), true)
+    assert.equal(await registryHealthy(registryBindUrl(lock)), true)
+
+    const close = spawnCli(['close', '--url', planUrl])
+    const closeOutput = collectOutput(close)
+    const closeCode = await waitForExit(close, 8_000, closeOutput)
+    assert.equal(closeCode, 0, closeOutput())
+    assert.match(closeOutput(), /Closed /)
+    assert.equal(isPidAlive(servicePid), true)
+    assert.equal((await readRegistryLock(home))?.pid, servicePid)
+    assert.equal(await registryHealthy(registryBindUrl(lock)), true)
 
     process.kill(servicePid, 'SIGHUP')
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 300))
     assert.equal(isPidAlive(servicePid), true)
-    assert.equal(await registryHealthy(lock.url), true)
+    assert.equal(await registryHealthy(registryBindUrl(lock)), true)
   } finally {
     await stopProcess(servicePid)
     await rm(home, { recursive: true, force: true })

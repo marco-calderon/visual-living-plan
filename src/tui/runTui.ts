@@ -1,7 +1,7 @@
 import { render } from '@semos-labs/glyph'
 import { createElement } from 'react'
 import { parsePeriod, type DashboardPeriod } from '../dashboard.js'
-import { ensureRegistry } from '../registryClient.js'
+import { ensureRegistry, registryBindUrl } from '../registryClient.js'
 import { DashboardApp } from './DashboardApp.js'
 
 export type TuiOptions = {
@@ -56,7 +56,7 @@ export async function runTui(args: string[], entryFile: string): Promise<number>
   }
   render(
     createElement(DashboardApp, {
-      registryUrl: registry.url,
+      registryUrl: registryBindUrl(registry),
       initialPeriod: parsed.period,
     }),
   )

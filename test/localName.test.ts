@@ -12,6 +12,7 @@ import {
   localNameDesired,
   removeHostsName,
   removeHostsText,
+  resolveLocalName,
   servicePublicOrigin,
   startTcpForward,
   upsertHostsText,
@@ -81,6 +82,26 @@ test('hosts removal deletes only the marked line', () => {
   assert.equal(removed.result, 'removed')
   assert.equal(removed.text, '127.0.0.1 localhost\n10.1.2.3 living-plan.local\n')
   assert.equal(removeHostsText('127.0.0.1 living-plan.local\n', LOCAL_PLAN_HOSTNAME).result, 'absent')
+})
+
+test('resolveLocalName trusts the hosts file and does not wait on mDNS', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'live-plan-hosts-'))
+  const hosts = join(dir, 'hosts')
+  try {
+    await writeFile(hosts, `127.0.0.1\t${LOCAL_PLAN_HOSTNAME}\n`, 'utf8')
+    const started = Date.now()
+    const resolved = await resolveLocalName(LOCAL_PLAN_HOSTNAME, { hostsPath: hosts, lookupTimeoutMs: 50 })
+    assert.equal(resolved.kind, 'ready')
+    if (resolved.kind === 'ready') assert.deepEqual(resolved.addresses, ['127.0.0.1'])
+    assert.ok(Date.now() - started < 1_000)
+
+    const missingStarted = Date.now()
+    const missing = await resolveLocalName('not-in-the-file.local', { hostsPath: hosts, lookupTimeoutMs: 200 })
+    assert.equal(missing.kind, 'missing')
+    assert.ok(Date.now() - missingStarted < 1_000)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
 })
 
 test('hosts file install and remove round-trip in a temp file', async () => {
