@@ -6,7 +6,15 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadClientAssets } from './assets.js'
 import { parsePlan } from './parse.js'
-import { planApiUrl, planClientNotices, planIdFromPlanUrl, readAgentEvents } from './agentEvents.js'
+import {
+  ackPlanEvents,
+  pendingFromHello,
+  planApiUrl,
+  planIdFromPlanUrl,
+  readAgentEvents,
+  submissionEvent,
+} from './agentEvents.js'
+import type { PlanSubmissionEvent } from './types.js'
 import { startLivingPlanServer } from './server.js'
 import type { ExecutionGraph, ExecutionState } from './execution.js'
 import {
@@ -85,7 +93,7 @@ Modes:
   serve       Register the plan on the machine service and print submissions for that plan.
   review      Same page, plus Approve / Deny / Iterate. Blocks until a decision.
   wait        Block until one interaction id is answered.
-  events      Print each user interaction as it arrives on the agent event stream.
+  events      Print undelivered submissions as JSON, then exit. Start it again to wait for the next one.
   close       Drop a plan from the machine service.
   mode        Switch the open session between watch, comment, and review. The open tab follows.
   execution   Start/push/stop the live workflow canvas (locks plan forms while active).
@@ -100,7 +108,8 @@ Modes:
 Every plan includes a \`workflow\` block. That block is the execution path the Workflow tab draws.
 Accent color is saved in live-plan.config.json beside the plan (override with --config).
 --no-open skips launching a browser.
---detach registers the plan and returns. Without it, serve stays connected and prints that plan's submissions.
+--detach registers the plan and returns. Without it, serve prints the next undelivered submissions and exits. The page stays up on the service.
+events does the same on a URL you already have. A submission that arrived while it was stopped is printed immediately, then the process exits. Start events again to wait for another.
 The machine service keeps running after serve, events, wait, and review exit.
 --no-registry serves this plan in its own process instead of the machine service.
 --port sets that private process port. With the service, --port is used only when the service is not already running.
@@ -181,33 +190,71 @@ function printJsonLine(value: unknown): void {
   writeSync(1, `${JSON.stringify(value)}\n`)
 }
 
-/** Stay subscribed and print each submission as soon as it arrives. */
+/** Record that the CLI printed these submissions. A failed ack leaves them pending for the next start. */
+async function acknowledgeSubmissions(url: string, token: string | undefined, ids: string[]): Promise<boolean> {
+  if (ids.length === 0) return true
+  try {
+    await ackPlanEvents(url, token, ids)
+    return true
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error)
+    return false
+  }
+}
+
+/**
+ * Print submissions the server has not marked delivered, then exit.
+ * A batch already waiting is printed immediately. Otherwise this waits for the next one.
+ */
 async function listenForSubmissions(url: string, token?: string): Promise<number> {
   const controller = new AbortController()
   const stop = () => controller.abort()
   process.once('SIGINT', stop)
   process.once('SIGTERM', stop)
+  const found = new Map<string, PlanSubmissionEvent>()
+  let failed: unknown
   try {
     await readAgentEvents(
       url,
       token,
       (event) => {
-        for (const notice of planClientNotices(event)) printJsonLine(notice)
+        if (event.event === 'hello') {
+          const pending = pendingFromHello(event.data)
+          for (const submission of pending) found.set(submission.id, submission)
+          if (pending.length > 0) controller.abort()
+          return
+        }
+        if (event.event !== 'notice') return
+        const submission = submissionEvent(event.data)
+        if (!submission || submission.deliveredAt != null) return
+        found.set(submission.id, submission)
+        controller.abort()
       },
       controller.signal,
     )
   } catch (error) {
-    if (!isAbortError(error)) {
-      console.error(error instanceof Error ? error.message : error)
-      return 1
-    }
+    if (!isAbortError(error)) failed = error
   }
-  return 0
+  const submissions = [...found.values()].sort((left, right) => left.seq - right.seq)
+  if (failed && submissions.length === 0) {
+    console.error(failed instanceof Error ? failed.message : failed)
+    return 1
+  }
+  if (submissions.length === 0) return 0
+  for (const submission of submissions) {
+    printJsonLine({ event: submission.event, id: submission.id, seq: submission.seq, data: submission.data })
+  }
+  const acked = await acknowledgeSubmissions(
+    url,
+    token,
+    submissions.map((submission) => submission.id),
+  )
+  return acked ? 0 : 1
 }
 
-/** Stay subscribed to one hosted plan and print that plan's submissions. */
+/** Print the next undelivered submissions for one hosted plan, then exit. The page stays up. */
 async function followPlan(url: string, token: string): Promise<number> {
-  console.log('Listening for submissions on this plan. Stopping this command leaves the page up.')
+  console.log('Listening for submissions. This command prints them and exits. The page stays up.')
   return listenForSubmissions(url, token)
 }
 
@@ -347,7 +394,7 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
   console.log(`Theme config: ${server.getState().theme.configPath}`)
   console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent).')
   await openBrowser(server.url)
-  console.log('Listening for submissions on this plan.')
+  console.log('Listening for the next submission. This command exits when one arrives.')
   const code = await listenForSubmissions(server.url)
   await server.close()
   return code
@@ -376,10 +423,15 @@ async function writeReviewOutput(args: string[], review: ReviewPayload): Promise
   console.log(payload)
 }
 
-async function readReviewEvent(url: string, token: string | undefined, timeoutMs: number): Promise<ReviewPayload> {
+async function readReviewEvent(
+  url: string,
+  token: string | undefined,
+  timeoutMs: number,
+): Promise<{ review: ReviewPayload; eventIds: string[] }> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   let review: ReviewPayload | undefined
+  let eventIds: string[] = []
   try {
     await readAgentEvents(
       url,
@@ -390,12 +442,19 @@ async function readReviewEvent(url: string, token: string | undefined, timeoutMs
           const hello = data as { review?: ReviewPayload | null }
           if (hello.review?.decision) {
             review = hello.review
+            eventIds = pendingFromHello(data)
+              .filter((submission) => submission.event === 'review')
+              .map((submission) => submission.id)
             controller.abort()
           }
         }
-        if (event === 'review') {
-          review = data as ReviewPayload
-          controller.abort()
+        if (event === 'notice') {
+          const submission = submissionEvent(data)
+          if (submission?.event === 'review') {
+            review = submission.data as ReviewPayload
+            eventIds = [submission.id]
+            controller.abort()
+          }
         }
       },
       controller.signal,
@@ -406,7 +465,7 @@ async function readReviewEvent(url: string, token: string | undefined, timeoutMs
     clearTimeout(timer)
   }
   if (!review) throw new Error('Timed out waiting for review decision')
-  return review
+  return { review, eventIds }
 }
 
 async function readHeldUrl(child: ReturnType<typeof spawn>): Promise<string> {
@@ -485,14 +544,16 @@ async function privateReview(file: string, args: string[]): Promise<number> {
   try {
     const url = await readHeldUrl(child)
     child.unref()
-    child.stdout?.unref()
+    const stdout = child.stdout
+    if (stdout && 'unref' in stdout) (stdout as { unref: () => void }).unref()
     console.log(`Living Plan (review): ${url}`)
     console.log(`Plan file: ${planPath}`)
     logLocalNameHint(url, args)
     await openBrowser(url)
-    const review = await readReviewEvent(url, undefined, timeoutMs)
-    await writeReviewOutput(args, review)
-    return reviewExitCode(review.decision)
+    const held = await readReviewEvent(url, undefined, timeoutMs)
+    await writeReviewOutput(args, held.review)
+    await acknowledgeSubmissions(url, undefined, held.eventIds)
+    return reviewExitCode(held.review.decision)
   } catch (error) {
     if (child.exitCode == null && !child.killed) child.kill()
     console.error(error instanceof Error ? error.message : error)
@@ -522,9 +583,10 @@ async function cmdReview(file: string, args: string[]): Promise<number> {
     logLocalNameHint(hosted.url, args)
     await openBrowser(hosted.url)
     try {
-      const review = await readReviewEvent(hosted.url, hosted.token, timeoutMs)
-      await writeReviewOutput(args, review)
-      return reviewExitCode(review.decision)
+      const held = await readReviewEvent(hosted.url, hosted.token, timeoutMs)
+      await writeReviewOutput(args, held.review)
+      await acknowledgeSubmissions(hosted.url, hosted.token, held.eventIds)
+      return reviewExitCode(held.review.decision)
     } catch (error) {
       console.error(error instanceof Error ? error.message : error)
       return 3
@@ -545,6 +607,7 @@ async function cmdWait(id: string, args: string[]): Promise<number> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   let printed = false
+  let eventIds: string[] = []
   try {
     await readAgentEvents(
       url,
@@ -557,14 +620,19 @@ async function cmdWait(id: string, args: string[]): Promise<number> {
           if (found) {
             console.log(JSON.stringify(found, null, 2))
             printed = true
+            eventIds = pendingFromHello(data)
+              .filter((submission) => submission.event === 'interaction' && (submission.data as { id?: string }).id === id)
+              .map((submission) => submission.id)
             controller.abort()
           }
         }
-        if (event === 'interaction') {
-          const response = data as { id?: string }
-          if (response.id === id) {
-            console.log(JSON.stringify(data, null, 2))
+        if (event === 'notice') {
+          const submission = submissionEvent(data)
+          const response = submission?.data as { id?: string } | undefined
+          if (submission?.event === 'interaction' && response?.id === id) {
+            console.log(JSON.stringify(submission.data, null, 2))
             printed = true
+            eventIds = [submission.id]
             controller.abort()
           }
         }
@@ -580,6 +648,7 @@ async function cmdWait(id: string, args: string[]): Promise<number> {
     console.error(`Timed out waiting for interaction: ${id}`)
     return 3
   }
+  await acknowledgeSubmissions(url, token, eventIds)
   return 0
 }
 
@@ -590,23 +659,8 @@ async function cmdEvents(args: string[]): Promise<number> {
     return 1
   }
   const token = await resolveAgentToken(args)
-  const controller = new AbortController()
-  const stop = () => controller.abort()
-  process.once('SIGINT', stop)
-  process.once('SIGTERM', stop)
-  try {
-    await readAgentEvents(
-      url,
-      token,
-      ({ event, data }) => {
-        printJsonLine({ event, data })
-      },
-      controller.signal,
-    )
-  } catch (error) {
-    if (!isAbortError(error)) throw error
-  }
-  return 0
+  console.error('Listening for the next submission.')
+  return listenForSubmissions(url, token)
 }
 
 async function cmdMode(args: string[]): Promise<number> {

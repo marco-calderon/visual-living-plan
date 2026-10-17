@@ -514,11 +514,36 @@ test('spawned registry keeps running after CLI clients disconnect', { timeout: 3
     const planUrl = detachedOutput().match(/Living Plan \(watch\): (http:\/\/\S+)/)?.[1]
     assert.ok(planUrl)
 
+    const queuedChoice = await fetch(new URL('api/interactions/fail-mode', planUrl), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'choice', id: 'fail-mode', optionId: 'open', label: 'Fail open' }),
+    })
+    assert.equal(queuedChoice.status, 200)
+    const queuedComment = await fetch(new URL('api/comments', planUrl), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ partId: 'phase:design/paragraph:1', kind: 'paragraph', text: 'Check the limit.' }),
+    })
+    assert.equal(queuedComment.status, 200)
+
     const events = spawnCli(['events', '--url', planUrl])
     const eventsOutput = collectOutput(events)
-    await waitForOutput(eventsOutput, /"event"/, 8_000)
-    events.kill('SIGKILL')
-    await waitForExit(events, 5_000, eventsOutput)
+    const eventsCode = await waitForExit(events, 8_000, eventsOutput)
+    assert.equal(eventsCode, 0, eventsOutput())
+    assert.match(eventsOutput(), /"event":"interaction"/)
+    assert.match(eventsOutput(), /"event":"comment"/)
+    assert.match(eventsOutput(), /Fail open/)
+    assert.match(eventsOutput(), /Check the limit/)
+    assert.equal(isPidAlive(servicePid), true)
+
+    const waiting = spawnCli(['events', '--url', planUrl])
+    const waitingOutput = collectOutput(waiting)
+    await waitForOutput(waitingOutput, /Listening for the next submission/, 8_000)
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 300))
+    assert.equal(waiting.exitCode, null)
+    waiting.kill('SIGINT')
+    await waitForExit(waiting, 5_000, waitingOutput)
     assert.equal(isPidAlive(servicePid), true)
     assert.equal(await registryHealthy(lock.url), true)
     const listed = (await (await fetch(new URL('/api/processes', lock.url))).json()) as {

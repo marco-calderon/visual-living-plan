@@ -79,6 +79,13 @@ export function registerPlanRoutes(app: any, options: PlanRouteOptions): any {
       }
       return session.agentEvents(context.request)
     })
+    .post(route('/api/agent-events/ack'), (context: RouteContext) => {
+      const session = sessionFor(idOf(context))
+      if (options.authorizeAgent && !options.authorizeAgent(context.request, session)) {
+        throw new HttpError(401, 'Unauthorized')
+      }
+      return session.acknowledgeEvents(context.body)
+    })
     .post(route('/api/interactions/:interactionId'), (context: RouteContext) => {
       const interactionId = context.params?.interactionId ?? ''
       return sessionFor(idOf(context)).submitInteraction(interactionId, context.body)

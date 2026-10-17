@@ -89,6 +89,23 @@ export const planRuns = sqliteTable(
   ],
 )
 
+export const planEventValues = ['interaction', 'review', 'comment'] as const
+
+/** User submissions waiting for, or already printed by, the agent CLI. */
+export const planEvents = sqliteTable(
+  'plan_events',
+  {
+    id: text('id').primaryKey(),
+    planId: text('plan_id').notNull(),
+    seq: integer('seq').notNull(),
+    event: text('event', { enum: planEventValues }).notNull(),
+    dataJson: text('data_json').notNull(),
+    createdAt: integer('created_at').notNull(),
+    deliveredAt: integer('delivered_at'),
+  },
+  (table) => [index('plan_events_plan_id_idx').on(table.planId), index('plan_events_plan_seq_idx').on(table.planId, table.seq)],
+)
+
 /** Hosted plan session state that is not in the plan file. */
 export const planSessions = sqliteTable('plan_sessions', {
   id: text('id').primaryKey(),
@@ -112,3 +129,5 @@ export type PlanRunRow = typeof planRuns.$inferSelect
 export type PlanRunInsert = typeof planRuns.$inferInsert
 export type PlanSessionRow = typeof planSessions.$inferSelect
 export type PlanSessionInsert = typeof planSessions.$inferInsert
+export type PlanEventRow = typeof planEvents.$inferSelect
+export type PlanEventInsert = typeof planEvents.$inferInsert

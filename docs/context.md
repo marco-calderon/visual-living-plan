@@ -12,7 +12,7 @@ Authoring rules for agents who *use* the tool live in [docs/agent-guidelines.md]
 
 ## How a plan is hosted
 
-One service per machine, default `127.0.0.1:9477`, hosts every plan. `serve` registers the file and stays subscribed to that plan's agent stream. On loopback it prints `http://living-plan.local/plans/<id>/` when that name resolves to loopback and port 80 can be opened; otherwise `http://living-plan.local:9477/plans/<id>/` or `http://127.0.0.1:9477/plans/<id>/`. It prints each submission until stopped. The page and the service stay up after it exits. `--detach` registers and returns. `events` and `wait` are further clients of the same stream. A client of another plan does not see the event. The service is a detached process and keeps running when a CLI client disconnects. `--no-local-name` and `LIVE_PLAN_LOCAL_NAME=0` keep the IP URL. `--host` other than loopback is the address a cloud agent shares.
+One service per machine, default `127.0.0.1:9477`, hosts every plan. `serve` registers the file and subscribes to that plan's agent stream. On loopback it prints `http://living-plan.local/plans/<id>/` when that name resolves to loopback and port 80 can be opened; otherwise `http://living-plan.local:9477/plans/<id>/` or `http://127.0.0.1:9477/plans/<id>/`. It prints undelivered submissions and exits. The page and the service stay up after it exits. `--detach` registers and returns. `events` is the client to start again for the next submission. `wait` blocks on one id. A client of another plan does not see the event. The service is a detached process and keeps running when a CLI client disconnects. `--no-local-name` and `LIVE_PLAN_LOCAL_NAME=0` keep the IP URL. `--host` other than loopback is the address a cloud agent shares.
 
 `--no-registry` is the exception: one private server for one plan. Keep that path working.
 
@@ -45,7 +45,7 @@ Home directory for the service is `~/.visual-living-plan`, or `LIVE_PLAN_HOME` w
 - The same plan path always maps to the same plan id.
 - Browser API calls from a hosted page are prefixed with `/plans/<id>`. Root `/api/...` on the service is the catalog, not a plan.
 - `new URL('/api/plan', planUrl)` is wrong for a plan URL that has a path. Use `planApiUrl`.
-- User submissions are pushed on the agent stream. Do not poll `/api/plan` from the CLI.
+- User submissions are pushed on the agent stream and stored in `plan_events`. `delivered_at` is set when the CLI acks. Do not poll `/api/plan` from the CLI.
 - The agent stream on the service requires a bearer token. Browser submission routes stay open on loopback.
 - A plan session is closed after 6 hours with no browser and no agent stream, and on `live-plan close`. A review decision returns that session to watch and leaves it open.
 - Restart the service when the package version in the lock file does not match the CLI.

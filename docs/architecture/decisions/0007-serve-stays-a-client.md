@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-10-11
 
+[ADR 0012](0012-submission-delivery.md) changes the attached client: `serve` and `events` print undelivered submissions and exit, instead of printing until the process is stopped. The page still stays up on the service.
+
 ## Context
 
 [ADR 0004](0004-one-plan-service.md) hosts every plan on one service and had `serve` register the plan and exit. A later `events` or `wait` process was the only client that heard a form, choice, question, approval, or review. The command that created the plan was already gone, so the submission waited until something else subscribed.

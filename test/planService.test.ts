@@ -4,10 +4,13 @@ import { copyFile, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test } from 'node:test'
-import { planClientNotices, readAgentEvents } from '../src/agentEvents.ts'
+import { pendingFromHello, planClientNotices, readAgentEvents, submissionEvent } from '../src/agentEvents.ts'
+import { registryDatabasePath } from '../src/registryLock.ts'
 import { registerHostedPlan } from '../src/registryClient.ts'
 import { startRegistryServer } from '../src/registryService.ts'
+import { openRegistryStore } from '../src/registryStore.ts'
 import { startLivingPlanServer } from '../src/server.ts'
+import type { PlanSubmissionEvent } from '../src/types.ts'
 
 const planPath = resolve('examples/rate-limit.plan.md')
 
@@ -469,13 +472,15 @@ test('mode changes stay on the open session and iterate keeps review open', asyn
       mode: 'watch',
     })
     const seen: Array<{ event: string; data: unknown }> = []
+    let sawIterate = false
     const reading = readBrowserEvents(
       new URL('api/events', hosted.url).href,
       (event) => {
         seen.push(event)
         if (event.event === 'review' && (event.data as { decision?: string }).decision === 'iterate') {
-          controller.abort()
+          sawIterate = true
         }
+        if (sawIterate && event.event === 'mode') controller.abort()
       },
       controller.signal,
     )
@@ -587,12 +592,194 @@ test('mode changes stay on the open session and iterate keeps review open', asyn
     assert.equal(listed.processes.some((entry) => entry.id === hosted.id), true)
     assert.deepEqual(
       seen.filter((event) => event.event === 'mode').map((event) => (event.data as { mode?: string }).mode),
-      ['comment', 'review'],
+      ['comment', 'review', 'review'],
     )
   } finally {
     controller.abort()
     lateController.abort()
     await registry.close()
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
+async function helloPending(url: string, token: string): Promise<PlanSubmissionEvent[]> {
+  const controller = new AbortController()
+  const pending = new Promise<PlanSubmissionEvent[]>((resolvePending, reject) => {
+    const timer = setTimeout(() => {
+      controller.abort()
+      reject(new Error('timed out waiting for hello'))
+    }, 2_000)
+    void readAgentEvents(
+      url,
+      token,
+      (event) => {
+        if (event.event !== 'hello') return
+        clearTimeout(timer)
+        resolvePending(pendingFromHello(event.data))
+        controller.abort()
+      },
+      controller.signal,
+    ).catch((error: unknown) => {
+      if (error instanceof Error && error.name === 'AbortError') return
+      reject(error)
+    })
+  })
+  return pending
+}
+
+test('undelivered submissions survive reconnect until the CLI acks', async () => {
+  const home = await tempHome()
+  const registry = await startRegistryServer({ home, port: 0, token: 'test-token-value' })
+  try {
+    const hosted = await registerHostedPlan(registry.url, registry.token, {
+      planPath,
+      mode: 'watch',
+      cwd: process.cwd(),
+    })
+
+    const comment = await fetch(new URL('api/comments', hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        partId: 'phase:implement/paragraph:1',
+        kind: 'paragraph',
+        text: 'Ship the flag on.',
+      }),
+    })
+    assert.equal(comment.status, 200)
+    const created = (await comment.json()) as { comment: { id: string } }
+    const choice = await fetch(new URL('api/interactions/fail-mode', hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: choiceBody(),
+    })
+    assert.equal(choice.status, 200)
+
+    const pending = await helloPending(hosted.url, hosted.token)
+    assert.equal(pending.length, 2)
+    assert.deepEqual(
+      pending.map((event) => event.event),
+      ['comment', 'interaction'],
+    )
+    assert.equal(pending.every((event) => event.deliveredAt == null), true)
+
+    const denied = await fetch(new URL('api/agent-events/ack', hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ids: pending.map((event) => event.id) }),
+    })
+    assert.equal(denied.status, 401)
+
+    const acked = await fetch(new URL('api/agent-events/ack', hosted.url), {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${hosted.token}`,
+      },
+      body: JSON.stringify({ ids: pending.map((event) => event.id) }),
+    })
+    assert.equal(acked.status, 200)
+    assert.deepEqual(await helloPending(hosted.url, hosted.token), [])
+
+    const addressed = await fetch(new URL(`api/comments/${created.comment.id}/address`, hosted.url), {
+      method: 'POST',
+    })
+    assert.equal(addressed.status, 200)
+    assert.deepEqual(await helloPending(hosted.url, hosted.token), [])
+
+    const seen: Array<{ event: string; data: unknown }> = []
+    const controller = new AbortController()
+    const reading = readAgentEvents(
+      hosted.url,
+      hosted.token,
+      (event) => {
+        seen.push(event)
+        if (event.event === 'notice') controller.abort()
+      },
+      controller.signal,
+    )
+    await new Promise<void>((resolveReady, reject) => {
+      const timer = setTimeout(() => reject(new Error('timed out waiting for the live client')), 2_000)
+      const poll = setInterval(() => {
+        if (!seen.some((event) => event.event === 'hello')) return
+        clearInterval(poll)
+        clearTimeout(timer)
+        resolveReady()
+      }, 20)
+    })
+    const live = await fetch(new URL('api/comments', hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        partId: 'phase:design/paragraph:1',
+        kind: 'paragraph',
+        text: 'Queued after the client left.',
+      }),
+    })
+    assert.equal(live.status, 200)
+    await Promise.race([
+      reading.catch((error: unknown) => {
+        if (error instanceof Error && error.name === 'AbortError') return
+        throw error
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timed out waiting for notice')), 2_000)),
+    ])
+    const notice = submissionEvent(seen.find((event) => event.event === 'notice')?.data)
+    assert.equal(notice?.event, 'comment')
+    assert.equal((notice?.data as { text?: string }).text, 'Queued after the client left.')
+    assert.equal((notice?.data as { addressedAt?: number | null }).addressedAt, null)
+
+    const mode = await fetch(new URL('api/mode', hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mode: 'review' }),
+    })
+    assert.equal(mode.status, 200)
+    const denial = await fetch(new URL('api/review', hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ decision: 'deny', note: 'Not yet' }),
+    })
+    assert.equal(denial.status, 200)
+
+    const waiting = await helloPending(hosted.url, hosted.token)
+    assert.equal(waiting.length, 2)
+    assert.equal(waiting[0]?.id, notice?.id)
+    assert.equal(waiting[1]?.event, 'review')
+    assert.equal((waiting[1]?.data as { decision?: string }).decision, 'deny')
+
+    const reviewAck = await fetch(new URL('api/agent-events/ack', hosted.url), {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${registry.token}`,
+      },
+      body: JSON.stringify({ ids: [waiting[1]?.id] }),
+    })
+    assert.equal(reviewAck.status, 200)
+
+    await registry.close()
+    const store = await openRegistryStore(registryDatabasePath(home))
+    try {
+      const stored = store.listEvents(hosted.id)
+      assert.equal(stored.length, 4)
+      assert.equal(stored.filter((event) => event.deliveredAt == null).map((event) => event.id).join(','), notice?.id)
+      assert.equal(stored.filter((event) => event.event === 'review')[0]?.deliveredAt == null, false)
+    } finally {
+      store.close()
+    }
+
+    const restored = await startRegistryServer({ home, port: 0, token: 'test-token-value' })
+    try {
+      const again = await helloPending(new URL(`/plans/${hosted.id}/`, restored.url).href, 'test-token-value')
+      assert.equal(again.length, 1)
+      assert.equal(again[0]?.id, notice?.id)
+      assert.equal((again[0]?.data as { text?: string }).text, 'Queued after the client left.')
+    } finally {
+      await restored.close()
+    }
+  } finally {
+    await registry.close().catch(() => undefined)
     await rm(home, { recursive: true, force: true })
   }
 })

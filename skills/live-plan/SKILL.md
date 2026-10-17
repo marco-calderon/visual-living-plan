@@ -26,7 +26,7 @@ live-plan <command> [args]
 
 Do not call this repo's `npm run` scripts from a consuming project. Those are for developing Live Plan itself.
 
-`serve` registers the plan on one machine service and stays attached. It prints each submission for that plan until you stop it. The page and the service stay up after it exits. Pass `--detach` to register and return. `events` and `wait` are extra clients of that same plan. `wait` and `review` block until the human responds or `--timeout` fires.
+`serve` registers the plan on one machine service. Without `--detach` it prints undelivered submissions and exits. The page and the service stay up after it exits. Pass `--detach` to register and return. `events` prints the next undelivered submissions and exits; start it again after you handle them. `wait` and `review` block until the human responds or `--timeout` fires.
 
 ## When to use
 
@@ -42,11 +42,11 @@ Skip when the change is a single obvious step, the user asked for plain prose, o
 
 1. Write the plan: title, short summary, phases, a `workflow` block, then only the interactions you need now. The workflow block is required. It is the execution path. Schemas are in [primitives.md](primitives.md).
 2. Validate: `bunx visual-living-plan check path/to/work.plan.md`.
-3. `serve` the file for live status, or `review` when you need a verdict on the whole plan. Read submissions from `serve`. Pass `--detach` when you need the URL back before the person answers.
-4. After `--detach`, block with `wait <id> --url <printed-url>` when you cannot continue without that answer.
-5. Apply the JSON response. Update phase `status` and checklist `done` in the same file.
+3. `serve --detach` the file so you get the URL back, or `review` when you need a verdict on the whole plan.
+4. Start `events --url <printed-url>` in the background. It prints one JSON object per line and exits. Each line is `{ "event", "id", "seq", "data" }`. `event` is `comment`, `interaction`, or `review`. An approve/deny gate is an `interaction` with `approved`. A review verdict is `approve`, `deny`, or `iterate`. If submissions arrived while `events` was not running, this command prints them and exits immediately. Read that JSON. Do not keep the process running after it has printed.
+5. Apply the JSON response. Update phase `status` and checklist `done` in the same file. Start `events` again for the next submission. Use `wait <id> --url <printed-url>` only when you cannot continue without that one answer.
 6. During implementation, `execution start`, `execution push` as the graph changes, then `execution stop` before the next plan interaction. Forms and review return HTTP 409 while execution is active.
-7. Review exits `0` approve (proceed), `1` deny (stop), `2` iterate (edit the same file, bump `--iteration`, run `review` again), `3` timeout. The hosted plan stays open in watch. `mode comment`, `mode watch`, and `mode review` switch the open tab on that same URL.
+7. Review exits `0` approve (proceed), `1` deny (stop), `2` iterate (edit the same file, bump `--iteration`, run `review` again), `3` timeout. The hosted plan stays open in watch. `mode comment`, `mode watch`, and `mode review` switch the open tab on that same URL. Start `events` again after the verdict.
 
 ```bash
 bunx visual-living-plan serve path/to/work.plan.md
@@ -67,10 +67,10 @@ Replace the bunx prefix with `live-plan` when the command is installed.
 |---|---|
 | `check <file>` | Parse check before showing the plan. Prints title, block types, interaction ids, and workflow nodes. Exits 1 when the workflow block is missing. |
 | `dump <file>` | Full parsed plan as JSON. |
-| `serve <file>` | Register the plan on the machine service, print its URL, and print that plan's submissions until stopped. `--detach` returns after the URL. The page reloads when the file changes. |
+| `serve <file>` | Register the plan on the machine service and print its URL. Without `--detach`, print undelivered submissions as JSON and exit. `--detach` returns after the URL. The page reloads when the file changes and stays up after this command exits. |
 | `review <file>` | Same page plus Approve / Deny / Iterate. Blocks until a decision, then leaves the plan open in watch. |
 | `wait <id> --url <url>` | Block on the event stream until that interaction is answered. Prints the response JSON. |
-| `events --url <url>` | Print each user interaction and plan comment until stopped. |
+| `events --url <url>` | Print undelivered interactions, review verdicts, and comments as JSON, then exit. Pending rows already on the server are printed immediately. Start it again to wait for the next one. |
 | `mode <watch\|comment\|review> --url <url>` | Switch the open session. The tab follows: comment arms the part selector, review shows the verdict bar, watch is the status page. A comment stays in comment mode until the next `mode` command. |
 | `close --url <url>` | Drop the plan from the service. |
 | `execution start\|push\|stop --url <url>` | Turn the live workflow overlay on, update it, or turn it off. |
@@ -79,7 +79,7 @@ Replace the bunx prefix with `live-plan` when the command is installed.
 | `tui` | Same dashboard in the terminal (`--period day`, `week`, or `month`). Active plans are listed first. |
 | `theme get\|set` | Read or change the accent color. Use `--url` while serving, or `--plan` / `--config` to edit `live-plan.config.json`. |
 
-`--timeout` defaults to 4 hours. Always pass a unit (`30s`, `45m`, `4h`). A bare number is milliseconds. `--port 0` picks a free port. `--host` defaults to `127.0.0.1`. On loopback, the printed URL is `http://living-plan.local/plans/<id>/` when that name resolves to loopback and port 80 is open, or `http://living-plan.local:9477/plans/<id>/` when the name resolves but port 80 does not. `--no-local-name` keeps `127.0.0.1`. Set `--host` to a reachable address when the URL must be opened from another machine. `--no-open` is only for headless runs. `--detach` on `serve` registers and returns; omit it to print that plan's submissions in the same command. `--graph` is the portable execution payload; `--scene` is optional and adapter-specific. Accent color lives in `live-plan.config.json` beside the plan (`theme.accent`). Humans can also pick it on the Settings tab.
+`--timeout` defaults to 4 hours. Always pass a unit (`30s`, `45m`, `4h`). A bare number is milliseconds. `--port 0` picks a free port. `--host` defaults to `127.0.0.1`. On loopback, the printed URL is `http://living-plan.local/plans/<id>/` when that name resolves to loopback and port 80 is open, or `http://living-plan.local:9477/plans/<id>/` when the name resolves but port 80 does not. `--no-local-name` keeps `127.0.0.1`. Set `--host` to a reachable address when the URL must be opened from another machine. `--no-open` is only for headless runs. `--detach` on `serve` registers and returns. Omit it to print undelivered submissions and exit. `events` is the command to start again after each batch. `--graph` is the portable execution payload; `--scene` is optional and adapter-specific. Accent color lives in `live-plan.config.json` beside the plan (`theme.accent`). Humans can also pick it on the Settings tab.
 
 ```bash
 bunx visual-living-plan theme set --accent #0369a1 --url <printed-plan-url>
