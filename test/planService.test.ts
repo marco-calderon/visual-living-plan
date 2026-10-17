@@ -783,3 +783,79 @@ test('undelivered submissions survive reconnect until the CLI acks', async () =>
     await rm(home, { recursive: true, force: true })
   }
 })
+
+test('watch stays in watch mode and keeps running after a comment', async () => {
+  const home = await tempHome()
+  const registry = await startRegistryServer({ home, port: 0, token: 'test-token-value' })
+  let output = ''
+  let watching: ReturnType<typeof spawn> | undefined
+  const stop = () => {
+    if (watching && watching.exitCode === null && !watching.killed) watching.kill('SIGINT')
+  }
+  try {
+    const hosted = await registerHostedPlan(registry.url, registry.token, {
+      planPath,
+      mode: 'review',
+      cwd: process.cwd(),
+    })
+    watching = spawn(process.execPath, ['src/cli.ts', 'watch', '--url', hosted.url], {
+      cwd: resolve('.'),
+      env: { ...process.env, LIVE_PLAN_HOME: home },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    watching.stdout?.setEncoding('utf8')
+    watching.stderr?.setEncoding('utf8')
+    watching.stdout?.on('data', (chunk: string) => {
+      output += chunk
+    })
+    watching.stderr?.on('data', (chunk: string) => {
+      output += chunk
+    })
+
+    const started = Date.now()
+    while (!output.includes('Watching plan execution') && Date.now() - started < 8_000) {
+      if (watching.exitCode !== null) break
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 30))
+    }
+    assert.match(output, /Watching plan execution/)
+    const page = await (await fetch(hosted.url)).text()
+    assert.match(page, /data-plan-mode="watch"/)
+
+    const posted = await fetch(new URL('api/comments', hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        partId: 'phase:design/paragraph:1',
+        kind: 'paragraph',
+        text: 'Noted during execution.',
+      }),
+    })
+    assert.equal(posted.status, 200)
+    const printed = Date.now()
+    while (!output.includes('Noted during execution.') && Date.now() - printed < 4_000) {
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 30))
+    }
+    assert.match(output, /"event":"comment"/)
+    assert.match(output, /Noted during execution\./)
+    assert.equal(watching.exitCode, null)
+
+    const quiet = Date.now()
+    while (Date.now() - quiet < 250) {
+      assert.equal(watching.exitCode, null)
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 40))
+    }
+
+    const pending = await helloPending(hosted.url, hosted.token)
+    assert.deepEqual(pending, [])
+  } finally {
+    stop()
+    if (watching) {
+      await new Promise((resolveExit) => {
+        if (watching?.exitCode !== null) resolveExit(watching.exitCode)
+        else watching?.once('exit', resolveExit)
+      })
+    }
+    await registry.close()
+    await rm(home, { recursive: true, force: true })
+  }
+})

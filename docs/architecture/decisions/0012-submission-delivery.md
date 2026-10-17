@@ -23,6 +23,8 @@ Each user submission is a row in `plan_events`:
 
 `wait` and `review` ack the row they return so a later `events` does not print it again. The service keeps the page up after the client exits. `--no-registry` still leaves with the private process, because that process is the server.
 
+`live-plan watch --url` is the execution client. It sets the session to watch mode and stays connected. It prints later submissions and acks them, and it does not exit. The agent stops it after execution finishes.
+
 ## Consequences
 
 The agent gets one finished command per batch of submissions. A gap while the CLI is down shows up as pending rows and the next command prints them immediately. A row stays pending if the process prints it and dies before the ack, so the next start delivers it again. Two clients connected at the same moment can both observe one live `notice` before either acks.
