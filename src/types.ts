@@ -114,3 +114,16 @@ export type SectionDiff = {
   index: number
   status: 'added' | 'edited' | 'removed' | 'unchanged'
 }
+
+/**
+ * One user submission stored for the agent CLI.
+ * `deliveredAt` stays empty until that CLI has printed the event and acked it.
+ */
+export type PlanSubmissionEvent = {
+  id: string
+  seq: number
+  event: 'interaction' | 'review' | 'comment'
+  data: unknown
+  createdAt: number
+  deliveredAt: number | null
+}

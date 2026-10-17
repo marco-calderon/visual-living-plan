@@ -114,7 +114,7 @@ export async function createPlanHost(options: {
 
   function persist(snapshot: PlanSessionSnapshot): void {
     if (closed) return
-    options.store.saveSession(toStored(snapshot))
+    options.store.saveSession(toStored(snapshot), snapshot.events)
   }
 
   async function openStored(row: StoredPlanSession): Promise<PlanSession | null> {
@@ -140,6 +140,7 @@ export async function createPlanHost(options: {
       execution: parseJson<ExecutionState>(row.executionJson, createIdleExecutionState()),
       review: row.reviewJson ? parseJson<ReviewResult | null>(row.reviewJson, null) : null,
       comments: parseJson<PlanComment[]>(row.commentsJson, []),
+      events: options.store.listEvents(row.id),
       onChange: persist,
     })
     sessions.set(session.id, session)
@@ -233,6 +234,8 @@ export async function createPlanHost(options: {
       responses: stored ? parseJson(stored.responsesJson, {}) : undefined,
       execution: stored ? parseJson(stored.executionJson, createIdleExecutionState()) : undefined,
       review: stored?.reviewJson ? parseJson(stored.reviewJson, null) : null,
+      comments: stored ? parseJson<PlanComment[]>(stored.commentsJson, []) : undefined,
+      events: options.store.listEvents(id),
       onChange: persist,
     })
     sessions.set(session.id, session)

@@ -1,6 +1,52 @@
+import type { PlanSubmissionEvent } from './types.js'
+
 export type AgentEvent = {
   event: string
   data: unknown
+}
+
+/** A stored submission row from `hello.pending` or a `notice` event. */
+export function submissionEvent(value: unknown): PlanSubmissionEvent | null {
+  if (!value || typeof value !== 'object') return null
+  const record = value as Partial<PlanSubmissionEvent>
+  if (typeof record.id !== 'string' || !record.id) return null
+  if (typeof record.seq !== 'number' || !Number.isFinite(record.seq)) return null
+  if (record.event !== 'interaction' && record.event !== 'review' && record.event !== 'comment') return null
+  return {
+    id: record.id,
+    seq: record.seq,
+    event: record.event,
+    data: record.data,
+    createdAt: typeof record.createdAt === 'number' ? record.createdAt : 0,
+    deliveredAt: typeof record.deliveredAt === 'number' ? record.deliveredAt : null,
+  }
+}
+
+/** Submissions still waiting for the CLI. `delivered_at` is empty on the server. */
+export function pendingFromHello(data: unknown): PlanSubmissionEvent[] {
+  if (!data || typeof data !== 'object') return []
+  const pending = (data as { pending?: unknown }).pending
+  if (!Array.isArray(pending)) return []
+  return pending.flatMap((entry) => {
+    const submission = submissionEvent(entry)
+    return submission && submission.deliveredAt == null ? [submission] : []
+  })
+}
+
+/** Tell the server these submissions were printed. Sets `delivered_at`. */
+export async function ackPlanEvents(planUrl: string, token: string | undefined, ids: string[]): Promise<void> {
+  if (ids.length === 0) return
+  const headers: Record<string, string> = { 'content-type': 'application/json' }
+  if (token) headers.authorization = `Bearer ${token}`
+  const response = await fetch(planApiUrl(planUrl, 'api/agent-events/ack'), {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ ids }),
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || `Ack failed (${response.status})`)
+  }
 }
 
 /** Resolve an API path against a plan URL, including `/plans/:id/` on the shared service. */
@@ -70,7 +116,8 @@ export async function readAgentEvents(
 ): Promise<void> {
   const headers: Record<string, string> = { accept: 'text/event-stream' }
   if (token) headers.authorization = `Bearer ${token}`
-  const response = await fetch(planApiUrl(planUrl, 'api/agent-events'), { headers, signal })
+  // Bun resets an idle fetch after five minutes. events and watch have to stay open until a person submits or the process is stopped.
+  const response = await fetch(planApiUrl(planUrl, 'api/agent-events'), { headers, signal, timeout: false })
   if (!response.ok || !response.body) {
     const text = await response.text()
     throw new Error(text || `Agent event stream failed (${response.status})`)

@@ -4,9 +4,12 @@ import { and, desc, eq, lte, sql } from 'drizzle-orm'
 import { openPlanDatabase } from './db/client.js'
 import { planInsertFromProcess, planRowToProcess, planRunInsert, planRunRowToRecord } from './db/rows.js'
 import {
+  planEvents,
   planRuns,
   planSessions,
   plans,
+  type PlanEventInsert,
+  type PlanEventRow,
   type PlanInsert,
   type PlanRunInsert,
   type PlanSessionInsert,
@@ -15,6 +18,7 @@ import {
 import { STALE_MS } from './registryConstants.js'
 import { isPidAlive } from './pid.js'
 import type { PlanMode, PlanRecord, ProcessPulse, ProcessRecord } from './processRecord.js'
+import type { PlanSubmissionEvent } from './types.js'
 import { finishedPlan, isPlanMode } from './processRecord.js'
 
 export type StoredPlanSession = {
@@ -46,7 +50,8 @@ export type RegistryStore = {
   heartbeat(id: string, pulse: ProcessPulse): ProcessRecord | undefined
   remove(id: string): boolean
   prune(options?: { now?: number; staleMs?: number; isAlive?: (pid: number) => boolean }): string[]
-  saveSession(session: StoredPlanSession): void
+  saveSession(session: StoredPlanSession, events?: PlanSubmissionEvent[]): void
+  listEvents(planId: string): PlanSubmissionEvent[]
   getSession(id: string): StoredPlanSession | undefined
   getSessionByPath(planPath: string): StoredPlanSession | undefined
   listSessions(): StoredPlanSession[]
@@ -128,6 +133,36 @@ function livePlanUpdate(values: PlanInsert): Omit<
   return set
 }
 
+function eventValues(planId: string, event: PlanSubmissionEvent): PlanEventInsert {
+  return {
+    id: event.id,
+    planId,
+    seq: event.seq,
+    event: event.event,
+    dataJson: JSON.stringify(event.data),
+    createdAt: event.createdAt,
+    deliveredAt: event.deliveredAt,
+  }
+}
+
+function toEvent(row: PlanEventRow): PlanSubmissionEvent | null {
+  if (row.event !== 'interaction' && row.event !== 'review' && row.event !== 'comment') return null
+  let data: unknown = null
+  try {
+    data = JSON.parse(row.dataJson) as unknown
+  } catch {
+    return null
+  }
+  return {
+    id: row.id,
+    seq: row.seq,
+    event: row.event,
+    data,
+    createdAt: row.createdAt,
+    deliveredAt: row.deliveredAt,
+  }
+}
+
 function sessionUpdate(values: PlanSessionInsert): Omit<PlanSessionInsert, 'id' | 'startedAt'> {
   const { id: _id, startedAt: _startedAt, ...set } = values
   return set
@@ -207,15 +242,47 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
       }
       return removed
     },
-    saveSession(session) {
+    saveSession(session, events) {
       const values = sessionValues(session)
-      db.insert(planSessions)
-        .values(values)
-        .onConflictDoUpdate({
-          target: planSessions.id,
-          set: sessionUpdate(values),
+      db.transaction((tx) => {
+        tx.insert(planSessions)
+          .values(values)
+          .onConflictDoUpdate({
+            target: planSessions.id,
+            set: sessionUpdate(values),
+          })
+          .run()
+        if (!events) return
+        for (const event of events) {
+          const row = eventValues(session.id, event)
+          tx.insert(planEvents)
+            .values(row)
+            .onConflictDoUpdate({
+              target: planEvents.id,
+              set: {
+                planId: row.planId,
+                seq: row.seq,
+                event: row.event,
+                dataJson: row.dataJson,
+                createdAt: row.createdAt,
+                deliveredAt: row.deliveredAt,
+              },
+            })
+            .run()
+        }
+      })
+    },
+    listEvents(planId) {
+      return db
+        .select()
+        .from(planEvents)
+        .where(eq(planEvents.planId, planId))
+        .orderBy(planEvents.seq)
+        .all()
+        .flatMap((row) => {
+          const event = toEvent(row)
+          return event ? [event] : []
         })
-        .run()
     },
     getSession(id) {
       const row = db.select().from(planSessions).where(eq(planSessions.id, id)).get()
@@ -234,7 +301,10 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
         .map((row) => toSession(row))
     },
     deleteSession(id) {
-      const removed = db.delete(planSessions).where(eq(planSessions.id, id)).returning({ id: planSessions.id }).all()
+      const removed = db.transaction((tx) => {
+        tx.delete(planEvents).where(eq(planEvents.planId, id)).run()
+        return tx.delete(planSessions).where(eq(planSessions.id, id)).returning({ id: planSessions.id }).all()
+      })
       return removed.length > 0
     },
     saveRun(record) {

@@ -29,7 +29,7 @@ Skip it for a one-step change, when the user asked for prose only, or when nobod
 
 ## How to run it
 
-`serve` registers the plan on the one machine service and stays attached. It prints each submission for that plan until you stop it. The page stays up after it exits. Pass `--detach` to register and return, then use `events` or `wait` on the printed URL. `wait` and `review` block on that same stream.
+`serve` registers the plan on the one machine service. Without `--detach` it prints undelivered submissions for that plan and exits. The page stays up after it exits. Pass `--detach` to register and return, then use `events` or `wait` on the printed URL. `events` prints the next undelivered submissions and exits. Start it again every time it exits on a comment, denial, approval, or other event, so a pending submission is delivered. After an approval, run `watch` and leave that process up while you execute. `wait` and `review` block on that same stream and ack the row they return.
 
 ```bash
 bunx visual-living-plan check path/to/work.plan.md
@@ -38,6 +38,8 @@ bunx visual-living-plan serve path/to/work.plan.md
 
 bunx visual-living-plan serve path/to/work.plan.md --detach
 bunx visual-living-plan events --url <printed-plan-url>
+
+bunx visual-living-plan watch --url <printed-plan-url>
 
 bunx visual-living-plan wait fail-mode --url <printed-plan-url> --timeout 30m
 
@@ -57,11 +59,12 @@ Swap the `bunx visual-living-plan` prefix for `live-plan` when that command is o
 |---|---|---|
 | `check <file>` | Parse the plan and print title, block types, interaction ids, and workflow nodes. A missing workflow block is an error. | `0` ok, `1` usage, parse error, or missing workflow |
 | `dump <file>` | Print the parsed plan as JSON | `0` ok, `1` usage or parse error |
-| `serve <file>` | Register the plan on the machine service and print each submission for that plan until stopped. `--detach` prints the URL and returns. The page and the service stay up either way. | `0` stopped or detached, `1` the stream failed |
+| `serve <file>` | Register the plan on the machine service. Without `--detach`, print undelivered submissions as JSON and exit. `--detach` prints the URL and returns. The page and the service stay up either way. | `0` printed or detached, `1` the stream failed or the delivery ack failed |
 | `review <file>` | Same page plus Approve / Deny / Iterate. Blocks on the agent event stream until a decision, then leaves the plan open in watch. | `0` approve, `1` deny, `2` iterate, `3` timeout |
 | `mode <watch\|comment\|review> --url <url>` | Switch that session. Comment arms the part selector. Review shows the verdict bar. Watch is the status page. The open tab follows. A comment does not leave comment mode. | `0` switched, `1` usage or HTTP error |
 | `wait <id> --url <url>` | Block on the agent event stream until that interaction id is answered. Prints the response JSON. | `0` answered, `1` missing `--url`, `3` timeout |
-| `events --url <url>` | Print each `hello`, `interaction`, and `review` event until the process is stopped. | `0` |
+| `events --url <url>` | Print each undelivered `interaction`, `review`, and `comment` as one JSON object per line, then exit. If the server already has some, print those and exit instead of waiting. Start it again after every exit. | `0` printed or stopped, `1` the stream failed or the delivery ack failed |
+| `watch --url <url>` | Switch the session to watch mode and stay running while the plan executes. Prints later submissions without exiting. Stop it when execution is finished. | `0` stopped, `1` the stream failed |
 | `close --url <url>` | Drop that plan from the service. | `0` closed, `1` usage |
 | `execution start\|push\|stop --url <url>` | Drive the live workflow overlay. `start` turns it on, `push` updates it, `stop` turns it off and unlocks plan forms. | `0` ok, `1` usage or HTTP error |
 | `processes` | List plans hosted by the service, including directory and git status. `ps` is the same command. | `0` |
@@ -77,7 +80,7 @@ Flags:
 - `--iteration N` labels a review round (default `1`). Bump it when you re-open review after Iterate.
 - `--out <file>` writes the review JSON as well as printing it.
 - `--no-open` skips launching a browser. Use it only for headless or CI runs. A person should get the page opened.
-- `--detach` on `serve` registers the plan and returns. Omit it to stay attached and print that plan's submissions.
+- `--detach` on `serve` registers the plan and returns. Omit it to print undelivered submissions and exit. Start `events` again each time that process exits. After an approval, `watch` stays up until execution is finished.
 - `--no-registry` serves this plan in its own process. By default `serve` and `review` use the machine service, so every planner page can list running plans.
 - `--registry-port` sets the service port (default `9477`, loopback only). `living-plan.local` is the browser name for that loopback service. `live-plan hostname install` adds it to the hosts file.
 - `--token` authorizes `events`, `wait`, and `close`. When omitted, the CLI reads the local service token.
@@ -92,11 +95,12 @@ Flags:
 
 1. Write or update one `.plan.md`. Title, a short summary, phases, a required `workflow` block (the execution path), then only the interactions you need right now.
 2. `check` the file.
-3. `serve` for ongoing status, or `review` when you need Approve / Deny / Iterate on the whole plan. `serve` prints submissions for that plan. Pass `--detach` when this process has to return before the person answers.
-4. After `--detach`, run `events --url <printed-url>` to hear every submission, or `wait <id> --url <printed-url>` to block on one answer. Both use the same agent event stream as `serve`.
-5. Apply the response. Update phase `status` and checklist `done` in the same file. The page reloads on save. A comment on a plan part arrives as a `comment` event on that same stream, with `partId`, `kind`, `excerpt`, and `text`. It is allowed while execution is live. `POST /api/comments/:id/address` marks it addressed and clears the corner icon.
-6. While implementing, `execution start`, then `execution push` as the graph changes, then `execution stop` before the next plan interaction. Plan forms and review are rejected with HTTP 409 while execution is active.
-7. On review **approve**, proceed. On **deny**, stop. On **iterate**, edit the same file, bump `--iteration`, and run `review` again. The plan stays open in watch after the decision. `close` is what drops it. Switch the open tab with `mode comment`, `mode watch`, or `mode review` on that same URL. `serve` keeps printing while you do.
+3. `serve` for ongoing status, or `review` when you need Approve / Deny / Iterate on the whole plan. Pass `--detach` when this process has to return before the person answers. Without `--detach`, `serve` exits when submissions are ready.
+4. Run `events --url <printed-url>` and let it stay in the background until it exits. Read the JSON lines it prints. Each line is `{ "event", "id", "seq", "data" }` for a comment, an interaction (including an approve/deny gate), or a review verdict. If people submitted while `events` was not running, the new process prints those pending rows and exits immediately.
+5. Whenever `events` exits because of a comment, a denial, an approval, or any other event, handle the JSON, then start `events` again. That reconnect delivers anything still pending, including another comment that arrived after the process closed. If it prints and exits again, handle that batch and reconnect. Leave `events` running only when it is waiting because the server has nothing pending. A comment on a plan part has `partId`, `kind`, `excerpt`, and `text` on `data`. It is allowed while execution is live. `POST /api/comments/:id/address` marks it addressed and clears the corner icon. Use `wait <id> --url <printed-url>` only when you must block on one interaction id.
+6. On review **deny**, stop the work, and still reconnect `events` once so a pending comment is not stranded. On **iterate**, edit the same file, bump `--iteration`, and run `review` again. The plan stays open in watch after a decision. `close` is what drops it.
+7. On review **approve**, or an approve gate with `approved: true`, stop the waiting `events` process. Start `watch --url <printed-url>` and keep it running for the whole execution. It puts the page in watch mode, the status view. While it is up, update phase `status` and checklist `done` in the plan file, `execution start`, then `execution push` as the workflow graph changes, then `execution stop` when the run is done. The page reloads on save and follows those workflow updates. Plan forms and review are rejected with HTTP 409 while execution is active. If `watch` prints a submission, handle it and leave `watch` running.
+8. After execution has finished, stop the `watch` process. It is safe to close it then. Read any JSON it printed. Start `events` again if a person still has to answer something.
 
 Section diffs are computed from the previous snapshot of that plan session. Editing the file while the plan is hosted marks added, edited, and removed sections.
 
@@ -178,7 +182,8 @@ The server URL from `serve` or `review` exposes:
 - `GET /` — Plan, Workflow, and Settings tabs
 - `GET /api/plan` — parsed plan, `responses`, `pendingInteractionIds`, execution state, planned workflow graph, and `theme`
 - `GET /api/events` — browser server-sent events: `reload`, `interaction`, `review`, `execution`, `theme`
-- `GET /api/agent-events` — the stream `events` and `wait` use. Requires a bearer token on the shared service. `hello` includes current responses and review; `interaction` and `review` follow as the user submits them.
+- `GET /api/agent-events` — the stream `events` and `wait` use. Requires a bearer token on the shared service. `hello` includes current responses, review, and `pending` (submissions whose `delivered_at` is empty). `notice` follows as the user submits.
+- `POST /api/agent-events/ack` — `{ "ids": ["evt_..."] }` sets `delivered_at` on those rows. The CLI calls this after it prints them.
 - `POST /api/interactions/:id` — submit one response (409 while execution is active)
 - `POST /api/review` — `{ "decision": "approve" \| "deny" \| "iterate", "note"?: "..." }` (review mode only; 409 while execution is active)
 - `GET /api/execution` and `PUT /api/execution` — read or replace execution state. `GET` includes `planned` (the expected workflow) even while execution is idle

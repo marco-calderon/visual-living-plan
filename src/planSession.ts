@@ -22,6 +22,7 @@ import type {
   InteractionResponse,
   PlanComment,
   PlanDocument,
+  PlanSubmissionEvent,
   ReviewDecision,
   ReviewResult,
   SectionDiff,
@@ -66,6 +67,7 @@ export type PlanSessionSnapshot = {
   execution: ExecutionState
   review: ReviewResult | null
   comments: PlanComment[]
+  events: PlanSubmissionEvent[]
   startedAt: number
   lastSeenAt: number
 }
@@ -104,9 +106,10 @@ export type PlanSession = {
   agentEvents: (request: Request) => Response
   submitInteraction: (interactionId: string, body: unknown) => unknown
   submitComment: (body: unknown) => unknown
-  addressComment: (commentId: string) => unknown
+  addressComment: (commentId: string, body?: unknown) => unknown
   markAddressing: (commentId: string) => unknown
   submitReview: (body: unknown) => unknown
+  acknowledgeEvents: (body: unknown) => { ok: true; delivered: string[] }
   close: () => Promise<void>
   waitForInteraction: (id: string, timeoutMs?: number) => Promise<InteractionResponse>
   waitForReview: (timeoutMs?: number) => Promise<ReviewResult>
@@ -149,6 +152,7 @@ export async function openPlanSession(options: {
   execution?: ExecutionState
   review?: ReviewResult | null
   comments?: PlanComment[]
+  events?: PlanSubmissionEvent[]
   onChange?: (snapshot: PlanSessionSnapshot) => void
 }): Promise<PlanSession> {
   const id = options.id
@@ -182,6 +186,76 @@ export async function openPlanSession(options: {
   let reviewResult: ReviewResult | undefined = options.review ?? undefined
   let reviewWaiters: ReviewWaiter[] = []
   const comments: PlanComment[] = [...(options.comments ?? [])]
+  const eventLog: PlanSubmissionEvent[] = (options.events ?? []).map((event) => ({
+    ...event,
+    data: structuredClone(event.data),
+  }))
+  let agentSeq = eventLog.reduce((max, event) => Math.max(max, event.seq), 0)
+
+  function eventKey(event: PlanSubmissionEvent['event'], data: unknown): string | null {
+    if (!data || typeof data !== 'object') return null
+    const record = data as { id?: unknown; iteration?: unknown; decision?: unknown }
+    if ((event === 'interaction' || event === 'comment') && typeof record.id === 'string') return `${event}:${record.id}`
+    if (event === 'review' && typeof record.decision === 'string') {
+      return `review:${String(record.iteration ?? '')}:${record.decision}`
+    }
+    return null
+  }
+
+  function remember(event: PlanSubmissionEvent['event'], data: unknown, createdAt: number): PlanSubmissionEvent {
+    agentSeq += 1
+    const record: PlanSubmissionEvent = {
+      id: `evt_${nanoid()}`,
+      seq: agentSeq,
+      event,
+      data: structuredClone(data),
+      createdAt,
+      deliveredAt: null,
+    }
+    eventLog.push(record)
+    return record
+  }
+
+  function backfillEvents(): void {
+    const keys = new Set(eventLog.flatMap((event) => {
+      const key = eventKey(event.event, event.data)
+      return key ? [key] : []
+    }))
+    for (const response of Object.values(responses)) {
+      const key = eventKey('interaction', response)
+      if (!key || keys.has(key)) continue
+      remember('interaction', response, startedAt)
+      keys.add(key)
+    }
+    if (reviewResult) {
+      const key = eventKey('review', reviewResult)
+      if (key && !keys.has(key)) {
+        remember('review', reviewResult, startedAt)
+        keys.add(key)
+      }
+    }
+    for (const comment of comments) {
+      if (comment.addressedAt != null || comment.addressingAt) continue
+      const key = eventKey('comment', comment)
+      if (!key || keys.has(key)) continue
+      remember('comment', comment, comment.createdAt)
+      keys.add(key)
+    }
+  }
+
+  backfillEvents()
+
+  function pendingEvents(): PlanSubmissionEvent[] {
+    return eventLog
+      .filter((event) => event.deliveredAt == null)
+      .sort((left, right) => left.seq - right.seq)
+      .map((event) => ({ ...event }))
+  }
+
+  function pushEvent(event: PlanSubmissionEvent['event'], data: unknown): void {
+    const record = remember(event, data, Date.now())
+    for (const client of agentClients) client.write('notice', { ...record })
+  }
 
   function persist(): void {
     if (closed) return
@@ -217,6 +291,7 @@ export async function openPlanSession(options: {
       execution: { ...execution },
       review: reviewResult ?? null,
       comments: comments.map((comment) => ({ ...comment })),
+      events: eventLog.map((event) => ({ ...event })),
       startedAt,
       lastSeenAt,
     }
@@ -338,6 +413,7 @@ export async function openPlanSession(options: {
       if (waiter.timer) clearTimeout(waiter.timer)
       waiter.resolve(response)
     }
+    pushEvent('interaction', response)
     broadcast('interaction', response)
     persist()
   }
@@ -369,6 +445,7 @@ export async function openPlanSession(options: {
     }
     reviewWaiters = []
     for (const comment of sent) broadcast('comment', { ...comment })
+    pushEvent('review', reviewResult)
     broadcast('review', reviewResult)
     if (decision === 'iterate') {
       broadcast('mode', { mode, iteration, review: reviewResult })
@@ -508,6 +585,7 @@ export async function openPlanSession(options: {
         review: reviewResult ?? null,
         comments,
         execution: executionView(),
+        pending: pendingEvents(),
       },
       request.signal,
     )
@@ -559,6 +637,7 @@ export async function openPlanSession(options: {
       addressedAt: null,
     }
     comments.push(comment)
+    pushEvent('comment', comment)
     broadcast('comment', comment)
     persist()
     return { ok: true, comment }
@@ -591,6 +670,24 @@ export async function openPlanSession(options: {
       persist()
     }
     return { ok: true, comment }
+  }
+
+  function acknowledgeEvents(body: unknown): { ok: true; delivered: string[] } {
+    touch()
+    const payload = jsonBody(body, true) as { ids?: unknown }
+    if (!Array.isArray(payload.ids) || payload.ids.length === 0 || payload.ids.some((id) => typeof id !== 'string' || !id)) {
+      throw new HttpError(400, 'Missing event ids')
+    }
+    const wanted = new Set(payload.ids)
+    const now = Date.now()
+    const delivered: string[] = []
+    for (const event of eventLog) {
+      if (!wanted.has(event.id)) continue
+      if (event.deliveredAt == null) event.deliveredAt = now
+      delivered.push(event.id)
+    }
+    persist()
+    return { ok: true, delivered }
   }
 
   function submitReview(body: unknown): unknown {
@@ -682,6 +779,7 @@ export async function openPlanSession(options: {
     addressComment,
     markAddressing,
     submitReview,
+    acknowledgeEvents,
     async close() {
       if (closed) return
       closed = true

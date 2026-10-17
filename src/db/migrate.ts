@@ -10,7 +10,7 @@ type ColumnSpec = {
   alter: string | null
 }
 
-type KnownTable = 'plans' | 'plan_sessions' | 'plan_runs' | 'processes'
+type KnownTable = 'plans' | 'plan_sessions' | 'plan_runs' | 'plan_events' | 'processes'
 
 const SHARED_PLAN_COLUMNS: ColumnSpec[] = [
   { name: 'pid', create: 'pid INTEGER', alter: 'pid INTEGER' },
@@ -80,6 +80,17 @@ export const PLAN_SESSION_COLUMNS: ColumnSpec[] = [
   { name: 'comments_json', create: "comments_json TEXT NOT NULL DEFAULT '[]'", alter: "comments_json TEXT NOT NULL DEFAULT '[]'" },
   { name: 'started_at', create: 'started_at INTEGER NOT NULL', alter: 'started_at INTEGER NOT NULL DEFAULT 0' },
   { name: 'last_seen_at', create: 'last_seen_at INTEGER NOT NULL', alter: 'last_seen_at INTEGER NOT NULL DEFAULT 0' },
+]
+
+/** User submissions. `delivered_at` is set when the agent CLI has taken the event. */
+export const PLAN_EVENT_COLUMNS: ColumnSpec[] = [
+  { name: 'id', create: 'id TEXT PRIMARY KEY', alter: null },
+  { name: 'plan_id', create: 'plan_id TEXT NOT NULL', alter: "plan_id TEXT NOT NULL DEFAULT ''" },
+  { name: 'seq', create: 'seq INTEGER NOT NULL', alter: 'seq INTEGER NOT NULL DEFAULT 0' },
+  { name: 'event', create: 'event TEXT NOT NULL', alter: "event TEXT NOT NULL DEFAULT ''" },
+  { name: 'data_json', create: 'data_json TEXT NOT NULL', alter: "data_json TEXT NOT NULL DEFAULT '{}'" },
+  { name: 'created_at', create: 'created_at INTEGER NOT NULL', alter: 'created_at INTEGER NOT NULL DEFAULT 0' },
+  { name: 'delivered_at', create: 'delivered_at INTEGER', alter: 'delivered_at INTEGER' },
 ]
 
 const COPY_FROM_PROCESSES = `
@@ -175,6 +186,9 @@ export function migratePlanDatabase(db: PlanDatabase): void {
   runSql(db, 'CREATE INDEX IF NOT EXISTS plans_status_idx ON plans (status)')
   foldProcesses(db)
   ensureTable(db, 'plan_sessions', PLAN_SESSION_COLUMNS)
+  ensureTable(db, 'plan_events', PLAN_EVENT_COLUMNS)
+  runSql(db, 'CREATE INDEX IF NOT EXISTS plan_events_plan_id_idx ON plan_events (plan_id)')
+  runSql(db, 'CREATE INDEX IF NOT EXISTS plan_events_plan_seq_idx ON plan_events (plan_id, seq)')
   migrateLegacyRuns(db)
   ensureTable(db, 'plan_runs', PLAN_RUN_COLUMNS)
   runSql(db, 'CREATE INDEX IF NOT EXISTS plan_runs_started_at_idx ON plan_runs (started_at)')
