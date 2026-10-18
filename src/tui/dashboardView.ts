@@ -1,5 +1,5 @@
-import type { DashboardPayload, DashboardPeriod, DashboardSummary } from '../dashboard.js'
-import type { CompletionState, PlanRecord, PlanStatus } from '../processRecord.js'
+import type { DashboardPayload, DashboardPeriod, DashboardSummary } from '../dashboard'
+import type { CompletionState, PlanRecord, PlanStatus } from '../processRecord'
 
 /** Status chips on the dashboard. `all` keeps every plan in the period. */
 export const STATUS_FILTERS = ['all', 'running', 'executed', 'interrupted'] as const

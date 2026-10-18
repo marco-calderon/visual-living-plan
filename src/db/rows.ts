@@ -1,5 +1,5 @@
-import type { GitSnapshot, PlanRecord, ProcessRecord } from '../processRecord.js'
-import { emptyGitSnapshot, isPlanMode } from '../processRecord.js'
+import type { GitSnapshot, PlanRecord, ProcessRecord } from '../processRecord'
+import { emptyGitSnapshot, isPlanMode } from '../processRecord'
 import {
   completionStateValues,
   planModeValues,
@@ -9,7 +9,7 @@ import {
   type PlanRow,
   type PlanRunInsert,
   type PlanRunRow,
-} from './schema.js'
+} from './schema'
 
 function oneOf<T extends string>(values: readonly T[], value: unknown): T | undefined {
   if (typeof value !== 'string') return undefined

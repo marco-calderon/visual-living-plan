@@ -1,4 +1,4 @@
-import type { PlanRecord } from './processRecord.js'
+import type { PlanRecord } from './processRecord'
 
 export type DashboardPeriod = 'day' | 'week' | 'month'
 

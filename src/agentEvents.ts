@@ -1,4 +1,4 @@
-import type { PlanSubmissionEvent } from './types.js'
+import type { PlanSubmissionEvent } from './types'
 
 export type AgentEvent = {
   event: string

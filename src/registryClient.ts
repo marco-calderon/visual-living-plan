@@ -2,20 +2,20 @@ import { spawn, type SpawnOptions } from 'node:child_process'
 import { closeSync, openSync } from 'node:fs'
 import { mkdir, open, readFile, rm, stat } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { readGitSnapshot } from './gitStatus.js'
-import { isPidAlive } from './pid.js'
-import type { CompletionState, GitSnapshot, ProcessPulse, ProcessRecord, ProcessRegistration } from './processRecord.js'
-import { ensureLocalHostname, formatHttpOrigin, LOCAL_PLAN_HOSTNAME, localNameDesired } from './localName.js'
-import { DEFAULT_REGISTRY_HOST, DEFAULT_REGISTRY_PORT, HEARTBEAT_MS } from './registryConstants.js'
+import { readGitSnapshot } from './gitStatus'
+import { isPidAlive } from './pid'
+import type { CompletionState, GitSnapshot, ProcessPulse, ProcessRecord, ProcessRegistration } from './processRecord'
+import { ensureLocalHostname, formatHttpOrigin, LOCAL_PLAN_HOSTNAME, localNameDesired } from './localName'
+import { DEFAULT_REGISTRY_HOST, DEFAULT_REGISTRY_PORT, HEARTBEAT_MS } from './registryConstants'
 import {
   defaultRegistryHome,
   readRegistryLock,
   registryStartingPath,
   type RegistryLock,
-} from './registryLock.js'
+} from './registryLock'
 
-export type { RegistryLock } from './registryLock.js'
-export { defaultRegistryHome, readRegistryLock } from './registryLock.js'
+export type { RegistryLock } from './registryLock'
+export { defaultRegistryHome, readRegistryLock } from './registryLock'
 
 export type PlanLiveState = {
   title?: string

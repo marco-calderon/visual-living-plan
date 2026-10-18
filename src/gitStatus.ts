@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
-import type { GitSnapshot } from './processRecord.js'
-import { emptyGitSnapshot } from './processRecord.js'
+import type { GitSnapshot } from './processRecord'
+import { emptyGitSnapshot } from './processRecord'
 
 export function formatGitSummary(snapshot: GitSnapshot): string {
   if (!snapshot.isRepo) return 'not a git repository'

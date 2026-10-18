@@ -1,12 +1,12 @@
 import { randomBytes } from 'node:crypto'
 import { Elysia } from 'elysia'
-import { HttpError } from './http.js'
-import { bindElysia } from './httpServer.js'
-import { formatHttpOrigin } from './localName.js'
-import { registerPlanRoutes } from './planRoutes.js'
-import { openPlanSession, type PlanSession } from './planSession.js'
-import type { PlanMode } from './processRecord.js'
-import type { InteractionResponse, ReviewResult } from './types.js'
+import { HttpError } from './http'
+import { bindElysia } from './httpServer'
+import { formatHttpOrigin } from './localName'
+import { registerPlanRoutes } from './planRoutes'
+import { openPlanSession, type PlanSession } from './planSession'
+import type { PlanMode } from './processRecord'
+import type { InteractionResponse, ReviewResult } from './types'
 
 export type LivingPlanServer = {
   port: number

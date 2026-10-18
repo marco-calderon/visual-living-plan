@@ -1,8 +1,8 @@
 import { Box, Text } from '@semos-labs/glyph'
-import type { PlanRecord } from '../processRecord.js'
-import { palette } from './palette.js'
-import { planColumn } from './planColumns.js'
-import { PlanRow } from './PlanRow.js'
+import type { PlanRecord } from '../processRecord'
+import { palette } from './palette'
+import { planColumn } from './planColumns'
+import { PlanRow } from './PlanRow'
 
 type PlanTableProps = {
   plans: PlanRecord[]

@@ -1,9 +1,9 @@
-import type { ClientAssets } from './assets.js'
-import type { ExecutionState } from './execution.js'
-import { blockAnchorId, planPartScope } from './parse.js'
-import type { PlanMode } from './processRecord.js'
-import { PROCESSES_PANEL_STYLES, processesPanelMarkup, processesPanelScript } from './processesPanel.js'
-import { accentCssCustomProperties } from './theme.js'
+import type { ClientAssets } from './assets'
+import type { ExecutionState } from './execution'
+import { blockAnchorId, planPartScope } from './parse'
+import type { PlanMode } from './processRecord'
+import { PROCESSES_PANEL_STYLES, processesPanelMarkup, processesPanelScript } from './processesPanel'
+import { accentCssCustomProperties } from './theme'
 import type {
   InteractionResponse,
   PlanBlock,
@@ -12,8 +12,8 @@ import type {
   ReviewDecision,
   ReviewResult,
   SectionDiff,
-} from './types.js'
-import { planToExpectedGraph, withPlannedWorkflow } from './workflow.js'
+} from './types'
+import { planToExpectedGraph, withPlannedWorkflow } from './workflow'
 
 export type RenderTheme = {
   accent: string

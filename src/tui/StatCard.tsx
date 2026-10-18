@@ -1,5 +1,5 @@
 import { Box, Text } from '@semos-labs/glyph'
-import { palette } from './palette.js'
+import { palette } from './palette'
 
 type StatCardProps = {
   label: string

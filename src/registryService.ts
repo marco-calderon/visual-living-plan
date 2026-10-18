@@ -1,27 +1,27 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { readFile, rm } from 'node:fs/promises'
 import { Elysia } from 'elysia'
-import { buildDashboard, parsePeriod, periodRange } from './dashboard.js'
-import { renderDashboardPage } from './dashboardPage.js'
-import { assertBodyLimit, html, HttpError, jsonBody } from './http.js'
-import { bindElysia } from './httpServer.js'
-import { archivePlanFile, archivedPlanPath, isPathInside } from './planArchive.js'
-import { createPlanHost, type PlanHost } from './planHost.js'
-import { registerPlanRoutes } from './planRoutes.js'
-import { readClientAsset } from './planSession.js'
+import { buildDashboard, parsePeriod, periodRange } from './dashboard'
+import { renderDashboardPage } from './dashboardPage'
+import { assertBodyLimit, html, HttpError, jsonBody } from './http'
+import { bindElysia } from './httpServer'
+import { archivePlanFile, archivedPlanPath, isPathInside } from './planArchive'
+import { createPlanHost, type PlanHost } from './planHost'
+import { registerPlanRoutes } from './planRoutes'
+import { readClientAsset } from './planSession'
 import {
   ensureLocalHostname,
   exposeLoopbackPort80,
   formatHttpOrigin,
   isLoopbackHost,
   servicePublicOrigin,
-} from './localName.js'
-import { DEFAULT_REGISTRY_HOST, DEFAULT_REGISTRY_PORT, STALE_MS } from './registryConstants.js'
-import { registryDatabasePath, registryPlansDir, registryStartingPath, writeRegistryLock } from './registryLock.js'
-import { renderRegistryPage } from './registryPage.js'
-import { openRegistryStore, type RegistryStore, type RunWindow } from './registryStore.js'
-import type { GitSnapshot, PlanRecord, ProcessRecord, ReviewOutcome } from './processRecord.js'
-import { emptyGitSnapshot, finishedPlan, runningPlan } from './processRecord.js'
+} from './localName'
+import { DEFAULT_REGISTRY_HOST, DEFAULT_REGISTRY_PORT, STALE_MS } from './registryConstants'
+import { registryDatabasePath, registryPlansDir, registryStartingPath, writeRegistryLock } from './registryLock'
+import { renderRegistryPage } from './registryPage'
+import { openRegistryStore, type RegistryStore, type RunWindow } from './registryStore'
+import type { GitSnapshot, PlanRecord, ProcessRecord, ReviewOutcome } from './processRecord'
+import { emptyGitSnapshot, finishedPlan, runningPlan } from './processRecord'
 
 export type RegistryServer = {
   url: string
@@ -466,7 +466,7 @@ export async function startRegistryServer(options: {
     async close() {
       clearInterval(timer)
       await releasePort80()
-      const { readRegistryLock, registryLockPath } = await import('./registryLock.js')
+      const { readRegistryLock, registryLockPath } = await import('./registryLock')
       const lock = await readRegistryLock(options.home)
       if (lock?.pid === process.pid) {
         await rm(registryLockPath(options.home), { force: true })

@@ -37,7 +37,8 @@
     "dashboard": "bun src/cli.ts dashboard",
     "tui": "bun src/cli.ts tui",
     "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "test:e2e": "bun run build:client && playwright test"
   },
   "engines": {
     "bun": ">=1.2.0",
@@ -56,6 +57,7 @@
   "devDependencies": {
     "@panzoom/panzoom": "^4.6.2",
     "@pierre/diffs": "^1.5.2",
+    "@playwright/test": "^1.64.1",
     "@types/bun": "^1.4.2",
     "@types/node": "^24.6.2",
     "@types/react": "^19.3.0",

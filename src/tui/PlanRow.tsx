@@ -1,7 +1,7 @@
 import { Box, Progress, Text } from '@semos-labs/glyph'
 import { useEffect, useRef } from 'react'
 import type { TextHandle } from '@semos-labs/glyph'
-import type { PlanRecord } from '../processRecord.js'
+import type { PlanRecord } from '../processRecord'
 import {
   STATUS_LABEL,
   completionDetail,
@@ -9,10 +9,10 @@ import {
   formatWhen,
   gitLine,
   planSubtitle,
-} from './dashboardView.js'
-import { palette } from './palette.js'
-import { PlanActions } from './PlanActions.js'
-import { planColumn } from './planColumns.js'
+} from './dashboardView'
+import { palette } from './palette'
+import { PlanActions } from './PlanActions'
+import { planColumn } from './planColumns'
 
 type PlanRowProps = {
   plan: PlanRecord

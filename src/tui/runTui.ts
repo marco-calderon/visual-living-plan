@@ -1,8 +1,8 @@
 import { render } from '@semos-labs/glyph'
 import { createElement } from 'react'
-import { parsePeriod, type DashboardPeriod } from '../dashboard.js'
-import { ensureRegistry, registryBindUrl } from '../registryClient.js'
-import { DashboardApp } from './DashboardApp.js'
+import { parsePeriod, type DashboardPeriod } from '../dashboard'
+import { ensureRegistry, registryBindUrl } from '../registryClient'
+import { DashboardApp } from './DashboardApp'
 
 export type TuiOptions = {
   period: DashboardPeriod

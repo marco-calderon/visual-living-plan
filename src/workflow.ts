@@ -5,9 +5,9 @@ import type {
   ExecutionNodeStatus,
   ExecutionPortSide,
   ExecutionState,
-} from './execution.js'
-import { blockAnchorId } from './parse.js'
-import type { PlanBlock, PlanDocument } from './types.js'
+} from './execution'
+import { blockAnchorId } from './parse'
+import type { PlanBlock, PlanDocument } from './types'
 
 const NODE_STATUSES = new Set<ExecutionNodeStatus>([
   'pending',
