@@ -1,6 +1,6 @@
 # ADR 0003: Push user submissions to the agent on an event stream
 
-- Status: Accepted
+- Status: Accepted. How `events` prints, and the name of a live submission on the agent stream (`notice`), are superseded by [ADR 0012](0012-submission-delivery.md). The stream itself remains.
 - Date: 2026-10-10
 
 ## Context

@@ -160,15 +160,18 @@ live-plan theme set --accent #0369a1 --url <printed-plan-url>
 - `GET /api/execution` — current execution canvas state, including `planned` (the expected workflow from the plan) even while execution is idle
 - `PUT /api/execution` — set execution state (`active`, `step`, `detail`, `graph`, `scene`)
 - `POST /api/execution/start` / `POST /api/execution/stop` — convenience toggles
-- `GET /api/events` — browser SSE (`reload`, `interaction`, `review`, `execution`, `theme`)
-- `GET /api/agent-events` — agent SSE. On the shared service this requires the plan token or the service token. The first event is `hello` (current responses and review). Later events push each submission.
+- `GET /api/events` — browser SSE (`hello`, `reload`, `interaction`, `review`, `comment`, `mode`, `execution`, `theme`, `error`)
+- `GET /api/agent-events` — agent SSE. On the shared service this requires the plan token or the service token. `hello` includes responses, review, comments, execution, and `pending` (`plan_events` rows whose `delivered_at` is empty). A live submission arrives as `notice`.
+- `POST /api/agent-events/ack` — `{ "ids": ["evt_..."] }` sets `delivered_at`. The CLI calls this after it prints.
+- `POST /api/comments` — comment on one plan part. `POST /api/comments/:id/addressing` marks it in progress. `POST /api/comments/:id/address` marks it addressed with outcome `implemented` (default), `errored`, or `issues`.
+- `POST /api/mode` — set the session to `watch`, `comment`, or `review`. The open tab follows.
 - `GET /api/processes` — plans hosted by the service (directory, git status, site URL). `status` is `ok`, `offline`, or `disabled`
 - `GET /dashboard` — registry page for running and executed plans: day, week, and month summaries, plus a table (status, completion, folder, files modified, start time, duration)
 - `GET /api/dashboard?period=day|week|month` — the same summary and rows as JSON. `live-plan tui` reads this route.
 - `GET /api/plans` — every stored plan run, including executed and interrupted
 - `GET /api/theme` / `PUT /api/theme` — read or set accent color (`{ "accent": "#hex" }`), persisted to the theme config file
 - `POST /api/interactions/:id` — submit an interaction response (409 while execution is live)
-- `POST /api/review` — submit Approve / Deny / Iterate (review mode)
+- `POST /api/review` — submit Approve / Deny / Iterate (review mode; 409 while execution is live). Approve and deny return the session to watch. Iterate leaves it in review.
 
 ## For agents
 

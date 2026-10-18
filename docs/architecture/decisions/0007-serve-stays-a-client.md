@@ -1,6 +1,6 @@
 # ADR 0007: The serve command stays a client of the one service
 
-- Status: Accepted
+- Status: Accepted. The bullet that keeps `serve` printing until it is stopped is superseded by [ADR 0012](0012-submission-delivery.md).
 - Date: 2026-10-11
 
 [ADR 0012](0012-submission-delivery.md) changes the attached client: `serve` and `events` print undelivered submissions and exit, instead of printing until the process is stopped. The page still stays up on the service.

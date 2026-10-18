@@ -1,6 +1,6 @@
 # ADR 0006: Persist sessions, idle them out, and restart on version change
 
-- Status: Accepted
+- Status: Accepted. The bullet that closes a plan after review is superseded by [ADR 0011](0011-live-session-mode.md). Iterate no longer returns the session to watch; that part is [ADR 0013](0013-iterate-keeps-review.md). The idle close is `lastSeenAt` plus no open stream, as the architecture overview describes.
 - Date: 2026-10-10
 
 ## Context

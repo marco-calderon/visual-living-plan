@@ -16,5 +16,6 @@ Decisions are numbered in the order they were made. Superseded decisions stay he
 | [0010](0010-local-hostname.md) | 2026-10-15 | Accepted | Loopback plans are published as living-plan.local |
 | [0011](0011-live-session-mode.md) | 2026-10-15 | Accepted | Session mode is live on the open tab, and review leaves the plan open |
 | [0012](0012-submission-delivery.md) | 2026-10-17 | Accepted | Submissions are stored with `delivered_at` and the CLI exits after printing them |
+| [0013](0013-iterate-keeps-review.md) | 2026-10-18 | Accepted | Iterate leaves the session in review and comments record an outcome |
 
-Add the next decision as `0012-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.
+Add the next decision as `0014-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.

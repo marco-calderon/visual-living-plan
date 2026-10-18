@@ -27,7 +27,7 @@ The service and the private server are Elysia apps. Route handlers live in `src/
 | `src/planRoutes.ts` | Elysia routes for that plan |
 | `src/planHost.ts` | Session map, registration, idle close, git cache |
 | `src/registryService.ts` | The long-lived Elysia app and its routes |
-| `src/registryStore.ts` | SQLite through Drizzle. `plans`, `plan_sessions`, and `plan_runs`. Finished runs are filtered by `started_at` and `ended_at` |
+| `src/registryStore.ts` | SQLite through Drizzle. `plans`, `plan_sessions`, `plan_events`, and `plan_runs`. Finished runs are filtered by `started_at` and `ended_at` |
 | `src/server.ts` | Private one-plan Elysia app |
 | `src/httpServer.ts` | `Bun.serve` binding for an Elysia app |
 | `src/agentEvents.ts` | Client-side SSE reader. Use `planApiUrl` so `/plans/<id>/` URLs resolve correctly |
@@ -41,13 +41,13 @@ Home directory for the service is `~/.visual-living-plan`, or `LIVE_PLAN_HOME` w
 
 ## Invariants
 
-- The plan file is the document. Responses, execution, and review are session state and are stored in SQLite.
+- The plan file is the document. Responses, comments, execution, and review are session state in `plan_sessions`. Submissions are rows in `plan_events`.
 - The same plan path always maps to the same plan id.
 - Browser API calls from a hosted page are prefixed with `/plans/<id>`. Root `/api/...` on the service is the catalog, not a plan.
 - `new URL('/api/plan', planUrl)` is wrong for a plan URL that has a path. Use `planApiUrl`.
 - User submissions are pushed on the agent stream and stored in `plan_events`. `delivered_at` is set when the CLI acks. Do not poll `/api/plan` from the CLI.
 - The agent stream on the service requires a bearer token. Browser submission routes stay open on loopback.
-- A plan session is closed after 6 hours with no browser and no agent stream, and on `live-plan close`. A review decision returns that session to watch and leaves it open.
+- A plan session is closed on `live-plan close`, and when it has no open browser or agent stream and `lastSeenAt` is 6 hours old. Approve and deny return that session to watch and leave it open. Iterate leaves it open in review.
 - Restart the service when the package version in the lock file does not match the CLI.
 - The service process stays running after `serve`, `events`, `wait`, and `review` exit.
 - A `workflow` block is required in a plan. `check` fails without it.

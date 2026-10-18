@@ -71,7 +71,7 @@ Replace the bunx prefix with `live-plan` when the command is installed.
 | `check <file>` | Parse check before showing the plan. Prints title, block types, interaction ids, and workflow nodes. Exits 1 when the workflow block is missing. |
 | `dump <file>` | Full parsed plan as JSON. |
 | `serve <file>` | Register the plan on the machine service and print its URL. Without `--detach`, print undelivered submissions as JSON and exit. `--detach` returns after the URL. The page reloads when the file changes and stays up after this command exits. |
-| `review <file>` | Same page plus Approve / Deny / Iterate. Blocks until a decision, then leaves the plan open in watch. |
+| `review <file>` | Same page plus Approve / Deny / Iterate. Blocks until a decision, then leaves the plan open. Approve and deny return the session to watch. Iterate leaves it in review. |
 | `wait <id> --url <url>` | Block on the event stream until that interaction is answered. Prints the response JSON. |
 | `events --url <url>` | Print undelivered interactions, review verdicts, and comments as JSON, then exit. Pending rows already on the server are printed immediately. Start it again every time it exits. |
 | `watch --url <url>` | After an approval, switch the page to watch mode and stay running for the whole execution. Prints later submissions without exiting. Stop it when execution is finished. |
