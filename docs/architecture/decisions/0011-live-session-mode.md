@@ -1,6 +1,6 @@
 # ADR 0011: Session mode is live on the open tab
 
-- Status: Accepted
+- Status: Accepted. The bullet that returns every review decision to watch is superseded for iterate by [ADR 0013](0013-iterate-keeps-review.md). Approve and deny still return the session to watch.
 - Date: 2026-10-15
 
 ## Context
@@ -15,12 +15,12 @@ The session mode is `watch`, `comment`, or `review`. Changing it broadcasts a `m
 
 - `watch` is the status page. The selector is off and the review bar is hidden.
 - `comment` arms the selector. Sending a comment does not leave this mode.
-- `review` shows the verdict bar and arms the selector. A decision stores the verdict and sets the session back to `watch`.
+- `review` shows the verdict bar and arms the selector. A decision stores the verdict and sets the session back to `watch`. [ADR 0013](0013-iterate-keeps-review.md) keeps Iterate in review.
 
-`serve` on an existing session does not overwrite comment or review. `live-plan mode` and `review` are what change it. `review` still exits 0, 1, or 2, and it does not close the hosted plan. `close` still drops the plan. `--no-registry` is still one process, so that `review` exits with the page.
+`serve` on an existing session does not overwrite comment or review. `live-plan mode` and `review` are what change it. `review` still exits 0, 1, or 2, and it does not close the hosted plan. `close` still drops the plan. `--no-registry` is still one process. Approve and deny exit with the page. Iterate leaves that process running ([ADR 0013](0013-iterate-keeps-review.md)).
 
 Comments stay available during execution. The verdict bar stays locked while execution is live.
 
 ## Consequences
 
-An open tab and an attached `serve` client survive a comment and a review. Agents switch modes with `live-plan mode <watch|comment|review> --url`. A later `review` clears the previous decision when the session enters review again. The plan file vocabulary is unchanged.
+An open tab survives a comment and a review. [ADR 0012](0012-submission-delivery.md) is what the attached CLI does after it prints. Agents switch modes with `live-plan mode <watch|comment|review> --url`. A later `review` clears the previous decision when the session enters review again. The plan file vocabulary is unchanged. `--no-registry` review no longer always exits with the page: Iterate leaves that process running ([ADR 0013](0013-iterate-keeps-review.md)).

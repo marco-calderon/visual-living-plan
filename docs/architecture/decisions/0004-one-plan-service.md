@@ -23,4 +23,4 @@ This is one service per machine, for the user who installed the CLI. It is not a
 
 ## Consequences
 
-Open plans share one Node process and one port. `serve` no longer has to stay running for the page to stay up. A crash or a stalled event loop takes every plan on that machine down with it. Git status for the plan list is cached briefly so listing plans does not call git once per plan on a timer. Browser calls must use the plan prefix. The CLI resolves API paths against the printed plan URL, not against the origin alone.
+Open plans share one Bun process and one port. `src/httpServer.ts` binds that process with `Bun.serve`. `serve` no longer has to stay running for the page to stay up. A crash or a stalled event loop takes every plan on that machine down with it. Git status for the plan list is cached briefly so listing plans does not call git once per plan on a timer. Browser calls must use the plan prefix. The CLI resolves API paths against the printed plan URL, not against the origin alone.
