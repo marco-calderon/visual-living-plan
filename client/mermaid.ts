@@ -1,25 +1,23 @@
-import mermaid from 'mermaid'
+import { render } from 'pele'
 import { attachMermaidViewer, collapseMermaidViewer, releaseMermaidViewer, watchMermaidViewer } from './mermaidViewer.ts'
 
 const FONT = '"IBM Plex Sans", "Helvetica Neue", Arial, sans-serif'
+const FONT_MONO = '"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace'
+
+const PARTS = [
+  '.pele-node',
+  '.pele-edge',
+  '.pele-edge-label',
+  '.pele-cluster',
+  '.pele-frame',
+  '.pele-note',
+  '.pele-slice',
+  '.pele-task',
+  '.pele-legend-item',
+].join(', ')
 
 function diagramNodes(root: ParentNode = document): HTMLElement[] {
   return [...root.querySelectorAll<HTMLElement>('.mermaid-diagram')]
-}
-
-function readVar(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
-}
-
-function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-  const match = /^#([0-9a-f]{6})$/i.exec(hex.trim())
-  const value = match?.[1]
-  if (!value) return null
-  return {
-    r: Number.parseInt(value.slice(0, 2), 16),
-    g: Number.parseInt(value.slice(2, 4), 16),
-    b: Number.parseInt(value.slice(4, 6), 16),
-  }
 }
 
 function sourceOf(node: HTMLElement): string {
@@ -45,105 +43,90 @@ function showSource(node: HTMLElement, source: string, message: string): void {
   node.append(pre, note)
 }
 
-function configure(): void {
-  const dark = document.documentElement.dataset.theme === 'dark'
-  const accent = readVar('--accent') || (dark ? '#2dd4bf' : '#0f766e')
-  const ink = readVar('--ink') || (dark ? '#e8f3ee' : '#14201b')
-  const paper = readVar('--paper') || (dark ? '#101816' : '#eef3f0')
-  const rgb = hexToRgb(accent)
-  const fill = rgb
-    ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${dark ? 0.22 : 0.14})`
-    : accent
-
-  mermaid.initialize({
-    startOnLoad: false,
-    securityLevel: 'strict',
-    suppressErrorRendering: true,
-    logLevel: 'error',
-    fontFamily: FONT,
-    darkMode: dark,
-    theme: 'base',
-    themeVariables: {
-      fontFamily: FONT,
-      darkMode: dark,
-      background: 'transparent',
-      primaryColor: fill,
-      primaryTextColor: ink,
-      primaryBorderColor: accent,
-      secondaryColor: fill,
-      secondaryTextColor: ink,
-      secondaryBorderColor: accent,
-      tertiaryColor: paper,
-      tertiaryTextColor: ink,
-      tertiaryBorderColor: accent,
-      lineColor: accent,
-      textColor: ink,
-      mainBkg: fill,
-      nodeBorder: accent,
-      nodeTextColor: ink,
-      titleColor: ink,
-      edgeLabelBackground: paper,
-      clusterBkg: fill,
-      clusterBorder: accent,
-      actorBkg: fill,
-      actorBorder: accent,
-      actorTextColor: ink,
-      signalColor: accent,
-      signalTextColor: ink,
-      noteBkgColor: fill,
-      noteTextColor: ink,
-      noteBorderColor: accent,
-    },
-    flowchart: { htmlLabels: false },
-  })
-}
-
-const DIAGRAM_PARTS = 'g.node, g.actor, g.edgePath, g.edgeLabel, g.note, g.cluster, g.messageText, g.loop'
-
 function partToken(value: string, fallback: number): string {
   const token = value.replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-|-$/g, '').slice(0, 80)
   return token || String(fallback)
+}
+
+function partKind(part: Element): string {
+  if (part.classList.contains('pele-edge-label')) return 'edge-label'
+  if (part.classList.contains('pele-edge')) return 'edge'
+  if (part.classList.contains('pele-cluster')) return 'cluster'
+  if (part.classList.contains('pele-frame')) return 'frame'
+  if (part.classList.contains('pele-note')) return 'note'
+  if (part.classList.contains('pele-slice')) return 'slice'
+  if (part.classList.contains('pele-task')) return 'task'
+  if (part.classList.contains('pele-legend-item')) return 'legend'
+  return 'node'
+}
+
+function widenEdgeHits(svg: SVGSVGElement): void {
+  for (const edge of svg.querySelectorAll<SVGGElement>('.pele-edge')) {
+    const path = edge.querySelector<SVGPathElement>('path:not(.pele-marker)')
+    if (!path) continue
+    const hit = path.cloneNode() as SVGPathElement
+    hit.classList.add('pele-edge-hit')
+    hit.setAttribute('stroke', 'transparent')
+    hit.setAttribute('stroke-width', '14')
+    hit.setAttribute('fill', 'none')
+    edge.insertBefore(hit, edge.firstChild)
+  }
 }
 
 function stampDiagramParts(figure: HTMLElement): void {
   const scope = figure.dataset.planPart
   const svg = figure.querySelector('svg')
   if (!scope || !svg) return
+  widenEdgeHits(svg)
+  const used = new Set<string>()
   let index = 0
-  for (const part of svg.querySelectorAll<SVGGElement>(DIAGRAM_PARTS)) {
+  for (const part of svg.querySelectorAll<Element>(PARTS)) {
+    if (!(part instanceof SVGElement)) continue
     index += 1
-    const kind = part.classList.contains('edgePath')
-      ? 'edge'
-      : part.classList.contains('edgeLabel')
-        ? 'edge-label'
-        : 'node'
-    part.dataset.planPart = `${scope}/${kind}:${partToken(part.id, index)}`
+    const kind = partKind(part)
+    const base = partToken(part.getAttribute('data-id') || part.id, index)
+    let token = base
+    let duplicate = 2
+    while (used.has(`${kind}:${token}`)) {
+      token = `${base}-${duplicate}`
+      duplicate += 1
+    }
+    used.add(`${kind}:${token}`)
+    part.dataset.planPart = `${scope}/${kind}:${token}`
     part.dataset.planKind = kind
+  }
+}
+
+function fontOptions(node: HTMLElement): { fontFamily: string; fontFamilyMono: string; fontSize: number } {
+  const style = getComputedStyle(node)
+  const fontSize = Number.parseFloat(style.fontSize)
+  return {
+    fontFamily: style.fontFamily || FONT,
+    fontFamilyMono: FONT_MONO,
+    fontSize: Number.isFinite(fontSize) && fontSize > 0 ? fontSize : 16,
   }
 }
 
 let generation = 0
 
-async function renderDiagrams(root: ParentNode = document): Promise<void> {
+function renderDiagrams(root: ParentNode = document): void {
   const nodes = diagramNodes(root)
   if (nodes.length === 0) return
   const ticket = ++generation
-  configure()
 
   for (const [index, node] of nodes.entries()) {
     if (ticket !== generation) return
     const source = sourceOf(node).trim()
     if (!source) continue
     releaseMermaidViewer(node)
-    const id = `living-plan-mermaid-${index}-${ticket}`
+    const idPrefix = `living-plan-diagram-${index}-${ticket}`
     try {
-      const parsed = await mermaid.parse(source, { suppressErrors: true })
-      if (ticket !== generation) return
-      if (parsed === false) {
-        showSource(node, source, 'This diagram could not be drawn.')
-        continue
-      }
-      const { svg } = await mermaid.render(id, source)
+      const { svg } = render(source, {
+        ...fontOptions(node),
+        idPrefix,
+        responsive: true,
+        autoDirection: false,
+      })
       if (ticket !== generation) return
       node.innerHTML = svg
       const svgEl = node.querySelector('svg')
@@ -153,7 +136,6 @@ async function renderDiagrams(root: ParentNode = document): Promise<void> {
       }
     } catch {
       if (ticket !== generation) return
-      document.getElementById(id)?.remove()
       showSource(node, source, 'This diagram could not be drawn.')
     }
   }
@@ -161,16 +143,13 @@ async function renderDiagrams(root: ParentNode = document): Promise<void> {
 
 function boot(): void {
   watchMermaidViewer()
-  void renderDiagrams()
-  window.addEventListener('living-plan-theme', () => {
-    void renderDiagrams()
+  renderDiagrams()
+  void document.fonts?.ready.then(() => {
+    renderDiagrams()
   })
   window.addEventListener('living-plan-document', (event) => {
     const root = (event as CustomEvent<{ root?: ParentNode }>).detail?.root
-    void renderDiagrams(root instanceof Element ? root : document)
-  })
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    void renderDiagrams()
+    renderDiagrams(root instanceof Element ? root : document)
   })
 }
 

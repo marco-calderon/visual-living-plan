@@ -876,6 +876,33 @@ body.plan-live .block.change-applied {
   border-radius: 12px;
   background: var(--panel-strong);
   overflow: hidden;
+  --pele-bg: var(--paper);
+  --pele-fg: var(--ink);
+  --pele-muted: var(--muted);
+  --pele-line: var(--accent);
+  --pele-surface: color-mix(in srgb, var(--accent) 14%, var(--paper));
+  --pele-surface-alt: color-mix(in srgb, var(--accent) 8%, var(--paper-2));
+  --pele-border: var(--accent);
+  --pele-accent: var(--accent);
+  --pele-critical: var(--danger);
+  --pele-error: var(--danger);
+  --pele-font: var(--font-body);
+  --pele-font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --pele-radius: 8px;
+  --pele-series-1: var(--accent);
+  --pele-series-2: var(--accent-2);
+  --pele-series-3: var(--ok);
+  --pele-series-4: var(--danger);
+  --pele-series-5: color-mix(in srgb, var(--accent) 62%, var(--accent-2));
+  --pele-series-6: color-mix(in srgb, var(--accent-2) 68%, var(--ink));
+  --pele-series-7: color-mix(in srgb, var(--accent) 48%, var(--danger));
+  --pele-series-8: color-mix(in srgb, var(--ok) 55%, var(--accent));
+}
+:root[data-theme="dark"] .mermaid-diagram {
+  --pele-surface: color-mix(in srgb, var(--accent) 22%, var(--paper));
+  --pele-surface-alt: color-mix(in srgb, var(--accent) 12%, var(--paper-2));
+  --pele-line: color-mix(in srgb, var(--accent) 78%, var(--ink));
+  --pele-border: color-mix(in srgb, var(--accent) 72%, var(--ink));
 }
 .mermaid-diagram .mermaid {
   margin: 0;
@@ -899,6 +926,9 @@ body.plan-live .block.change-applied {
   width: 100%;
   height: 100%;
   max-width: none;
+}
+.pele-edge-hit {
+  pointer-events: stroke;
 }
 .mermaid-controls {
   display: flex;

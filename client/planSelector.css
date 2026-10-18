@@ -42,6 +42,15 @@ body.plan-grab-armed [data-tab-panel='plan'] :is(button, a, input, textarea, sel
   cursor: crosshair;
 }
 
+body.plan-grab-armed .mermaid-stage {
+  cursor: crosshair;
+}
+
+body.plan-grab-armed [data-tab-panel='plan'] .mermaid-control,
+body.plan-grab-armed .mermaid-diagram.is-maximized .mermaid-control {
+  cursor: pointer;
+}
+
 .plan-grab-overlay {
   position: fixed;
   z-index: 30;
