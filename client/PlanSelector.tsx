@@ -94,6 +94,7 @@ function planPanelOwns(target: Element): boolean {
   const panel = document.querySelector('[data-tab-panel="plan"]')
   if (!(panel instanceof HTMLElement) || panel.hidden) return false
   if (panel.contains(target)) return true
+  if (target.closest('.mermaid-diagram')) return true
   const root = target.getRootNode()
   return root instanceof ShadowRoot && panel.contains(root.host)
 }

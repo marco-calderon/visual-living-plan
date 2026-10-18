@@ -136,6 +136,14 @@ test('the plan page loads the mermaid client only when a diagram is present', ()
 
   assert.match(diagramHtml, /src="\/client\/assets\/mermaid\.js"/)
   assert.match(diagramHtml, /href="\/client\/assets\/mermaid\.css"/)
+  assert.match(diagramHtml, /--pele-fg:\s*var\(--ink\)/)
+  assert.match(diagramHtml, /--pele-line:\s*var\(--accent\)/)
+  assert.match(diagramHtml, /--pele-series-1:\s*var\(--accent\)/)
+  assert.match(diagramHtml, /:root\[data-theme="dark"\] \.mermaid-diagram/)
+  assert.match(
+    diagramHtml,
+    /:root\[data-theme="dark"\] \.mermaid-diagram \{[^}]*--pele-surface:\s*color-mix\(in srgb, var\(--accent\) 22%, var\(--paper\)\)/,
+  )
   assert.doesNotMatch(diagramHtml, /highlight\.js/)
   assert.doesNotMatch(plainHtml, /mermaid\.js/)
   assert.doesNotMatch(plainHtml, /mermaid\.css/)
