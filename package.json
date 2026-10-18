@@ -37,7 +37,7 @@
     "dashboard": "bun src/cli.ts dashboard",
     "tui": "bun src/cli.ts tui",
     "typecheck": "tsc --noEmit",
-    "test": "bun test",
+    "test": "bun test ./test",
     "test:e2e": "bun run build:client && playwright test"
   },
   "engines": {
