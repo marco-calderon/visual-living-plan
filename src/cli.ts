@@ -79,6 +79,7 @@ Usage:
   live-plan watch --url <plan-url> [--token TOKEN]
   live-plan close --url <plan-url> [--token TOKEN]
   live-plan mode <watch|comment|review> --url <plan-url>
+  live-plan reply <comment-id> --url <plan-url> --text "..."
   live-plan execution start --url <plan-url> [--step TEXT] [--detail TEXT] [--graph file.json]
   live-plan execution push --url <plan-url> [--step TEXT] [--detail TEXT] [--graph file.json] [--scene file.json]
   live-plan execution stop --url <plan-url>
@@ -102,6 +103,7 @@ Modes:
   watch       Switch to watch mode and stay running while the plan executes. Prints submissions without exiting.
   close       Drop a plan from the machine service.
   mode        Switch the open session between watch, comment, and review. The open tab follows.
+  reply       Answer one plan comment. The page shows it on that comment's minibar or part thread.
   execution   Start/push/stop the live workflow canvas (locks plan forms while active).
   theme       Read or write the accent color in live-plan.config.json (or via a running server).
   check       Print plan summary. Exits 1 when the required workflow block is missing.
@@ -729,6 +731,28 @@ async function cmdMode(args: string[]): Promise<number> {
   return 0
 }
 
+async function cmdReply(args: string[]): Promise<number> {
+  const commentId = args[0]
+  const published = getFlag(args, '--url')
+  const text = getFlag(args, '--text')
+  if (!commentId || commentId.startsWith('--') || !published || text == null) {
+    console.error('Usage: live-plan reply <comment-id> --url <plan-url> --text "..."')
+    return 1
+  }
+  const url = await localServiceUrl(published)
+  const response = await fetch(planApiUrl(url, `/api/comments/${encodeURIComponent(commentId)}/reply`), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text }),
+  })
+  if (!response.ok) {
+    console.error(await response.text())
+    return 1
+  }
+  console.log(JSON.stringify(await response.json(), null, 2))
+  return 0
+}
+
 async function cmdClose(args: string[]): Promise<number> {
   const url = getFlag(args, '--url')
   if (!url) {
@@ -1113,6 +1137,10 @@ async function main(): Promise<number> {
 
   if (command === 'mode') {
     return cmdMode(args.slice(1))
+  }
+
+  if (command === 'reply') {
+    return cmdReply(args.slice(1))
   }
 
   if (command === 'execution') {

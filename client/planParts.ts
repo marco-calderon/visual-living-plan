@@ -85,6 +85,19 @@ export function blockIdFromPart(partId: string): string | undefined {
   return id || undefined
 }
 
+/** Replay the same wash used when a plan block changes, on the block that owns this part. */
+export function highlightChangedPart(partId: string): void {
+  const element = findPartElement(partId)
+  if (!element) return
+  const block = element.closest('.block')
+  const target = block instanceof HTMLElement ? block : element instanceof HTMLElement ? element : null
+  if (!target) return
+  document.body.classList.add('plan-live')
+  target.classList.remove('change-applied')
+  void target.offsetWidth
+  target.classList.add('change-applied')
+}
+
 export function findPartElement(partId: string): PlanPartElement | null {
   const direct = document.querySelector(`[data-plan-part="${CSS.escape(partId)}"]`)
   if (direct && stamped(direct)) return direct

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import type { PlanComment } from '../src/types.ts'
 import { CommentProgress } from './CommentProgress.tsx'
+import { CommentReply } from './CommentReply.tsx'
 import type { PlanPartElement } from './planParts.ts'
 import { isSendShortcut, SendShortcut } from './ui/Kbd.tsx'
 import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle } from './ui/Popover.tsx'
@@ -14,9 +15,11 @@ export type CommentPopoverProps = {
   comments: PlanComment[]
   sending: boolean
   error: string
+  freshReplyIds?: ReadonlySet<string>
   onOpenChange: (open: boolean) => void
   onSend: (text: string) => Promise<void>
   onAddress: (id: string) => void
+  onReplySettled?: (id: string) => void
 }
 
 export function CommentPopover({
@@ -27,9 +30,11 @@ export function CommentPopover({
   comments,
   sending,
   error,
+  freshReplyIds,
   onOpenChange,
   onSend,
   onAddress,
+  onReplySettled,
 }: CommentPopoverProps) {
   const [draft, setDraft] = useState('')
 
@@ -72,6 +77,13 @@ export function CommentPopover({
             {comments.map((comment) => (
               <li key={comment.id}>
                 <p>{comment.text}</p>
+                {(comment.replies ?? []).map((reply) => (
+                  <CommentReply
+                    key={reply.id}
+                    reply={{ id: reply.id, text: reply.text, fresh: freshReplyIds?.has(reply.id) }}
+                    onSettled={onReplySettled}
+                  />
+                ))}
                 {comment.addressedAt ? (
                   <span className="plan-comment-state">Addressed</span>
                 ) : comment.addressingAt ? (
