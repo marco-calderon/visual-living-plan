@@ -1,4 +1,4 @@
-import type { SectionDiff } from './types.js'
+import type { SectionDiff } from './types'
 
 function similarity(a: string, b: string): number {
   if (a === b) return 1

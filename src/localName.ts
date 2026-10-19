@@ -3,8 +3,8 @@ import { lookup } from 'node:dns/promises'
 import { connect, createServer, type Socket } from 'node:net'
 import { readFile, rename, rm, writeFile } from 'node:fs/promises'
 
-import type { FetchApp } from './httpServer.js'
-import { bindElysiaAt } from './httpServer.js'
+import type { FetchApp } from './httpServer'
+import { bindElysiaAt } from './httpServer'
 
 /**
  * Browser name for the loopback plan service.

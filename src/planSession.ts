@@ -2,12 +2,12 @@ import { nanoid } from 'nanoid'
 import { watch } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import { basename, dirname, extname, join, normalize, resolve } from 'node:path'
-import { clientDistDir, loadClientAssets, type ClientAssets } from './assets.js'
-import { html, HttpError, jsonBody } from './http.js'
-import { diffSections } from './diff.js'
-import { createIdleExecutionState, type ExecutionState } from './execution.js'
-import { collectSectionSources, parsePlan } from './parse.js'
-import { renderPlanPage } from './render.js'
+import { clientDistDir, loadClientAssets, type ClientAssets } from './assets'
+import { html, HttpError, jsonBody } from './http'
+import { diffSections } from './diff'
+import { createIdleExecutionState, type ExecutionState } from './execution'
+import { collectSectionSources, parsePlan } from './parse'
+import { renderPlanPage } from './render'
 import {
   configPathBesidePlan,
   loadThemeConfig,
@@ -15,9 +15,9 @@ import {
   saveThemeConfig,
   themePayload,
   type ThemeConfig,
-} from './theme.js'
-import { planToExpectedGraph, withPlannedWorkflow } from './workflow.js'
-import type { PlanMode } from './processRecord.js'
+} from './theme'
+import { planToExpectedGraph, withPlannedWorkflow } from './workflow'
+import type { PlanMode } from './processRecord'
 import type {
   InteractionResponse,
   PlanComment,
@@ -26,7 +26,7 @@ import type {
   ReviewDecision,
   ReviewResult,
   SectionDiff,
-} from './types.js'
+} from './types'
 
 type SseClient = {
   write: (event: string, data: unknown) => void

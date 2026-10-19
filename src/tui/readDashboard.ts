@@ -1,5 +1,5 @@
-import type { DashboardPayload, DashboardPeriod } from '../dashboard.js'
-import { isDashboardPayload } from './dashboardView.js'
+import type { DashboardPayload, DashboardPeriod } from '../dashboard'
+import { isDashboardPayload } from './dashboardView'
 
 /** The dashboard page reads `GET /api/dashboard?period=`. The terminal view uses that same response. */
 export async function readDashboard(registryUrl: string, period: DashboardPeriod): Promise<DashboardPayload> {

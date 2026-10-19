@@ -1,5 +1,5 @@
-import { HttpError } from './http.js'
-import { readClientAsset, type PlanSession } from './planSession.js'
+import { HttpError } from './http'
+import { readClientAsset, type PlanSession } from './planSession'
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{8,80}$/
 

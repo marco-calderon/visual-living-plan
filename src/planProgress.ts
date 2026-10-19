@@ -1,5 +1,5 @@
-import type { CompletionState } from './processRecord.js'
-import type { PlanDocument } from './types.js'
+import type { CompletionState } from './processRecord'
+import type { PlanDocument } from './types'
 
 export type PlanProgress = {
   phaseTotal: number

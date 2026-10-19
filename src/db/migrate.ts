@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm'
-import type { PlanDatabase } from './client.js'
-import { parseStoredRun, planRunInsert } from './rows.js'
-import { planRuns } from './schema.js'
+import type { PlanDatabase } from './client'
+import { parseStoredRun, planRunInsert } from './rows'
+import { planRuns } from './schema'
 
 type ColumnSpec = {
   name: string

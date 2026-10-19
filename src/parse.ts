@@ -8,7 +8,7 @@ import type {
   PlanDocument,
   WorkflowEdgeSpec,
   WorkflowNodeSpec,
-} from './types.js'
+} from './types'
 
 const FENCE_RE =
   /^```(phase|choice|approve|form|questions|checklist|callout|workflow)\s*\n([\s\S]*?)^```/gm

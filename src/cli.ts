@@ -4,8 +4,8 @@ import { writeSync } from 'node:fs'
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { loadClientAssets } from './assets.js'
-import { parsePlan } from './parse.js'
+import { loadClientAssets } from './assets'
+import { parsePlan } from './parse'
 import {
   ackPlanEvents,
   pendingFromHello,
@@ -13,10 +13,10 @@ import {
   planIdFromPlanUrl,
   readAgentEvents,
   submissionEvent,
-} from './agentEvents.js'
-import type { PlanSubmissionEvent } from './types.js'
-import { startLivingPlanServer } from './server.js'
-import type { ExecutionGraph, ExecutionState } from './execution.js'
+} from './agentEvents'
+import type { PlanSubmissionEvent } from './types'
+import { startLivingPlanServer } from './server'
+import type { ExecutionGraph, ExecutionState } from './execution'
 import {
   configPathBesidePlan,
   DEFAULT_ACCENT,
@@ -25,8 +25,8 @@ import {
   normalizeAccent,
   saveThemeConfig,
   themePayload,
-} from './theme.js'
-import { planToExpectedGraph, workflowRequirementError } from './workflow.js'
+} from './theme'
+import { planToExpectedGraph, workflowRequirementError } from './workflow'
 import {
   closeHostedPlan,
   defaultRegistryHome,
@@ -40,8 +40,8 @@ import {
   registryHealthy,
   rewriteToBindUrl,
   type RegistryLock,
-} from './registryClient.js'
-import { isPidAlive } from './pid.js'
+} from './registryClient'
+import { isPidAlive } from './pid'
 import {
   dropSudoPrivileges,
   ensureLocalHostname,
@@ -54,8 +54,8 @@ import {
   removeLocalHostname,
   resolveLocalName,
   startTcpForward,
-} from './localName.js'
-import { DEFAULT_REGISTRY_HOST, DEFAULT_REGISTRY_PORT } from './registryConstants.js'
+} from './localName'
+import { DEFAULT_REGISTRY_HOST, DEFAULT_REGISTRY_PORT } from './registryConstants'
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -851,7 +851,7 @@ async function cmdDashboard(args: string[]): Promise<number> {
 }
 
 async function cmdRegistry(args: string[]): Promise<number> {
-  const { startRegistryServer } = await import('./registryService.js')
+  const { startRegistryServer } = await import('./registryService')
   const home = process.env.LIVE_PLAN_HOME ?? defaultRegistryHome()
   const portFlag = getFlag(args, '--port')
   const port = portFlag ? Number(portFlag) : DEFAULT_REGISTRY_PORT
@@ -1128,7 +1128,7 @@ async function main(): Promise<number> {
   }
 
   if (command === 'tui') {
-    const { runTui } = await import('./tui/runTui.js')
+    const { runTui } = await import('./tui/runTui')
     return runTui(args.slice(1), fileURLToPath(import.meta.url))
   }
 

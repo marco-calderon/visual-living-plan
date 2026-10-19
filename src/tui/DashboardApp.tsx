@@ -1,7 +1,7 @@
 import { Box, JumpNav, Keybind, ScrollView, Spinner, Text, useApp, useInput, useMediaQuery } from '@semos-labs/glyph'
 import { useEffect, useState } from 'react'
-import type { DashboardPayload, DashboardPeriod } from '../dashboard.js'
-import { archiveUrl, livePlanUrl } from './dashboardView.js'
+import type { DashboardPayload, DashboardPeriod } from '../dashboard'
+import { archiveUrl, livePlanUrl } from './dashboardView'
 import {
   FILTER_LABEL,
   PERIODS,
@@ -13,14 +13,14 @@ import {
   shiftPeriod,
   summaryStats,
   type DashboardStatusFilter,
-} from './dashboardView.js'
-import { openExternal } from './openExternal.js'
-import { palette } from './palette.js'
-import { PlanCard } from './PlanCard.js'
-import { PlanTable } from './PlanTable.js'
-import { readDashboard } from './readDashboard.js'
-import { SegmentButton } from './SegmentButton.js'
-import { StatCard } from './StatCard.js'
+} from './dashboardView'
+import { openExternal } from './openExternal'
+import { palette } from './palette'
+import { PlanCard } from './PlanCard'
+import { PlanTable } from './PlanTable'
+import { readDashboard } from './readDashboard'
+import { SegmentButton } from './SegmentButton'
+import { StatCard } from './StatCard'
 
 type DashboardAppProps = {
   registryUrl: string

@@ -1,5 +1,5 @@
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import type { CompletionState, PlanMode, PlanStatus, ReviewOutcome } from '../processRecord.js'
+import type { CompletionState, PlanMode, PlanStatus, ReviewOutcome } from '../processRecord'
 
 /**
  * Live private-server registration.

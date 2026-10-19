@@ -1,7 +1,7 @@
 import { drizzle, type BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
 import { sql } from 'drizzle-orm'
-import { migratePlanDatabase } from './migrate.js'
-import * as schema from './schema.js'
+import { migratePlanDatabase } from './migrate'
+import * as schema from './schema'
 
 export type PlanDatabase = BunSQLiteDatabase<typeof schema>
 

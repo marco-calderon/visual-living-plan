@@ -1,5 +1,5 @@
 import { Box, Button } from '@semos-labs/glyph'
-import { palette } from './palette.js'
+import { palette } from './palette'
 
 type PlanActionsProps = {
   openUrl: string | null

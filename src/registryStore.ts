@@ -1,8 +1,8 @@
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { and, desc, eq, lte, sql } from 'drizzle-orm'
-import { openPlanDatabase } from './db/client.js'
-import { planInsertFromProcess, planRowToProcess, planRunInsert, planRunRowToRecord } from './db/rows.js'
+import { openPlanDatabase } from './db/client'
+import { planInsertFromProcess, planRowToProcess, planRunInsert, planRunRowToRecord } from './db/rows'
 import {
   planEvents,
   planRuns,
@@ -14,12 +14,12 @@ import {
   type PlanRunInsert,
   type PlanSessionInsert,
   type PlanSessionRow,
-} from './db/schema.js'
-import { STALE_MS } from './registryConstants.js'
-import { isPidAlive } from './pid.js'
-import type { PlanMode, PlanRecord, ProcessPulse, ProcessRecord } from './processRecord.js'
-import type { PlanSubmissionEvent } from './types.js'
-import { finishedPlan, isPlanMode } from './processRecord.js'
+} from './db/schema'
+import { STALE_MS } from './registryConstants'
+import { isPidAlive } from './pid'
+import type { PlanMode, PlanRecord, ProcessPulse, ProcessRecord } from './processRecord'
+import type { PlanSubmissionEvent } from './types'
+import { finishedPlan, isPlanMode } from './processRecord'
 
 export type StoredPlanSession = {
   id: string
