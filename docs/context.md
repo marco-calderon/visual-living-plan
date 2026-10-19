@@ -49,7 +49,7 @@ Home directory for the service is `~/.visual-living-plan`, or `LIVE_PLAN_HOME` w
 - The agent stream on the service requires a bearer token. Browser submission routes stay open on loopback.
 - A plan session is closed on `live-plan close`, and when it has no open browser or agent stream and `lastSeenAt` is 6 hours old. Approve and deny return that session to watch and leave it open. Iterate leaves it open in review.
 - Restart the service when the package version in the lock file does not match the CLI.
-- The service process stays running after `serve`, `events`, `wait`, and `review` exit.
+- The service process stays running after `serve`, `events`, `wait`, `review`, `dashboard`, and `tui` exit.
 - A `workflow` block is required in a plan. `check` fails without it.
 - While execution is active, plan forms and review return HTTP 409.
 

@@ -6,7 +6,7 @@ Read [the decisions](decisions/README.md) for why it is shaped this way. Read [t
 
 ## How the pieces talk
 
-A single Bun process listens on `127.0.0.1:9477`. `serve` and `review` start it when it is not already running, then register a plan. That process is detached into its own session. It keeps running after `serve`, `review`, `events`, `watch`, and `wait` exit, and after the terminal that started them closes. `serve` is a client of that plan. It prints undelivered submissions and exits. The page stays up. `review` waits for the decision and leaves the plan open. Approve and deny set that session back to watch. Iterate leaves it in review, hides the verdict bar, and marks comments that are not yet addressed as in progress ([ADR 0013](decisions/0013-iterate-keeps-review.md)). `live-plan mode` moves the same session between watch, comment, and review, and the open tab follows.
+A single Bun process listens on `127.0.0.1:9477`. `serve` and `review` start it when it is not already running, then register a plan. That process is detached into its own session. It keeps running after `serve`, `review`, `events`, `watch`, `wait`, `dashboard`, and `tui` exit, and after the terminal that started them closes. `serve` is a client of that plan. It prints undelivered submissions and exits. The page stays up. `review` waits for the decision and leaves the plan open. Approve and deny set that session back to watch. Iterate leaves it in review, hides the verdict bar, and marks comments that are not yet addressed as in progress ([ADR 0013](decisions/0013-iterate-keeps-review.md)). `live-plan mode` moves the same session between watch, comment, and review, and the open tab follows.
 
 On loopback, that printed URL uses `living-plan.local` when the name resolves only to loopback ([ADR 0010](decisions/0010-local-hostname.md)). The service adds the hosts-file line when it can. It also accepts port 80 on loopback when that port is free, so the URL can be `http://living-plan.local/plans/<id>/` with no port. If port 80 cannot be opened, the URL keeps `:9477`. The socket stays on `127.0.0.1`. `--host` other than loopback is unchanged, so a cloud agent can still share a reachable address.
 
@@ -109,7 +109,7 @@ While execution is active, plan forms and review return HTTP 409. Comments stay 
 
 ## Dashboard
 
-`/dashboard` summarizes running, executed, and interrupted plans for the local day, week, or month. The page is `src/dashboardPage.ts`. The grouping is `src/dashboard.ts`. `live-plan tui` renders that same `GET /api/dashboard` payload in the terminal and lists running plans first.
+`/dashboard` summarizes running, executed, and interrupted plans for the local day, week, or month. The page is `src/dashboardPage.ts`. The grouping is `src/dashboard.ts`. `live-plan tui` is that registry in the terminal: the running-plan list from `GET /api/processes`, and the same `GET /api/dashboard` payload with running plans listed first. Starting it starts the service when none is running. Quitting the terminal leaves the service up.
 
 ```mermaid
 flowchart LR
@@ -136,7 +136,7 @@ A row overlaps the selected window when it started before the end of the window 
 | `src/server.ts` | The private one-plan Elysia app used by `--no-registry` |
 | `src/httpServer.ts` | Binds an Elysia app with `Bun.serve` so event streams stay open |
 | `src/localName.ts` | `living-plan.local` and the loopback forward from port 80 |
-| `src/cli.ts` | Client of the service. `serve` registers and prints that plan's undelivered submissions. `events`, `wait`, `watch`, and `review` read the same stream. `dashboard` opens `/dashboard`. `tui` reads `/api/dashboard` |
+| `src/cli.ts` | Client of the service. `serve` registers and prints that plan's undelivered submissions. `events`, `wait`, `watch`, and `review` read the same stream. `dashboard` opens `/dashboard`. `tui` reads `/api/processes` and `/api/dashboard`, and leaves the service running when it exits |
 | `src/agentEvents.ts` | SSE reader, ack helper, and `planApiUrl` used by the CLI |
 | `src/dashboard.ts`, `src/dashboardPage.ts`, `src/tui/` | Period summary, the dashboard page, and the terminal view of the same read |
 | `src/planArchive.ts` | Copy a plan file into the registry home and serve that copy |
