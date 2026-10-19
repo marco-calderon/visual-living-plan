@@ -88,7 +88,7 @@ Usage:
   live-plan dump <file.plan.md>
   live-plan processes
   live-plan dashboard
-  live-plan tui [--period day|week|month]
+  live-plan tui [--period day|week|month] [--registry-port N] [--registry-host HOST]
   live-plan registry [--port N] [--host HOST]
   live-plan hostname [status|install|remove]
 
@@ -107,7 +107,7 @@ Modes:
   check       Print plan summary. Exits 1 when the required workflow block is missing.
   processes   List plans hosted by the service. \`ps\` is the same command.
   dashboard   Open the control dashboard (running and executed plans, by day, week, or month).
-  tui         The same dashboard in the terminal. Day is the default. Week and month are the other periods. Active plans are listed first. Click a control, or use Tab, arrows, and the number keys.
+  tui         The registry in the terminal: running plans, and the day, week, and month dashboard. Starts the plan service when it is not already running. Quitting leaves that service up. Active plans are listed first. Click a control, or use Tab, arrows, p, d, and the number keys.
   registry    Run the plan service in the foreground. serve and review start it on their own.
   hostname    Show or install the living-plan.local name (loopback). install may ask for sudo.
 
@@ -117,7 +117,7 @@ Accent color is saved in live-plan.config.json beside the plan (override with --
 --detach registers the plan and returns. Without it, serve prints the next undelivered submissions and exits. The page stays up on the service.
 events does the same on a URL you already have. A submission that arrived while it was stopped is printed immediately, then the process exits. Start events again after every comment, denial, or approval so a pending event is not left on the server.
 watch switches that session to watch mode and stays running. Use it after an approval, while execution is in progress. Stop it when execution is finished.
-The machine service keeps running after serve, events, wait, and review exit.
+The machine service keeps running after serve, events, wait, review, dashboard, and tui exit.
 --no-registry serves this plan in its own process instead of the machine service.
 --port sets that private process port. With the service, --port is used only when the service is not already running.
 --registry-port and --registry-host choose the service (default ${DEFAULT_REGISTRY_HOST}:${DEFAULT_REGISTRY_PORT}).
