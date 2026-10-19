@@ -313,6 +313,42 @@ body.plan-grab-armed .mermaid-diagram.is-maximized .mermaid-control {
   gap: 0.6rem;
 }
 
+.plan-agent-message {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.plan-comment-reply {
+  margin: 0;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  font: 400 0.85rem/1.4 "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+}
+
+.plan-comment-reply-label {
+  display: block;
+  margin-bottom: 0.15rem;
+  font: 600 0.7rem/1 "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  color: var(--accent);
+}
+
+.plan-comment-reply.reply-applied {
+  animation: reply-applied 1.15s ease;
+}
+
+@keyframes reply-applied {
+  0% { background-color: var(--wash-accent); }
+  100% { background-color: var(--accent-soft); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-comment-reply.reply-applied { animation: none; }
+}
+
 .plan-agent-list .plan-comment-progress {
   color: var(--accent);
   flex: 0 0 auto;

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { replyArrival, replySurface } from '../src/commentReply.ts'
 import type { PlanComment, ReviewResult } from '../src/types.ts'
-import { AgentMessageTray, type AgentMessageStatus } from './AgentMessageTray.tsx'
+import { AgentMessageTray, type AgentMessage, type AgentMessageStatus } from './AgentMessageTray.tsx'
 import { ApproveButton } from './ApproveButton.tsx'
 import { CommentPopover } from './CommentPopover.tsx'
 import { CommentToggle } from './CommentToggle.tsx'
@@ -10,6 +11,7 @@ import {
   blockIdFromPart,
   describe,
   findPartElement,
+  highlightChangedPart,
   parentPart,
   childPart,
   partLabel,
@@ -116,6 +118,26 @@ function upsert(comments: PlanComment[], comment: PlanComment): PlanComment[] {
   return next
 }
 
+function trayMessages(
+  comments: PlanComment[],
+  note: string | undefined,
+  fresh: ReadonlySet<string>,
+): AgentMessage[] {
+  return [
+    ...(note?.trim() ? [{ id: 'review-note', text: note.trim(), status: 'pending' as const }] : []),
+    ...comments.map((comment) => ({
+      id: comment.id,
+      text: comment.text,
+      status: messageStatus(comment),
+      replies: (comment.replies ?? []).map((reply) => ({
+        id: reply.id,
+        text: reply.text,
+        fresh: fresh.has(reply.id),
+      })),
+    })),
+  ]
+}
+
 export function PlanSelector() {
   const [mode, setMode] = useState<SessionMode>(readMode)
   const [commentsOn, setCommentsOn] = useState(() => readMode() !== 'watch')
@@ -123,6 +145,10 @@ export function PlanSelector() {
   modeRef.current = mode
   const enabled = mode === 'review' ? commentsOn : mode !== 'watch'
   const [comments, setComments] = useState<PlanComment[]>(readComments)
+  const commentsRef = useRef(comments)
+  const [freshReplies, setFreshReplies] = useState<ReadonlySet<string>>(() => new Set())
+  const [trayAttention, setTrayAttention] = useState<string | null>(null)
+  const [replyReveal, setReplyReveal] = useState(false)
   const [hover, setHover] = useState<PlanPart | null>(null)
   const [locked, setLocked] = useState<PlanPart | null>(null)
   const [open, setOpen] = useState(false)
@@ -186,15 +212,55 @@ export function PlanSelector() {
     return () => window.removeEventListener('living-plan-mode', onMode)
   }, [])
 
+  function commitComments(update: (current: PlanComment[]) => PlanComment[]) {
+    const next = update(commentsRef.current)
+    commentsRef.current = next
+    setComments(next)
+  }
+
+  function settleReply(id: string) {
+    setFreshReplies((current) => {
+      if (!current.has(id)) return current
+      const next = new Set(current)
+      next.delete(id)
+      return next
+    })
+  }
+
+  function revealReply(previous: PlanComment[], comment: PlanComment) {
+    const arrival = replyArrival(previous, comment)
+    if (!arrival) return
+    setFreshReplies((current) => {
+      const next = new Set(current)
+      for (const id of arrival.replyIds) next.add(id)
+      return next
+    })
+    const latest = arrival.replyIds[arrival.replyIds.length - 1] ?? null
+    if (arrival.surface === 'minibar') {
+      setTrayAttention(latest)
+      return
+    }
+    highlightChangedPart(comment.partId)
+    const element = findPartElement(comment.partId)
+    if (!element) return
+    const described = describe(element)
+    setLocked(described)
+    setHover(described)
+    setHoverRect(described.element.getBoundingClientRect())
+    setError('')
+    setReplyReveal(true)
+    setOpen(true)
+  }
+
   useEffect(() => {
     document.body.classList.toggle('plan-grab-armed', enabled)
-    if (!enabled) {
+    if (!enabled && !replyReveal) {
       setHover(null)
       setOpen(false)
       setLocked(null)
     }
     return () => document.body.classList.remove('plan-grab-armed')
-  }, [enabled])
+  }, [enabled, replyReveal])
 
   async function approvePlan() {
     const response = await fetch(apiPath('/api/review'), {
@@ -216,7 +282,7 @@ export function PlanSelector() {
       })
       if (!response.ok) throw new Error((await response.text()) || 'Could not send the message')
       const body = (await response.json()) as { comment?: PlanComment }
-      if (body.comment) setComments((current) => upsert(current, body.comment as PlanComment))
+      if (body.comment) commitComments((current) => upsert(current, body.comment as PlanComment))
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not send the message')
       throw cause
@@ -250,7 +316,9 @@ export function PlanSelector() {
       try {
         const comment = JSON.parse((event as MessageEvent).data) as PlanComment
         if (!comment?.id || !comment.partId) return
-        setComments((current) => upsert(current, comment))
+        const previous = commentsRef.current
+        commitComments((current) => upsert(current, comment))
+        revealReply(previous, comment)
       } catch {
         // Ignore a malformed event.
       }
@@ -465,7 +533,7 @@ export function PlanSelector() {
       })
       if (!response.ok) throw new Error((await response.text()) || 'Could not send the comment')
       const body = (await response.json()) as { comment?: PlanComment }
-      if (body.comment) setComments((current) => upsert(current, body.comment as PlanComment))
+      if (body.comment) commitComments((current) => upsert(current, body.comment as PlanComment))
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not send the comment')
       throw cause
@@ -480,7 +548,7 @@ export function PlanSelector() {
     })
     if (!response.ok) return
     const body = (await response.json()) as { comment?: PlanComment }
-    if (body.comment) setComments((current) => upsert(current, body.comment as PlanComment))
+    if (body.comment) commitComments((current) => upsert(current, body.comment as PlanComment))
   }
 
   const overlay = open ? locked : hover
@@ -539,31 +607,29 @@ export function PlanSelector() {
         comments={thread}
         sending={sending}
         error={error}
+        freshReplyIds={freshReplies}
         onOpenChange={(next) => {
           setOpen(next)
-          if (!next) setLocked(null)
+          if (!next) {
+            setLocked(null)
+            setReplyReveal(false)
+          }
         }}
         onSend={send}
         onAddress={(id) => void address(id)}
+        onReplySettled={settleReply}
       />
       <div className="plan-corner-actions">
         <CommentToggle enabled={enabled} onToggle={() => void toggleMode()} />
         {mode === 'review' && !sentReview ? <ApproveButton onApprove={() => void approvePlan()} /> : null}
       </div>
-      {mode === 'review' ? (
+      {mode === 'review' || comments.some((comment) => replySurface(comment) === 'minibar') ? (
         <AgentMessageTray
           sending={sending}
+          attentionKey={trayAttention}
           onSend={sendTrayMessage}
-          messages={[
-            ...(sentReview?.note?.trim()
-              ? [{ id: 'review-note', text: sentReview.note.trim(), status: 'pending' as const }]
-              : []),
-            ...comments.map((comment) => ({
-              id: comment.id,
-              text: comment.text,
-              status: messageStatus(comment),
-            })),
-          ]}
+          onReplySettled={settleReply}
+          messages={trayMessages(comments, sentReview?.note, freshReplies)}
         />
       ) : null}
     </>

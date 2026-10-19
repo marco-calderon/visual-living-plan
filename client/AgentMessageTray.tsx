@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import type { FocusEvent, FormEvent, KeyboardEvent, MouseEvent, PointerEvent } from 'react'
+import type { FormEvent, KeyboardEvent, MouseEvent, PointerEvent } from 'react'
 import { CircleCheck, CircleX, Send, TriangleAlert } from 'lucide-react'
 import { CommentProgress } from './CommentProgress.tsx'
+import { CommentReply, type CommentReplyView } from './CommentReply.tsx'
 import { isSendShortcut, SendShortcut } from './ui/Kbd.tsx'
 
 export type AgentMessageStatus = 'working' | 'implemented' | 'errored' | 'issues' | 'pending'
@@ -10,12 +11,16 @@ export type AgentMessage = {
   id: string
   text: string
   status: AgentMessageStatus
+  replies?: CommentReplyView[]
 }
 
 export type AgentMessageTrayProps = {
   messages: AgentMessage[]
   sending: boolean
+  /** Changes when a new minibar reply should open the tray. */
+  attentionKey?: string | null
   onSend: (text: string) => Promise<void>
+  onReplySettled?: (id: string) => void
 }
 
 type MessageStateProps = {
@@ -42,7 +47,13 @@ function overMessages(target: EventTarget | null): boolean {
   return target instanceof Element && Boolean(target.closest('.plan-agent-toggle, .plan-agent-panel'))
 }
 
-export function AgentMessageTray({ messages, sending, onSend }: AgentMessageTrayProps) {
+export function AgentMessageTray({
+  messages,
+  sending,
+  attentionKey,
+  onSend,
+  onReplySettled,
+}: AgentMessageTrayProps) {
   const [hovering, setHovering] = useState(false)
   const [focused, setFocused] = useState(false)
   const [pinned, setPinned] = useState(false)
@@ -51,10 +62,15 @@ export function AgentMessageTray({ messages, sending, onSend }: AgentMessageTray
   const open = hovering || focused || pinned
 
   useEffect(() => {
+    if (!attentionKey) return
+    setPinned(true)
+  }, [attentionKey])
+
+  useEffect(() => {
     const node = dock.current
     if (!node) return
     const onFocusIn = () => setFocused(true)
-    const onFocusOut = (event: FocusEvent) => {
+    const onFocusOut = (event: globalThis.FocusEvent) => {
       const next = event.relatedTarget
       if (next instanceof Node && node.contains(next)) return
       setFocused(false)
@@ -69,7 +85,7 @@ export function AgentMessageTray({ messages, sending, onSend }: AgentMessageTray
 
   useEffect(() => {
     if (!open) return
-    const onPointer = (event: PointerEvent) => {
+    const onPointer = (event: globalThis.PointerEvent) => {
       const node = dock.current
       if (!node || (event.target instanceof Node && node.contains(event.target))) return
       setPinned(false)
@@ -137,7 +153,12 @@ export function AgentMessageTray({ messages, sending, onSend }: AgentMessageTray
               <ul className="plan-agent-list">
                 {messages.map((message) => (
                   <li key={message.id}>
-                    <p>{message.text}</p>
+                    <div className="plan-agent-message">
+                      <p>{message.text}</p>
+                      {(message.replies ?? []).map((reply) => (
+                        <CommentReply key={reply.id} reply={reply} onSettled={onReplySettled} />
+                      ))}
+                    </div>
                     <MessageState status={message.status} />
                   </li>
                 ))}

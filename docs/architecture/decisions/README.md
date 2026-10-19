@@ -17,5 +17,6 @@ Decisions are numbered in the order they were made. Superseded decisions stay he
 | [0011](0011-live-session-mode.md) | 2026-10-15 | Accepted | Session mode is live on the open tab, and review leaves the plan open |
 | [0012](0012-submission-delivery.md) | 2026-10-17 | Accepted | Submissions are stored with `delivered_at` and the CLI exits after printing them |
 | [0013](0013-iterate-keeps-review.md) | 2026-10-18 | Accepted | Iterate leaves the session in review and comments record an outcome |
+| [0014](0014-comment-replies.md) | 2026-10-19 | Accepted | An agent reply is stored on the comment and shown on its thread |
 
 Add the next decision as `0014-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.

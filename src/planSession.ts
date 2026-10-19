@@ -19,6 +19,7 @@ import {
 import { planToExpectedGraph, withPlannedWorkflow } from './workflow'
 import type { PlanMode } from './processRecord'
 import type {
+  CommentReply,
   InteractionResponse,
   PlanComment,
   PlanDocument,
@@ -107,6 +108,7 @@ export type PlanSession = {
   submitInteraction: (interactionId: string, body: unknown) => unknown
   submitComment: (body: unknown) => unknown
   addressComment: (commentId: string, body?: unknown) => unknown
+  replyToComment: (commentId: string, body: unknown) => unknown
   markAddressing: (commentId: string) => unknown
   submitReview: (body: unknown) => unknown
   acknowledgeEvents: (body: unknown) => { ok: true; delivered: string[] }
@@ -655,9 +657,27 @@ export async function openPlanSession(options: {
     comment.outcome = outcome === 'errored' || outcome === 'issues' || outcome === 'implemented' ? outcome : 'implemented'
     if (!comment.addressedAt) comment.addressedAt = Date.now()
     comment.addressingAt = null
-    broadcast('comment', { ...comment })
+    broadcast('comment', { ...comment, replies: comment.replies?.map((reply) => ({ ...reply })) })
     persist()
     return { ok: true, comment }
+  }
+
+  function replyToComment(commentId: string, body: unknown): unknown {
+    touch()
+    const payload = jsonBody(body, true) as { text?: unknown }
+    const text = String(payload.text ?? '').trim()
+    if (!text || text.length > 4000) throw new HttpError(400, 'Missing reply')
+    const comment = comments.find((entry) => entry.id === commentId)
+    if (!comment) throw new HttpError(404, 'Unknown comment')
+    const reply: CommentReply = {
+      id: `rpl_${nanoid()}`,
+      text,
+      createdAt: Date.now(),
+    }
+    comment.replies = [...(comment.replies ?? []), reply]
+    broadcast('comment', { ...comment, replies: comment.replies.map((entry) => ({ ...entry })) })
+    persist()
+    return { ok: true, comment, reply }
   }
 
   function markAddressing(commentId: string): unknown {
@@ -777,6 +797,7 @@ export async function openPlanSession(options: {
     submitInteraction,
     submitComment,
     addressComment,
+    replyToComment,
     markAddressing,
     submitReview,
     acknowledgeEvents,

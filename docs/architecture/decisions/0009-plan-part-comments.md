@@ -1,6 +1,6 @@
 # ADR 0009: Comments on plan parts use the same agent event stream
 
-- Status: Accepted. Printing those comments is [ADR 0012](0012-submission-delivery.md). In-progress comments and address outcomes are [ADR 0013](0013-iterate-keeps-review.md).
+- Status: Accepted. Printing those comments is [ADR 0012](0012-submission-delivery.md). In-progress comments and address outcomes are [ADR 0013](0013-iterate-keeps-review.md). Agent replies on a comment are [ADR 0014](0014-comment-replies.md).
 - Date: 2026-10-13
 
 ## Context

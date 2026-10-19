@@ -251,6 +251,176 @@ test('a plan comment reaches the agent and can be addressed', async () => {
   }
 })
 
+test('an agent reply is recorded in the registry and broadcast to the page', async () => {
+  const home = await tempHome()
+  const registry = await startRegistryServer({ home, port: 0, token: 'test-token-value' })
+  try {
+    const hosted = await registerHostedPlan(registry.url, registry.token, {
+      planPath,
+      mode: 'review',
+      cwd: process.cwd(),
+    })
+
+    const componentPosted = await fetch(new URL('api/comments', hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        partId: 'phase:implement/paragraph:1',
+        kind: 'paragraph',
+        blockId: 'implement',
+        excerpt: 'Wire the limiter',
+        text: 'Default the flag on in staging.',
+      }),
+    })
+    assert.equal(componentPosted.status, 200)
+    const component = (await componentPosted.json()) as { comment: { id: string } }
+
+    const minibarPosted = await fetch(new URL('api/comments', hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        partId: 'review:message',
+        kind: 'message',
+        text: 'Leave the approval bar up.',
+      }),
+    })
+    assert.equal(minibarPosted.status, 200)
+    const minibar = (await minibarPosted.json()) as { comment: { id: string } }
+
+    const pendingBefore = await helloPending(hosted.url, hosted.token)
+    assert.equal(pendingBefore.length, 2)
+
+    const seen: string[] = []
+    const controller = new AbortController()
+    let ready = false
+    const reading = readAgentEvents(
+      hosted.url,
+      hosted.token,
+      (event) => {
+        if (event.event === 'hello') {
+          ready = true
+          return
+        }
+        if (event.event !== 'comment') return
+        const replies = (event.data as { replies?: Array<{ text?: string }> }).replies
+        if (!replies?.length) return
+        const text = replies[replies.length - 1]?.text
+        if (text) seen.push(text)
+        if (seen.length >= 2) controller.abort()
+      },
+      controller.signal,
+    )
+    await new Promise<void>((resolveReady, reject) => {
+      const timer = setTimeout(() => reject(new Error('timed out waiting for the reply client')), 2_000)
+      const poll = setInterval(() => {
+        if (!ready) return
+        clearInterval(poll)
+        clearTimeout(timer)
+        resolveReady()
+      }, 20)
+    })
+
+    const componentReply = await fetch(new URL(`api/comments/${component.comment.id}/reply`, hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'The flag stays on in staging.' }),
+    })
+    assert.equal(componentReply.status, 200)
+    const componentBody = (await componentReply.json()) as {
+      reply: { id: string; text: string; createdAt: number }
+      comment: { replies: Array<{ id: string; text: string }> }
+    }
+    assert.match(componentBody.reply.id, /^rpl_/)
+    assert.equal(componentBody.reply.text, 'The flag stays on in staging.')
+    assert.equal(typeof componentBody.reply.createdAt, 'number')
+    assert.equal(componentBody.comment.replies[0]?.id, componentBody.reply.id)
+
+    const minibarReply = await fetch(new URL(`api/comments/${minibar.comment.id}/reply`, hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'The verdict bar stays while I answer.' }),
+    })
+    assert.equal(minibarReply.status, 200)
+
+    const missing = await fetch(new URL('api/comments/cmt_missing/reply', hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'Nope' }),
+    })
+    assert.equal(missing.status, 404)
+    const empty = await fetch(new URL(`api/comments/${component.comment.id}/reply`, hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: '   ' }),
+    })
+    assert.equal(empty.status, 400)
+
+    await Promise.race([
+      reading.catch((error: unknown) => {
+        if (error instanceof Error && error.name === 'AbortError') return
+        throw error
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timed out waiting for replies')), 2_000)),
+    ])
+    assert.deepEqual(seen.sort(), ['The flag stays on in staging.', 'The verdict bar stays while I answer.'].sort())
+
+    const pendingAfter = await helloPending(hosted.url, hosted.token)
+    assert.equal(pendingAfter.length, pendingBefore.length)
+    assert.equal(
+      pendingAfter.some((event) => JSON.stringify(event.data).includes('rpl_')),
+      false,
+    )
+
+    const page = await fetch(hosted.url)
+    assert.match(await page.text(), /The flag stays on in staging\./)
+
+    await registry.close()
+    const store = await openRegistryStore(registryDatabasePath(home))
+    try {
+      const session = store.getSession(hosted.id)
+      const stored = JSON.parse(session?.commentsJson ?? '[]') as Array<{
+        id: string
+        kind: string
+        partId: string
+        replies?: Array<{ id: string; text: string }>
+      }>
+      const onPart = stored.find((comment) => comment.id === component.comment.id)
+      const onTray = stored.find((comment) => comment.id === minibar.comment.id)
+      assert.equal(onPart?.kind, 'paragraph')
+      assert.equal(onPart?.replies?.[0]?.text, 'The flag stays on in staging.')
+      assert.match(onPart?.replies?.[0]?.id ?? '', /^rpl_/)
+      assert.equal(onTray?.partId, 'review:message')
+      assert.equal(onTray?.replies?.[0]?.text, 'The verdict bar stays while I answer.')
+      assert.equal(
+        store.listEvents(hosted.id).some((event) => JSON.stringify(event.data).includes('rpl_')),
+        false,
+      )
+    } finally {
+      store.close()
+    }
+
+    const restored = await startRegistryServer({ home, port: 0, token: 'test-token-value' })
+    try {
+      const plan = (await (await fetch(new URL(`/plans/${hosted.id}/api/plan`, restored.url))).json()) as {
+        comments: Array<{ id: string; replies?: Array<{ text: string }> }>
+      }
+      assert.equal(
+        plan.comments.find((comment) => comment.id === component.comment.id)?.replies?.[0]?.text,
+        'The flag stays on in staging.',
+      )
+      assert.equal(
+        plan.comments.find((comment) => comment.id === minibar.comment.id)?.replies?.[0]?.text,
+        'The verdict bar stays while I answer.',
+      )
+    } finally {
+      await restored.close()
+    }
+  } finally {
+    await registry.close().catch(() => undefined)
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
 test('a late client hears stored submissions from hello', () => {
   const notices = planClientNotices({
     event: 'hello',

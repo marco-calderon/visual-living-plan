@@ -94,6 +94,9 @@ export function registerPlanRoutes(app: any, options: PlanRouteOptions): any {
     .post(route('/api/comments/:commentId/address'), (context: RouteContext) =>
       sessionFor(idOf(context)).addressComment(context.params?.commentId ?? '', context.body),
     )
+    .post(route('/api/comments/:commentId/reply'), (context: RouteContext) =>
+      sessionFor(idOf(context)).replyToComment(context.params?.commentId ?? '', context.body),
+    )
     .post(route('/api/comments/:commentId/addressing'), (context: RouteContext) =>
       sessionFor(idOf(context)).markAddressing(context.params?.commentId ?? ''),
     )

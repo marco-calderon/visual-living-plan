@@ -88,6 +88,13 @@ export type ReviewDecision = 'approve' | 'deny' | 'iterate'
 
 export type CommentOutcome = 'implemented' | 'errored' | 'issues'
 
+/** An agent answer attached to one plan comment. */
+export type CommentReply = {
+  id: string
+  text: string
+  createdAt: number
+}
+
 export type ReviewResult = {
   decision: ReviewDecision
   comments: Array<{ id?: string; sectionId?: string; text: string }>
@@ -108,6 +115,7 @@ export type PlanComment = {
   addressingAt?: number | null
   addressedAt: number | null
   outcome?: CommentOutcome | null
+  replies?: CommentReply[]
 }
 
 export type SectionDiff = {
