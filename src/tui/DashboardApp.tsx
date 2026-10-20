@@ -9,20 +9,23 @@ import {
   PERIOD_LABEL,
   STATUS_FILTERS,
   dashboardStatusLine,
+  planRowKey,
   presentPlans,
   shiftFilter,
   shiftPeriod,
   summaryStats,
+  uniqueRowKeys,
   type DashboardStatusFilter,
 } from './dashboardView'
 import { openExternal } from './openExternal'
-import { palette } from './palette'
+import { PaletteProvider, usePalette } from './PaletteProvider'
 import { PlanCard } from './PlanCard'
 import { PlanTable } from './PlanTable'
 import { ProcessList } from './ProcessList'
 import { readDashboard } from './readDashboard'
 import { readProcesses } from './readProcesses'
-import { processOpenUrl, registryStatusLine } from './registryView'
+import { processOpenUrl, processRowKey, registryStatusLine } from './registryView'
+import type { ColorMode } from './systemTheme'
 import { SegmentButton } from './SegmentButton'
 import { StatCard } from './StatCard'
 
@@ -35,11 +38,23 @@ type DashboardAppProps = {
   readRunning?: (registryUrl: string) => Promise<ProcessRecord[]>
   openUrl?: (url: string) => void
   refreshMs?: number
+  /** Accent from the theme config. Omit for the default theme accent. */
+  accent?: string
+  /** Omit to follow the system light or dark theme. */
+  colorMode?: ColorMode
   /** Leave the terminal UI. The plan service keeps running. */
   onQuit?: () => void
 }
 
-export function DashboardApp({
+export function DashboardApp({ accent, colorMode, ...props }: DashboardAppProps) {
+  return (
+    <PaletteProvider accent={accent} colorMode={colorMode}>
+      <DashboardScreen {...props} />
+    </PaletteProvider>
+  )
+}
+
+function DashboardScreen({
   registryUrl,
   initialPeriod = 'day',
   read = readDashboard,
@@ -47,7 +62,8 @@ export function DashboardApp({
   openUrl = openExternal,
   refreshMs = 4_000,
   onQuit,
-}: DashboardAppProps) {
+}: Omit<DashboardAppProps, 'accent' | 'colorMode'>) {
+  const palette = usePalette()
   const { columns, rows, exit } = useApp()
   const wide = useMediaQuery({ minColumns: 110 })
   const [surface, setSurface] = useState<TuiSurface>('dashboard')
@@ -56,9 +72,9 @@ export function DashboardApp({
   const [payload, setPayload] = useState<DashboardPayload | null>(null)
   const [processes, setProcesses] = useState<ProcessRecord[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [selectedProcessId, setSelectedProcessId] = useState<string | null>(null)
-  const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [selectedProcessKey, setSelectedProcessKey] = useState<string | null>(null)
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null)
   const [refreshTick, setRefreshTick] = useState(0)
   const refresh = () => setRefreshTick((tick) => tick + 1)
   const showRunning = () => {
@@ -123,48 +139,54 @@ export function DashboardApp({
   }, [surface, registryUrl, readRunning, refreshMs, refreshTick])
 
   const shown = payload ? presentPlans(payload.plans, filter) : []
-  const shownKey = shown.map((plan) => plan.id).join('\n')
+  const planKeys = uniqueRowKeys(shown, planRowKey)
+  const shownKey = planKeys.join('\n')
   const running = processes ?? []
-  const runningKey = running.map((record) => record.id).join('\n')
+  const runningKeys = uniqueRowKeys(running, processRowKey)
+  const runningKey = runningKeys.join('\n')
 
   useEffect(() => {
     if (surface !== 'dashboard') return
-    const ids = shownKey.length > 0 ? shownKey.split('\n') : []
-    if (ids.length === 0) return
-    if (!selectedId || !ids.includes(selectedId)) setSelectedId(ids[0] ?? null)
-  }, [surface, shownKey, selectedId])
+    const keys = shownKey.length > 0 ? shownKey.split('\n') : []
+    if (keys.length === 0) return
+    if (!selectedKey || !keys.includes(selectedKey)) setSelectedKey(keys[0] ?? null)
+  }, [surface, shownKey, selectedKey])
 
   useEffect(() => {
     if (surface !== 'running') return
-    const ids = runningKey.length > 0 ? runningKey.split('\n') : []
-    if (ids.length === 0) return
-    if (!selectedProcessId || !ids.includes(selectedProcessId)) setSelectedProcessId(ids[0] ?? null)
-  }, [surface, runningKey, selectedProcessId])
+    const keys = runningKey.length > 0 ? runningKey.split('\n') : []
+    if (keys.length === 0) return
+    if (!selectedProcessKey || !keys.includes(selectedProcessKey)) setSelectedProcessKey(keys[0] ?? null)
+  }, [surface, runningKey, selectedProcessKey])
 
   const move = (delta: number) => {
     if (surface === 'running') {
       if (running.length === 0) return
-      const index = running.findIndex((record) => record.id === selectedProcessId)
+      const index = runningKeys.indexOf(selectedProcessKey ?? '')
       const start = index === -1 ? 0 : index
-      const next = running[Math.max(0, Math.min(running.length - 1, start + delta))]
-      if (next) setSelectedProcessId(next.id)
+      const next = Math.max(0, Math.min(running.length - 1, start + delta))
+      const key = runningKeys[next]
+      if (key) setSelectedProcessKey(key)
       return
     }
     if (shown.length === 0) return
-    const index = shown.findIndex((plan) => plan.id === selectedId)
+    const index = planKeys.indexOf(selectedKey ?? '')
     const start = index === -1 ? 0 : index
-    const next = shown[Math.max(0, Math.min(shown.length - 1, start + delta))]
-    if (next) setSelectedId(next.id)
+    const next = Math.max(0, Math.min(shown.length - 1, start + delta))
+    const key = planKeys[next]
+    if (key) setSelectedKey(key)
   }
 
   const openSelected = () => {
     if (surface === 'running') {
-      const record = running.find((entry) => entry.id === selectedProcessId)
+      const index = runningKeys.indexOf(selectedProcessKey ?? '')
+      const record = index >= 0 ? running[index] : undefined
       const url = record ? processOpenUrl(record) : null
       if (url) openUrl(url)
       return
     }
-    const plan = shown.find((entry) => entry.id === selectedId)
+    const index = planKeys.indexOf(selectedKey ?? '')
+    const plan = index >= 0 ? shown[index] : undefined
     if (!plan) return
     const url = livePlanUrl(plan) ?? archiveUrl(registryUrl, plan)
     if (url) openUrl(url)
@@ -176,23 +198,23 @@ export function DashboardApp({
     if (key.name === 'down' || key.name === 'j') move(1)
     if (key.name === 'home' || (key.name === 'g' && !key.shift)) {
       if (surface === 'running') {
-        const first = running[0]
-        if (first) setSelectedProcessId(first.id)
+        const first = runningKeys[0]
+        if (first) setSelectedProcessKey(first)
       } else {
-        const first = shown[0]
-        if (first) setSelectedId(first.id)
+        const first = planKeys[0]
+        if (first) setSelectedKey(first)
       }
     }
     if (key.name === 'end' || (key.name === 'g' && key.shift)) {
       if (surface === 'running') {
-        const last = running[running.length - 1]
-        if (last) setSelectedProcessId(last.id)
+        const last = runningKeys[runningKeys.length - 1]
+        if (last) setSelectedProcessKey(last)
       } else {
-        const last = shown[shown.length - 1]
-        if (last) setSelectedId(last.id)
+        const last = planKeys[planKeys.length - 1]
+        if (last) setSelectedKey(last)
       }
     }
-  }, [surface, shownKey, selectedId, shown, runningKey, selectedProcessId, running])
+  }, [surface, shownKey, selectedKey, shown, planKeys, runningKey, selectedProcessKey, running, runningKeys])
 
   const summary = payload?.summary
   const status = error
@@ -302,8 +324,8 @@ export function DashboardApp({
             ) : (
               <ProcessList
                 records={running}
-                selectedId={selectedProcessId}
-                onSelect={setSelectedProcessId}
+                selectedKey={selectedProcessKey}
+                onSelect={setSelectedProcessKey}
                 onOpen={openUrl}
               />
             )
@@ -312,29 +334,32 @@ export function DashboardApp({
           ) : wide ? (
             <PlanTable
               plans={shown}
-              selectedId={selectedId}
-              hoveredId={hoveredId}
+              selectedKey={selectedKey}
+              hoveredKey={hoveredKey}
               openUrlFor={livePlanUrl}
               archiveFor={(plan) => archiveUrl(registryUrl, plan)}
-              onSelect={setSelectedId}
-              onHover={setHoveredId}
+              onSelect={setSelectedKey}
+              onHover={setHoveredKey}
               onOpen={openUrl}
             />
           ) : (
             <Box style={{ flexDirection: 'column', gap: 1 }}>
-              {shown.map((plan) => (
-                <PlanCard
-                  key={plan.id}
-                  plan={plan}
-                  selected={plan.id === selectedId}
-                  hovered={plan.id === hoveredId}
-                  openUrl={livePlanUrl(plan)}
-                  archive={archiveUrl(registryUrl, plan)}
-                  onSelect={() => setSelectedId(plan.id)}
-                  onHover={() => setHoveredId(plan.id)}
-                  onOpen={openUrl}
-                />
-              ))}
+              {shown.map((plan, index) => {
+                const key = planKeys[index] ?? planRowKey(plan)
+                return (
+                  <PlanCard
+                    key={key}
+                    plan={plan}
+                    selected={key === selectedKey}
+                    hovered={key === hoveredKey}
+                    openUrl={livePlanUrl(plan)}
+                    archive={archiveUrl(registryUrl, plan)}
+                    onSelect={() => setSelectedKey(key)}
+                    onHover={() => setHoveredKey(key)}
+                    onOpen={openUrl}
+                  />
+                )
+              })}
             </Box>
           )}
         </ScrollView>

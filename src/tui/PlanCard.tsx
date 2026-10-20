@@ -10,7 +10,7 @@ import {
   gitLine,
   planSubtitle,
 } from './dashboardView'
-import { palette } from './palette'
+import { usePalette } from './PaletteProvider'
 import { PlanActions } from './PlanActions'
 
 type PlanCardProps = {
@@ -25,6 +25,7 @@ type PlanCardProps = {
 }
 
 export function PlanCard({ plan, selected, hovered, openUrl, archive, onSelect, onHover, onOpen }: PlanCardProps) {
+  const palette = usePalette()
   const completion = completionDetail(plan)
   const statusColor =
     plan.status === 'executed' ? palette.good : plan.status === 'interrupted' ? palette.warn : palette.accent

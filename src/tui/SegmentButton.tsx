@@ -1,5 +1,5 @@
 import { Button } from '@semos-labs/glyph'
-import { palette } from './palette'
+import { usePalette } from './PaletteProvider'
 
 type SegmentButtonProps = {
   label: string
@@ -8,6 +8,7 @@ type SegmentButtonProps = {
 }
 
 export function SegmentButton({ label, pressed, onPress }: SegmentButtonProps) {
+  const palette = usePalette()
   return (
     <Button
       label={label}
