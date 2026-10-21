@@ -1,3 +1,5 @@
+import { browserSafeUrlSource } from './localName'
+
 /** Index of every plan the registry knows about. Each card opens that plan's site. */
 export function renderRegistryPage(): string {
   return `<!doctype html>
@@ -113,15 +115,7 @@ export function renderRegistryPage(): string {
         return node;
       }
 
-      function safeUrl(value) {
-        try {
-          const url = new URL(value);
-          if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
-          return url.href;
-        } catch (error) {
-          return '';
-        }
-      }
+      ${browserSafeUrlSource()}
 
       function age(startedAt) {
         const seconds = Math.max(0, Math.round((Date.now() - Number(startedAt)) / 1000));

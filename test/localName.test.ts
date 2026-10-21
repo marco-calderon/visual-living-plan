@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import {
+  directLoopbackUrl,
   formatHttpOrigin,
   installHostsName,
   isLoopbackHost,
@@ -22,6 +23,16 @@ test('formatHttpOrigin omits the default HTTP port and brackets IPv6', () => {
   assert.equal(formatHttpOrigin(LOCAL_PLAN_HOSTNAME, 80), 'http://living-plan.local')
   assert.equal(formatHttpOrigin(LOCAL_PLAN_HOSTNAME, 9477), 'http://living-plan.local:9477')
   assert.equal(formatHttpOrigin('::1', 9477), 'http://[::1]:9477')
+})
+
+test('directLoopbackUrl skips multicast DNS for browser links', () => {
+  assert.equal(
+    directLoopbackUrl('http://living-plan.local:9477/plans/abcdefghi/'),
+    'http://127.0.0.1:9477/plans/abcdefghi/',
+  )
+  assert.equal(directLoopbackUrl('http://living-plan.local/dashboard'), 'http://127.0.0.1/dashboard')
+  assert.equal(directLoopbackUrl('http://127.0.0.1:9477/plans/abcdefghi/'), 'http://127.0.0.1:9477/plans/abcdefghi/')
+  assert.equal(directLoopbackUrl('http://example.com/plans/abcdefghi/'), 'http://example.com/plans/abcdefghi/')
 })
 
 test('servicePublicOrigin uses living-plan.local only for loopback', () => {
@@ -46,13 +57,15 @@ test('servicePublicOrigin uses living-plan.local only for loopback', () => {
   assert.equal(isLoopbackHost('0.0.0.0'), false)
 })
 
-test('localNameDesired follows the loopback port and LIVE_PLAN_LOCAL_NAME', () => {
+test('localNameDesired stays off unless LIVE_PLAN_LOCAL_NAME is explicitly on', () => {
   const previous = process.env.LIVE_PLAN_LOCAL_NAME
   delete process.env.LIVE_PLAN_LOCAL_NAME
   try {
-    assert.equal(localNameDesired('127.0.0.1', 9477), true)
+    assert.equal(localNameDesired('127.0.0.1', 9477), false)
     assert.equal(localNameDesired('127.0.0.1', 0), false)
     assert.equal(localNameDesired('10.0.0.8', 9477), false)
+    process.env.LIVE_PLAN_LOCAL_NAME = 'on'
+    assert.equal(localNameDesired('127.0.0.1', 9477), true)
     process.env.LIVE_PLAN_LOCAL_NAME = 'off'
     assert.equal(localNameDesired('127.0.0.1', 9477), false)
   } finally {

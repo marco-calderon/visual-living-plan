@@ -203,7 +203,8 @@ test('registry http api registers, lists, and requires a token to mutate', async
     assert.match(archived, /Rate limiting rollout/)
 
     const listed = await fetch(new URL('/api/processes', registry.url))
-    const body = (await listed.json()) as { processes: ProcessRecord[] }
+    const body = (await listed.json()) as { processes: ProcessRecord[]; registryUrl?: string }
+    assert.equal(body.registryUrl, registry.url)
     assert.equal(body.processes.length, 1)
     assert.equal(body.processes[0]?.directory, '/workspace/examples')
     assert.equal(body.processes[0]?.git.branch, 'main')

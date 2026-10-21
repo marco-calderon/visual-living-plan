@@ -332,7 +332,7 @@ export async function ensureRegistry(options: {
 
   const child = spawnDetachedRegistry(options.entryFile, port, host, home, {
     ...process.env,
-    ...(useLocalName ? {} : { LIVE_PLAN_LOCAL_NAME: '0' }),
+    LIVE_PLAN_LOCAL_NAME: useLocalName ? '1' : '0',
   })
 
   const waited = await waitForRunning(home, STARTING_STALE_MS)

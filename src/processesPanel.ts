@@ -1,3 +1,5 @@
+import { browserSafeUrlSource } from './localName'
+
 /** Styles for the plans switcher embedded in every planner page. */
 export const PROCESSES_PANEL_STYLES = `
 .processes {
@@ -205,15 +207,7 @@ export function processesPanelScript(): string {
     setOpen(false);
   });
 
-  function safeUrl(value) {
-    try {
-      const url = new URL(value, window.location.href);
-      if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
-      return url.href;
-    } catch (error) {
-      return '';
-    }
-  }
+  ${browserSafeUrlSource()}
 
   function age(startedAt) {
     const seconds = Math.max(0, Math.round((Date.now() - Number(startedAt)) / 1000));
@@ -234,7 +228,8 @@ export function processesPanelScript(): string {
     latest = payload;
     const processes = Array.isArray(payload.processes) ? payload.processes : [];
     count.textContent = String(processes.length);
-    const registryUrl = safeUrl(payload.registryUrl || '');
+    let registryUrl = safeUrl(payload.registryUrl || '');
+    if (!registryUrl && payload.status === 'ok') registryUrl = safeUrl(window.location.origin);
     if (registryUrl) {
       registryLink.href = registryUrl;
       registryLink.hidden = false;
