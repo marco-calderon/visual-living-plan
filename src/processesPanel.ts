@@ -13,6 +13,14 @@ export const PROCESSES_PANEL_STYLES = `
   align-items: flex-end;
   pointer-events: none;
 }
+/* The open panel covers the centered column. Pull the hero in so the title stays beside it. */
+body.plans-open .hero {
+  --plans-clearance: max(
+    0px,
+    calc(1.75rem + min(380px, 100vw - 2rem) - (100vw - min(920px, 100vw - 2rem)) / 2)
+  );
+  padding-right: max(0px, min(var(--plans-clearance), calc(100% - 16rem)));
+}
 .processes-toggle,
 .processes-panel { pointer-events: auto; }
 .processes-toggle {
@@ -190,6 +198,7 @@ export function processesPanelScript(): string {
     open = next;
     toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     panel.hidden = !open;
+    document.body.classList.toggle('plans-open', open);
     if (open && latest) paint(latest);
   }
 
