@@ -1,6 +1,6 @@
 # ADR 0010: Publish the loopback service as living-plan.local
 
-- Status: Accepted
+- Status: Superseded by [ADR 0015](0015-loopback-address.md)
 - Date: 2026-10-15
 
 ## Context

@@ -14,10 +14,10 @@ import type { ProcessRecord } from '../src/processRecord.ts'
 import { emptyGitSnapshot, finishedPlan } from '../src/processRecord.ts'
 import { renderPlanPage } from '../src/render.ts'
 import { defaultThemeConfig, themePayload } from '../src/theme.ts'
-import { LOCAL_PLAN_HOSTNAME } from '../src/localName.ts'
 import {
   ensureRegistry,
   listProcesses,
+  preferLoopbackUrl,
   readPackageVersion,
   readRegistryLock,
   registerProcess,
@@ -387,36 +387,42 @@ test('rewriteToBindUrl keeps the plan path on the bind address', () => {
     pid: 1,
     port: 9477,
     host: '127.0.0.1',
-    url: `http://${LOCAL_PLAN_HOSTNAME}:9477`,
+    url: 'http://living-plan.local:9477',
     token: 't',
     startedAt: 0,
   }
   assert.equal(registryBindUrl(lock), 'http://127.0.0.1:9477')
   assert.equal(
-    rewriteToBindUrl(lock, `http://${LOCAL_PLAN_HOSTNAME}:9477/plans/abcdefghi/`),
+    rewriteToBindUrl(lock, 'http://living-plan.local:9477/plans/abcdefghi/'),
     'http://127.0.0.1:9477/plans/abcdefghi/',
   )
   assert.equal(
-    rewriteToBindUrl({ ...lock, url: `http://${LOCAL_PLAN_HOSTNAME}` }, `http://${LOCAL_PLAN_HOSTNAME}/plans/abcdefghi/`),
+    rewriteToBindUrl({ ...lock, url: 'http://127.0.0.1:9477' }, 'http://visual-living-plan.local/plans/abcdefghi/'),
+    'http://127.0.0.1:9477/plans/abcdefghi/',
+  )
+  assert.equal(
+    rewriteToBindUrl({ ...lock, url: 'http://living-plan.local' }, 'http://living-plan.local/plans/abcdefghi/'),
     'http://127.0.0.1:9477/plans/abcdefghi/',
   )
   assert.equal(
     rewriteToBindUrl(lock, 'http://10.0.0.8:9477/plans/abcdefghi/'),
     'http://10.0.0.8:9477/plans/abcdefghi/',
   )
+  assert.equal(preferLoopbackUrl('http://visual-living-plan.local/plans/abcdefghi/'), 'http://127.0.0.1:9477/plans/abcdefghi/')
+  assert.equal(preferLoopbackUrl('http://127.0.0.1:9400/plans/abcdefghi/'), 'http://127.0.0.1:9400/plans/abcdefghi/')
 })
 
 test('ensureRegistry reuses a service advertised on a slow public name', async () => {
   const home = await tempHome()
   const version = await readPackageVersion(entryFile)
-  const registry = await startRegistryServer({ home, port: 0, localName: false, version, token: 'bind-health-token' })
+  const registry = await startRegistryServer({ home, port: 0, version, token: 'bind-health-token' })
   try {
     const lock = await readRegistryLock(home)
     assert.ok(lock)
     assert.equal(lock.pid, process.pid)
-    await writeRegistryLock(home, { ...lock, url: `http://${LOCAL_PLAN_HOSTNAME}:${lock.port}` })
+    await writeRegistryLock(home, { ...lock, url: `http://living-plan.local:${lock.port}` })
     const started = Date.now()
-    const again = await ensureRegistry({ entryFile, home, localName: false })
+    const again = await ensureRegistry({ entryFile, home })
     assert.ok(Date.now() - started < 2_000)
     assert.equal(again.pid, lock.pid)
     assert.equal(again.token, lock.token)
