@@ -4,6 +4,7 @@ import { Elysia } from 'elysia'
 import { buildDashboard, parsePeriod, periodRange } from './dashboard'
 import { renderDashboardPage } from './dashboardPage'
 import { assertBodyLimit, html, HttpError, jsonBody } from './http'
+import { acceptClientLog, installServiceLogCapture, readLogs, recordLog, recordUnexpectedError } from './serviceLog'
 import { bindElysia } from './httpServer'
 import { archivePlanFile, archivedPlanPath, isPathInside } from './planArchive'
 import { createPlanHost, type PlanHost } from './planHost'
@@ -181,6 +182,7 @@ export async function startRegistryServer(options: {
   staleMs?: number
   version?: string
 }): Promise<RegistryServer> {
+  installServiceLogCapture()
   const host = options.host ?? DEFAULT_REGISTRY_HOST
   const token = options.token ?? randomBytes(24).toString('hex')
   const staleMs = options.staleMs ?? STALE_MS
@@ -215,9 +217,10 @@ export async function startRegistryServer(options: {
       .onBeforeHandle(({ set }) => {
         set.headers['cache-control'] = 'no-store'
       })
-      .onError(({ code, error, set }) => {
+      .onError(({ code, error, set, request }) => {
         if (error instanceof HttpError) {
           set.status = error.status
+          if (error.status >= 500) recordUnexpectedError(error, request)
           return { error: error.message }
         }
         if (code === 'NOT_FOUND') {
@@ -225,6 +228,7 @@ export async function startRegistryServer(options: {
           return { error: 'Not found' }
         }
         set.status = 500
+        recordUnexpectedError(error, request)
         return { error: error instanceof Error ? error.message : 'Unknown error' }
       })
       .get('/dashboard', () => html(dashboardPage))
@@ -269,6 +273,17 @@ export async function startRegistryServer(options: {
         processes: store.list().length + planHost.listRecords().length,
         version: options.version ?? null,
       }))
+      .get('/api/logs', ({ request, set }) => {
+        const result = readLogs(request)
+        set.status = result.status
+        return result.body
+      })
+      .post('/api/logs', ({ request, body, set }) => {
+        assertBodyLimit(request, 16_384)
+        const result = acceptClientLog(jsonBody(body, true))
+        set.status = result.status
+        return result.body
+      })
       .get('/client/*', async ({ params, set }) => {
         try {
           const response = await readClientAsset(String(params['*'] ?? ''))
@@ -433,7 +448,12 @@ export async function startRegistryServer(options: {
         portless,
       })
     } catch (error) {
-      console.error(error instanceof Error ? error.message : error)
+      recordLog({
+        level: 'error',
+        message: error instanceof Error ? error.message : 'Could not publish the local plan name',
+        detail: error instanceof Error ? error.stack : undefined,
+        source: 'server',
+      })
     }
   }
   originBox.current = url
@@ -451,8 +471,13 @@ export async function startRegistryServer(options: {
   const timer = setInterval(() => {
     try {
       store.prune({ staleMs })
-    } catch {
-      // A failed prune should not take down the registry.
+    } catch (error) {
+      recordLog({
+        level: 'warn',
+        message: 'Could not prune stale plans',
+        detail: error instanceof Error ? error.message : undefined,
+        source: 'server',
+      })
     }
   }, 5_000)
   timer.unref()

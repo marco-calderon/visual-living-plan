@@ -1,3 +1,5 @@
+import { LOG_PANEL_STYLES, logPanelMarkup, logPanelScript } from './logPanel'
+
 /** Control dashboard for plans that are running and plans that have finished. */
 export function renderDashboardPage(): string {
   return `<!doctype html>
@@ -218,6 +220,8 @@ export function renderDashboardPage(): string {
     }
     a.action:hover { text-decoration: underline; }
     .empty { color: var(--muted); }
+    .logs { margin-top: 1.6rem; }
+    ${LOG_PANEL_STYLES}
   </style>
 </head>
 <body>
@@ -226,7 +230,7 @@ export function renderDashboardPage(): string {
       <div>
         <p class="kicker">Living Plan</p>
         <h1>Control dashboard</h1>
-        <p class="lede">Running plans and plans that have already executed. Summaries follow the local day, week, and month. Files modified is the largest git change set seen during the run. Each plan file is kept in the registry's plans folder.</p>
+        <p class="lede">Running plans and plans that have already executed. Summaries follow the local day, week, and month. Files modified is the largest git change set seen during the run. Each plan file is kept in the registry's plans folder. Errors, warnings, and logs that the plan page does not show are listed below.</p>
       </div>
       <p class="nav"><a class="link" href="/">Running plans</a></p>
     </div>
@@ -264,6 +268,9 @@ export function renderDashboardPage(): string {
         <tbody id="rows"></tbody>
       </table>
     </div>
+    <section class="logs" aria-label="Service logs">
+      ${logPanelMarkup('/api/logs', { showPlan: true })}
+    </section>
   </main>
   <script>
     (() => {
@@ -646,6 +653,7 @@ export function renderDashboardPage(): string {
       setInterval(refresh, 4000);
     })();
   </script>
+  <script>${logPanelScript()}</script>
 </body>
 </html>`
 }

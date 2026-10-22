@@ -7,6 +7,7 @@ import { html, HttpError, jsonBody } from './http'
 import { diffSections } from './diff'
 import { createIdleExecutionState, type ExecutionState } from './execution'
 import { collectSectionSources, parsePlan } from './parse'
+import { recordLog } from './serviceLog'
 import { renderPlanPage } from './render'
 import {
   configPathBesidePlan,
@@ -742,9 +743,15 @@ export async function openPlanSession(options: {
 
   const watcher = watch(planPath, { persistent: true }, () => {
     void reloadFromDisk().catch((error) => {
-      broadcast('error', {
-        message: error instanceof Error ? error.message : 'Failed to reload plan',
+      const message = error instanceof Error ? error.message : 'Failed to reload plan'
+      recordLog({
+        level: 'error',
+        message: `Failed to reload plan: ${message}`,
+        detail: error instanceof Error ? error.stack : undefined,
+        source: 'plan',
+        planId: id,
       })
+      broadcast('error', { message })
     })
   })
 
@@ -754,13 +761,25 @@ export async function openPlanSession(options: {
     themeWatcher = watch(dirname(themeConfigPath), { persistent: true }, (_event, filename) => {
       if (filename && filename !== themeConfigBase) return
       void reloadThemeFromDisk().catch((error) => {
-        broadcast('error', {
-          message: error instanceof Error ? error.message : 'Failed to reload theme config',
+        const message = error instanceof Error ? error.message : 'Failed to reload theme config'
+        recordLog({
+          level: 'warn',
+          message: `Failed to reload theme: ${message}`,
+          detail: error instanceof Error ? error.stack : undefined,
+          source: 'plan',
+          planId: id,
         })
+        broadcast('error', { message })
       })
     })
-  } catch {
-    // Parent directory may be missing in odd setups; theme still works via API writes.
+  } catch (error) {
+    recordLog({
+      level: 'warn',
+      message: 'Theme config is not being watched',
+      detail: error instanceof Error ? error.message : undefined,
+      source: 'plan',
+      planId: id,
+    })
   }
 
   return {

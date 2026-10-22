@@ -1,4 +1,5 @@
-import { HttpError } from './http'
+import { HttpError, jsonBody } from './http'
+import { acceptClientLog, readLogs } from './serviceLog'
 import { readClientAsset, type PlanSession } from './planSession'
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{8,80}$/
@@ -102,4 +103,18 @@ export function registerPlanRoutes(app: any, options: PlanRouteOptions): any {
     )
     .post(route('/api/review'), (context: RouteContext) => sessionFor(idOf(context)).submitReview(context.body))
     .post(route('/api/mode'), (context: RouteContext) => sessionFor(idOf(context)).updateMode(context.body))
+    .get(route('/api/logs'), (context: RouteContext) => {
+      const session = sessionFor(idOf(context))
+      session.touch()
+      const result = readLogs(context.request, session.id)
+      context.set.status = result.status
+      return result.body
+    })
+    .post(route('/api/logs'), (context: RouteContext) => {
+      const session = sessionFor(idOf(context))
+      session.touch()
+      const result = acceptClientLog(jsonBody(context.body, true), session.id)
+      context.set.status = result.status
+      return result.body
+    })
 }

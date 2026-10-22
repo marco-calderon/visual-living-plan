@@ -56,6 +56,7 @@ import {
   startTcpForward,
 } from './localName'
 import { DEFAULT_REGISTRY_HOST, DEFAULT_REGISTRY_PORT } from './registryConstants'
+import { formatServiceLogLines, type ServiceLogEntry } from './serviceLog'
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -88,6 +89,7 @@ Usage:
   live-plan check <file.plan.md>
   live-plan dump <file.plan.md>
   live-plan processes
+  live-plan logs [--level error|warn|log] [--url <plan-url>] [--limit N]
   live-plan dashboard
   live-plan tui [--period day|week|month] [--registry-port N] [--registry-host HOST]
   live-plan registry [--port N] [--host HOST]
@@ -108,6 +110,7 @@ Modes:
   theme       Read or write the accent color in live-plan.config.json (or via a running server).
   check       Print plan summary. Exits 1 when the required workflow block is missing.
   processes   List plans hosted by the service. \`ps\` is the same command.
+  logs        Print errors, warnings, and logs the page does not show. Use --url for one plan.
   dashboard   Open the control dashboard (running and executed plans, by day, week, or month).
   tui         The registry in the terminal: running plans, and the day, week, and month dashboard. Starts the plan service when it is not already running. Quitting leaves that service up. Active plans are listed first. Click a control, or use Tab, arrows, p, d, and the number keys.
   registry    Run the plan service in the foreground. serve and review start it on their own.
@@ -387,7 +390,7 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
     console.log(`Plan file: ${planPath}`)
     console.log(`Service: ${registry.url}`)
     logLocalNameHint(hosted.url, args)
-    console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent).')
+    console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), Settings (accent), and Logs (errors, warnings, and logs).')
     await openBrowser(hosted.url)
     if (hasFlag(args, '--detach')) {
       console.log(`Events: live-plan events --url ${hosted.url}`)
@@ -411,7 +414,7 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
   console.log(`Plan file: ${planPath}`)
   logLocalNameHint(server.url, args)
   console.log(`Theme config: ${server.getState().theme.configPath}`)
-  console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent).')
+  console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), Settings (accent), and Logs (errors, warnings, and logs).')
   await openBrowser(server.url)
   console.log('Listening for the next submission. This command exits when one arrives.')
   const code = await listenForSubmissions(server.url)
@@ -862,6 +865,54 @@ async function cmdProcesses(): Promise<number> {
   return 0
 }
 
+async function cmdLogs(args: string[]): Promise<number> {
+  const level = getFlag(args, '--level')
+  if (hasFlag(args, '--level') && !level) {
+    console.error('level must be error, warn, or log')
+    return 1
+  }
+  if (level && level !== 'error' && level !== 'warn' && level !== 'log') {
+    console.error('level must be error, warn, or log')
+    return 1
+  }
+  const limitFlag = getFlag(args, '--limit')
+  if (hasFlag(args, '--limit') && !limitFlag) {
+    console.error('limit must be from 1 to 500')
+    return 1
+  }
+  const limit = limitFlag ? Number(limitFlag) : undefined
+  if (limitFlag && (!Number.isInteger(limit) || (limit ?? 0) < 1 || (limit ?? 0) > 500)) {
+    console.error('limit must be from 1 to 500')
+    return 1
+  }
+
+  const urlFlag = getFlag(args, '--url')
+  let endpoint: URL
+  if (urlFlag) {
+    endpoint = planApiUrl(urlFlag, 'api/logs')
+  } else {
+    const home = defaultRegistryHome()
+    const lock = await readRegistryLock(home)
+    if (!lock || !isPidAlive(lock.pid) || !(await registryHealthy(registryBindUrl(lock)))) {
+      console.error('No living-plan registry is running.')
+      return 1
+    }
+    endpoint = new URL('/api/logs', registryBindUrl(lock))
+  }
+  if (level) endpoint.searchParams.set('level', level)
+  if (limit) endpoint.searchParams.set('limit', String(limit))
+
+  const response = await fetch(endpoint)
+  if (!response.ok) {
+    console.error((await response.text()) || `Logs failed (${response.status})`)
+    return 1
+  }
+  const payload = (await response.json()) as { logs?: ServiceLogEntry[] }
+  const logs = Array.isArray(payload.logs) ? payload.logs : []
+  console.log(formatServiceLogLines(logs))
+  return 0
+}
+
 async function cmdDashboard(args: string[]): Promise<number> {
   const registry = await openRegistry(args)
   if (!registry) {
@@ -1149,6 +1200,10 @@ async function main(): Promise<number> {
 
   if (command === 'processes' || command === 'ps') {
     return cmdProcesses()
+  }
+
+  if (command === 'logs') {
+    return cmdLogs(args.slice(1))
   }
 
   if (command === 'dashboard') {

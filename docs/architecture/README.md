@@ -57,12 +57,17 @@ flowchart TD
 | Plan list | `/api/processes` and `GET /` |
 | Private registration | `POST /api/processes`, `POST /api/processes/:id/heartbeat`, `DELETE /api/processes/:id` |
 | Dashboard | `/dashboard` and `/api/dashboard?period=day\|week\|month` |
+| Logs | `GET /api/logs` for the service, and `GET` and `POST /plans/<id>/api/logs` for one plan |
 | Finished runs | `GET /api/plans` |
 | Archived plan file | `/archive/<id>` |
 | Health | `GET /api/health` |
 | Client assets | `/client/...` once, for every plan |
 
-Browser API calls from a hosted page are prefixed with `/plans/<id>`. Root `/api/...` on the service is the catalog and the dashboard, not a plan. `new URL('/api/plan', planUrl)` is wrong when the plan URL has a path. The CLI uses `planApiUrl` in `src/agentEvents.ts`.
+Browser API calls from a hosted page are prefixed with `/plans/<id>`. Root `/api/...` on the service is the catalog, the dashboard, and the service log, not a plan. `new URL('/api/plan', planUrl)` is wrong when the plan URL has a path. The CLI uses `planApiUrl` in `src/agentEvents.ts`.
+
+## Logs
+
+Errors, warnings, and logs that the plan page does not otherwise show are kept in memory on the service process ([ADR 0015](decisions/0015-service-logs.md)). The Logs tab reads `GET /plans/<id>/api/logs`. The dashboard reads `GET /api/logs`. The page posts browser console output and script errors to the same path. `live-plan logs` prints that list. A restart clears it. Nothing in the log is a submission, so `events` does not print it.
 
 ## Session lifecycle
 
@@ -128,6 +133,7 @@ A row overlaps the selected window when it started before the end of the window 
 | Module | Role |
 |---|---|
 | `src/planSession.ts` | One plan: plan-file and theme-config watch, parsed document, responses, comments, execution, review, submission log, browser events, agent events |
+| `src/serviceLog.ts`, `src/logPanel.ts` | In-memory errors, warnings, and logs, and the panel that shows them |
 | `src/planRoutes.ts` | Elysia routes for one plan, at the origin or under `/plans/<id>/` |
 | `src/planHost.ts` | All sessions on the service: register, reattach, close, idle timeout, git snapshot cache, dashboard rows for open sessions |
 | `src/registryService.ts` | The Elysia app: health, plan list, registration, dashboard, archive, and the hosted plan routes |
@@ -136,7 +142,7 @@ A row overlaps the selected window when it started before the end of the window 
 | `src/server.ts` | The private one-plan Elysia app used by `--no-registry` |
 | `src/httpServer.ts` | Binds an Elysia app with `Bun.serve` so event streams stay open |
 | `src/localName.ts` | `living-plan.local` and the loopback forward from port 80 |
-| `src/cli.ts` | Client of the service. `serve` registers and prints that plan's undelivered submissions. `events`, `wait`, `watch`, and `review` read the same stream. `dashboard` opens `/dashboard`. `tui` reads `/api/processes` and `/api/dashboard`, and leaves the service running when it exits |
+| `src/cli.ts` | Client of the service. `serve` registers and prints that plan's undelivered submissions. `events`, `wait`, `watch`, and `review` read the same stream. `logs` prints the in-memory diagnostic log. `dashboard` opens `/dashboard`. `tui` reads `/api/processes` and `/api/dashboard`, and leaves the service running when it exits |
 | `src/agentEvents.ts` | SSE reader, ack helper, and `planApiUrl` used by the CLI |
 | `src/dashboard.ts`, `src/dashboardPage.ts`, `src/tui/` | Period summary, the dashboard page, and the terminal view of the same read |
 | `src/planArchive.ts` | Copy a plan file into the registry home and serve that copy |
@@ -144,7 +150,7 @@ A row overlaps the selected window when it started before the end of the window 
 
 ## What survives a restart
 
-The service writes each open session to `~/.visual-living-plan/registry.sqlite` (`plan_sessions`): plan path, mode, iteration, responses, comments, execution, review, token, cwd, theme config path, and last-seen time. Submissions are rows in `plan_events`. On startup it opens those files again and reattaches the watchers. A missing plan file drops that session.
+The service writes each open session to `~/.visual-living-plan/registry.sqlite` (`plan_sessions`): plan path, mode, iteration, responses, comments, execution, review, token, cwd, theme config path, and last-seen time. Submissions are rows in `plan_events`. On startup it opens those files again and reattaches the watchers. A missing plan file drops that session. Diagnostic logs are not in the database. A restart starts with an empty log.
 
 `live-plan close`, the idle timeout, and `DELETE /api/plans/<id>` delete that session's `plan_sessions` row and its `plan_events` rows. Stopping the service process does not. The next start restores the sessions whose plan files are still on disk. Finished runs stay in `plan_runs` and are not reopened. Live private servers are rows in `plans`. A database that still has the older `processes` table is copied into `plans` on open. The copied markdown stays at `~/.visual-living-plan/plans/<id>.plan.md`.
 
