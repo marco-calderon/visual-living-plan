@@ -103,17 +103,17 @@ export function registerPlanRoutes(app: any, options: PlanRouteOptions): any {
     )
     .post(route('/api/review'), (context: RouteContext) => sessionFor(idOf(context)).submitReview(context.body))
     .post(route('/api/mode'), (context: RouteContext) => sessionFor(idOf(context)).updateMode(context.body))
-    .get(route('/api/logs'), (context: RouteContext) => {
+    .get(route('/api/logs'), async (context: RouteContext) => {
       const session = sessionFor(idOf(context))
       session.touch()
-      const result = readLogs(context.request, session.id)
+      const result = await readLogs(context.request, session.id)
       context.set.status = result.status
       return result.body
     })
-    .post(route('/api/logs'), (context: RouteContext) => {
+    .post(route('/api/logs'), async (context: RouteContext) => {
       const session = sessionFor(idOf(context))
       session.touch()
-      const result = acceptClientLog(jsonBody(context.body, true), session.id)
+      const result = await acceptClientLog(jsonBody(context.body, true), session.id)
       context.set.status = result.status
       return result.body
     })

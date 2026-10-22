@@ -69,7 +69,7 @@ Swap the `bunx visual-living-plan` prefix for `live-plan` when that command is o
 | `close --url <url>` | Drop that plan from the service. | `0` closed, `1` usage |
 | `execution start\|push\|stop --url <url>` | Drive the live workflow overlay. `start` turns it on, `push` updates it, `stop` turns it off and unlocks plan forms. | `0` ok, `1` usage or HTTP error |
 | `processes` | List plans hosted by the service, including directory and git status. `ps` is the same command. | `0` |
-| `logs` | Print the development log: errors, warnings, and logs. The page does not show them. `--level error`, `warn`, or `log` filters. `--url` reads one plan; omit it to read the service log. | `0` printed, `1` bad arguments, HTTP error, or the service is not running |
+| `logs` | Print the development log saved under `~/.living-plan`. The page does not show it. `--level error`, `warn`, or `log` filters. `--day YYYY-MM-DD` reads one registry day (today when omitted). `--url` reads one plan and ignores `--day`. | `0` printed, including when the file is missing, `1` bad arguments |
 | `dashboard` | Open the registry dashboard of running and executed plans (day, week, and month). | `0` when the registry is up, `1` when it is not |
 | `tui` | The registry in the terminal. Starts the plan service when it is not already running. `p` is the running-plan list. `d` is the dashboard (`--period` is `day` by default, or `week` or `month`). Active plans are listed first. Quitting leaves the service up. | `0` when you quit, `1` when the terminal is not interactive, the arguments are wrong, or the registry cannot start |
 | `theme get\|set` | Read or write the accent color. Prefer `--url` while `serve`/`review` is up; otherwise `--config` / `--plan` writes `live-plan.config.json`. | `0` ok, `1` usage or HTTP error |
@@ -193,6 +193,6 @@ The server URL from `serve` or `review` exposes:
 - `GET /api/processes` — other plans started through the CLI, with directory and git status. Each `url` opens that plan's site.
 - Registry `GET /dashboard` — running and executed plans, with day, week, and month summaries. `live-plan dashboard` opens it. Plan files are copied into the registry home under `plans/`.
 - `GET /api/theme` and `PUT /api/theme` — read or set `{ "accent": "#hex" }` (persists to the theme config file)
-- `GET /api/logs` and `POST /api/logs` — errors, warnings, and logs that are not submissions. `GET` accepts `level` (`error`, `warn`, or `log`) and `limit` (1 to 500). On the service, root `GET /api/logs` is every plan. `live-plan logs` calls this. The list is cleared when the process restarts.
+- `GET /api/logs` and `POST /api/logs` — errors, warnings, and logs that are not submissions. `GET` accepts `level` (`error`, `warn`, or `log`) and `limit` (1 to 500). On the service, root `GET /api/logs` is today's registry file under `~/.living-plan`. `live-plan logs` reads those files directly. A restart leaves them in place.
 
 Prefer the CLI. Use HTTP only to inspect state or when another process must submit on the human's behalf.

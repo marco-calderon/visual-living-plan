@@ -273,14 +273,14 @@ export async function startRegistryServer(options: {
         processes: store.list().length + planHost.listRecords().length,
         version: options.version ?? null,
       }))
-      .get('/api/logs', ({ request, set }) => {
-        const result = readLogs(request)
+      .get('/api/logs', async ({ request, set }) => {
+        const result = await readLogs(request)
         set.status = result.status
         return result.body
       })
-      .post('/api/logs', ({ request, body, set }) => {
+      .post('/api/logs', async ({ request, body, set }) => {
         assertBodyLimit(request, 16_384)
-        const result = acceptClientLog(jsonBody(body, true))
+        const result = await acceptClientLog(jsonBody(body, true))
         set.status = result.status
         return result.body
       })
@@ -448,12 +448,12 @@ export async function startRegistryServer(options: {
         portless,
       })
     } catch (error) {
-      recordLog({
+      void recordLog({
         level: 'error',
         message: error instanceof Error ? error.message : 'Could not publish the local plan name',
         detail: error instanceof Error ? error.stack : undefined,
         source: 'server',
-      })
+      }).catch(() => undefined)
     }
   }
   originBox.current = url
@@ -472,12 +472,12 @@ export async function startRegistryServer(options: {
     try {
       store.prune({ staleMs })
     } catch (error) {
-      recordLog({
+      void recordLog({
         level: 'warn',
         message: 'Could not prune stale plans',
         detail: error instanceof Error ? error.message : undefined,
         source: 'server',
-      })
+      }).catch(() => undefined)
     }
   }, 5_000)
   timer.unref()

@@ -171,7 +171,7 @@ export async function openPlanSession(options: {
   const clientAssets: ClientAssets | null = await loadClientAssets()
 
   let source = await readFile(planPath, 'utf8')
-  let plan = parsePlan(source, planPath)
+  let plan = parsePlan(source, planPath, id)
   let previousSections = collectSectionSources(plan)
   let diffs: SectionDiff[] = previousSections.map((_, index) => ({
     index,
@@ -377,8 +377,32 @@ export async function openPlanSession(options: {
   }
 
   function setExecution(next: ExecutionState): ExecutionState {
+    if (next.graph && !Array.isArray(next.graph.nodes)) {
+      void recordLog({
+        level: 'warn',
+        message: 'Execution graph has no nodes array',
+        source: 'execution',
+        planId: id,
+        echo: false,
+      }).catch(() => undefined)
+    }
+    const wasActive = execution.active
+    const willBeActive = Boolean(next.active)
+    const action = !wasActive && willBeActive ? 'started' : wasActive && !willBeActive ? 'stopped' : wasActive ? 'updated' : undefined
+    if (action) {
+      const label = action === 'started' ? 'Execution started' : action === 'stopped' ? 'Execution stopped' : 'Execution updated'
+      const step = next.step?.trim()
+      void recordLog({
+        level: 'log',
+        message: step ? `${label}: ${step}` : label,
+        detail: next.detail,
+        source: 'execution',
+        planId: id,
+        echo: false,
+      }).catch(() => undefined)
+    }
     execution = {
-      active: Boolean(next.active),
+      active: willBeActive,
       step: next.step,
       detail: next.detail,
       graph: next.graph,
@@ -394,7 +418,7 @@ export async function openPlanSession(options: {
   async function reloadFromDisk(): Promise<void> {
     const nextSource = await readFile(planPath, 'utf8')
     if (nextSource === source) return
-    const nextPlan = parsePlan(nextSource, planPath)
+    const nextPlan = parsePlan(nextSource, planPath, id)
     const nextSections = collectSectionSources(nextPlan)
     diffs = diffSections(previousSections, nextSections)
     previousSections = nextSections
@@ -744,13 +768,13 @@ export async function openPlanSession(options: {
   const watcher = watch(planPath, { persistent: true }, () => {
     void reloadFromDisk().catch((error) => {
       const message = error instanceof Error ? error.message : 'Failed to reload plan'
-      recordLog({
+      void recordLog({
         level: 'error',
         message: `Failed to reload plan: ${message}`,
         detail: error instanceof Error ? error.stack : undefined,
         source: 'plan',
         planId: id,
-      })
+      }).catch(() => undefined)
       broadcast('error', { message })
     })
   })
@@ -762,24 +786,24 @@ export async function openPlanSession(options: {
       if (filename && filename !== themeConfigBase) return
       void reloadThemeFromDisk().catch((error) => {
         const message = error instanceof Error ? error.message : 'Failed to reload theme config'
-        recordLog({
+        void recordLog({
           level: 'warn',
           message: `Failed to reload theme: ${message}`,
           detail: error instanceof Error ? error.stack : undefined,
           source: 'plan',
           planId: id,
-        })
+        }).catch(() => undefined)
         broadcast('error', { message })
       })
     })
   } catch (error) {
-    recordLog({
+    void recordLog({
       level: 'warn',
       message: 'Theme config is not being watched',
       detail: error instanceof Error ? error.message : undefined,
       source: 'plan',
       planId: id,
-    })
+    }).catch(() => undefined)
   }
 
   return {
