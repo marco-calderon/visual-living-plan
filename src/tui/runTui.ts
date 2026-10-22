@@ -10,8 +10,6 @@ export type TuiOptions = {
   period: DashboardPeriod
   host?: string
   port?: number
-  /** False keeps the service URL on the bind address. Omit to follow the loopback default. */
-  localName?: boolean
 }
 
 export type RunTuiOptions = {
@@ -50,7 +48,6 @@ export function parseTuiArgs(args: string[]): TuiOptions | { error: string } {
     period,
     host,
     port: port !== undefined && Number.isFinite(port) && port > 0 ? port : undefined,
-    localName: args.includes('--no-local-name') ? false : undefined,
   }
 }
 
@@ -77,7 +74,6 @@ export async function runTui(args: string[], entryFile: string, options: RunTuiO
       home: options.home,
       port: parsed.port,
       host: parsed.host,
-      localName: parsed.localName,
     })
   } catch (error) {
     console.error(`Registry unavailable: ${error instanceof Error ? error.message : error}`)

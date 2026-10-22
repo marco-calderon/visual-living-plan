@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path'
 import { readGitSnapshot } from './gitStatus'
 import { isPidAlive } from './pid'
 import type { CompletionState, GitSnapshot, ProcessPulse, ProcessRecord, ProcessRegistration } from './processRecord'
-import { ensureLocalHostname, formatHttpOrigin, LOCAL_PLAN_HOSTNAME, localNameDesired } from './localName'
+import { formatHttpOrigin } from './localName'
 import { DEFAULT_REGISTRY_HOST, DEFAULT_REGISTRY_PORT, HEARTBEAT_MS } from './registryConstants'
 import {
   defaultRegistryHome,
@@ -42,7 +42,7 @@ function authHeaders(token: string): Record<string, string> {
   }
 }
 
-/** Address the CLI uses to reach the service. The published URL may be a slow `.local` name. */
+/** Address the CLI uses to reach the service. The published URL may still name a legacy `.local` host. */
 export function registryBindUrl(lock: Pick<RegistryLock, 'host' | 'port'>): string {
   const normalized = lock.host.trim().toLowerCase()
   const host =
@@ -52,8 +52,33 @@ export function registryBindUrl(lock: Pick<RegistryLock, 'host' | 'port'>): stri
   return formatHttpOrigin(host, lock.port)
 }
 
+/** Hosts previously published for this service. Resolving them goes through mDNS. */
+const LEGACY_MDNS_HOSTS = new Set(['living-plan.local', 'visual-living-plan.local'])
+
+function isLegacyMdnsHost(hostname: string): boolean {
+  return LEGACY_MDNS_HOSTS.has(hostname.trim().toLowerCase().replace(/\.$/, ''))
+}
+
+/**
+ * Dial 127.0.0.1 for a legacy `.local` URL when no service lock is available.
+ * Other URLs are left alone.
+ */
+export function preferLoopbackUrl(publicUrl: string): string {
+  let target: URL
+  try {
+    target = new URL(publicUrl)
+  } catch {
+    return publicUrl
+  }
+  if (!isLegacyMdnsHost(target.hostname)) return publicUrl
+  target.hostname = '127.0.0.1'
+  if (!target.port) target.port = String(DEFAULT_REGISTRY_PORT)
+  return target.toString()
+}
+
 /**
  * Keep a plan or service URL's path, but dial the bind address.
+ * A legacy `.local` host is always rewritten so the CLI does not wait on mDNS.
  * A different origin is left alone.
  */
 export function rewriteToBindUrl(lock: RegistryLock, publicUrl: string): string {
@@ -63,9 +88,9 @@ export function rewriteToBindUrl(lock: RegistryLock, publicUrl: string): string 
     published = new URL(lock.url)
     target = new URL(publicUrl)
   } catch {
-    return publicUrl
+    return preferLoopbackUrl(publicUrl)
   }
-  if (target.origin !== published.origin) return publicUrl
+  if (target.origin !== published.origin && !isLegacyMdnsHost(target.hostname)) return publicUrl
   const bind = new URL(registryBindUrl(lock))
   target.protocol = bind.protocol
   target.hostname = bind.hostname
@@ -76,7 +101,7 @@ export function rewriteToBindUrl(lock: RegistryLock, publicUrl: string): string 
 /** Rewrite a published service URL onto the running registry's bind address. */
 export async function localServiceUrl(publicUrl: string, home = defaultRegistryHome()): Promise<string> {
   const lock = await readRegistryLock(home)
-  if (!lock) return publicUrl
+  if (!lock) return preferLoopbackUrl(publicUrl)
   return rewriteToBindUrl(lock, publicUrl)
 }
 
@@ -96,7 +121,7 @@ export async function registryHealthy(url: string): Promise<boolean> {
 async function runningRegistry(home: string): Promise<RegistryLock | null> {
   const lock = await readRegistryLock(home)
   if (!lock || !isPidAlive(lock.pid)) return null
-  // living-plan.local is resolved through mDNS and can outlast this probe.
+  // Dial the bind address. A published *.local name is answered by mDNS and can outlast this probe.
   if (!(await registryHealthy(registryBindUrl(lock)))) return null
   return lock
 }
@@ -265,24 +290,6 @@ function spawnDetachedRegistry(
 }
 
 /**
- * A same-version service can stay up when its URL is already the local name,
- * or when that name cannot be installed. Otherwise the caller starts a new process.
- */
-async function keepRunningService(lock: RegistryLock, useLocalName: boolean): Promise<RegistryLock | null> {
-  if (!useLocalName) return lock
-  let published = ''
-  try {
-    published = new URL(lock.url).hostname
-  } catch {
-    return lock
-  }
-  if (published === LOCAL_PLAN_HOSTNAME) return lock
-  const status = await ensureLocalHostname({ elevate: 'passwordless' })
-  if (status.outcome !== 'ready') return lock
-  return null
-}
-
-/**
  * Connect to the shared plan service, starting a detached one when none is running.
  * One service hosts every plan. It keeps running after the spawning CLI and later clients exit.
  */
@@ -291,24 +298,16 @@ export async function ensureRegistry(options: {
   home?: string
   port?: number
   host?: string
-  /** False keeps the service URL on the bind address. Omit to follow the loopback default. */
-  localName?: boolean
 }): Promise<RegistryLock> {
   const home = options.home ?? defaultRegistryHome()
   const host = options.host ?? DEFAULT_REGISTRY_HOST
   const port = options.port ?? DEFAULT_REGISTRY_PORT
-  const useLocalName = options.localName ?? localNameDesired(host, port)
   const version = await readPackageVersion(options.entryFile)
   await mkdir(home, { recursive: true, mode: 0o700 })
 
   const already = await runningRegistry(home)
-  if (already?.version === version) {
-    const kept = await keepRunningService(already, useLocalName)
-    if (kept) return kept
-    await stopOwnedRegistry(home)
-  } else if (already) {
-    await stopOwnedRegistry(home)
-  }
+  if (already?.version === version) return already
+  if (already) await stopOwnedRegistry(home)
 
   const age = await startingLockAge(home)
   if (age !== null && age < STARTING_STALE_MS) {
@@ -330,10 +329,7 @@ export async function ensureRegistry(options: {
     throw new Error('Timed out waiting for the living-plan registry to start')
   }
 
-  const child = spawnDetachedRegistry(options.entryFile, port, host, home, {
-    ...process.env,
-    ...(useLocalName ? {} : { LIVE_PLAN_LOCAL_NAME: '0' }),
-  })
+  const child = spawnDetachedRegistry(options.entryFile, port, host, home, process.env)
 
   const waited = await waitForRunning(home, STARTING_STALE_MS)
   await rm(registryStartingPath(home), { force: true })
