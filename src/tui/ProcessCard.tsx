@@ -2,7 +2,7 @@ import { Box, Text } from '@semos-labs/glyph'
 import { useEffect, useRef } from 'react'
 import type { TextHandle } from '@semos-labs/glyph'
 import type { ProcessRecord } from '../processRecord'
-import { palette } from './palette'
+import { usePalette } from './PaletteProvider'
 import { PlanActions } from './PlanActions'
 import { processLines, processOpenUrl } from './registryView'
 
@@ -14,6 +14,7 @@ type ProcessCardProps = {
 }
 
 export function ProcessCard({ record, selected, onSelect, onOpen }: ProcessCardProps) {
+  const palette = usePalette()
   const openUrl = processOpenUrl(record)
   const anchor = useRef<TextHandle>(null)
 
@@ -42,7 +43,7 @@ export function ProcessCard({ record, selected, onSelect, onOpen }: ProcessCardP
         <Text style={{ color: palette.muted }}>{(record.mode || 'watch').toUpperCase()}</Text>
       </Box>
       {processLines(record).map((line, index) => (
-        <Text key={`${index}:${line}`} style={{ color: palette.muted }} wrap="ellipsis">
+        <Text key={index} style={{ color: palette.muted }} wrap="ellipsis">
           {line}
         </Text>
       ))}

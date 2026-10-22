@@ -171,6 +171,22 @@ export function summaryStats(summary: DashboardSummary): Array<{ label: string; 
   ]
 }
 
+/** Stable identity for one dashboard row. Runs of the same plan do not share an id. */
+export function planRowKey(plan: Pick<PlanRecord, 'id' | 'status' | 'startedAt' | 'endedAt'>): string {
+  return `${plan.status}:${plan.id}:${plan.startedAt}:${plan.endedAt ?? ''}`
+}
+
+/** First row keeps its base key. Later copies of that same identity get a suffix. */
+export function uniqueRowKeys<T>(items: readonly T[], keyFor: (item: T) => string): string[] {
+  const seen = new Map<string, number>()
+  return items.map((item) => {
+    const base = keyFor(item)
+    const count = seen.get(base) ?? 0
+    seen.set(base, count + 1)
+    return count === 0 ? base : `${base}#${count}`
+  })
+}
+
 export function isDashboardPayload(value: unknown): value is DashboardPayload {
   if (!value || typeof value !== 'object') return false
   const payload = value as Partial<DashboardPayload>

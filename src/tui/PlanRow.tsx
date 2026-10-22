@@ -10,7 +10,7 @@ import {
   gitLine,
   planSubtitle,
 } from './dashboardView'
-import { palette } from './palette'
+import { usePalette } from './PaletteProvider'
 import { PlanActions } from './PlanActions'
 import { planColumn } from './planColumns'
 
@@ -26,6 +26,7 @@ type PlanRowProps = {
 }
 
 export function PlanRow({ plan, selected, hovered, openUrl, archive, onSelect, onHover, onOpen }: PlanRowProps) {
+  const palette = usePalette()
   const completion = completionDetail(plan)
   const tint = selected ? palette.accentSoft : hovered ? palette.hover : undefined
   const statusColor =

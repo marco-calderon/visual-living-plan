@@ -1,7 +1,9 @@
 import { render } from '@semos-labs/glyph'
+import { resolve } from 'node:path'
 import { createElement } from 'react'
 import { parsePeriod, type DashboardPeriod } from '../dashboard'
 import { ensureRegistry, registryBindUrl } from '../registryClient'
+import { DEFAULT_ACCENT, DEFAULT_CONFIG_FILENAME, loadThemeConfig } from '../theme'
 import { DashboardApp } from './DashboardApp'
 
 export type TuiOptions = {
@@ -82,10 +84,19 @@ export async function runTui(args: string[], entryFile: string, options: RunTuiO
     return 1
   }
 
+  let accent = DEFAULT_ACCENT
+  try {
+    accent = (await loadThemeConfig(resolve(DEFAULT_CONFIG_FILENAME))).accent
+  } catch (error) {
+    console.error(`Theme config: ${error instanceof Error ? error.message : error}`)
+    return 1
+  }
+
   render(
     createElement(DashboardApp, {
       registryUrl: registryBindUrl(registry),
       initialPeriod: parsed.period,
+      accent,
       // Exit this client only. The service was started detached and is not signaled.
       onQuit: () => process.exit(0),
     }),

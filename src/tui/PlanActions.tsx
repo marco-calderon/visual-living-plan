@@ -1,5 +1,5 @@
 import { Box, Button } from '@semos-labs/glyph'
-import { palette } from './palette'
+import { usePalette } from './PaletteProvider'
 
 type PlanActionsProps = {
   openUrl: string | null
@@ -8,6 +8,7 @@ type PlanActionsProps = {
 }
 
 export function PlanActions({ openUrl, archive, onOpen }: PlanActionsProps) {
+  const palette = usePalette()
   if (!openUrl && !archive) return null
   return (
     <Box style={{ flexDirection: 'row', gap: 1 }}>
