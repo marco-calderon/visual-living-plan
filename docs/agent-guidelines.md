@@ -76,14 +76,14 @@ Swap the `bunx visual-living-plan` prefix for `live-plan` when that command is o
 Flags:
 
 - `--port` is the private server port with `--no-registry`. Otherwise it is used only when the service is not already running.
-- `--host` defaults to `127.0.0.1`. On loopback, the printed URL uses `http://living-plan.local/plans/<id>/` when that name resolves to loopback and port 80 is open. If port 80 is not open, the URL includes `:9477`. `--no-local-name` keeps `127.0.0.1`. Set `--host` to a reachable address when a cloud agent must share the URL.
+- `--host` defaults to `127.0.0.1`. On loopback, the printed URL is `http://127.0.0.1:9477/plans/<id>/`. `living-plan.local` is off because browsers resolve it with mDNS. `LIVE_PLAN_LOCAL_NAME=1` opts back in. `--no-local-name` keeps the IP address. Set `--host` to a reachable address when a cloud agent must share the URL.
 - `--timeout` defaults to 4 hours. Always include a unit: `30s`, `45m`, `4h`. A bare number is milliseconds.
 - `--iteration N` labels a review round (default `1`). Bump it when you re-open review after Iterate.
 - `--out <file>` writes the review JSON as well as printing it.
 - `--no-open` skips launching a browser. Use it only for headless or CI runs. A person should get the page opened.
 - `--detach` on `serve` registers the plan and returns. Omit it to print undelivered submissions and exit. Start `events` again each time that process exits. After an approval, `watch` stays up until execution is finished.
 - `--no-registry` serves this plan in its own process. By default `serve` and `review` use the machine service, so every planner page can list running plans.
-- `--registry-port` sets the service port (default `9477`, loopback only). `living-plan.local` is the browser name for that loopback service. `live-plan hostname install` adds it to the hosts file.
+- `--registry-port` sets the service port (default `9477`, loopback only). The browser address is that loopback IP. `LIVE_PLAN_LOCAL_NAME=1` publishes `living-plan.local` instead, and `live-plan hostname install` adds it to the hosts file.
 - `--token` authorizes `events`, `wait`, and `close`. When omitted, the CLI reads the local service token.
 - `--graph <file.json>` is the portable execution graph. `--scene <file.json>` is optional adapter-specific extras. Prefer `graph`.
 - `--step` and `--detail` are the current execution headline.

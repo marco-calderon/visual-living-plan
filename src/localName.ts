@@ -33,9 +33,14 @@ type ResolvedName =
   | { kind: 'missing' }
   | { kind: 'conflict'; addresses: string[] }
 
+/**
+ * Off unless `LIVE_PLAN_LOCAL_NAME` is explicitly on.
+ * `living-plan.local` is a multicast-DNS name. Browsers query mDNS before the
+ * hosts file, so opening it can stall for seconds or until the resolver times out.
+ */
 export function localNameEnabled(): boolean {
   const flag = (process.env.LIVE_PLAN_LOCAL_NAME ?? '').trim().toLowerCase()
-  return flag !== '0' && flag !== 'off' && flag !== 'false' && flag !== 'no'
+  return flag === '1' || flag === 'on' || flag === 'true' || flag === 'yes'
 }
 
 /** Publish the local name for a fixed loopback port. Random ports (tests) stay on the IP. */
@@ -62,6 +67,38 @@ export function formatHttpOrigin(host: string, port: number): string {
   const bracketed = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host
   if (port === LOOPBACK_HTTP_PORT) return `http://${bracketed}`
   return `http://${bracketed}:${port}`
+}
+
+/**
+ * Browsers resolve `.local` with mDNS before the hosts file.
+ * That lookup stalls a new navigation, often for several seconds and sometimes
+ * until the resolver times out. Pages should follow loopback directly.
+ */
+export function directLoopbackUrl(value: string): string {
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    return value
+  }
+  if (url.hostname !== LOCAL_PLAN_HOSTNAME) return value
+  url.hostname = '127.0.0.1'
+  return url.toString()
+}
+
+/** Inlined into registry pages. Keeps the same rewrite as `directLoopbackUrl`. */
+export function browserSafeUrlSource(): string {
+  return `function safeUrl(value) {
+    if (typeof value !== 'string' || !String(value).trim()) return '';
+    try {
+      const url = new URL(value, window.location.href);
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+      if (url.hostname === ${JSON.stringify(LOCAL_PLAN_HOSTNAME)}) url.hostname = '127.0.0.1';
+      return url.href;
+    } catch (error) {
+      return '';
+    }
+  }`
 }
 
 export function servicePublicOrigin(input: {

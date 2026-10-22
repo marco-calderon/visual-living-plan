@@ -111,7 +111,7 @@ Modes:
   dashboard   Open the control dashboard (running and executed plans, by day, week, or month).
   tui         The registry in the terminal: running plans, and the day, week, and month dashboard. Starts the plan service when it is not already running. Quitting leaves that service up. Active plans are listed first. Click a control, or use Tab, arrows, p, d, and the number keys.
   registry    Run the plan service in the foreground. serve and review start it on their own.
-  hostname    Show or install the living-plan.local name (loopback). install may ask for sudo.
+  hostname    Show or install the living-plan.local name. Off unless LIVE_PLAN_LOCAL_NAME=1. install may ask for sudo.
 
 Every plan includes a \`workflow\` block. That block is the execution path the Workflow tab draws.
 Accent color is saved in live-plan.config.json beside the plan (override with --config).
@@ -123,7 +123,7 @@ The machine service keeps running after serve, events, wait, review, dashboard, 
 --no-registry serves this plan in its own process instead of the machine service.
 --port sets that private process port. With the service, --port is used only when the service is not already running.
 --registry-port and --registry-host choose the service (default ${DEFAULT_REGISTRY_HOST}:${DEFAULT_REGISTRY_PORT}).
-On loopback the printed URL uses ${LOCAL_PLAN_HOSTNAME} when that name resolves to 127.0.0.1. Port 80 is added when it can be opened, so the URL has no port. --no-local-name keeps the IP address. LIVE_PLAN_LOCAL_NAME=0 does the same.
+On loopback the printed URL is http://127.0.0.1 with the service port. ${LOCAL_PLAN_HOSTNAME} is not used: browsers resolve that name with mDNS and the lookup is not reliable. LIVE_PLAN_LOCAL_NAME=1 opts back into that name. --no-local-name forces the IP address.
 --token authorizes the agent event stream. Omitted, the local service token is used.
 `)
 }

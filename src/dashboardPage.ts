@@ -1,3 +1,5 @@
+import { browserSafeUrlSource } from './localName'
+
 /** Control dashboard for plans that are running and plans that have finished. */
 export function renderDashboardPage(): string {
   return `<!doctype html>
@@ -301,15 +303,7 @@ export function renderDashboardPage(): string {
         return node;
       }
 
-      function safeUrl(value) {
-        try {
-          const url = new URL(value);
-          if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
-          return url.href;
-        } catch (error) {
-          return '';
-        }
-      }
+      ${browserSafeUrlSource()}
 
       function formatWhen(ms) {
         if (!ms) return '';

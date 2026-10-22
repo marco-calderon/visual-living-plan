@@ -10,6 +10,7 @@ import { createPlanHost, type PlanHost } from './planHost'
 import { registerPlanRoutes } from './planRoutes'
 import { readClientAsset } from './planSession'
 import {
+  directLoopbackUrl,
   ensureLocalHostname,
   exposeLoopbackPort80,
   formatHttpOrigin,
@@ -207,7 +208,7 @@ export async function startRegistryServer(options: {
       ...planHost.dashboardRecords(),
       ...store.list().map((record) => runningPlan(record)),
       ...store.listRuns(window),
-    ]
+    ].map((record) => ({ ...record, url: directLoopbackUrl(record.url) }))
   }
 
   const app = registerPlanRoutes(
@@ -334,9 +335,14 @@ export async function startRegistryServer(options: {
       .get('/', () => html(page))
       .get('/api/processes', () => {
         store.prune({ staleMs })
+        const processes = [...planHost.listRecords(), ...store.list()].map((record) => ({
+          ...record,
+          url: directLoopbackUrl(record.url),
+        }))
         return {
           status: 'ok',
-          processes: [...planHost.listRecords(), ...store.list()],
+          registryUrl: directLoopbackUrl(originBox.current),
+          processes,
         }
       })
       .post('/api/processes', async ({ request, body, set }) => {

@@ -21,6 +21,15 @@ test('sample plan works on a desktop viewport', async ({ page }) => {
   await test.step('plans list without a shared registry', async () => {
     await page.getByRole('button', { name: 'Plans' }).click()
     await expect(page.getByText('Started without the shared registry.')).toBeVisible()
+    const covered = await page.evaluate(() => {
+      const heading = document.querySelector('.brand')
+      const panel = document.querySelector('.processes-panel')
+      if (!heading || !panel) return true
+      const title = heading.getBoundingClientRect()
+      const popup = panel.getBoundingClientRect()
+      return title.right > popup.left + 1 && title.bottom > popup.top && title.top < popup.bottom
+    })
+    expect(covered).toBe(false)
     await page.keyboard.press('Escape')
   })
 

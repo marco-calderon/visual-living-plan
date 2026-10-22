@@ -1,3 +1,5 @@
+import { browserSafeUrlSource } from './localName'
+
 /** Styles for the plans switcher embedded in every planner page. */
 export const PROCESSES_PANEL_STYLES = `
 .processes {
@@ -10,6 +12,14 @@ export const PROCESSES_PANEL_STYLES = `
   flex-direction: column;
   align-items: flex-end;
   pointer-events: none;
+}
+/* The open panel covers the centered column. Pull the hero in so the title stays beside it. */
+body.plans-open .hero {
+  --plans-clearance: max(
+    0px,
+    calc(1.75rem + min(380px, 100vw - 2rem) - (100vw - min(920px, 100vw - 2rem)) / 2)
+  );
+  padding-right: max(0px, min(var(--plans-clearance), calc(100% - 16rem)));
 }
 .processes-toggle,
 .processes-panel { pointer-events: auto; }
@@ -188,6 +198,7 @@ export function processesPanelScript(): string {
     open = next;
     toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     panel.hidden = !open;
+    document.body.classList.toggle('plans-open', open);
     if (open && latest) paint(latest);
   }
 
@@ -205,15 +216,7 @@ export function processesPanelScript(): string {
     setOpen(false);
   });
 
-  function safeUrl(value) {
-    try {
-      const url = new URL(value, window.location.href);
-      if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
-      return url.href;
-    } catch (error) {
-      return '';
-    }
-  }
+  ${browserSafeUrlSource()}
 
   function age(startedAt) {
     const seconds = Math.max(0, Math.round((Date.now() - Number(startedAt)) / 1000));
@@ -234,7 +237,8 @@ export function processesPanelScript(): string {
     latest = payload;
     const processes = Array.isArray(payload.processes) ? payload.processes : [];
     count.textContent = String(processes.length);
-    const registryUrl = safeUrl(payload.registryUrl || '');
+    let registryUrl = safeUrl(payload.registryUrl || '');
+    if (!registryUrl && payload.status === 'ok') registryUrl = safeUrl(window.location.origin);
     if (registryUrl) {
       registryLink.href = registryUrl;
       registryLink.hidden = false;
