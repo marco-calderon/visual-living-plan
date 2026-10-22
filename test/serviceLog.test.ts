@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { logPanelScript } from '../src/logPanel.ts'
+import { clientLogScript } from '../src/clientLog.ts'
 import {
   acceptClientLog,
   clearLogs,
@@ -17,8 +17,11 @@ import { startLivingPlanServer } from '../src/server.ts'
 
 const fixture = join(import.meta.dir, '..', 'examples', 'rate-limit.plan.md')
 
-test('the logs panel script parses', () => {
-  new Function(logPanelScript())
+test('the client log script parses and names no page control', () => {
+  const script = clientLogScript('/plans/abc/api/logs')
+  new Function(script)
+  assert.match(script, /\/plans\/abc\/api\/logs/)
+  assert.doesNotMatch(script, /data-log-panel|log-list|data-tab-target/)
 })
 
 test('recordLog keeps level, detail, and a repeated message', () => {
@@ -110,7 +113,7 @@ test('console capture records a warning without a second echoed row', () => {
   clearLogs()
 })
 
-test('a plan page exposes logs and keeps another plan out of them', async () => {
+test('logs stay off the page and one plan does not see another plan', async () => {
   clearLogs()
   const home = await mkdtemp(join(tmpdir(), 'live-plan-logs-'))
   const registry = await startRegistryServer({ home, port: 0, token: 'test-token-value', localName: false })
@@ -118,9 +121,7 @@ test('a plan page exposes logs and keeps another plan out of them', async () => 
     const dashboard = await fetch(new URL('/dashboard', registry.url))
     assert.equal(dashboard.status, 200)
     const dashboardHtml = await dashboard.text()
-    assert.match(dashboardHtml, /data-log-panel/)
-    assert.match(dashboardHtml, /data-log-show-plan="true"/)
-    assert.match(dashboardHtml, /data-log-endpoint="\/api\/logs"/)
+    assert.doesNotMatch(dashboardHtml, /data-log-panel|data-tab-target="logs"|Errors, warnings, and logs/)
 
     const registered = await fetch(new URL('/api/plans', registry.url), {
       method: 'POST',
@@ -134,9 +135,8 @@ test('a plan page exposes logs and keeps another plan out of them', async () => 
     const hosted = (await registered.json()) as { plan: { id: string; url: string } }
     const page = await fetch(hosted.plan.url)
     const html = await page.text()
-    assert.match(html, /data-tab-target="logs"/)
-    assert.match(html, /data-log-count/)
-    assert.match(html, new RegExp(`data-log-endpoint="/plans/${hosted.plan.id}/api/logs"`))
+    assert.doesNotMatch(html, /data-tab-target="logs"|data-log-panel|data-log-count/)
+    assert.match(html, new RegExp(`/plans/${hosted.plan.id}/api/logs`))
 
     const posted = await fetch(new URL('api/logs', hosted.plan.url), {
       method: 'POST',

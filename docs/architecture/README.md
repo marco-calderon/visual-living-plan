@@ -67,7 +67,7 @@ Browser API calls from a hosted page are prefixed with `/plans/<id>`. Root `/api
 
 ## Logs
 
-Errors, warnings, and logs that the plan page does not otherwise show are kept in memory on the service process ([ADR 0015](decisions/0015-service-logs.md)). The Logs tab reads `GET /plans/<id>/api/logs`. The dashboard reads `GET /api/logs`. The page posts browser console output and script errors to the same path. `live-plan logs` prints that list. A restart clears it. Nothing in the log is a submission, so `events` does not print it.
+Errors, warnings, and logs for development are kept in memory on the service process ([ADR 0015](decisions/0015-service-logs.md)). The page posts browser console output and script errors to `POST /plans/<id>/api/logs` and does not render them. `live-plan logs` prints the list. `GET /api/logs` is the service-wide read. A restart clears it. Nothing in the log is a submission, so `events` does not print it.
 
 ## Session lifecycle
 
@@ -133,7 +133,7 @@ A row overlaps the selected window when it started before the end of the window 
 | Module | Role |
 |---|---|
 | `src/planSession.ts` | One plan: plan-file and theme-config watch, parsed document, responses, comments, execution, review, submission log, browser events, agent events |
-| `src/serviceLog.ts`, `src/logPanel.ts` | In-memory errors, warnings, and logs, and the panel that shows them |
+| `src/serviceLog.ts`, `src/clientLog.ts` | In-memory development log, and the page script that posts console output into it |
 | `src/planRoutes.ts` | Elysia routes for one plan, at the origin or under `/plans/<id>/` |
 | `src/planHost.ts` | All sessions on the service: register, reattach, close, idle timeout, git snapshot cache, dashboard rows for open sessions |
 | `src/registryService.ts` | The Elysia app: health, plan list, registration, dashboard, archive, and the hosted plan routes |

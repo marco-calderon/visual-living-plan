@@ -29,7 +29,7 @@ The service and the private server are Elysia apps. Route handlers live in `src/
 | `src/registryService.ts` | The long-lived Elysia app and its routes |
 | `src/registryStore.ts` | SQLite through Drizzle. `plans`, `plan_sessions`, `plan_events`, and `plan_runs`. Finished runs are filtered by `started_at` and `ended_at` |
 | `src/server.ts` | Private one-plan Elysia app |
-| `src/serviceLog.ts`, `src/logPanel.ts` | Errors, warnings, and logs the page does not otherwise show. In memory only |
+| `src/serviceLog.ts`, `src/clientLog.ts` | Development log of errors, warnings, and logs. In memory only. Read with `live-plan logs` |
 | `src/httpServer.ts` | `Bun.serve` binding for an Elysia app |
 | `src/agentEvents.ts` | Client-side SSE reader. Use `planApiUrl` so `/plans/<id>/` URLs resolve correctly |
 | `src/parse.ts`, `src/render.ts` | Plan file in, HTML page out |
@@ -53,7 +53,7 @@ Home directory for the service is `~/.visual-living-plan`, or `LIVE_PLAN_HOME` w
 - The service process stays running after `serve`, `events`, `wait`, `review`, `dashboard`, and `tui` exit.
 - A `workflow` block is required in a plan. `check` fails without it.
 - While execution is active, plan forms and review return HTTP 409.
-- Diagnostic logs are not submissions. They live in the service process, the Logs tab and `live-plan logs` read them, and a restart clears them.
+- Diagnostic logs are not submissions and are not shown on the page. They live in the service process, `live-plan logs` reads them, and a restart clears them.
 
 ## Working on a change
 

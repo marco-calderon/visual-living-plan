@@ -13,10 +13,10 @@ These messages are not submissions. An agent should not see them on `events`, an
 
 The service keeps a ring of errors, warnings, and logs in memory. `console.error`, `console.warn`, and `console.log` in the server process are copied into that ring. Plan reload and theme reload failures are recorded there too. The open page posts its own console output, script errors, and unhandled rejections to `POST /api/logs`.
 
-`GET /api/logs` on the service returns every entry. `GET /plans/<id>/api/logs` returns that plan's entries plus entries that are not tied to a plan. The plan page shows them on a Logs tab. The dashboard shows the service-wide list. `live-plan logs` prints the same list and can filter with `--level error|warn|log`.
+`GET /api/logs` on the service returns every entry. `GET /plans/<id>/api/logs` returns that plan's entries plus entries that are not tied to a plan. `live-plan logs` prints that list and can filter with `--level error|warn|log`. The plan page and the dashboard do not render it.
 
 The ring is capped and does not survive a restart. Identical messages inside a short window increment `repeat` instead of adding another row. Logging does not write a `plan_events` row and does not notify the agent stream.
 
 ## Consequences
 
-A person can open Logs, or the dashboard, and read a failure that previously only existed in the process log or the browser console. `live-plan logs --url <plan-url>` is the same read for an agent. Restarting the service clears the list. `registry.log` still receives the lines the process prints.
+`live-plan logs` is the way to read a failure that previously only existed in the process log or the browser console. The open page stays free of that list. Restarting the service clears it. `registry.log` still receives the lines the process prints.

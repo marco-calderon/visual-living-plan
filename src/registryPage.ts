@@ -95,7 +95,7 @@ export function renderRegistryPage(): string {
   <main>
     <p class="kicker">Living Plan</p>
     <h1>Running plans</h1>
-    <p class="lede">Plans started from the CLI. Each one is linked to a directory and that directory's git status. Open an entry to work in its site. Finished runs stay on the <a href="/dashboard">dashboard</a>, along with errors, warnings, and logs the plan page does not show.</p>
+    <p class="lede">Plans started from the CLI. Each one is linked to a directory and that directory's git status. Open an entry to work in its site. Finished runs stay on the <a href="/dashboard">dashboard</a>.</p>
     <p class="actions"><a class="btn" href="/dashboard">Dashboard</a></p>
     <p class="status" id="status">Loading…</p>
     <ul id="list"></ul>

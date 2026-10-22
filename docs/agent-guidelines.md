@@ -69,8 +69,8 @@ Swap the `bunx visual-living-plan` prefix for `live-plan` when that command is o
 | `close --url <url>` | Drop that plan from the service. | `0` closed, `1` usage |
 | `execution start\|push\|stop --url <url>` | Drive the live workflow overlay. `start` turns it on, `push` updates it, `stop` turns it off and unlocks plan forms. | `0` ok, `1` usage or HTTP error |
 | `processes` | List plans hosted by the service, including directory and git status. `ps` is the same command. | `0` |
-| `logs` | Print errors, warnings, and logs the page does not show. `--level error`, `warn`, or `log` filters. `--url` reads one plan; omit it to read the service log. | `0` printed, `1` bad arguments, HTTP error, or the service is not running |
-| `dashboard` | Open the registry dashboard of running and executed plans (day, week, and month). The page also lists service logs. | `0` when the registry is up, `1` when it is not |
+| `logs` | Print the development log: errors, warnings, and logs. The page does not show them. `--level error`, `warn`, or `log` filters. `--url` reads one plan; omit it to read the service log. | `0` printed, `1` bad arguments, HTTP error, or the service is not running |
+| `dashboard` | Open the registry dashboard of running and executed plans (day, week, and month). | `0` when the registry is up, `1` when it is not |
 | `tui` | The registry in the terminal. Starts the plan service when it is not already running. `p` is the running-plan list. `d` is the dashboard (`--period` is `day` by default, or `week` or `month`). Active plans are listed first. Quitting leaves the service up. | `0` when you quit, `1` when the terminal is not interactive, the arguments are wrong, or the registry cannot start |
 | `theme get\|set` | Read or write the accent color. Prefer `--url` while `serve`/`review` is up; otherwise `--config` / `--plan` writes `live-plan.config.json`. | `0` ok, `1` usage or HTTP error |
 
@@ -181,7 +181,7 @@ While the server is running, prefer `--url` so the page updates live. Editing th
 
 The server URL from `serve` or `review` exposes:
 
-- `GET /` — Plan, Workflow, Settings, and Logs tabs
+- `GET /` — Plan, Workflow, and Settings tabs
 - `GET /api/plan` — parsed plan, `responses`, `pendingInteractionIds`, execution state, planned workflow graph, and `theme`
 - `GET /api/events` — browser server-sent events: `hello`, `reload`, `interaction`, `review`, `comment`, `mode`, `execution`, `theme`, `error`
 - `GET /api/agent-events` — the stream `events` and `wait` use. Requires a bearer token on the shared service. `hello` includes current responses, review, and `pending` (submissions whose `delivered_at` is empty). `notice` follows as the user submits.

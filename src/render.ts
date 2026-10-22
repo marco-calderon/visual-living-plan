@@ -2,7 +2,7 @@ import type { ClientAssets } from './assets'
 import type { ExecutionState } from './execution'
 import { blockAnchorId, planPartScope } from './parse'
 import type { PlanMode } from './processRecord'
-import { LOG_PANEL_STYLES, logPanelMarkup, logPanelScript } from './logPanel'
+import { clientLogScript } from './clientLog'
 import { PROCESSES_PANEL_STYLES, processesPanelMarkup, processesPanelScript } from './processesPanel'
 import { accentCssCustomProperties } from './theme'
 import type {
@@ -1667,16 +1667,13 @@ function clientScript(
   const source = new EventSource(apiBase + '/api/events');
   let streamWarnedAt = 0;
   source.addEventListener('error', (event) => {
+    if (event && event.data) return;
     const report = window.__livingPlanReport;
     if (typeof report !== 'function') return;
-    if (event && event.data) {
-      if (typeof window.__livingPlanRefreshLogs === 'function') window.__livingPlanRefreshLogs();
-      return;
-    }
     const now = Date.now();
     if (now - streamWarnedAt < 10000) return;
     streamWarnedAt = now;
-    report('warn', 'The plan event stream is not connected. Updates may be missing until it recovers.', '', 'page');
+    report('warn', 'The plan event stream is not connected.', '', 'page');
   });
   source.addEventListener('reload', () => {
     void refreshPlan();
@@ -1821,7 +1818,7 @@ export function renderPlanPage(options: {
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <style>${STYLES}${PROCESSES_PANEL_STYLES}${LOG_PANEL_STYLES}</style>
+  <style>${STYLES}${PROCESSES_PANEL_STYLES}</style>
   ${accentStyleTag(theme.accent)}
   ${assetCss}
 </head>
@@ -1845,7 +1842,6 @@ export function renderPlanPage(options: {
         <button type="button" class="tab-btn" role="tab" data-tab-target="plan" aria-selected="true">Plan</button>
         <button type="button" class="tab-btn" role="tab" data-tab-target="workflow" aria-selected="false">Workflow</button>
         <button type="button" class="tab-btn" role="tab" data-tab-target="settings" aria-selected="false">Settings</button>
-        <button type="button" class="tab-btn" role="tab" data-tab-target="logs" aria-selected="false">Logs <span class="log-count" data-log-count hidden></span></button>
       </div>
     </header>
     <section class="tab-panel${locked ? ' plan-locked' : ''}" data-tab-panel="plan" role="tabpanel">
@@ -1886,11 +1882,6 @@ export function renderPlanPage(options: {
         </section>
       </main>
     </section>
-    <section class="tab-panel" data-tab-panel="logs" role="tabpanel" hidden>
-      <main class="settings-stack">
-        ${logPanelMarkup(`${basePath}/api/logs`)}
-      </main>
-    </section>
   </div>
   <div id="review-dock" class="review-dock"${showReviewBar ? '' : ' hidden'}>
     <div class="review-bar" role="region" aria-label="Review this plan">
@@ -1902,7 +1893,7 @@ export function renderPlanPage(options: {
   <div id="toast" class="toast" role="status"></div>
   <script type="application/json" id="living-plan-comments">${commentsJson}</script>
   <script type="application/json" id="living-plan-review">${reviewJson}</script>
-  <script>${logPanelScript()}</script>
+  <script>${clientLogScript(`${basePath}/api/logs`)}</script>
   <script>${clientScript(mode, locked, theme, basePath)}
 ${processesPanelScript()}</script>
   ${mermaidJs}

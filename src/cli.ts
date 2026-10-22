@@ -110,7 +110,7 @@ Modes:
   theme       Read or write the accent color in live-plan.config.json (or via a running server).
   check       Print plan summary. Exits 1 when the required workflow block is missing.
   processes   List plans hosted by the service. \`ps\` is the same command.
-  logs        Print errors, warnings, and logs the page does not show. Use --url for one plan.
+  logs        Print the development log: errors, warnings, and logs. Not shown on the page. Use --url for one plan.
   dashboard   Open the control dashboard (running and executed plans, by day, week, or month).
   tui         The registry in the terminal: running plans, and the day, week, and month dashboard. Starts the plan service when it is not already running. Quitting leaves that service up. Active plans are listed first. Click a control, or use Tab, arrows, p, d, and the number keys.
   registry    Run the plan service in the foreground. serve and review start it on their own.
@@ -390,7 +390,7 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
     console.log(`Plan file: ${planPath}`)
     console.log(`Service: ${registry.url}`)
     logLocalNameHint(hosted.url, args)
-    console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), Settings (accent), and Logs (errors, warnings, and logs).')
+    console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent).')
     await openBrowser(hosted.url)
     if (hasFlag(args, '--detach')) {
       console.log(`Events: live-plan events --url ${hosted.url}`)
@@ -414,7 +414,7 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
   console.log(`Plan file: ${planPath}`)
   logLocalNameHint(server.url, args)
   console.log(`Theme config: ${server.getState().theme.configPath}`)
-  console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), Settings (accent), and Logs (errors, warnings, and logs).')
+  console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent).')
   await openBrowser(server.url)
   console.log('Listening for the next submission. This command exits when one arrives.')
   const code = await listenForSubmissions(server.url)
