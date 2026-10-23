@@ -1,3 +1,5 @@
+import { clientLogScript } from './clientLog'
+
 /** Control dashboard for plans that are running and plans that have finished. */
 export function renderDashboardPage(): string {
   return `<!doctype html>
@@ -646,6 +648,7 @@ export function renderDashboardPage(): string {
       setInterval(refresh, 4000);
     })();
   </script>
+  <script>${clientLogScript('/api/logs')}</script>
 </body>
 </html>`
 }

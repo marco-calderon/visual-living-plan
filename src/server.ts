@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { Elysia } from 'elysia'
 import { HttpError } from './http'
 import { bindElysia } from './httpServer'
+import { installServiceLogCapture, recordUnexpectedError } from './serviceLog'
 import { formatHttpOrigin } from './localName'
 import { registerPlanRoutes } from './planRoutes'
 import { openPlanSession, type PlanSession } from './planSession'
@@ -30,6 +31,7 @@ export async function startLivingPlanServer(options: {
   }
   configPath?: string
 }): Promise<LivingPlanServer> {
+  installServiceLogCapture()
   const host = options.host ?? '127.0.0.1'
   const selfId = options.registry?.selfId ?? randomBytes(16).toString('hex')
   const session = await openPlanSession({
@@ -87,9 +89,10 @@ export async function startLivingPlanServer(options: {
       .onBeforeHandle(({ set }) => {
         set.headers['cache-control'] = 'no-store'
       })
-      .onError(({ code, error, set }) => {
+      .onError(({ code, error, set, request }) => {
         if (error instanceof HttpError) {
           set.status = error.status
+          if (error.status >= 500) recordUnexpectedError(error, request)
           return { error: error.message }
         }
         if (code === 'NOT_FOUND') {
@@ -97,6 +100,7 @@ export async function startLivingPlanServer(options: {
           return { error: 'Not found' }
         }
         set.status = 500
+        recordUnexpectedError(error, request)
         return { error: error instanceof Error ? error.message : 'Unknown error' }
       })
       .get('/api/processes', () => processList()),

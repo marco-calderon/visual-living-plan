@@ -43,6 +43,7 @@ import {
 } from './registryClient'
 import { isPidAlive } from './pid'
 import { DEFAULT_REGISTRY_HOST, DEFAULT_REGISTRY_PORT } from './registryConstants'
+import { formatServiceLogLines, isLogDay, listLogs, recordLog, type LogLevel } from './serviceLog'
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -75,6 +76,7 @@ Usage:
   live-plan check <file.plan.md>
   live-plan dump <file.plan.md>
   live-plan processes
+  live-plan logs [--level error|warn|log] [--url <plan-url>] [--day YYYY-MM-DD] [--limit N]
   live-plan dashboard
   live-plan tui [--period day|week|month] [--registry-port N] [--registry-host HOST]
   live-plan registry [--port N] [--host HOST]
@@ -94,6 +96,7 @@ Modes:
   theme       Read or write the accent color in live-plan.config.json (or via a running server).
   check       Print plan summary. Exits 1 when the required workflow block is missing.
   processes   List plans hosted by the service. \`ps\` is the same command.
+  logs        Print the development log saved under ~/.living-plan. Not shown on the page. --day reads one registry day (today when omitted). --url reads one plan.
   dashboard   Open the control dashboard (running and executed plans, by day, week, or month).
   tui         The registry in the terminal: running plans, and the day, week, and month dashboard. Starts the plan service when it is not already running. Quitting leaves that service up. Active plans are listed first. Click a control, or use Tab, arrows, p, d, and the number keys.
   registry    Run the plan service in the foreground. serve and review start it on their own.
@@ -263,13 +266,35 @@ async function followPlan(url: string, token: string): Promise<number> {
 }
 
 async function putExecution(url: string, body: ExecutionState): Promise<ExecutionState> {
-  const response = await fetch(planApiUrl(url, '/api/execution'), {
-    method: 'PUT',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  })
+  const planId = planIdFromPlanUrl(url) ?? undefined
+  let response: Response
+  try {
+    response = await fetch(planApiUrl(url, '/api/execution'), {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Execution request failed'
+    await recordLog({
+      level: 'error',
+      message: `Execution request failed: ${message}`,
+      source: 'execution',
+      planId,
+      echo: false,
+    }).catch(() => undefined)
+    throw error
+  }
   if (!response.ok) {
-    throw new Error(await response.text())
+    const text = await response.text()
+    await recordLog({
+      level: 'error',
+      message: `Execution request failed: ${text || response.status}`,
+      source: 'execution',
+      planId,
+      echo: false,
+    }).catch(() => undefined)
+    throw new Error(text || `Execution request failed (${response.status})`)
   }
   const payload = (await response.json()) as { execution: ExecutionState }
   return payload.execution
@@ -305,6 +330,12 @@ async function cmdCheck(file: string): Promise<number> {
     ),
   )
   if (workflowError) {
+    await recordLog({
+      level: 'error',
+      message: workflowError,
+      source: 'parse',
+      echo: false,
+    }).catch(() => undefined)
     console.error(workflowError)
     return 1
   }
@@ -818,6 +849,64 @@ async function cmdProcesses(): Promise<number> {
   return 0
 }
 
+async function cmdLogs(args: string[]): Promise<number> {
+  const level = getFlag(args, '--level')
+  if (hasFlag(args, '--level') && !level) {
+    console.error('level must be error, warn, or log')
+    return 1
+  }
+  if (level && level !== 'error' && level !== 'warn' && level !== 'log') {
+    console.error('level must be error, warn, or log')
+    return 1
+  }
+  const limitFlag = getFlag(args, '--limit')
+  if (hasFlag(args, '--limit') && !limitFlag) {
+    console.error('limit must be from 1 to 500')
+    return 1
+  }
+  const limit = limitFlag ? Number(limitFlag) : undefined
+  if (limitFlag && (!Number.isInteger(limit) || (limit ?? 0) < 1 || (limit ?? 0) > 500)) {
+    console.error('limit must be from 1 to 500')
+    return 1
+  }
+
+  const urlFlag = getFlag(args, '--url')
+  if (hasFlag(args, '--url') && !urlFlag) {
+    console.error('live-plan logs --url needs a plan URL')
+    return 1
+  }
+  let planId: string | undefined
+  if (urlFlag) {
+    const parsed = planIdFromPlanUrl(urlFlag)
+    if (!parsed) {
+      console.error("That URL has no plan id. Omit --url to read today's registry log.")
+      return 1
+    }
+    planId = parsed
+  } else {
+    const day = getFlag(args, '--day')
+    if (hasFlag(args, '--day') && (!day || !isLogDay(day))) {
+      console.error('day must be YYYY-MM-DD')
+      return 1
+    }
+    const logs = await listLogs({
+      level: level as LogLevel | undefined,
+      limit,
+      day,
+    })
+    console.log(formatServiceLogLines(logs))
+    return 0
+  }
+
+  const logs = await listLogs({
+    level: level as LogLevel | undefined,
+    planId,
+    limit,
+  })
+  console.log(formatServiceLogLines(logs))
+  return 0
+}
+
 async function cmdDashboard(args: string[]): Promise<number> {
   const registry = await openRegistry(args)
   if (!registry) {
@@ -1014,6 +1103,10 @@ async function main(): Promise<number> {
 
   if (command === 'processes' || command === 'ps') {
     return cmdProcesses()
+  }
+
+  if (command === 'logs') {
+    return cmdLogs(args.slice(1))
   }
 
   if (command === 'dashboard') {

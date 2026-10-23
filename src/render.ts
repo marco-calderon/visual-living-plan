@@ -2,6 +2,7 @@ import type { ClientAssets } from './assets'
 import type { ExecutionState } from './execution'
 import { blockAnchorId, planPartScope } from './parse'
 import type { PlanMode } from './processRecord'
+import { clientLogScript } from './clientLog'
 import { PROCESSES_PANEL_STYLES, processesPanelMarkup, processesPanelScript } from './processesPanel'
 import { accentCssCustomProperties } from './theme'
 import type {
@@ -1664,6 +1665,16 @@ function clientScript(
   }
 
   const source = new EventSource(apiBase + '/api/events');
+  let streamWarnedAt = 0;
+  source.addEventListener('error', (event) => {
+    if (event && event.data) return;
+    const report = window.__livingPlanReport;
+    if (typeof report !== 'function') return;
+    const now = Date.now();
+    if (now - streamWarnedAt < 10000) return;
+    streamWarnedAt = now;
+    report('warn', 'The plan event stream is not connected.', '', 'page');
+  });
   source.addEventListener('reload', () => {
     void refreshPlan();
   });
@@ -1882,6 +1893,7 @@ export function renderPlanPage(options: {
   <div id="toast" class="toast" role="status"></div>
   <script type="application/json" id="living-plan-comments">${commentsJson}</script>
   <script type="application/json" id="living-plan-review">${reviewJson}</script>
+  <script>${clientLogScript(`${basePath}/api/logs`)}</script>
   <script>${clientScript(mode, locked, theme, basePath)}
 ${processesPanelScript()}</script>
   ${mermaidJs}

@@ -1,4 +1,5 @@
 import { parse as parseYaml } from 'yaml'
+import { recordLog } from './serviceLog'
 import type {
   ChecklistItem,
   ChoiceOption,
@@ -529,8 +530,32 @@ function stripFrontmatter(source: string): { meta: Record<string, unknown>; body
   return { meta: asRecord(parseYaml(raw)), body }
 }
 
-export function parsePlan(source: string, sourcePath?: string): PlanDocument {
-  const { meta, body } = stripFrontmatter(source.replace(/^\uFEFF/, ''))
+function rememberParseFailure(error: unknown, where: string, sourcePath?: string, planId?: string): void {
+  const reason = error instanceof Error && error.message ? error.message : 'Could not parse the plan'
+  const detail = [where, sourcePath ? `file: ${sourcePath}` : undefined, error instanceof Error ? error.stack : undefined]
+    .filter((part): part is string => Boolean(part))
+    .join('\n')
+  void recordLog({
+    level: 'error',
+    message: `Failed to parse the plan: ${reason}`,
+    detail,
+    source: 'parse',
+    planId,
+    echo: false,
+  }).catch(() => undefined)
+}
+
+export function parsePlan(source: string, sourcePath?: string, planId?: string): PlanDocument {
+  let meta: Record<string, unknown>
+  let body: string
+  try {
+    const stripped = stripFrontmatter(source.replace(/^\uFEFF/, ''))
+    meta = stripped.meta
+    body = stripped.body
+  } catch (error) {
+    rememberParseFailure(error, 'frontmatter', sourcePath, planId)
+    throw error
+  }
   const blocks: PlanBlock[] = []
   let cursor = 0
   FENCE_RE.lastIndex = 0
@@ -550,7 +575,12 @@ export function parsePlan(source: string, sourcePath?: string): PlanDocument {
 
     const kind = match[1] ?? 'markdown'
     const fenceBody = match[2] ?? ''
-    blocks.push(parseFence(kind, fenceBody, match[0], blocks.length))
+    try {
+      blocks.push(parseFence(kind, fenceBody, match[0], blocks.length))
+    } catch (error) {
+      rememberParseFailure(error, `${kind} block`, sourcePath, planId)
+      throw error
+    }
     cursor = index + match[0].length
   }
 

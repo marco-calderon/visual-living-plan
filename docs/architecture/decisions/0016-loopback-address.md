@@ -1,4 +1,4 @@
-# ADR 0015: Publish the loopback service as 127.0.0.1
+# ADR 0016: Publish the loopback service as 127.0.0.1
 
 - Status: Accepted
 - Date: 2026-10-22

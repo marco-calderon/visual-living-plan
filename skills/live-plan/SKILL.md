@@ -80,6 +80,7 @@ Replace the bunx prefix with `live-plan` when the command is installed.
 | `close --url <url>` | Drop the plan from the service. |
 | `execution start\|push\|stop --url <url>` | Turn the live workflow overlay on, update it, or turn it off. |
 | `processes` | List plans hosted by the service (directory, git status, site URL). |
+| `logs` | Print the development log saved under `~/.living-plan`. The page does not show it. `--level error`, `warn`, or `log`. `--day YYYY-MM-DD` reads one registry day. `--url` reads that plan. |
 | `dashboard` | Open the registry dashboard for running and executed plans. |
 | `tui` | The registry in the terminal. Starts the plan service if it is down, and leaves it running on quit. `p` lists running plans. `d` is the dashboard (`--period day`, `week`, or `month`). Active plans are listed first. |
 | `theme get\|set` | Read or change the accent color. Use `--url` while serving, or `--plan` / `--config` to edit `live-plan.config.json`. |

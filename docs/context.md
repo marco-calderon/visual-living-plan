@@ -29,6 +29,7 @@ The service and the private server are Elysia apps. Route handlers live in `src/
 | `src/registryService.ts` | The long-lived Elysia app and its routes |
 | `src/registryStore.ts` | SQLite through Drizzle. `plans`, `plan_sessions`, `plan_events`, and `plan_runs`. Finished runs are filtered by `started_at` and `ended_at` |
 | `src/server.ts` | Private one-plan Elysia app |
+| `src/serviceLog.ts`, `src/clientLog.ts` | Development log of errors, warnings, and logs. Files under `~/.living-plan`. Read with `live-plan logs` |
 | `src/httpServer.ts` | `Bun.serve` binding for an Elysia app |
 | `src/agentEvents.ts` | Client-side SSE reader. Use `planApiUrl` so `/plans/<id>/` URLs resolve correctly |
 | `src/parse.ts`, `src/render.ts` | Plan file in, HTML page out |
@@ -37,13 +38,13 @@ The service and the private server are Elysia apps. Route handlers live in `src/
 | `test/` | Node test runner via `npm test` |
 | `examples/rate-limit.plan.md` | The fixture plan used by service tests |
 
-Home directory for the service is `~/.visual-living-plan`, or `LIVE_PLAN_HOME` when set. The lock file is `registry.json`. The database is `registry.sqlite`.
+Home directory for the service is `~/.visual-living-plan`, or `LIVE_PLAN_HOME` when set. The lock file is `registry.json`. The database is `registry.sqlite`. Development logs are a different directory, `~/.living-plan`, or `LIVE_PLAN_LOG_HOME` when set.
 
 ## Invariants
 
 - The plan file is the document. Responses, comments, execution, and review are session state in `plan_sessions`. Submissions are rows in `plan_events`.
 - The same plan path always maps to the same plan id.
-- Browser API calls from a hosted page are prefixed with `/plans/<id>`. Root `/api/...` on the service is the catalog, not a plan.
+- Browser API calls from a hosted page are prefixed with `/plans/<id>`. Root `/api/...` on the service is the catalog, the dashboard, and the service log, not a plan.
 - `new URL('/api/plan', planUrl)` is wrong for a plan URL that has a path. Use `planApiUrl`.
 - User submissions are pushed on the agent stream and stored in `plan_events`. `delivered_at` is set when the CLI acks. Do not poll `/api/plan` from the CLI.
 - The agent stream on the service requires a bearer token. Browser submission routes stay open on loopback.
@@ -52,6 +53,7 @@ Home directory for the service is `~/.visual-living-plan`, or `LIVE_PLAN_HOME` w
 - The service process stays running after `serve`, `events`, `wait`, `review`, `dashboard`, and `tui` exit.
 - A `workflow` block is required in a plan. `check` fails without it.
 - While execution is active, plan forms and review return HTTP 409.
+- Diagnostic logs are not submissions and are not shown on the page. They are files under `~/.living-plan` (one registry file per day, one file per plan). `live-plan logs` reads them without a running service, and a restart leaves them in place.
 
 ## Working on a change
 
