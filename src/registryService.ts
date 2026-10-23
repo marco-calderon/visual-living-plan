@@ -10,14 +10,8 @@ import { archivePlanFile, archivedPlanPath, isPathInside } from './planArchive'
 import { createPlanHost, type PlanHost } from './planHost'
 import { registerPlanRoutes } from './planRoutes'
 import { readClientAsset } from './planSession'
-import {
-  ensureLocalHostname,
-  exposeLoopbackPort80,
-  formatHttpOrigin,
-  isLoopbackHost,
-  servicePublicOrigin,
-} from './localName'
-import { DEFAULT_REGISTRY_HOST, DEFAULT_REGISTRY_PORT, STALE_MS } from './registryConstants'
+import { formatHttpOrigin } from './localName'
+import { DEFAULT_REGISTRY_HOST, STALE_MS } from './registryConstants'
 import { registryDatabasePath, registryPlansDir, registryStartingPath, writeRegistryLock } from './registryLock'
 import { renderRegistryPage } from './registryPage'
 import { openRegistryStore, type RegistryStore, type RunWindow } from './registryStore'
@@ -176,8 +170,6 @@ export async function startRegistryServer(options: {
   home: string
   host?: string
   port?: number
-  /** Publish http://living-plan.local when this service is bound to loopback. */
-  localName?: boolean
   token?: string
   staleMs?: number
   version?: string
@@ -430,32 +422,7 @@ export async function startRegistryServer(options: {
     throw error
   }
 
-  let releasePort80: () => Promise<void> = async () => undefined
-  let url = formatHttpOrigin(host, bound.port)
-  if (options.localName && isLoopbackHost(host)) {
-    try {
-      const named = await ensureLocalHostname({ elevate: 'passwordless' })
-      let portless = bound.port === 80
-      if (named.outcome === 'ready' && bound.port === DEFAULT_REGISTRY_PORT) {
-        const exposed = await exposeLoopbackPort80({ app, targetPort: bound.port })
-        portless = exposed.portless
-        releasePort80 = exposed.stop
-      }
-      url = servicePublicOrigin({
-        bindHost: host,
-        port: bound.port,
-        nameReady: named.outcome === 'ready',
-        portless,
-      })
-    } catch (error) {
-      void recordLog({
-        level: 'error',
-        message: error instanceof Error ? error.message : 'Could not publish the local plan name',
-        detail: error instanceof Error ? error.stack : undefined,
-        source: 'server',
-      }).catch(() => undefined)
-    }
-  }
+  const url = formatHttpOrigin(host, bound.port)
   originBox.current = url
   await writeRegistryLock(options.home, {
     pid: process.pid,
@@ -490,7 +457,6 @@ export async function startRegistryServer(options: {
     home: options.home,
     async close() {
       clearInterval(timer)
-      await releasePort80()
       const { readRegistryLock, registryLockPath } = await import('./registryLock')
       const lock = await readRegistryLock(options.home)
       if (lock?.pid === process.pid) {

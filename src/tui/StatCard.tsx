@@ -1,5 +1,5 @@
 import { Box, Text } from '@semos-labs/glyph'
-import { palette } from './palette'
+import { usePalette } from './PaletteProvider'
 
 type StatCardProps = {
   label: string
@@ -7,6 +7,7 @@ type StatCardProps = {
 }
 
 export function StatCard({ label, value }: StatCardProps) {
+  const palette = usePalette()
   return (
     <Box
       style={{

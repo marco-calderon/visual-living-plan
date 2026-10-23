@@ -231,7 +231,7 @@ test('live-plan logs reads the files without a running service', async () => {
 test('logs stay off the page and one plan does not see another plan', async () => {
   await clearLogs()
   const home = await mkdtemp(join(tmpdir(), 'live-plan-logs-'))
-  const registry = await startRegistryServer({ home, port: 0, token: 'test-token-value', localName: false })
+  const registry = await startRegistryServer({ home, port: 0, token: 'test-token-value' })
   try {
     const dashboard = await fetch(new URL('/dashboard', registry.url))
     assert.equal(dashboard.status, 200)

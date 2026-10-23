@@ -302,10 +302,9 @@ test('running-plan lines match the registry home card', () => {
 })
 
 test('tui arguments accept the registry flags and reject a missing value', () => {
-  const named = parseTuiArgs(['--no-local-name', '--registry-host', '127.0.0.1', '--registry-port', '9501'])
+  const named = parseTuiArgs(['--registry-host', '127.0.0.1', '--registry-port', '9501'])
   assert.equal('error' in named, false)
   if (!('error' in named)) {
-    assert.equal(named.localName, false)
     assert.equal(named.host, '127.0.0.1')
     assert.equal(named.port, 9501)
     assert.equal(named.period, 'day')
@@ -390,10 +389,10 @@ function spawnTui(home: string, port: number) {
     },
   })
   const proc = Bun.spawn(
-    [process.execPath, entryFile, 'tui', '--registry-port', String(port), '--no-local-name', '--period', 'day'],
+    [process.execPath, entryFile, 'tui', '--registry-port', String(port), '--period', 'day'],
     {
       cwd: resolve('.'),
-      env: { ...process.env, LIVE_PLAN_HOME: home, LIVE_PLAN_LOCAL_NAME: '0' },
+      env: { ...process.env, LIVE_PLAN_HOME: home },
       terminal,
     },
   )

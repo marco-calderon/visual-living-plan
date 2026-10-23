@@ -24,8 +24,6 @@ export async function startLivingPlanServer(options: {
   port?: number
   iteration?: number
   host?: string
-  /** Name to print in the URL. The socket still binds to `host`. */
-  publicHost?: string
   /** Shared registry this page proxies so the plans panel stays same-origin. */
   registry?: {
     url: string
@@ -113,7 +111,7 @@ export async function startLivingPlanServer(options: {
   )
 
   const bound = bindElysia(app, host, options.port ?? 0)
-  const url = formatHttpOrigin(options.publicHost ?? host, bound.port)
+  const url = formatHttpOrigin(host, bound.port)
 
   return {
     port: bound.port,

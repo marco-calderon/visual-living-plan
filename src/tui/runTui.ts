@@ -1,15 +1,15 @@
 import { render } from '@semos-labs/glyph'
+import { resolve } from 'node:path'
 import { createElement } from 'react'
 import { parsePeriod, type DashboardPeriod } from '../dashboard'
 import { ensureRegistry, registryBindUrl } from '../registryClient'
+import { DEFAULT_ACCENT, DEFAULT_CONFIG_FILENAME, loadThemeConfig } from '../theme'
 import { DashboardApp } from './DashboardApp'
 
 export type TuiOptions = {
   period: DashboardPeriod
   host?: string
   port?: number
-  /** False keeps the service URL on the bind address. Omit to follow the loopback default. */
-  localName?: boolean
 }
 
 export type RunTuiOptions = {
@@ -48,7 +48,6 @@ export function parseTuiArgs(args: string[]): TuiOptions | { error: string } {
     period,
     host,
     port: port !== undefined && Number.isFinite(port) && port > 0 ? port : undefined,
-    localName: args.includes('--no-local-name') ? false : undefined,
   }
 }
 
@@ -75,10 +74,17 @@ export async function runTui(args: string[], entryFile: string, options: RunTuiO
       home: options.home,
       port: parsed.port,
       host: parsed.host,
-      localName: parsed.localName,
     })
   } catch (error) {
     console.error(`Registry unavailable: ${error instanceof Error ? error.message : error}`)
+    return 1
+  }
+
+  let accent = DEFAULT_ACCENT
+  try {
+    accent = (await loadThemeConfig(resolve(DEFAULT_CONFIG_FILENAME))).accent
+  } catch (error) {
+    console.error(`Theme config: ${error instanceof Error ? error.message : error}`)
     return 1
   }
 
@@ -86,6 +92,7 @@ export async function runTui(args: string[], entryFile: string, options: RunTuiO
     createElement(DashboardApp, {
       registryUrl: registryBindUrl(registry),
       initialPeriod: parsed.period,
+      accent,
       // Exit this client only. The service was started detached and is not signaled.
       onQuit: () => process.exit(0),
     }),

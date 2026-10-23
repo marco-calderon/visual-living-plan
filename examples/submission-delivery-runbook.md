@@ -11,7 +11,7 @@ Commands below are what the guide runs from this repo. `events` prints one JSON 
 ```bash
 export PATH="$HOME/.bun/bin:$PATH"
 bun src/cli.ts check examples/submission-delivery.plan.md
-bun src/cli.ts serve examples/submission-delivery.plan.md --detach --no-open --no-local-name
+bun src/cli.ts serve examples/submission-delivery.plan.md --detach --no-open
 bun src/cli.ts mode comment --url "$URL"
 ```
 

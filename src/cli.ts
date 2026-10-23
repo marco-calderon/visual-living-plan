@@ -42,19 +42,6 @@ import {
   type RegistryLock,
 } from './registryClient'
 import { isPidAlive } from './pid'
-import {
-  dropSudoPrivileges,
-  ensureLocalHostname,
-  hostsFilePath,
-  isLoopbackAddress,
-  isLoopbackHost,
-  LOCAL_PLAN_HOSTNAME,
-  localNameDesired,
-  localNameEnabled,
-  removeLocalHostname,
-  resolveLocalName,
-  startTcpForward,
-} from './localName'
 import { DEFAULT_REGISTRY_HOST, DEFAULT_REGISTRY_PORT } from './registryConstants'
 import { formatServiceLogLines, isLogDay, listLogs, recordLog, type LogLevel } from './serviceLog'
 
@@ -93,7 +80,6 @@ Usage:
   live-plan dashboard
   live-plan tui [--period day|week|month] [--registry-port N] [--registry-host HOST]
   live-plan registry [--port N] [--host HOST]
-  live-plan hostname [status|install|remove]
 
 Requires Bun (https://bun.sh). Invoke with \`bunx visual-living-plan <command>\` when the \`live-plan\` command is not installed. \`living-plan\` is the same binary.
 
@@ -114,7 +100,6 @@ Modes:
   dashboard   Open the control dashboard (running and executed plans, by day, week, or month).
   tui         The registry in the terminal: running plans, and the day, week, and month dashboard. Starts the plan service when it is not already running. Quitting leaves that service up. Active plans are listed first. Click a control, or use Tab, arrows, p, d, and the number keys.
   registry    Run the plan service in the foreground. serve and review start it on their own.
-  hostname    Show or install the living-plan.local name (loopback). install may ask for sudo.
 
 Every plan includes a \`workflow\` block. That block is the execution path the Workflow tab draws.
 Accent color is saved in live-plan.config.json beside the plan (override with --config).
@@ -126,7 +111,7 @@ The machine service keeps running after serve, events, wait, review, dashboard, 
 --no-registry serves this plan in its own process instead of the machine service.
 --port sets that private process port. With the service, --port is used only when the service is not already running.
 --registry-port and --registry-host choose the service (default ${DEFAULT_REGISTRY_HOST}:${DEFAULT_REGISTRY_PORT}).
-On loopback the printed URL uses ${LOCAL_PLAN_HOSTNAME} when that name resolves to 127.0.0.1. Port 80 is added when it can be opened, so the URL has no port. --no-local-name keeps the IP address. LIVE_PLAN_LOCAL_NAME=0 does the same.
+The printed URL uses that address. On loopback it is http://127.0.0.1:${DEFAULT_REGISTRY_PORT}/plans/<id>/. --host other than loopback is the address a cloud agent shares.
 --token authorizes the agent event stream. Omitted, the local service token is used.
 `)
 }
@@ -374,32 +359,11 @@ async function openRegistry(args: string[]): Promise<RegistryLock | null> {
       entryFile: fileURLToPath(import.meta.url),
       port: port !== undefined && Number.isFinite(port) && port > 0 ? port : undefined,
       host,
-      localName: hasFlag(args, '--no-local-name') ? false : undefined,
     })
   } catch (error) {
     console.error(`Registry unavailable: ${error instanceof Error ? error.message : error}`)
     return null
   }
-}
-
-function logLocalNameHint(url: string, args: string[]): void {
-  if (hasFlag(args, '--no-local-name') || !localNameEnabled()) return
-  let hostname = ''
-  try {
-    hostname = new URL(url).hostname
-  } catch {
-    return
-  }
-  if (hostname === LOCAL_PLAN_HOSTNAME) return
-  if (!isLoopbackAddress(hostname) && hostname !== 'localhost') return
-  console.log(`To open plans at http://${LOCAL_PLAN_HOSTNAME}/ run: sudo live-plan hostname install`)
-}
-
-async function loopbackPublicHost(host: string, args: string[]): Promise<string | undefined> {
-  if (hasFlag(args, '--no-local-name') || !localNameEnabled() || !isLoopbackHost(host)) return undefined
-  const status = await ensureLocalHostname({ elevate: 'passwordless' })
-  if (status.outcome !== 'ready') return undefined
-  return LOCAL_PLAN_HOSTNAME
 }
 
 async function cmdServe(file: string, args: string[]): Promise<number> {
@@ -417,7 +381,6 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
     console.log(`Living Plan (watch): ${hosted.url}`)
     console.log(`Plan file: ${planPath}`)
     console.log(`Service: ${registry.url}`)
-    logLocalNameHint(hosted.url, args)
     console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent).')
     await openBrowser(hosted.url)
     if (hasFlag(args, '--detach')) {
@@ -429,18 +392,15 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
 
   const port = Number(getFlag(args, '--port') ?? 0)
   const host = getFlag(args, '--host') ?? '127.0.0.1'
-  const publicHost = await loopbackPublicHost(host, args)
   const server = await startLivingPlanServer({
     planPath,
     mode: 'watch',
     port: Number.isFinite(port) ? port : 0,
     host,
-    publicHost,
     configPath,
   })
   console.log(`Living Plan (watch): ${server.url}`)
   console.log(`Plan file: ${planPath}`)
-  logLocalNameHint(server.url, args)
   console.log(`Theme config: ${server.getState().theme.configPath}`)
   console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent).')
   await openBrowser(server.url)
@@ -560,13 +520,11 @@ async function holdPrivateReview(file: string, args: string[]): Promise<number> 
   const configPath = getFlag(args, '--config')
   const port = Number(getFlag(args, '--port') ?? 0)
   const host = getFlag(args, '--host') ?? '127.0.0.1'
-  const publicHost = await loopbackPublicHost(host, args)
   const server = await startLivingPlanServer({
     planPath,
     mode: 'review',
     port: Number.isFinite(port) ? port : 0,
     host,
-    publicHost,
     iteration: Number.isFinite(iteration) ? iteration : 1,
     configPath,
   })
@@ -598,7 +556,6 @@ async function privateReview(file: string, args: string[]): Promise<number> {
     if (stdout && 'unref' in stdout) (stdout as { unref: () => void }).unref()
     console.log(`Living Plan (review): ${url}`)
     console.log(`Plan file: ${planPath}`)
-    logLocalNameHint(url, args)
     await openBrowser(url)
     const held = await readReviewEvent(url, undefined, timeoutMs)
     await writeReviewOutput(args, held.review)
@@ -630,7 +587,6 @@ async function cmdReview(file: string, args: string[]): Promise<number> {
     console.log(`Living Plan (review): ${hosted.url}`)
     console.log(`Plan file: ${planPath}`)
     console.log(`Service: ${registry.url}`)
-    logLocalNameHint(hosted.url, args)
     await openBrowser(hosted.url)
     try {
       const apiUrl = rewriteToBindUrl(registry, hosted.url)
@@ -992,7 +948,6 @@ async function cmdRegistry(args: string[]): Promise<number> {
     host,
     port: registryPort,
     version,
-    localName: !hasFlag(args, '--no-local-name') && localNameDesired(host, registryPort),
   })
   console.log(`Living Plan service: ${server.url}`)
   await new Promise<void>((resolveWait) => {
@@ -1066,96 +1021,6 @@ async function cmdTheme(args: string[]): Promise<number> {
 
   console.error('Usage: live-plan theme <get|set> [--accent #hex] [--url <server-url>] [--config file]')
   return 1
-}
-
-function hostnameElevate(): 'prompt' | 'passwordless' {
-  return process.stdin.isTTY ? 'prompt' : 'passwordless'
-}
-
-async function cmdForward(args: string[]): Promise<number> {
-  const listenPort = Number(args[0])
-  const targetPort = Number(args[1])
-  const ownerPid = Number(args[2])
-  if (listenPort !== 80 || !Number.isInteger(targetPort) || targetPort < 1024 || targetPort > 65535) {
-    console.error('hostname forward listens on 127.0.0.1:80 and copies to an unprivileged loopback port')
-    return 1
-  }
-  if (!Number.isInteger(ownerPid) || ownerPid <= 0) {
-    console.error('hostname forward requires the plan service pid')
-    return 1
-  }
-  let forwarder: Awaited<ReturnType<typeof startTcpForward>> | undefined
-  try {
-    forwarder = await startTcpForward({ listenPort, targetPort, ownerPid })
-    dropSudoPrivileges()
-    const stop = () => {
-      void forwarder?.stop()
-    }
-    process.once('SIGTERM', stop)
-    process.once('SIGINT', stop)
-    await forwarder.done
-    return 0
-  } catch (error) {
-    await forwarder?.stop()
-    console.error(error instanceof Error ? error.message : error)
-    return 1
-  }
-}
-
-async function cmdHostname(args: string[]): Promise<number> {
-  const action = args[0] ?? 'status'
-  if (action === 'forward') return cmdForward(args.slice(1))
-  const quiet = args.includes('--quiet')
-  if (action === 'apply') {
-    const status = await ensureLocalHostname({ elevate: 'never' })
-    if (!quiet) console.log(status.message)
-    return status.outcome === 'ready' ? 0 : 1
-  }
-  if (action === 'unapply') {
-    const result = await removeLocalHostname({ elevate: 'never' })
-    if (!quiet) {
-      if (result === 'removed') console.log(`Removed ${LOCAL_PLAN_HOSTNAME} from ${hostsFilePath()}`)
-      else if (result === 'absent') console.log(`${LOCAL_PLAN_HOSTNAME} was not installed by this app`)
-      else console.log(`Could not edit ${hostsFilePath()}`)
-    }
-    return result === 'denied' ? 1 : 0
-  }
-  if (action === 'install') {
-    const status = await ensureLocalHostname({ elevate: hostnameElevate() })
-    console.log(status.message)
-    return status.outcome === 'ready' ? 0 : 1
-  }
-  if (action === 'remove') {
-    const result = await removeLocalHostname({ elevate: hostnameElevate() })
-    if (result === 'removed') console.log(`Removed ${LOCAL_PLAN_HOSTNAME} from ${hostsFilePath()}`)
-    else if (result === 'absent') console.log(`${LOCAL_PLAN_HOSTNAME} was not installed by this app`)
-    else console.log(`Could not edit ${hostsFilePath()}. Re-run: sudo live-plan hostname unapply`)
-    return result === 'denied' ? 1 : 0
-  }
-  if (action !== 'status') {
-    console.error('Usage: live-plan hostname [status|install|remove]')
-    return 1
-  }
-
-  const resolved = await resolveLocalName()
-  if (resolved.kind === 'ready') console.log(`${LOCAL_PLAN_HOSTNAME} points at ${resolved.addresses.join(', ')}`)
-  else if (resolved.kind === 'conflict') {
-    console.log(`${LOCAL_PLAN_HOSTNAME} points at ${resolved.addresses.join(', ')}, which is not loopback`)
-  } else console.log(`${LOCAL_PLAN_HOSTNAME} does not resolve`)
-
-  try {
-    const response = await fetch('http://127.0.0.1/api/health', { signal: AbortSignal.timeout(400) })
-    const body = (await response.json()) as { ok?: boolean }
-    console.log(body.ok === true ? 'Port 80: open on loopback' : 'Port 80: not the plan service')
-  } catch {
-    console.log('Port 80: closed')
-  }
-
-  const home = defaultRegistryHome()
-  const lock = await readRegistryLock(home)
-  if (lock && isPidAlive(lock.pid) && (await registryHealthy(registryBindUrl(lock)))) console.log(`Service: ${lock.url}`)
-  else console.log('Service: not running')
-  return 0
 }
 
 async function main(): Promise<number> {
@@ -1255,10 +1120,6 @@ async function main(): Promise<number> {
 
   if (command === 'registry') {
     return cmdRegistry(args.slice(1))
-  }
-
-  if (command === 'hostname') {
-    return cmdHostname(args.slice(1))
   }
 
   if (command === 'theme') {

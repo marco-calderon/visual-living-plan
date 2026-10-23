@@ -38,6 +38,11 @@ export function processLines(record: ProcessRecord, now = Date.now()): string[] 
   return lines
 }
 
+/** Stable identity for one running-plan card. */
+export function processRowKey(record: Pick<ProcessRecord, 'id' | 'startedAt' | 'pid'>): string {
+  return `${record.id}:${record.startedAt}:${record.pid}`
+}
+
 /** Live site link. The registry home only offers Open for an http(s) URL. */
 export function processOpenUrl(record: Pick<ProcessRecord, 'url'>): string | null {
   return safeHttpUrl(record.url)

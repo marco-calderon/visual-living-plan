@@ -1,17 +1,18 @@
 import { Box, Text } from '@semos-labs/glyph'
 import type { PlanRecord } from '../processRecord'
-import { palette } from './palette'
+import { planRowKey, uniqueRowKeys } from './dashboardView'
+import { usePalette } from './PaletteProvider'
 import { planColumn } from './planColumns'
 import { PlanRow } from './PlanRow'
 
 type PlanTableProps = {
   plans: PlanRecord[]
-  selectedId: string | null
-  hoveredId: string | null
+  selectedKey: string | null
+  hoveredKey: string | null
   openUrlFor: (plan: PlanRecord) => string | null
   archiveFor: (plan: PlanRecord) => string | null
-  onSelect: (id: string) => void
-  onHover: (id: string) => void
+  onSelect: (key: string) => void
+  onHover: (key: string) => void
   onOpen: (url: string) => void
 }
 
@@ -28,14 +29,16 @@ const headers = [
 
 export function PlanTable({
   plans,
-  selectedId,
-  hoveredId,
+  selectedKey,
+  hoveredKey,
   openUrlFor,
   archiveFor,
   onSelect,
   onHover,
   onOpen,
 }: PlanTableProps) {
+  const palette = usePalette()
+  const rowKeys = uniqueRowKeys(plans, planRowKey)
   return (
     <Box style={{ flexDirection: 'column', width: '100%' }}>
       <Box style={{ flexDirection: 'row', gap: 1, paddingY: 0 }}>
@@ -46,19 +49,22 @@ export function PlanTable({
         ))}
       </Box>
       <Box style={{ height: 1, bg: palette.line }} />
-      {plans.map((plan) => (
-        <PlanRow
-          key={plan.id}
-          plan={plan}
-          selected={plan.id === selectedId}
-          hovered={plan.id === hoveredId}
-          openUrl={openUrlFor(plan)}
-          archive={archiveFor(plan)}
-          onSelect={() => onSelect(plan.id)}
-          onHover={() => onHover(plan.id)}
-          onOpen={onOpen}
-        />
-      ))}
+      {plans.map((plan, index) => {
+        const key = rowKeys[index] ?? planRowKey(plan)
+        return (
+          <PlanRow
+            key={key}
+            plan={plan}
+            selected={key === selectedKey}
+            hovered={key === hoveredKey}
+            openUrl={openUrlFor(plan)}
+            archive={archiveFor(plan)}
+            onSelect={() => onSelect(key)}
+            onHover={() => onHover(key)}
+            onOpen={onOpen}
+          />
+        )
+      })}
     </Box>
   )
 }
