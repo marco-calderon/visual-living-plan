@@ -22,6 +22,7 @@ import {
   type ExecutionStepNodeType,
 } from './ExecutionStepNode.tsx'
 import { LoopEdge } from './LoopEdge.tsx'
+import { RoutedEdge } from './RoutedEdge.tsx'
 
 const nodeTypes = {
   executionStep: ExecutionStepNode,
@@ -29,6 +30,7 @@ const nodeTypes = {
 
 const edgeTypes = {
   loop: LoopEdge,
+  routed: RoutedEdge,
 } satisfies EdgeTypes
 
 function useResolvedTheme(): { mode: 'light' | 'dark'; accent: string } {
@@ -66,7 +68,6 @@ function cssVar(name: string, fallback: string): string {
 type EdgeColors = {
   accent: string
   muted: string
-  labelBg: string
 }
 
 function toFlowNodes(model: ExecutionCanvasProps['model']): ExecutionStepNodeType[] {
@@ -106,13 +107,9 @@ function toFlowEdges(model: ExecutionCanvasProps['model'], colors: EdgeColors): 
       sourceHandle: `out-${sourceSide}`,
       targetHandle: `in-${targetSide}`,
       animated: emphasized,
-      type: isLoop ? 'loop' : 'smoothstep',
-      data: isLoop ? { label: edge.label } : undefined,
+      type: isLoop ? 'loop' : 'routed',
+      data: { label: edge.label },
       label: isLoop ? undefined : edge.label,
-      labelStyle: edge.label && !isLoop ? { fill: colors.accent, fontWeight: 700, fontSize: 11 } : undefined,
-      labelBgStyle: edge.label && !isLoop ? { fill: colors.labelBg, fillOpacity: 0.96 } : undefined,
-      labelBgPadding: edge.label && !isLoop ? [4, 6] : undefined,
-      labelBgBorderRadius: edge.label && !isLoop ? 8 : undefined,
       markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: stroke },
       style: { stroke, strokeWidth: emphasized ? 1.75 : 1.4 },
     }
@@ -126,7 +123,6 @@ function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: Execu
     () => ({
       accent: cssVar('--accent', theme.mode === 'dark' ? '#2dd4bf' : '#0f766e'),
       muted: cssVar('--muted', theme.mode === 'dark' ? '#b7c7c0' : '#5b6b63'),
-      labelBg: cssVar('--stage-bg', theme.mode === 'dark' ? '#0e1614' : '#f7faf8'),
     }),
     [theme],
   )
