@@ -6,6 +6,10 @@ import { fileURLToPath } from 'node:url'
 const rootDir = dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
+  // Bundles are served under /client/* (see loadClientAssets / registry routes).
+  // Without this, Vite's modulepreload helper prefixes chunk URLs as /assets/...,
+  // which 404s on plan pages and floods the console during highlight/workflow loads.
+  base: '/client/',
   plugins: [react()],
   build: {
     outDir: 'dist/client',

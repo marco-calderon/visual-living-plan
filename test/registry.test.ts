@@ -314,6 +314,10 @@ test('planner page lists registered plans and links their directories', async ()
       const asset = await fetch(new URL('/client/assets/probe.txt', planServer.url))
       assert.equal(asset.status, 200)
       assert.equal(await asset.text(), 'probe-ok')
+      // Vite modulepreload historically requested /assets/* (base "/"); keep that alias.
+      const legacyAsset = await fetch(new URL('/assets/probe.txt', planServer.url))
+      assert.equal(legacyAsset.status, 200)
+      assert.equal(await legacyAsset.text(), 'probe-ok')
     } finally {
       await rm(join(probeDir, 'probe.txt'), { force: true })
     }
