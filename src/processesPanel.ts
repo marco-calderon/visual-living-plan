@@ -1,14 +1,15 @@
 /** Styles for the plans switcher embedded in every planner page. */
 export const PROCESSES_PANEL_STYLES = `
 .processes {
-  position: fixed;
-  top: 1rem;
-  right: 1rem;
-  z-index: 7;
-  width: min(380px, calc(100% - 2rem));
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: auto;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+  justify-content: center;
   pointer-events: none;
 }
 .processes-toggle,
@@ -25,7 +26,6 @@ export const PROCESSES_PANEL_STYLES = `
   font: inherit;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: var(--shadow);
   backdrop-filter: blur(14px);
 }
 .processes-toggle:focus-visible {
@@ -42,8 +42,11 @@ export const PROCESSES_PANEL_STYLES = `
   padding: 0.05rem 0.35rem;
 }
 .processes-panel {
+  position: absolute;
+  top: 100%;
+  right: 0;
   margin-top: 0.55rem;
-  width: 100%;
+  width: min(380px, calc(100vw - 2rem));
   max-height: min(70vh, 640px);
   overflow: auto;
   border: 1px solid var(--line);

@@ -444,6 +444,7 @@ const STYLES = `
   --node-blocked-border: rgba(180, 83, 9, 0.55);
   --handle-border: #ffffff;
   --minimap-idle: #94a3b8;
+  --titlebar-offset: 3.75rem;
 }
 
 :root[data-theme="dark"] {
@@ -497,6 +498,7 @@ const STYLES = `
   --handle-border: #10201b;
   --minimap-idle: #64748b;
   --review-bg: #172420;
+  --titlebar-offset: 3.75rem;
 }
 
 * { box-sizing: border-box; }
@@ -524,7 +526,7 @@ body::before {
 .shell {
   width: min(920px, calc(100% - 2rem));
   margin: 0 auto;
-  padding: 2.5rem 0 7rem;
+  padding: calc(var(--titlebar-offset) + 1.35rem) 0 7rem;
   position: relative;
   z-index: 1;
 }
@@ -532,17 +534,47 @@ body.has-review-bar .shell {
   padding-bottom: 14rem;
 }
 
-.hero {
-  margin-bottom: 2rem;
-  animation: rise 0.7s ease both;
+.titlebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  height: var(--titlebar-offset);
+  padding: 0 1rem;
+  background: var(--panel-strong);
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(16px);
+}
+.titlebar-logo {
+  width: 29px;
+  height: 29px;
+  flex: 0 0 auto;
+  display: block;
+  border-radius: 50%;
+}
+.plan-intro {
+  margin-bottom: 1.25rem;
+}
+.plan-intro > .meta-row:first-child {
+  margin-top: 0;
 }
 
 .brand {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(2.4rem, 6vw, 4rem);
-  line-height: 0.95;
+  font-weight: 700;
+  font-size: 1.45rem;
+  line-height: 1.05;
   letter-spacing: -0.03em;
-  margin: 0 0 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .lede {
@@ -693,23 +725,33 @@ body.has-review-bar .shell {
 
 .tabs {
   display: inline-flex;
-  gap: 0.35rem;
-  padding: 0.3rem;
-  margin: 1.25rem 0 1rem;
+  flex: 0 0 auto;
+  gap: 0.15rem;
+  padding: 0.18rem;
+  margin: 0;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--tabs-bg);
   backdrop-filter: blur(8px);
 }
 .tab-btn {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
   border: 0;
   background: transparent;
   color: var(--muted);
   border-radius: 999px;
-  padding: 0.55rem 1rem;
+  padding: 0;
   font: inherit;
   font-weight: 600;
   cursor: pointer;
+}
+.tab-btn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
 }
 .tab-btn[aria-selected="true"] {
   background: var(--tab-active-bg);
@@ -735,6 +777,7 @@ body.has-review-bar .shell {
 
 .block {
   scroll-margin: 1.25rem;
+  scroll-margin-top: calc(var(--titlebar-offset) + 0.75rem);
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -1202,7 +1245,7 @@ textarea { min-height: 88px; resize: vertical; }
 
 .toast {
   position: fixed;
-  top: 1rem;
+  top: calc(var(--titlebar-offset) + 0.75rem);
   left: 1rem;
   background: var(--toast-bg);
   color: var(--toast-fg);
@@ -1737,6 +1780,16 @@ function clientScript(
 `
 }
 
+const TAB_ICONS = {
+  plan: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>',
+  workflow: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/></svg>',
+  settings: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>',
+} as const
+
+function tabButton(target: keyof typeof TAB_ICONS, label: string, selected: boolean): string {
+  return `<button type="button" class="tab-btn" role="tab" data-tab-target="${target}" aria-selected="${selected ? 'true' : 'false'}" aria-label="${label}">${TAB_ICONS[target]}</button>`
+}
+
 export function renderPlanPage(options: {
   plan: PlanDocument
   mode: PlanMode
@@ -1840,11 +1893,18 @@ export function renderPlanPage(options: {
   ${assetCss}
 </head>
 <body class="${showReviewBar ? 'has-review-bar' : ''}" data-plan-mode="${escapeHtml(mode)}">
-  ${processesPanelMarkup(selfId)}
+  <header class="titlebar">
+    <img class="titlebar-logo" src="/favicon.png" alt="Living Plan" width="29" height="29" />
+    <h1 class="brand">${escapeHtml(plan.title)}</h1>
+    <div class="tabs" role="tablist" aria-label="Living Plan views">
+      ${tabButton('plan', 'Plan', true)}
+      ${tabButton('workflow', 'Workflow', false)}
+      ${tabButton('settings', 'Settings', false)}
+    </div>
+    ${processesPanelMarkup(selfId)}
+  </header>
   <div class="shell">
-    <header class="hero">
-      <p class="chip" style="width:fit-content;margin:0 0 0.9rem"><span class="live-dot"></span> Living Plan</p>
-      <h1 class="brand">${escapeHtml(plan.title)}</h1>
+    <div class="plan-intro">
       ${plan.summary ? `<p class="lede">${escapeHtml(plan.summary)}</p>` : ''}
       <div class="meta-row">
         <span class="chip">Mode <strong data-plan-mode-chip>${escapeHtml(mode)}</strong></span>
@@ -1855,12 +1915,7 @@ export function renderPlanPage(options: {
         ${changed ? `<span class="chip">Changed <strong>${changed}</strong></span>` : ''}
         <span class="chip" data-review-chip${reviewDecision ? '' : ' hidden'}>Review <strong data-review-decision>${escapeHtml(reviewDecision ?? '')}</strong></span>
       </div>
-      <div class="tabs" role="tablist" aria-label="Living Plan views">
-        <button type="button" class="tab-btn" role="tab" data-tab-target="plan" aria-selected="true">Plan</button>
-        <button type="button" class="tab-btn" role="tab" data-tab-target="workflow" aria-selected="false">Workflow</button>
-        <button type="button" class="tab-btn" role="tab" data-tab-target="settings" aria-selected="false">Settings</button>
-      </div>
-    </header>
+    </div>
     <section class="tab-panel${locked ? ' plan-locked' : ''}" data-tab-panel="plan" role="tabpanel">
       ${
         locked
