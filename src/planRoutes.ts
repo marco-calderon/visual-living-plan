@@ -59,6 +59,29 @@ export function registerPlanRoutes(app: any, options: PlanRouteOptions): any {
     })
   }
 
+  async function legacyAsset(context: RouteContext, session: PlanSession | undefined): Promise<unknown> {
+    if (session) session.touch()
+    const response = await readClientAsset(`assets/${String(context.params?.['*'] ?? '')}`)
+    if (!response) {
+      context.set.status = 404
+      return { error: 'Asset not found' }
+    }
+    return response
+  }
+
+  // Absolute /assets/* URLs from Vite modulepreload (base "/") hit the origin root
+  // even when the plan page lives under /plans/:id/.
+  app.get('/assets/*', (context: RouteContext) => {
+    const session = options.hosted ? undefined : sessionFor(undefined)
+    return legacyAsset(context, session)
+  })
+  if (options.hosted) {
+    app.get(route('/assets/*'), (context: RouteContext) => {
+      const session = sessionFor(idOf(context))
+      return legacyAsset(context, session)
+    })
+  }
+
   return app
     .get(route('/client/*'), (context: RouteContext) => {
       const session = sessionFor(options.hosted ? idOf(context) : undefined)

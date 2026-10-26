@@ -120,7 +120,9 @@ export type PlanSession = {
 }
 
 export async function readClientAsset(pathname: string): Promise<Response | null> {
-  const relative = normalize(pathname.replace(/^\/client\//, ''))
+  // Accept /client/assets/..., assets/..., or a bare path under dist/client.
+  const stripped = pathname.replace(/^\/client\//, '').replace(/^\//, '')
+  const relative = normalize(stripped)
   if (relative.startsWith('..') || relative.includes('\0')) throw new HttpError(400, 'Invalid path')
   try {
     const filePath = join(clientDistDir(), relative)
