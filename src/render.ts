@@ -1664,7 +1664,22 @@ function clientScript(
     }
   }
 
-  const source = new EventSource(apiBase + '/api/events');
+  // One EventSource per page — shared with PlanSelector / execution canvas via
+  // window.__livingPlanEvents. Three streams × three tabs saturates Chromium's
+  // ~6 HTTP/1.1 connections/host and hangs simultaneous reloads.
+  const existing = window.__livingPlanEvents;
+  const source =
+    existing && existing.readyState !== EventSource.CLOSED
+      ? existing
+      : new EventSource(apiBase + '/api/events');
+  window.__livingPlanEvents = source;
+  const releaseEvents = () => {
+    if (window.__livingPlanEvents !== source) return;
+    source.close();
+    delete window.__livingPlanEvents;
+  };
+  window.addEventListener('pagehide', releaseEvents);
+  window.addEventListener('beforeunload', releaseEvents);
   let streamWarnedAt = 0;
   source.addEventListener('error', (event) => {
     if (event && event.data) return;
