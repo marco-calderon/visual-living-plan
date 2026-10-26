@@ -51,6 +51,46 @@ test('parallel edges between the same steps bow apart', () => {
   assert.ok(Math.abs((crosses[0] ?? 0) - (crosses[1] ?? 0)) >= 12)
 })
 
+test('fan-in rails and stacked returns each keep their own line', () => {
+  const nodes: RoutedNode[] = [
+    { id: 'roles', x: 0, y: 0, width: 240, height: 130 },
+    { id: 'table', x: 0, y: 168, width: 240, height: 140 },
+    { id: 'registry', x: 280, y: 0, width: 240, height: 130 },
+    { id: 'permission', x: 280, y: 168, width: 240, height: 140 },
+    { id: 'queue', x: 560, y: 0, width: 240, height: 130 },
+  ]
+  const edges = [
+    link('roles-reg', nodes[0]!, nodes[2]!),
+    link('roles-perm', nodes[0]!, nodes[3]!),
+    link('table-reg', nodes[1]!, nodes[2]!),
+    link('table-perm', nodes[1]!, nodes[3]!),
+    link('reg-queue', nodes[2]!, nodes[4]!),
+    link('queue-perm', nodes[4]!, nodes[3]!, 'bottom', 'right'),
+    link('reg-perm', nodes[2]!, nodes[3]!, 'bottom', 'right'),
+  ]
+  const routes = routeWorkflowEdges(nodes, edges)
+  const byId = new Map(routes.map((route) => [route.id, route]))
+
+  for (const edge of edges) {
+    const route = byId.get(edge.id)
+    assert.ok(route, edge.id)
+    assert.deepEqual(route.points[0], edge.sourcePoint)
+    assert.deepEqual(route.points[route.points.length - 1], edge.targetPoint)
+    assert.equal(segmentEntersAny(route.points, nodes), false, edge.id)
+  }
+
+  const intoRegistry = verticalCross(byId.get('roles-perm'))
+  const intoPermission = verticalCross(byId.get('table-reg'))
+  assert.ok(Math.abs(intoRegistry - intoPermission) >= 18, `${intoRegistry} vs ${intoPermission}`)
+  for (const cross of [intoRegistry, intoPermission]) {
+    assert.ok(cross > 240 && cross < 280, `gutter rail ${cross}`)
+  }
+
+  const queueReturn = verticalCross(byId.get('queue-perm'))
+  const registryReturn = verticalCross(byId.get('reg-perm'))
+  assert.ok(Math.abs(queueReturn - registryReturn) >= 18, `${queueReturn} vs ${registryReturn}`)
+})
+
 test('a return edge into another card stays outside the cards', () => {
   const nodes: RoutedNode[] = [
     { id: 'design', x: 40, y: 40, width: 220, height: 110 },
@@ -155,6 +195,25 @@ function enters(from: Point, to: Point, node: RoutedNode): boolean {
     return Math.max(from.y, to.y) > top && Math.min(from.y, to.y) < bottom
   }
   return false
+}
+
+function verticalCross(route: WorkflowRoute | undefined): number {
+  assert.ok(route)
+  let best = 0
+  let cross = 0
+  for (let i = 1; i < route.points.length; i += 1) {
+    const from = route.points[i - 1]
+    const to = route.points[i]
+    if (!from || !to) continue
+    if (Math.abs(from.x - to.x) > 0.75) continue
+    const length = Math.abs(to.y - from.y)
+    if (length > best) {
+      best = length
+      cross = (from.x + to.x) / 2
+    }
+  }
+  assert.ok(best > 40, route.id)
+  return cross
 }
 
 function routeCross(route: WorkflowRoute, orientation: 'h' | 'v'): number {
