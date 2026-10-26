@@ -19,6 +19,7 @@ import {
   type PlanPart,
 } from './planParts.ts'
 import { UnaddressedMark } from './UnaddressedMark.tsx'
+import { subscribePlanEvents } from './planEvents.ts'
 import './planSelector.css'
 
 type PlanWindow = Window & {
@@ -311,10 +312,9 @@ export function PlanSelector() {
   }
 
   useEffect(() => {
-    const source = new EventSource(apiPath('/api/events'))
-    const onComment = (event: Event) => {
+    return subscribePlanEvents('comment', (event) => {
       try {
-        const comment = JSON.parse((event as MessageEvent).data) as PlanComment
+        const comment = JSON.parse(event.data) as PlanComment
         if (!comment?.id || !comment.partId) return
         const previous = commentsRef.current
         commitComments((current) => upsert(current, comment))
@@ -322,9 +322,7 @@ export function PlanSelector() {
       } catch {
         // Ignore a malformed event.
       }
-    }
-    source.addEventListener('comment', onComment)
-    return () => source.close()
+    })
   }, [])
 
   useEffect(() => {

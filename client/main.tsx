@@ -4,6 +4,7 @@ import { ExecutionCanvas } from './ExecutionCanvas'
 import type { ExecutionState } from '../src/execution.ts'
 import { createIdleExecutionState, mergePlannedExecution } from '../src/execution.ts'
 import { getActiveExecutionCanvasAdapter } from './execution-canvas/registry.ts'
+import { subscribePlanEvents } from './planEvents.ts'
 import { sampleLoopExecution } from './sampleLoopExecution.ts'
 import './execution.css'
 
@@ -55,22 +56,22 @@ function ExecutionApp() {
 
     void load()
 
-    const source = new EventSource(apiPath('/api/events'))
-    source.addEventListener('execution', (event) => {
+    const stopExecution = subscribePlanEvents('execution', (event) => {
       try {
-        const payload = JSON.parse((event as MessageEvent).data) as ExecutionState
-        setExecution(payload)
+        const payload = JSON.parse(event.data) as ExecutionState
+        if (!cancelled) setExecution(payload)
       } catch {
         // ignore malformed events
       }
     })
-    source.addEventListener('reload', () => {
+    const stopReload = subscribePlanEvents('reload', () => {
       void load()
     })
 
     return () => {
       cancelled = true
-      source.close()
+      stopExecution()
+      stopReload()
     }
   }, [])
 
