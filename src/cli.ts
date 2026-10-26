@@ -80,6 +80,7 @@ Usage:
   live-plan dashboard
   live-plan tui [--period day|week|month] [--registry-port N] [--registry-host HOST]
   live-plan registry [--port N] [--host HOST]
+  live-plan --version
 
 Requires Bun (https://bun.sh). Invoke with \`bunx visual-living-plan <command>\` when the \`live-plan\` command is not installed. \`living-plan\` is the same binary.
 
@@ -104,6 +105,7 @@ Modes:
 Every plan includes a \`workflow\` block. That block is the execution path the Workflow tab draws.
 Accent color is saved in live-plan.config.json beside the plan (override with --config).
 --no-open skips launching a browser.
+--version prints the package version and exits. -v is the short flag.
 --detach registers the plan and returns. Without it, serve prints the next undelivered submissions and exits. The page stays up on the service.
 events does the same on a URL you already have. A submission that arrived while it was stopped is printed immediately, then the process exits. Start events again after every comment, denial, or approval so a pending event is not left on the server.
 watch switches that session to watch mode and stays running. Use it after an approval, while execution is in progress. Stop it when execution is finished.
@@ -1026,6 +1028,11 @@ async function cmdTheme(args: string[]): Promise<number> {
 async function main(): Promise<number> {
   const args = process.argv.slice(2)
   const command = args[0]
+
+  if (hasFlag(args, '--version') || hasFlag(args, '-v')) {
+    console.log(await readPackageVersion(fileURLToPath(import.meta.url)))
+    return 0
+  }
 
   if (!command || command === '--help' || command === '-h') {
     printHelp()
