@@ -55,8 +55,39 @@ export const PROCESSES_PANEL_STYLES = `
   box-shadow: var(--shadow);
   backdrop-filter: blur(16px);
   padding: 0.85rem;
+  transform-origin: top right;
 }
 .processes-panel[hidden] { display: none !important; }
+.processes-panel[data-open] {
+  animation: processes-panel-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.processes-panel[data-closed] {
+  animation: processes-panel-out 240ms ease both;
+}
+@keyframes processes-panel-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -12px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+@keyframes processes-panel-out {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, -12px, 0) scale(0.96);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .processes-panel[data-open],
+  .processes-panel[data-closed] { animation: none; }
+}
 .processes-head {
   display: flex;
   justify-content: space-between;
@@ -84,9 +115,11 @@ export const PROCESSES_PANEL_STYLES = `
   margin: 0;
   padding: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.55rem;
 }
 .process-card {
+  min-width: 0;
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 0.75rem;
@@ -96,30 +129,146 @@ export const PROCESSES_PANEL_STYLES = `
   border-color: var(--accent-border);
   background: var(--accent-soft);
 }
+.process-card.is-current .process-mode,
+.process-card.is-current .process-pill,
+.process-card.is-current .process-icon-btn:not(.primary) {
+  background: var(--panel-strong);
+}
 .process-title-row {
   display: flex;
   justify-content: space-between;
-  gap: 0.5rem;
-  align-items: baseline;
+  gap: 0.55rem;
+  align-items: flex-start;
+  min-width: 0;
 }
 .process-title {
+  flex: 1 1 auto;
+  min-width: 0;
   color: var(--ink);
   font-weight: 600;
   text-decoration: none;
 }
 a.process-title:hover { color: var(--accent); }
-.process-path {
+.process-mode {
+  display: inline-grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  flex: 0 0 auto;
+  margin-top: 0.05rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--chip-bg);
+  color: var(--muted);
+}
+.process-mode[data-mode="review"] {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+}
+.process-mode[data-mode="comment"] {
+  color: var(--accent-2);
+  background: var(--wash-warm);
+  border-color: var(--line);
+}
+.process-mode svg,
+.process-icon-btn svg {
+  width: 14px;
+  height: 14px;
   display: block;
-  margin: 0.4rem 0 0.2rem;
+  pointer-events: none;
+}
+.process-path-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.45rem;
+  min-width: 0;
+}
+.process-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   line-height: 1.4;
-  word-break: break-all;
   color: var(--ink);
+}
+.process-icon-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+.process-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--control-bg);
+  color: var(--ink);
+  cursor: pointer;
+  text-decoration: none;
+  flex: 0 0 auto;
+}
+.process-icon-btn:hover {
+  border-color: var(--accent-hover-border);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.process-icon-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.process-icon-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+.process-icon-btn.primary:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: var(--accent-hover-shadow);
+}
+.process-icon-btn.is-copied {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+.process-icon-btn.is-failed {
+  color: var(--danger);
+  border-color: var(--danger-border);
+}
+.process-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+}
+.process-pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--chip-bg);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.2;
+  padding: 0.12rem 0.48rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .process-git,
 .process-meta {
   display: block;
+  margin-top: 0.35rem;
   color: var(--muted);
   font-size: 0.82rem;
   line-height: 1.4;
@@ -132,18 +281,16 @@ a.process-title:hover { color: var(--accent); }
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 0.72rem;
 }
-.process-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-top: 0.7rem;
-}
-.process-actions .btn {
-  text-decoration: none;
-  font-size: 0.85rem;
-  padding: 0.4rem 0.75rem;
-}
 `
+
+/** Last segment of the directory a plan is linked to. */
+export function containerFolderName(directory: string): string {
+  const trimmed = directory.replace(/[\\/]+$/, '')
+  if (!trimmed) return directory
+  const slash = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'))
+  const name = slash === -1 ? trimmed : trimmed.slice(slash + 1)
+  return name || directory
+}
 
 export function processesPanelMarkup(selfId?: string): string {
   const self = selfId ? ` data-self-id="${selfId.replaceAll('"', '')}"` : ''
@@ -186,12 +333,62 @@ export function processesPanelScript(): string {
 
   let open = false;
   let latest = null;
+  let closeTimer = 0;
+  let closeListener = null;
+
+  function containerFolderName(directory) {
+    const trimmed = directory.replace(/[\\\\/]+$/, '');
+    if (!trimmed) return directory;
+    const slash = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\\\'));
+    const name = slash === -1 ? trimmed : trimmed.slice(slash + 1);
+    return name || directory;
+  }
+
+  function motionReduced() {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  function cancelClose() {
+    window.clearTimeout(closeTimer);
+    closeTimer = 0;
+    if (closeListener) {
+      panel.removeEventListener('animationend', closeListener);
+      closeListener = null;
+    }
+  }
+
+  function finishClose() {
+    cancelClose();
+    if (open) return;
+    panel.hidden = true;
+  }
 
   function setOpen(next) {
+    if (next === open) return;
     open = next;
     toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    panel.hidden = !open;
-    if (open && latest) paint(latest);
+    cancelClose();
+    if (open) {
+      panel.hidden = false;
+      panel.removeAttribute('data-closed');
+      panel.removeAttribute('data-open');
+      if (!motionReduced()) void panel.getBoundingClientRect();
+      panel.setAttribute('data-open', '');
+      if (latest) paint(latest);
+      return;
+    }
+    panel.removeAttribute('data-open');
+    panel.setAttribute('data-closed', '');
+    if (motionReduced()) {
+      finishClose();
+      return;
+    }
+    closeListener = (event) => {
+      if (event.target !== panel) return;
+      finishClose();
+    };
+    panel.addEventListener('animationend', closeListener);
+    closeTimer = window.setTimeout(finishClose, 320);
   }
 
   toggle.addEventListener('click', () => {
@@ -233,6 +430,23 @@ export function processesPanelScript(): string {
     return node;
   }
 
+  function lucide(body) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
+  }
+
+  const ICON_WATCH = lucide('<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>');
+  const ICON_REVIEW = lucide('<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>');
+  const ICON_COMMENT = lucide('<path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/>');
+  const ICON_COPY = lucide('<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>');
+  const ICON_CHECK = lucide('<path d="M20 6 9 17l-5-5"/>');
+  const ICON_EXTERNAL = lucide('<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>');
+
+  function modeStatus(mode) {
+    if (mode === 'review') return { id: 'review', label: 'Review', icon: ICON_REVIEW };
+    if (mode === 'comment') return { id: 'comment', label: 'Comment', icon: ICON_COMMENT };
+    return { id: 'watch', label: 'Watch', icon: ICON_WATCH };
+  }
+
   function paint(payload) {
     latest = payload;
     const processes = Array.isArray(payload.processes) ? payload.processes : [];
@@ -258,8 +472,8 @@ export function processesPanelScript(): string {
         ? '1 plan linked to a directory.'
         : processes.length + ' plans linked to directories.';
     }
-    list.replaceChildren();
     if (!open) return;
+    list.replaceChildren();
     for (const record of processes) list.append(renderCard(record, payload.selfId || pageSelfId));
   }
 
@@ -278,20 +492,71 @@ export function processesPanelScript(): string {
       title.target = '_blank';
       title.rel = 'noopener noreferrer';
     }
-    titleRow.append(title);
-    titleRow.append(el('span', 'chip', record.mode || 'watch'));
+    const mode = modeStatus(record.mode);
+    const modeMark = el('span', 'process-mode');
+    modeMark.dataset.mode = mode.id;
+    modeMark.setAttribute('role', 'img');
+    modeMark.setAttribute('aria-label', mode.label);
+    modeMark.title = mode.label;
+    modeMark.innerHTML = mode.icon;
+    titleRow.append(title, modeMark);
     card.append(titleRow);
     if (current) card.append(el('span', 'process-meta', 'This page'));
 
     const directory = typeof record.directory === 'string' ? record.directory : '';
-    if (directory) card.append(el('code', 'process-path', directory));
-    if (record.planPath) card.append(el('span', 'process-meta', record.planPath));
+    const pathRow = el('div', 'process-path-row');
+    if (directory) {
+      const folder = el('code', 'process-path', containerFolderName(directory));
+      folder.title = directory;
+      pathRow.append(folder);
+    }
+    const icons = el('div', 'process-icon-actions');
+    if (site) {
+      const openLink = el('a', 'process-icon-btn primary');
+      openLink.href = site;
+      openLink.target = '_blank';
+      openLink.rel = 'noopener noreferrer';
+      const openLabel = current ? 'This site' : 'Open';
+      openLink.setAttribute('aria-label', openLabel);
+      openLink.title = openLabel;
+      openLink.innerHTML = ICON_EXTERNAL;
+      icons.append(openLink);
+    }
+    if (directory) {
+      const copy = el('button', 'process-icon-btn');
+      copy.type = 'button';
+      copy.setAttribute('aria-label', 'Copy path');
+      copy.title = 'Copy path';
+      copy.innerHTML = ICON_COPY;
+      copy.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(directory);
+          copy.innerHTML = ICON_CHECK;
+          copy.classList.add('is-copied');
+          copy.classList.remove('is-failed');
+          copy.setAttribute('aria-label', 'Copied');
+          copy.title = 'Copied';
+        } catch (error) {
+          copy.classList.add('is-failed');
+          copy.classList.remove('is-copied');
+          copy.setAttribute('aria-label', 'Copy failed');
+          copy.title = 'Copy failed';
+        }
+        window.setTimeout(() => {
+          if (!copy.isConnected) return;
+          copy.innerHTML = ICON_COPY;
+          copy.classList.remove('is-copied', 'is-failed');
+          copy.setAttribute('aria-label', 'Copy path');
+          copy.title = 'Copy path';
+        }, 1200);
+      });
+      icons.append(copy);
+    }
+    if (icons.childElementCount) pathRow.append(icons);
+    if (pathRow.childElementCount) card.append(pathRow);
 
     const git = record.git || {};
     if (git.summary) card.append(el('span', 'process-git', git.summary));
-    if (git.root && git.root !== directory) card.append(el('span', 'process-meta', 'Repository ' + git.root));
-    if (record.cwd && record.cwd !== directory) card.append(el('span', 'process-meta', 'Launched from ' + record.cwd));
-
     const paths = Array.isArray(git.changedPaths) ? git.changedPaths.slice(0, 4) : [];
     if (paths.length) {
       const pathList = el('ul', 'process-paths');
@@ -299,40 +564,16 @@ export function processesPanelScript(): string {
       card.append(pathList);
     }
 
-    const bits = [];
-    if (record.pid) bits.push('pid ' + record.pid);
-    if (record.startedAt) bits.push('up ' + age(record.startedAt));
-    if (typeof record.pendingCount === 'number') bits.push(record.pendingCount + ' pending');
-    if (record.executionActive) {
-      bits.push(record.executionStep ? 'live · ' + record.executionStep : 'execution live');
+    const pills = el('div', 'process-pills');
+    if (record.startedAt) pills.append(el('span', 'process-pill', 'up ' + age(record.startedAt)));
+    if (typeof record.pendingCount === 'number') {
+      pills.append(el('span', 'process-pill', record.pendingCount + ' pending'));
     }
-    if (bits.length) card.append(el('span', 'process-meta', bits.join(' · ')));
+    if (pills.childElementCount) card.append(pills);
 
-    const actions = el('div', 'process-actions');
-    if (site) {
-      const open = el('a', 'btn primary', current ? 'This site' : 'Open');
-      open.href = site;
-      open.target = '_blank';
-      open.rel = 'noopener noreferrer';
-      actions.append(open);
+    if (record.executionActive) {
+      card.append(el('span', 'process-meta', record.executionStep ? 'live · ' + record.executionStep : 'execution live'));
     }
-    if (directory) {
-      const copy = el('button', 'btn', 'Copy path');
-      copy.type = 'button';
-      copy.addEventListener('click', async () => {
-        try {
-          await navigator.clipboard.writeText(directory);
-          copy.textContent = 'Copied';
-        } catch (error) {
-          copy.textContent = 'Copy failed';
-        }
-        setTimeout(() => {
-          copy.textContent = 'Copy path';
-        }, 1200);
-      });
-      actions.append(copy);
-    }
-    card.append(actions);
     return card;
   }
 
