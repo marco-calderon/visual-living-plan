@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { chmodSync, existsSync } from 'node:fs'
+import { chmodSync, copyFileSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -38,5 +38,6 @@ if (!existsSync(tsc) || !existsSync(vite)) {
 }
 
 run(process.execPath, [tsc, '-p', join(root, 'tsconfig.json')])
+copyFileSync(join(root, 'src/favicon.png'), join(root, 'dist/favicon.png'))
 run(process.execPath, [vite, 'build'])
 chmodSync(join(root, 'dist/cli.js'), 0o755)
