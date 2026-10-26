@@ -1,3 +1,4 @@
+import { faviconResponse } from './favicon'
 import { HttpError, jsonBody } from './http'
 import { acceptClientLog, readLogs } from './serviceLog'
 import { readClientAsset, type PlanSession } from './planSession'
@@ -81,6 +82,8 @@ export function registerPlanRoutes(app: any, options: PlanRouteOptions): any {
       return legacyAsset(context, session)
     })
   }
+
+  app.get('/favicon.png', () => faviconResponse())
 
   return app
     .get(route('/client/*'), (context: RouteContext) => {
