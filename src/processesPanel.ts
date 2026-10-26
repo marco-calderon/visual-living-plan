@@ -130,7 +130,7 @@ export const PROCESSES_PANEL_STYLES = `
   background: var(--accent-soft);
 }
 .process-card.is-current .process-mode,
-.process-card.is-current .process-pill,
+.process-card.is-current .process-pill:not(.is-pending),
 .process-card.is-current .process-icon-btn:not(.primary) {
   background: var(--panel-strong);
 }
@@ -172,7 +172,9 @@ a.process-title:hover { color: var(--accent); }
   border-color: var(--line);
 }
 .process-mode svg,
-.process-icon-btn svg {
+.process-icon-btn svg,
+.process-folder-icon svg,
+.process-git-icon svg {
   width: 14px;
   height: 14px;
   display: block;
@@ -181,12 +183,19 @@ a.process-title:hover { color: var(--accent); }
 .process-path-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
   margin-top: 0.45rem;
   min-width: 0;
 }
+.process-folder-icon,
+.process-git-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: var(--muted);
+}
 .process-path {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   margin: 0;
   overflow: hidden;
@@ -196,13 +205,6 @@ a.process-title:hover { color: var(--accent); }
   font-size: 0.8rem;
   line-height: 1.4;
   color: var(--ink);
-}
-.process-icon-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin-left: auto;
-  flex: 0 0 auto;
 }
 .process-icon-btn {
   display: inline-grid;
@@ -254,6 +256,7 @@ a.process-title:hover { color: var(--accent); }
 .process-pill {
   display: inline-flex;
   align-items: center;
+  gap: 0.28rem;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--chip-bg);
@@ -265,6 +268,27 @@ a.process-title:hover { color: var(--accent); }
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
+.process-pill svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+  flex: 0 0 auto;
+  pointer-events: none;
+}
+.process-pill.is-pending {
+  color: var(--accent-2);
+  background: var(--wash-warm);
+  border-color: var(--accent-2);
+}
+.process-git-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+  min-width: 0;
+  color: var(--muted);
+}
+.process-git-icon { margin-top: 0.12rem; }
 .process-git,
 .process-meta {
   display: block;
@@ -272,6 +296,15 @@ a.process-title:hover { color: var(--accent); }
   color: var(--muted);
   font-size: 0.82rem;
   line-height: 1.4;
+}
+.process-git-row .process-git {
+  margin-top: 0;
+  min-width: 0;
+}
+.process-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.55rem;
 }
 .process-paths {
   margin: 0.3rem 0 0;
@@ -440,6 +473,9 @@ export function processesPanelScript(): string {
   const ICON_COPY = lucide('<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>');
   const ICON_CHECK = lucide('<path d="M20 6 9 17l-5-5"/>');
   const ICON_EXTERNAL = lucide('<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>');
+  const ICON_CLOCK = lucide('<path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="10"/>');
+  const ICON_FOLDER = lucide('<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>');
+  const ICON_BRANCH = lucide('<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>');
 
   function modeStatus(mode) {
     if (mode === 'review') return { id: 'review', label: 'Review', icon: ICON_REVIEW };
@@ -504,25 +540,12 @@ export function processesPanelScript(): string {
     if (current) card.append(el('span', 'process-meta', 'This page'));
 
     const directory = typeof record.directory === 'string' ? record.directory : '';
-    const pathRow = el('div', 'process-path-row');
     if (directory) {
+      const pathRow = el('div', 'process-path-row');
+      const folderIcon = el('span', 'process-folder-icon');
+      folderIcon.innerHTML = ICON_FOLDER;
       const folder = el('code', 'process-path', containerFolderName(directory));
       folder.title = directory;
-      pathRow.append(folder);
-    }
-    const icons = el('div', 'process-icon-actions');
-    if (site) {
-      const openLink = el('a', 'process-icon-btn primary');
-      openLink.href = site;
-      openLink.target = '_blank';
-      openLink.rel = 'noopener noreferrer';
-      const openLabel = current ? 'This site' : 'Open';
-      openLink.setAttribute('aria-label', openLabel);
-      openLink.title = openLabel;
-      openLink.innerHTML = ICON_EXTERNAL;
-      icons.append(openLink);
-    }
-    if (directory) {
       const copy = el('button', 'process-icon-btn');
       copy.type = 'button';
       copy.setAttribute('aria-label', 'Copy path');
@@ -550,14 +573,20 @@ export function processesPanelScript(): string {
           copy.title = 'Copy path';
         }, 1200);
       });
-      icons.append(copy);
+      pathRow.append(folderIcon, folder, copy);
+      card.append(pathRow);
     }
-    if (icons.childElementCount) pathRow.append(icons);
-    if (pathRow.childElementCount) card.append(pathRow);
 
     const git = record.git || {};
-    if (git.summary) card.append(el('span', 'process-git', git.summary));
     const paths = Array.isArray(git.changedPaths) ? git.changedPaths.slice(0, 4) : [];
+    if (git.summary || paths.length) {
+      const gitRow = el('div', 'process-git-row');
+      const branch = el('span', 'process-git-icon');
+      branch.innerHTML = ICON_BRANCH;
+      gitRow.append(branch);
+      if (git.summary) gitRow.append(el('span', 'process-git', git.summary));
+      card.append(gitRow);
+    }
     if (paths.length) {
       const pathList = el('ul', 'process-paths');
       for (const path of paths) pathList.append(el('li', '', path));
@@ -565,14 +594,33 @@ export function processesPanelScript(): string {
     }
 
     const pills = el('div', 'process-pills');
-    if (record.startedAt) pills.append(el('span', 'process-pill', 'up ' + age(record.startedAt)));
-    if (typeof record.pendingCount === 'number') {
-      pills.append(el('span', 'process-pill', record.pendingCount + ' pending'));
+    if (record.startedAt) {
+      const uptime = el('span', 'process-pill');
+      uptime.title = 'Uptime';
+      uptime.innerHTML = ICON_CLOCK;
+      uptime.append(document.createTextNode(age(record.startedAt)));
+      pills.append(uptime);
+    }
+    if (typeof record.pendingCount === 'number' && record.pendingCount > 0) {
+      pills.append(el('span', 'process-pill is-pending', record.pendingCount + ' pending'));
     }
     if (pills.childElementCount) card.append(pills);
 
     if (record.executionActive) {
       card.append(el('span', 'process-meta', record.executionStep ? 'live · ' + record.executionStep : 'execution live'));
+    }
+    if (site) {
+      const foot = el('div', 'process-foot');
+      const openLink = el('a', 'process-icon-btn primary');
+      openLink.href = site;
+      openLink.target = '_blank';
+      openLink.rel = 'noopener noreferrer';
+      const openLabel = current ? 'This site' : 'Open';
+      openLink.setAttribute('aria-label', openLabel);
+      openLink.title = openLabel;
+      openLink.innerHTML = ICON_EXTERNAL;
+      foot.append(openLink);
+      card.append(foot);
     }
     return card;
   }
