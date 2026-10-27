@@ -11,8 +11,10 @@ import { recordLog } from './serviceLog'
 import { renderPlanPage } from './render'
 import {
   configPathBesidePlan,
+  isKnownDiffsTheme,
   loadThemeConfig,
   normalizeAccent,
+  normalizeDiffsTheme,
   saveThemeConfig,
   themePayload,
   type ThemeConfig,
@@ -373,7 +375,13 @@ export async function openPlanSession(options: {
 
   async function reloadThemeFromDisk(): Promise<void> {
     const next = await loadThemeConfig(themeConfigPath)
-    if (next.accent === theme.accent && next.fullWidth === theme.fullWidth) return
+    if (
+      next.accent === theme.accent &&
+      next.fullWidth === theme.fullWidth &&
+      next.diffsTheme === theme.diffsTheme
+    ) {
+      return
+    }
     theme = next
     broadcast('theme', currentTheme())
   }
@@ -537,11 +545,16 @@ export async function openPlanSession(options: {
 
   async function updateTheme(body: unknown): Promise<unknown> {
     touch()
-    const payload = jsonBody(body, true) as { accent?: string; fullWidth?: boolean }
+    const payload = jsonBody(body, true) as {
+      accent?: string
+      fullWidth?: boolean
+      diffsTheme?: string
+    }
     const hasAccent = payload.accent !== undefined
     const hasFullWidth = payload.fullWidth !== undefined
-    if (!hasAccent && !hasFullWidth) {
-      throw new HttpError(400, 'Provide accent and/or fullWidth.')
+    const hasDiffsTheme = payload.diffsTheme !== undefined
+    if (!hasAccent && !hasFullWidth && !hasDiffsTheme) {
+      throw new HttpError(400, 'Provide accent, fullWidth, and/or diffsTheme.')
     }
     let accent = theme.accent
     if (hasAccent) {
@@ -550,7 +563,14 @@ export async function openPlanSession(options: {
       accent = normalized
     }
     const fullWidth = hasFullWidth ? Boolean(payload.fullWidth) : theme.fullWidth
-    const view = await applyTheme({ accent, fullWidth }, true)
+    let diffsTheme = theme.diffsTheme
+    if (hasDiffsTheme) {
+      if (!isKnownDiffsTheme(payload.diffsTheme)) {
+        throw new HttpError(400, 'Unknown Pierre diffs theme.')
+      }
+      diffsTheme = normalizeDiffsTheme(payload.diffsTheme)
+    }
+    const view = await applyTheme({ accent, fullWidth, diffsTheme }, true)
     return { ok: true, theme: view }
   }
 

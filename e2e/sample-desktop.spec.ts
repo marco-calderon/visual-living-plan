@@ -72,6 +72,20 @@ test('sample plan works on a desktop viewport', async ({ page }) => {
     await expect(page.getByRole('status')).toHaveText('Centered layout')
   })
 
+  await test.step('settings pierre diff theme accordion', async () => {
+    await page.getByRole('tab', { name: 'Settings' }).click()
+    const toggle = page.locator('#diffs-theme-toggle')
+    await expect(page.locator('#diffs-theme-current')).toHaveText('Pierre')
+    await expect(page.locator('[data-accordion]')).toHaveAttribute('data-open', 'false')
+    await toggle.click()
+    await expect(page.locator('[data-accordion]')).toHaveAttribute('data-open', 'true')
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    await page.getByRole('button', { name: 'Soft theme' }).click()
+    await expect(page.locator('html')).toHaveAttribute('data-diffs-theme', 'soft')
+    await expect(page.locator('#diffs-theme-current')).toHaveText('Soft')
+    await expect(page.getByRole('status')).toHaveText('Diff theme saved')
+  })
+
   await test.step('comment on a plan part', async () => {
     await page.getByRole('tab', { name: 'Plan' }).click()
     await page.getByRole('button', { name: 'Turn comments on' }).click()

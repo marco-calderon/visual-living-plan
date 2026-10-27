@@ -6,6 +6,11 @@ import { clientLogScript } from './clientLog'
 import { faviconLink } from './favicon'
 import { PROCESSES_PANEL_STYLES, processesPanelMarkup, processesPanelScript } from './processesPanel'
 import { accentCssCustomProperties } from './theme'
+import {
+  DEFAULT_DIFFS_THEME,
+  diffsThemePreset,
+  type DiffsThemePreset,
+} from './diffsTheme'
 import type {
   InteractionResponse,
   PlanBlock,
@@ -20,6 +25,8 @@ import { planToExpectedGraph, withPlannedWorkflow } from './workflow'
 export type RenderTheme = {
   accent: string
   fullWidth?: boolean
+  diffsTheme?: string
+  diffsThemes?: DiffsThemePreset[]
   configPath: string
   presets: Array<{ id: string; label: string; accent: string }>
 }
@@ -30,6 +37,53 @@ function escapeHtml(value: string): string {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
+}
+
+function diffsThemeSampleMarkup(
+  sample: DiffsThemePreset['lightSample'],
+  mode: 'Light' | 'Dark',
+): string {
+  const style = [
+    `--sample-bg:${sample.bg}`,
+    `--sample-fg:${sample.fg}`,
+    `--sample-comment:${sample.comment}`,
+    `--sample-string:${sample.string}`,
+    `--sample-keyword:${sample.keyword}`,
+    `--sample-function:${sample.function}`,
+    `--sample-added:${sample.added}`,
+    `--sample-deleted:${sample.deleted}`,
+  ].join(';')
+  return `<div class="diffs-theme-sample" style="${escapeHtml(style)}" aria-hidden="true" title="${mode}">
+    <span class="tok-comment">// ${mode}</span>
+    <span><span class="tok-keyword">const</span> <span class="tok-fn">n</span> = <span class="tok-string">'ok'</span></span>
+    <span><span class="tok-added">+ keep</span> <span class="tok-deleted">- drop</span></span>
+  </div>`
+}
+
+function diffsThemeOptionsMarkup(presets: DiffsThemePreset[], selectedId: string): string {
+  return presets
+    .map((preset) => {
+      const selected = preset.id === selectedId
+      return `<button
+          type="button"
+          class="diffs-theme-option"
+          data-diffs-theme="${escapeHtml(preset.id)}"
+          data-diffs-theme-label="${escapeHtml(preset.label)}"
+          aria-label="${escapeHtml(preset.label)} theme"
+          aria-checked="${selected ? 'true' : 'false'}"
+          title="${escapeHtml(preset.description)}"
+        >
+          <div class="diffs-theme-samples">
+            ${diffsThemeSampleMarkup(preset.lightSample, 'Light')}
+            ${diffsThemeSampleMarkup(preset.darkSample, 'Dark')}
+          </div>
+          <span class="diffs-theme-option-meta">
+            <strong>${escapeHtml(preset.label)}</strong>
+            <span>${escapeHtml(preset.description)}</span>
+          </span>
+        </button>`
+    })
+    .join('')
 }
 
 function responseFor(
@@ -791,6 +845,162 @@ body.has-review-bar .shell {
   line-height: 1.45;
 }
 
+.settings-accordion {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--control-solid);
+  overflow: clip;
+}
+.settings-accordion-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.9rem 1rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.settings-accordion-trigger:hover {
+  background: var(--accent-soft);
+}
+.settings-accordion-trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.settings-accordion-trigger-copy {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.settings-accordion-trigger-copy strong {
+  font-weight: 600;
+}
+.settings-accordion-trigger-copy span {
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+.settings-accordion-chevron {
+  flex: 0 0 auto;
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--muted);
+  transition: transform 0.4s ease;
+}
+.settings-accordion[data-open="true"] .settings-accordion-chevron {
+  transform: rotate(180deg);
+}
+.settings-accordion-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.4s ease;
+}
+.settings-accordion[data-open="true"] .settings-accordion-panel {
+  grid-template-rows: 1fr;
+}
+.settings-accordion-panel-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+.settings-accordion-body {
+  padding: 0 1rem 1rem;
+  border-top: 1px solid transparent;
+}
+.settings-accordion[data-open="true"] .settings-accordion-body {
+  border-top-color: var(--line);
+  padding-top: 0.9rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .settings-accordion-chevron,
+  .settings-accordion-panel {
+    transition: none;
+  }
+}
+
+.diffs-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
+  gap: 0.65rem;
+}
+.diffs-theme-option {
+  display: grid;
+  gap: 0.55rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+.diffs-theme-option:hover {
+  border-color: var(--accent-hover-border);
+  box-shadow: var(--accent-hover-shadow);
+  transform: translateY(-1px);
+}
+.diffs-theme-option[aria-checked="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: none;
+  transform: none;
+}
+.diffs-theme-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.diffs-theme-samples {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+}
+.diffs-theme-sample {
+  display: grid;
+  gap: 0.22rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: 8px;
+  background: var(--sample-bg, #fff);
+  color: var(--sample-fg, #0a0a0a);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.62rem;
+  line-height: 1.35;
+  min-height: 3.4rem;
+}
+.diffs-theme-sample span {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+.diffs-theme-sample .tok-comment { color: var(--sample-comment); }
+.diffs-theme-sample .tok-keyword { color: var(--sample-keyword); }
+.diffs-theme-sample .tok-string { color: var(--sample-string); }
+.diffs-theme-sample .tok-fn { color: var(--sample-function); }
+.diffs-theme-sample .tok-added { color: var(--sample-added); }
+.diffs-theme-sample .tok-deleted { color: var(--sample-deleted); }
+.diffs-theme-option-meta {
+  display: grid;
+  gap: 0.15rem;
+}
+.diffs-theme-option-meta strong {
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+.diffs-theme-option-meta span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
 .stack { display: grid; gap: 1rem; }
 
 .tabs {
@@ -1412,6 +1622,7 @@ function clientScript(
   }
 
   let currentFullWidth = ${JSON.stringify(Boolean(theme.fullWidth))};
+  let currentDiffsTheme = ${JSON.stringify(theme.diffsTheme || DEFAULT_DIFFS_THEME)};
 
   function applyLayout(fullWidth) {
     currentFullWidth = Boolean(fullWidth);
@@ -1419,6 +1630,19 @@ function clientScript(
     document.body.classList.toggle('layout-full', currentFullWidth);
     const toggle = document.getElementById('layout-full-width');
     if (toggle && 'checked' in toggle) toggle.checked = currentFullWidth;
+  }
+
+  function applyDiffsTheme(diffsTheme, label) {
+    currentDiffsTheme = diffsTheme || ${JSON.stringify(DEFAULT_DIFFS_THEME)};
+    document.documentElement.dataset.diffsTheme = currentDiffsTheme;
+    document.querySelectorAll('[data-diffs-theme]').forEach((node) => {
+      const id = node.getAttribute('data-diffs-theme');
+      node.setAttribute('aria-checked', id === currentDiffsTheme ? 'true' : 'false');
+    });
+    const currentLabel = document.getElementById('diffs-theme-current');
+    if (currentLabel) {
+      currentLabel.textContent = label || currentLabel.textContent || currentDiffsTheme;
+    }
   }
 
   function applyTheme(payload) {
@@ -1439,6 +1663,11 @@ function clientScript(
       if (customHex) customHex.textContent = payload.accent;
     }
     if (payload.fullWidth !== undefined) applyLayout(payload.fullWidth);
+    if (payload.diffsTheme !== undefined) {
+      const selected = document.querySelector('[data-diffs-theme="' + payload.diffsTheme + '"]');
+      const label = selected ? selected.getAttribute('data-diffs-theme-label') : payload.diffsTheme;
+      applyDiffsTheme(payload.diffsTheme, label);
+    }
     window.dispatchEvent(new CustomEvent('living-plan-theme', { detail: payload }));
   }
 
@@ -1465,6 +1694,7 @@ function clientScript(
   applyTheme(${JSON.stringify({
     accent: theme.accent,
     fullWidth: Boolean(theme.fullWidth),
+    diffsTheme: theme.diffsTheme || DEFAULT_DIFFS_THEME,
     css: accentCssCustomProperties(theme.accent),
   })});
 
@@ -1515,6 +1745,42 @@ function clientScript(
       }
     });
   }
+
+  document.querySelectorAll('[data-accordion]').forEach((accordion) => {
+    const trigger = accordion.querySelector('[data-accordion-trigger]');
+    const panel = accordion.querySelector('[data-accordion-panel]');
+    if (!trigger) return;
+    const setOpen = (next) => {
+      accordion.setAttribute('data-open', next ? 'true' : 'false');
+      trigger.setAttribute('aria-expanded', next ? 'true' : 'false');
+      if (panel) {
+        if (next) panel.removeAttribute('inert');
+        else panel.setAttribute('inert', '');
+      }
+    };
+    setOpen(accordion.getAttribute('data-open') === 'true');
+    trigger.addEventListener('click', () => {
+      setOpen(accordion.getAttribute('data-open') !== 'true');
+    });
+  });
+
+  document.querySelectorAll('[data-diffs-theme]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const next = button.getAttribute('data-diffs-theme');
+      const label = button.getAttribute('data-diffs-theme-label') || next;
+      if (!next || next === currentDiffsTheme) return;
+      const previous = currentDiffsTheme;
+      const previousLabel = document.getElementById('diffs-theme-current')?.textContent || previous;
+      applyDiffsTheme(next, label);
+      try {
+        await putTheme({ diffsTheme: next });
+        showToast('Diff theme saved');
+      } catch (error) {
+        applyDiffsTheme(previous, previousLabel);
+        showToast(error instanceof Error ? error.message : 'Diff theme update failed');
+      }
+    });
+  });
 
   function activateTab(target) {
     document.querySelectorAll('[data-tab-target]').forEach((node) => {
@@ -2002,8 +2268,14 @@ export function renderPlanPage(options: {
     .join('')
 
   const layoutMode = theme.fullWidth ? 'full' : 'centered'
+  const diffsThemeId = theme.diffsTheme || DEFAULT_DIFFS_THEME
+  const diffsPresets = theme.diffsThemes?.length
+    ? theme.diffsThemes
+    : [diffsThemePreset(diffsThemeId)]
+  const currentDiffs = diffsThemePreset(diffsThemeId)
+  const diffsOptions = diffsThemeOptionsMarkup(diffsPresets, currentDiffs.id)
   return `<!doctype html>
-<html lang="en" data-accent="${escapeHtml(theme.accent)}" data-layout="${layoutMode}">
+<html lang="en" data-accent="${escapeHtml(theme.accent)}" data-layout="${layoutMode}" data-diffs-theme="${escapeHtml(currentDiffs.id)}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -2089,6 +2361,39 @@ export function renderPlanPage(options: {
             </span>
           </label>
           <p class="settings-meta">Saved to <code>${escapeHtml(configName)}</code> with the accent settings.</p>
+        </section>
+        <section class="block settings-section" data-section>
+          <div class="settings-kicker">Code &amp; diffs</div>
+          <h3>Pierre theme</h3>
+          <p class="settings-copy">Choose the Pierre syntax theme used for code blocks and diffs. Light and dark samples follow the page color mode.</p>
+          <div class="settings-accordion" data-accordion data-open="false">
+            <button
+              type="button"
+              class="settings-accordion-trigger"
+              data-accordion-trigger
+              id="diffs-theme-toggle"
+              aria-expanded="false"
+              aria-controls="diffs-theme-panel"
+            >
+              <span class="settings-accordion-trigger-copy">
+                <strong>Diff theme</strong>
+                <span>Current: <strong id="diffs-theme-current">${escapeHtml(currentDiffs.label)}</strong></span>
+              </span>
+              <svg class="settings-accordion-chevron" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                <path fill="currentColor" d="M5.2 7.5a.9.9 0 0 1 1.27-.05L10 10.74l3.53-3.29a.9.9 0 0 1 1.22 1.32l-4.14 3.86a.9.9 0 0 1-1.22 0L5.25 8.77a.9.9 0 0 1-.05-1.27z"/>
+              </svg>
+            </button>
+            <div class="settings-accordion-panel" id="diffs-theme-panel" data-accordion-panel inert>
+              <div class="settings-accordion-panel-inner">
+                <div class="settings-accordion-body">
+                  <div class="diffs-theme-grid" role="radiogroup" aria-label="Pierre diff themes">
+                    ${diffsOptions}
+                  </div>
+                  <p class="settings-meta" style="margin-top:0.85rem">Saved to <code>${escapeHtml(configName)}</code> as <code>theme.diffsTheme</code>.</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
       </main>
     </section>

@@ -6,6 +6,9 @@ import { join } from 'node:path'
 import {
   accentCssCustomProperties,
   DEFAULT_ACCENT,
+  DEFAULT_DIFFS_THEME,
+  diffsThemePair,
+  normalizeDiffsTheme,
   parseThemeConfig,
   saveThemeConfig,
   themePayload,
@@ -76,17 +79,60 @@ test('fullWidth defaults off and parses from theme config', () => {
   assert.equal(payload.fullWidth, true)
 })
 
+test('diffsTheme defaults to pierre and maps Pierre theme names', () => {
+  assert.equal(parseThemeConfig({ theme: { accent: '#0369a1' } }).diffsTheme, DEFAULT_DIFFS_THEME)
+  assert.equal(parseThemeConfig({ theme: { accent: '#0369a1', diffsTheme: 'soft' } }).diffsTheme, 'soft')
+  assert.equal(normalizeDiffsTheme('pierre-dark-vibrant'), 'vibrant')
+  assert.deepEqual(diffsThemePair('soft'), {
+    light: 'pierre-light-soft',
+    dark: 'pierre-dark-soft',
+  })
+  const payload = themePayload(
+    parseThemeConfig({ theme: { accent: DEFAULT_ACCENT, diffsTheme: 'tritanopia' } }),
+    'cfg',
+  )
+  assert.equal(payload.diffsTheme, 'tritanopia')
+  assert.equal(payload.diffsThemes.length, 5)
+  assert.deepEqual(payload.diffsThemePair, {
+    light: 'pierre-light-tritanopia',
+    dark: 'pierre-dark-tritanopia',
+  })
+})
+
 test('saveThemeConfig persists fullWidth beside accent', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'live-plan-theme-'))
   const path = join(dir, 'live-plan.config.json')
   await writeFile(path, `${JSON.stringify({ theme: { accent: '#0f766e' }, note: 'keep' }, null, 2)}\n`)
-  const saved = await saveThemeConfig(path, { accent: '#0369a1', fullWidth: true })
-  assert.deepEqual(saved, { accent: '#0369a1', fullWidth: true })
+  const saved = await saveThemeConfig(path, {
+    accent: '#0369a1',
+    fullWidth: true,
+    diffsTheme: DEFAULT_DIFFS_THEME,
+  })
+  assert.deepEqual(saved, { accent: '#0369a1', fullWidth: true, diffsTheme: DEFAULT_DIFFS_THEME })
   const onDisk = JSON.parse(await readFile(path, 'utf8')) as {
-    theme: { accent: string; fullWidth: boolean }
+    theme: { accent: string; fullWidth: boolean; diffsTheme: string }
     note?: string
   }
   assert.equal(onDisk.theme.accent, '#0369a1')
   assert.equal(onDisk.theme.fullWidth, true)
+  assert.equal(onDisk.theme.diffsTheme, DEFAULT_DIFFS_THEME)
+  assert.equal(onDisk.note, 'keep')
+})
+
+test('saveThemeConfig persists diffsTheme beside accent', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'live-plan-diffs-theme-'))
+  const path = join(dir, 'live-plan.config.json')
+  await writeFile(path, `${JSON.stringify({ theme: { accent: '#0f766e' }, note: 'keep' }, null, 2)}\n`)
+  const saved = await saveThemeConfig(path, {
+    accent: '#0f766e',
+    fullWidth: false,
+    diffsTheme: 'soft',
+  })
+  assert.deepEqual(saved, { accent: '#0f766e', fullWidth: false, diffsTheme: 'soft' })
+  const onDisk = JSON.parse(await readFile(path, 'utf8')) as {
+    theme: { accent: string; fullWidth: boolean; diffsTheme: string }
+    note?: string
+  }
+  assert.equal(onDisk.theme.diffsTheme, 'soft')
   assert.equal(onDisk.note, 'keep')
 })
