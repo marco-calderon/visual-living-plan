@@ -59,3 +59,23 @@ Plan title, summary, and status open from the logo. The fixed header is gone, so
 ### Notes
 
 No registry restart needed.
+
+## 0.4.1
+
+**PR:** [#48](https://github.com/marco-calderon/visual-living-plan/pull/48)
+
+**Bump:** patch
+
+### Summary
+
+The plan page background is theme-aware graph paper instead of the radial wash, with the quieter line opacity from the follow-up pass.
+
+### Changes
+
+- A 2px line every 100px and a 1px line every 20px, on the paper color.
+- Lines follow the accent. Light mode uses 20.4% and 9.6%. Dark mode uses 15.6% and 7.2%, which is 60% of the first pass so the grid stays quiet in both schemes.
+- Registry and dashboard pages keep their own washes.
+
+### Notes
+
+No registry restart needed.
