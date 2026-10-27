@@ -79,3 +79,24 @@ The plan page background is theme-aware graph paper instead of the radial wash, 
 ### Notes
 
 No registry restart needed.
+
+## 0.4.2
+
+**PR:** (opened with this change)
+
+**Bump:** patch
+
+### Summary
+
+The plan page has a solid top bar again. The title sits beside the logo, and the logo card opens and closes with the same motion as the Plans popup.
+
+### Changes
+
+- Restore the fixed bar: panel background, bottom border, blur, and the previous 3.75rem bar height.
+- Show the plan title on the bar, immediately to the right of the logo, at the 1.45rem size the old bar used.
+- Keep the logo card for the summary and icon status. Escape, a second click, and a click outside still close it.
+- The card uses the Plans popup timing and motion: 280ms open, 240ms close, and the same 12px rise with a 0.96 scale. It scales from the logo side. Reduced motion still skips the animation.
+
+### Notes
+
+No registry restart needed.
