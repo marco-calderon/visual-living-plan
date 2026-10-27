@@ -1,6 +1,7 @@
 import { createContext, memo, useContext, type CSSProperties } from 'react'
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
 import type { ExecutionNodeStatus } from '../../../../src/execution.ts'
+import { planRefHash } from '../../../../src/planRefNavigation.ts'
 import { ProgressIcon } from './ProgressIcon.tsx'
 
 export type ExecutionStepNodeData = {
@@ -51,7 +52,21 @@ function ExecutionStepNodeComponent({ data }: NodeProps<ExecutionStepNodeType>) 
         {data.status === 'active' ? <ProgressIcon /> : null}
         {data.status}
       </div>
-      <div className="rf-step-label">{data.label}</div>
+      {data.planRef ? (
+        <a
+          className="rf-step-label"
+          href={planRefHash(data.planRef)}
+          draggable={false}
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+          }}
+        >
+          {data.label}
+        </a>
+      ) : (
+        <div className="rf-step-label">{data.label}</div>
+      )}
       {data.detail ? <div className="rf-step-detail">{data.detail}</div> : null}
       {data.planRef && planReference ? (
         <button

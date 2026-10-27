@@ -1,4 +1,5 @@
 import { Tag, type RenderableTreeNode } from '@markdoc/markdoc'
+import { planRefHash } from '../planRefNavigation'
 import type { InteractionResponse } from '../types'
 import type {
   ChecklistItem,
@@ -376,10 +377,10 @@ export function workflowCard(input: {
     const label = node.label ?? node.id
     return new Tag('li', {}, [
       new Tag(
-        'button',
+        'a',
         {
-          type: 'button',
           class: 'workflow-step',
+          href: planRefHash(ref),
           'data-plan-jump': ref,
           'data-plan-part': `${input.scope}/step:${node.id}`,
           'data-plan-kind': 'workflow-step',

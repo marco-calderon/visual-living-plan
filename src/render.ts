@@ -986,6 +986,7 @@ body.plan-live .block.change-applied {
   padding: 0.7rem 0.85rem;
   font: inherit;
   cursor: pointer;
+  text-decoration: none;
 }
 .workflow-step:hover {
   border-color: var(--accent-hover-border);
@@ -1806,29 +1807,168 @@ function clientScript(
     activateTab(tabJump.getAttribute('data-tab-jump') || 'workflow');
   });
 
-  function focusPlanRef(ref) {
-    if (!ref) return;
-    activateTab('plan');
-    const section = document.querySelector('[data-plan-ref="' + CSS.escape(ref) + '"]');
-    if (!section) {
-      showToast('No plan section for this step');
+  try { history.scrollRestoration = 'manual'; } catch {}
+
+  let scrollGeneration = 0;
+  let jumpDepth = 0;
+
+  function decodeToken(value) {
+    const raw = String(value || '').replace(/^#/, '');
+    if (!raw) return '';
+    try { return decodeURIComponent(raw); } catch { return raw; }
+  }
+
+  function findPlanTarget(token) {
+    const decoded = decodeToken(token);
+    if (!decoded) return null;
+    const ids = [decoded];
+    if (decoded.startsWith('plan-')) ids.push(decoded.slice(5));
+    else ids.push('plan-' + decoded);
+    for (const id of ids) {
+      const byId = document.getElementById(id);
+      if (byId) return byId;
+    }
+    for (const ref of ids) {
+      const byRef = document.querySelector('[data-plan-ref="' + CSS.escape(ref) + '"]');
+      if (byRef) return byRef;
+    }
+    return null;
+  }
+
+  function canonicalRef(section, fallback) {
+    return section.getAttribute('data-plan-ref') || section.id || fallback || '';
+  }
+
+  function highlightPlanTarget(section) {
+    document.querySelectorAll('.plan-ref-focus').forEach((node) => node.classList.remove('plan-ref-focus'));
+    if (section) section.classList.add('plan-ref-focus');
+  }
+
+  function currentView() {
+    const selected = document.querySelector('[data-tab-target][aria-selected="true"]');
+    return {
+      tab: selected ? (selected.getAttribute('data-tab-target') || 'plan') : 'plan',
+      x: window.scrollX,
+      y: window.scrollY,
+    };
+  }
+
+  function snapshotView() {
+    const here = history.state && typeof history.state === 'object' ? history.state : {};
+    const view = currentView();
+    history.replaceState({ ...here, livingPlanView: { tab: view.tab, x: view.x, y: view.y, captured: true } }, '');
+  }
+
+  function scrollToPlanTarget(section, instant) {
+    const generation = ++scrollGeneration;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const run = () => {
+      if (generation !== scrollGeneration) return;
+      section.scrollIntoView({ behavior: instant || reduce ? 'auto' : 'smooth', block: 'center' });
+    };
+    if (instant || reduce) {
+      run();
       return;
     }
-    document.querySelectorAll('.plan-ref-focus').forEach((node) => node.classList.remove('plan-ref-focus'));
-    section.classList.add('plan-ref-focus');
+    requestAnimationFrame(() => requestAnimationFrame(run));
+  }
+
+  function focusPlanRef(ref, options) {
+    const recordHistory = !options || options.recordHistory !== false;
+    const instant = Boolean(options && options.instant);
+    const section = findPlanTarget(ref);
+    if (!section) {
+      if (recordHistory) showToast('No plan section for this step');
+      return;
+    }
+    const canonical = canonicalRef(section, decodeToken(ref));
+    if (recordHistory) {
+      const hash = section.id ? '#' + encodeURIComponent(section.id) : (canonical ? '#' + encodeURIComponent('plan-' + canonical) : '');
+      const next = new URL(window.location.href);
+      if (hash) next.hash = hash;
+      const sameEntry = Boolean(hash) && history.state && history.state.livingPlanJump === canonical && location.hash === next.hash;
+      if (sameEntry || jumpDepth > 0) return;
+      jumpDepth += 1;
+      snapshotView();
+      if (hash) history.pushState({ livingPlanJump: canonical }, '', next);
+      jumpDepth -= 1;
+    }
+    activateTab('plan');
+    highlightPlanTarget(section);
+    scrollToPlanTarget(section, instant);
+  }
+
+  function pinScroll(x, y) {
+    const apply = () => window.scrollTo({ left: x, top: y, behavior: 'instant' });
+    apply();
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        section.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      });
+      apply();
+      requestAnimationFrame(apply);
     });
   }
 
+  function restoreView(view) {
+    scrollGeneration += 1;
+    highlightPlanTarget(null);
+    if (view && view.tab) activateTab(view.tab);
+    if (view && typeof view.y === 'number') pinScroll(view.x || 0, view.y);
+  }
+
+  function tokenFromAnchor(link) {
+    const hrefAttr = link.getAttribute('href') || '';
+    if (!hrefAttr || hrefAttr.slice(0, 11).toLowerCase() === 'javascript:') return '';
+    let url;
+    try { url = new URL(link.href, window.location.href); } catch { return ''; }
+    const sameDocument = url.origin === location.origin && url.pathname === location.pathname && url.search === location.search;
+    if (sameDocument && url.hash && findPlanTarget(url.hash)) return decodeToken(url.hash);
+    if (!/[/?#:]/.test(hrefAttr) && findPlanTarget(hrefAttr)) return decodeToken(hrefAttr);
+    return '';
+  }
+
   document.addEventListener('click', (event) => {
+    if (event.defaultPrevented || event.button !== 0) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const target = event.target;
     if (!(target instanceof Element)) return;
     const planJump = target.closest('[data-plan-jump]');
-    if (!planJump) return;
-    focusPlanRef(planJump.getAttribute('data-plan-jump'));
+    if (planJump) {
+      const ref = planJump.getAttribute('data-plan-jump');
+      if (!ref || !findPlanTarget(ref)) return;
+      event.preventDefault();
+      focusPlanRef(ref);
+      return;
+    }
+    const link = target.closest('a[href]');
+    if (!(link instanceof HTMLAnchorElement)) return;
+    const token = tokenFromAnchor(link);
+    if (!token) return;
+    event.preventDefault();
+    focusPlanRef(token);
+  }, true);
+
+  window.addEventListener('popstate', () => {
+    const state = history.state && typeof history.state === 'object' ? history.state : {};
+    if (state.livingPlanJump && state.livingPlanView && state.livingPlanView.captured) {
+      scrollGeneration += 1;
+      const section = findPlanTarget(state.livingPlanJump);
+      if (state.livingPlanView.tab) activateTab(state.livingPlanView.tab);
+      highlightPlanTarget(section);
+      pinScroll(state.livingPlanView.x || 0, state.livingPlanView.y || 0);
+      return;
+    }
+    if (state.livingPlanJump) {
+      focusPlanRef(state.livingPlanJump, { recordHistory: false, instant: true });
+      return;
+    }
+    if (state.livingPlanView && state.livingPlanView.captured) {
+      restoreView(state.livingPlanView);
+      return;
+    }
+    if (location.hash && findPlanTarget(location.hash)) {
+      focusPlanRef(location.hash, { recordHistory: false, instant: true });
+      return;
+    }
+    highlightPlanTarget(null);
   });
 
   window.livingPlanFocusPlanRef = focusPlanRef;
@@ -1839,6 +1979,10 @@ function clientScript(
     const preferred = ${JSON.stringify(executionActive)} ? 'workflow' : (saved || 'plan');
     if (preferred) activateTab(preferred);
   } catch {}
+
+  if (!interactionsLocked && location.hash && findPlanTarget(location.hash)) {
+    focusPlanRef(location.hash, { recordHistory: false, instant: true });
+  }
 
   async function postJson(url, body) {
     const response = await fetch(url, {
