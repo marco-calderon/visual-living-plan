@@ -55,15 +55,24 @@ Copy this into a new file (or append a section). Fill every field.
 
 One or two sentences: what a user or installer gets from this release.
 
-### Changes
+### Bugs fixed
 
 - …
+
+### Improvements
+
+- …
+
+### New features
+
 - …
 
 ### Notes
 
 Optional. Migration, follow-ups, or “no registry restart needed.”
 ```
+
+Each bullet is one change under one heading. Omit a heading that has no bullets. Settings reads the newest `changelog-yyyy-mm-dd.md` and shows one card per heading, including a zero when that heading is absent. The version on a card line is the `## x.y.z` section the bullet sits in.
 
 ## Checklist before the PR
 

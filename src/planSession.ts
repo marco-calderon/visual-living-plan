@@ -2,12 +2,14 @@ import { nanoid } from 'nanoid'
 import { watch } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import { basename, dirname, extname, join, normalize, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { clientDistDir, loadClientAssets, type ClientAssets } from './assets'
 import { html, HttpError, jsonBody } from './http'
 import { diffSections } from './diff'
 import { createIdleExecutionState, type ExecutionState } from './execution'
 import { collectSectionSources, parsePlan } from './parse'
 import { recordLog } from './serviceLog'
+import { loadLatestChangelog } from './changelog'
 import { renderPlanPage } from './render'
 import {
   configPathBesidePlan,
@@ -511,6 +513,7 @@ export async function openPlanSession(options: {
         theme: currentTheme(),
         basePath,
         selfId,
+        changelog: loadLatestChangelog(fileURLToPath(import.meta.url)),
       }),
     )
   }

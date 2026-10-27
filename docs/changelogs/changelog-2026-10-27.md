@@ -10,7 +10,7 @@
 
 Contributor workflow for version bumps and changelogs, plus a clearer local global install path.
 
-### Changes
+### Improvements
 
 - Add the `version-bump` project skill (`.cursor/skills/version-bump/`) with an in-skill changelog template; files land in `docs/changelogs/changelog-yyyy-mm-dd.md`.
 - Point root `AGENTS.md` at that skill.
@@ -30,7 +30,7 @@ No registry restart needed.
 
 Workflow diagrams are laid out with ELK.js. Connectors are squared and orthogonal instead of the previous curved Dagre paths.
 
-### Changes
+### New features
 
 - Layered left-to-right placement for chains, fan-in, and wide rows.
 - Squared orthogonal edge paths.
@@ -50,7 +50,7 @@ No registry restart needed.
 
 Plan title, summary, and status open from the logo. The fixed header is gone, so the page starts under the floating tabs.
 
-### Changes
+### New features
 
 - Click the logo to open a card with the title, summary, and icon status row. Click again, click outside, or press Escape to close it. The logo shows an accent ring while the card is open.
 - A pending count above zero is an amber badge on the logo and an inbox icon in the card. A count of zero stays off the row.
@@ -70,7 +70,7 @@ No registry restart needed.
 
 The plan page background is theme-aware graph paper instead of the radial wash, with the quieter line opacity from the follow-up pass.
 
-### Changes
+### Improvements
 
 - A 2px line every 100px and a 1px line every 20px, on the paper color.
 - Lines follow the accent. Light mode uses 20.4% and 9.6%. Dark mode uses 15.6% and 7.2%, which is 60% of the first pass so the grid stays quiet in both schemes.
@@ -90,7 +90,7 @@ No registry restart needed.
 
 The plan page has a solid top bar again. The title sits beside the logo, and the logo card opens and closes with the same motion as the Plans popup.
 
-### Changes
+### Improvements
 
 - Restore the fixed bar: panel background, bottom border, blur, and the previous 3.75rem bar height.
 - Show the plan title on the bar, immediately to the right of the logo, at the 1.45rem size the old bar used.
@@ -159,3 +159,25 @@ Running plan cards no longer show a separate open button. The plan title still o
 ### Notes
 
 No registry restart needed. The title link is unchanged.
+
+## 0.5.2
+
+**PR:** [#54](https://github.com/marco-calderon/visual-living-plan/pull/54)
+
+**Bump:** patch
+
+### Summary
+
+Settings leads with the newest changelog, as cards for bugs fixed, improvements, and new features.
+
+### New features
+
+- Settings opens on the newest `docs/changelogs/changelog-yyyy-mm-dd.md`. Each card is a heading: bugs fixed, improvements, or new features. The count is the bullets. The version chip is the release the bullet sits in.
+
+### Improvements
+
+- Changelog sections file each change under those three headings.
+
+### Notes
+
+`docs/changelogs` ships with the package. No registry restart needed.
