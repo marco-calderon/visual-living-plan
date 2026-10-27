@@ -7,6 +7,7 @@ import type {
   ExecutionState,
 } from './execution'
 import { blockAnchorId } from './parse'
+import { layoutWorkflowNodes } from './layoutGraph'
 import type { PlanBlock, PlanDocument } from './types'
 
 const NODE_STATUSES = new Set<ExecutionNodeStatus>([
@@ -107,80 +108,7 @@ function layoutNodes(
   nodes: ExecutionGraphNode[],
   edges: Array<{ from: string; to: string }>,
 ): ExecutionGraphNode[] {
-  const placed = nodes.every((node) => typeof node.x === 'number' && typeof node.y === 'number')
-  if (placed || nodes.length === 0) return nodes
-
-  const ids = nodes.map((node) => node.id)
-  const indegree = new Map<string, number>(ids.map((id) => [id, 0]))
-  const outgoing = new Map<string, string[]>(ids.map((id) => [id, []]))
-
-  for (const edge of edges) {
-    if (!indegree.has(edge.from) || !indegree.has(edge.to)) continue
-    outgoing.get(edge.from)?.push(edge.to)
-    indegree.set(edge.to, (indegree.get(edge.to) ?? 0) + 1)
-  }
-
-  const depth = new Map<string, number>()
-  const queue = ids.filter((id) => (indegree.get(id) ?? 0) === 0)
-  for (const id of queue) depth.set(id, 0)
-
-  const remaining = new Map(indegree)
-  let guard = 0
-  while (queue.length > 0 && guard < ids.length * 4) {
-    guard += 1
-    const id = queue.shift()
-    if (!id) break
-    const currentDepth = depth.get(id) ?? 0
-    for (const next of outgoing.get(id) ?? []) {
-      depth.set(next, Math.max(depth.get(next) ?? 0, currentDepth + 1))
-      const nextDegree = (remaining.get(next) ?? 1) - 1
-      remaining.set(next, nextDegree)
-      if (nextDegree === 0) queue.push(next)
-    }
-  }
-
-  for (const id of ids) {
-    if (!depth.has(id)) depth.set(id, 0)
-  }
-
-  const ranks = new Map<number, string[]>()
-  for (const id of ids) {
-    const rank = depth.get(id) ?? 0
-    const column = ranks.get(rank) ?? []
-    column.push(id)
-    ranks.set(rank, column)
-  }
-
-  const position = new Map<string, { x: number; y: number }>()
-  const linear = [...ranks.values()].every((column) => column.length === 1)
-  const columns = 3
-  const ordered = [...ranks.keys()]
-    .sort((left, right) => left - right)
-    .flatMap((rank) => ranks.get(rank) ?? [])
-  if (linear && ordered.length > columns) {
-    ordered.forEach((id, index) => {
-      position.set(id, {
-        x: (index % columns) * 280,
-        y: Math.floor(index / columns) * 168,
-      })
-    })
-  } else {
-    for (const [rank, column] of ranks) {
-      column.forEach((id, index) => {
-        position.set(id, { x: rank * 280, y: index * 168 })
-      })
-    }
-  }
-
-  return nodes.map((node) => {
-    if (typeof node.x === 'number' && typeof node.y === 'number') return node
-    const next = position.get(node.id)
-    return {
-      ...node,
-      x: node.x ?? next?.x ?? 0,
-      y: node.y ?? next?.y ?? 0,
-    }
-  })
+  return layoutWorkflowNodes(nodes, edges)
 }
 
 function indexAnchors(plan: PlanDocument): Map<string, PlanBlock> {

@@ -151,7 +151,7 @@ Send a portable graph. The page maps it onto the current canvas (React Flow toda
 }
 ```
 
-Node `status` is `pending`, `active`, `blocked`, `done`, or `failed`. `x` and `y` are optional layout hints. Edges may set `label`, `fromSide`, and `toSide` (`top`, `right`, `bottom`, `left`). A self-loop (`from` and `to` are the same id) is drawn as an arc.
+Node `status` is `pending`, `active`, `blocked`, `done`, or `failed`. The workflow diagram lays nodes out automatically. `x` and `y` are accepted and are not required. Edges may set `label`, `fromSide`, and `toSide` (`top`, `right`, `bottom`, `left`). A self-loop (`from` and `to` are the same id) is drawn as an arc.
 
 ## Theme / accent color
 

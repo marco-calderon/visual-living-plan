@@ -1,4 +1,5 @@
 import type { ExecutionGraph, ExecutionPortSide, ExecutionState } from '../../src/execution.ts'
+import { layoutWorkflowNodes } from '../../src/layoutGraph.ts'
 import type { ExecutionCanvasModel } from './types.ts'
 
 const PORT_SIDES = new Set<ExecutionPortSide>(['top', 'right', 'bottom', 'left'])
@@ -11,7 +12,8 @@ export function graphToCanvasModel(
   graph: ExecutionGraph,
   scene?: Record<string, unknown>,
 ): ExecutionCanvasModel {
-  const nodes = graph.nodes.map((node, index) => ({
+  const laidOut = layoutWorkflowNodes(graph.nodes, graph.edges ?? [])
+  const nodes = laidOut.map((node) => ({
     id: node.id,
     label: node.label,
     detail: node.detail,
@@ -19,8 +21,8 @@ export function graphToCanvasModel(
     planRef: node.planRef,
     planLabel: node.planLabel,
     position: {
-      x: node.x ?? (index % 3) * 260,
-      y: node.y ?? Math.floor(index / 3) * 160,
+      x: node.x ?? 0,
+      y: node.y ?? 0,
     },
   }))
 

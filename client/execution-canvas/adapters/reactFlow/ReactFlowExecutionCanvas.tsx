@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   Background,
   Controls,
@@ -15,6 +15,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import type { ExecutionCanvasProps } from '../../types.ts'
+import { layoutWorkflowNodes } from '../../../../src/layoutGraph.ts'
 import {
   ExecutionStepNode,
   PlanRefContext,
@@ -91,6 +92,37 @@ function toFlowNodes(model: ExecutionCanvasProps['model']): ExecutionStepNodeTyp
   }))
 }
 
+function placeMeasuredNodes(nodes: ExecutionStepNodeType[], edges: Edge[]): ExecutionStepNodeType[] {
+  const sizes = new Map<string, { width: number; height: number }>()
+  for (const node of nodes) {
+    const width = node.measured?.width ?? 0
+    const height = node.measured?.height ?? 0
+    if (width > 0 && height > 0) sizes.set(node.id, { width, height })
+  }
+  if (sizes.size !== nodes.length) return nodes
+
+  const laidOut = layoutWorkflowNodes(
+    nodes.map((node) => ({
+      id: node.id,
+      label: node.data.label,
+      detail: node.data.detail,
+      planRef: node.data.planRef,
+      planLabel: node.data.planLabel,
+    })),
+    edges.map((edge) => ({ from: edge.source, to: edge.target })),
+    sizes,
+  )
+  const positionById = new Map(laidOut.map((node) => [node.id, { x: node.x ?? 0, y: node.y ?? 0 }]))
+  return nodes.map((node) => {
+    const position = positionById.get(node.id)
+    if (!position) return node
+    if (Math.abs(node.position.x - position.x) <= 0.5 && Math.abs(node.position.y - position.y) <= 0.5) {
+      return node
+    }
+    return { ...node, position }
+  })
+}
+
 function toFlowEdges(model: ExecutionCanvasProps['model'], colors: EdgeColors): Edge[] {
   return model.edges.map((edge) => {
     const sourceSide = edge.sourceSide ?? 'right'
@@ -130,6 +162,10 @@ function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: Execu
   const initialEdges = useMemo(() => toFlowEdges(model, edgeColors), [model, edgeColors])
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
+  const measureKey = nodes
+    .map((node) => `${node.id}:${Math.round(node.measured?.width ?? 0)}x${Math.round(node.measured?.height ?? 0)}`)
+    .join('|')
+  const edgeKey = edges.map((edge) => `${edge.source}>${edge.target}`).join('|')
   const canvasColors = useMemo(
     () => ({
       dot: cssVar('--dot', theme.mode === 'dark' ? 'rgba(232, 243, 238, 0.14)' : 'rgba(20, 32, 27, 0.12)'),
@@ -143,6 +179,7 @@ function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: Execu
   )
 
   const hostRef = useRef<HTMLDivElement>(null)
+  const placedKey = useRef('')
 
   const fit = useCallback(() => {
     const host = hostRef.current
@@ -151,6 +188,7 @@ function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: Execu
   }, [fitView])
 
   useEffect(() => {
+    placedKey.current = ''
     setNodes(toFlowNodes(model))
     setEdges(toFlowEdges(model, edgeColors))
     const frame = requestAnimationFrame(() => {
@@ -158,6 +196,24 @@ function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: Execu
     })
     return () => cancelAnimationFrame(frame)
   }, [model, edgeColors, setNodes, setEdges, fit])
+
+  // Card height follows the label, so the first positions are an estimate.
+  // Once React Flow measures the cards, Dagre runs again and the edge router
+  // uses those real boxes.
+  useLayoutEffect(() => {
+    if (nodes.length === 0 || nodes.some((node) => (node.measured?.width ?? 0) <= 0 || (node.measured?.height ?? 0) <= 0)) {
+      return
+    }
+    const key = `${measureKey}|${edgeKey}`
+    if (placedKey.current === key) return
+    placedKey.current = key
+    const next = placeMeasuredNodes(nodes, edges)
+    if (next.every((node, index) => node === nodes[index])) return
+    setNodes(next)
+    requestAnimationFrame(() => {
+      fit()
+    })
+  }, [measureKey, edgeKey, nodes, edges, setNodes, fit])
 
   useEffect(() => {
     const host = hostRef.current
