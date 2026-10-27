@@ -154,7 +154,7 @@ const STYLES = `
   --node-blocked-border: rgba(180, 83, 9, 0.55);
   --handle-border: #ffffff;
   --minimap-idle: #94a3b8;
-  --titlebar-offset: 3.25rem;
+  --titlebar-offset: 3.75rem;
 }
 
 :root[data-theme="dark"] {
@@ -208,7 +208,7 @@ const STYLES = `
   --handle-border: #10201b;
   --minimap-idle: #64748b;
   --review-bg: #172420;
-  --titlebar-offset: 3.25rem;
+  --titlebar-offset: 3.75rem;
 }
 
 * { box-sizing: border-box; }
@@ -275,15 +275,22 @@ body.has-review-bar .shell {
   right: 0;
   z-index: 8;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  align-items: center;
   gap: 0.85rem;
-  padding: 0.72rem 1rem 0;
-  pointer-events: none;
-  background: none;
-  border: 0;
+  height: var(--titlebar-offset);
+  padding: 0 1rem;
+  background: var(--panel-strong);
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(16px);
 }
-.plan-details { position: relative; pointer-events: none; }
+.plan-details {
+  position: relative;
+  flex: 0 0 auto;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
 .logo-btn,
 .plan-card,
 .chrome-tools,
@@ -343,29 +350,29 @@ body.has-review-bar .shell {
   background: var(--panel-strong);
   box-shadow: var(--shadow);
   backdrop-filter: blur(16px);
+  transform-origin: top left;
 }
 .plan-card[hidden] { display: none !important; }
 .plan-card[data-open] {
   animation: processes-panel-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-@media (prefers-reduced-motion: reduce) {
-  .plan-card[data-open] { animation: none; }
+.plan-card[data-closed] {
+  animation: processes-panel-out 240ms ease both;
 }
-.plan-card .brand {
-  white-space: normal;
-  overflow: visible;
-  text-overflow: unset;
-  font-size: 1.35rem;
-  line-height: 1.15;
+@media (prefers-reduced-motion: reduce) {
+  .plan-card[data-open],
+  .plan-card[data-closed] { animation: none; }
 }
 .plan-card .lede {
-  margin-top: 0.7rem;
+  margin-top: 0;
   max-width: none;
   font-size: 0.95rem;
   line-height: 1.5;
 }
+.plan-card > .facts:first-child { margin-top: 0; }
 .chrome-tools {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 0.65rem;
 }
@@ -1432,26 +1439,60 @@ function clientScript(
   const planDetails = document.querySelector('[data-plan-details]');
   const planDetailsBtn = document.querySelector('[data-plan-details-toggle]');
   const planCard = document.querySelector('[data-plan-card]');
+  let planDetailsOpen = false;
+  let planDetailsCloseTimer = 0;
+  let planDetailsCloseListener = null;
+  function planDetailsMotionReduced() {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+  function cancelPlanDetailsClose() {
+    window.clearTimeout(planDetailsCloseTimer);
+    planDetailsCloseTimer = 0;
+    if (planDetailsCloseListener && planCard) {
+      planCard.removeEventListener('animationend', planDetailsCloseListener);
+      planDetailsCloseListener = null;
+    }
+  }
+  function finishPlanDetailsClose() {
+    cancelPlanDetailsClose();
+    if (planDetailsOpen || !planCard) return;
+    planCard.hidden = true;
+  }
   function setPlanDetails(open) {
-    if (!planDetailsBtn || !planCard) return;
+    if (!planDetailsBtn || !planCard || open === planDetailsOpen) return;
+    planDetailsOpen = open;
     planDetailsBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    cancelPlanDetailsClose();
     if (open) {
       planCard.hidden = false;
+      planCard.removeAttribute('data-closed');
+      planCard.removeAttribute('data-open');
+      if (!planDetailsMotionReduced()) void planCard.getBoundingClientRect();
       planCard.setAttribute('data-open', '');
       return;
     }
-    planCard.hidden = true;
     planCard.removeAttribute('data-open');
+    planCard.setAttribute('data-closed', '');
+    if (planDetailsMotionReduced()) {
+      finishPlanDetailsClose();
+      return;
+    }
+    planDetailsCloseListener = (event) => {
+      if (event.target !== planCard) return;
+      finishPlanDetailsClose();
+    };
+    planCard.addEventListener('animationend', planDetailsCloseListener);
+    planDetailsCloseTimer = window.setTimeout(finishPlanDetailsClose, 320);
   }
   if (planDetails && planDetailsBtn && planCard) {
     planDetailsBtn.addEventListener('click', () => {
-      setPlanDetails(planDetailsBtn.getAttribute('aria-expanded') !== 'true');
+      setPlanDetails(!planDetailsOpen);
     });
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') setPlanDetails(false);
     });
     document.addEventListener('click', (event) => {
-      if (planCard.hidden) return;
+      if (!planDetailsOpen) return;
       if (event.target instanceof Node && planDetails.contains(event.target)) return;
       setPlanDetails(false);
     });
@@ -2198,7 +2239,6 @@ export function renderPlanPage(options: {
         <span class="logo-badge" data-pending-badge${pendingCount > 0 ? '' : ' hidden'}>${pendingCount}</span>
       </button>
       <div class="plan-card" id="plan-card" data-plan-card role="dialog" aria-labelledby="plan-title" hidden>
-        <h1 class="brand" id="plan-title">${escapeHtml(plan.title)}</h1>
         ${plan.summary ? `<p class="lede">${escapeHtml(plan.summary)}</p>` : ''}
         <div class="facts">
           <span class="fact solo" data-plan-mode-chip data-mode="${escapeHtml(mode)}" title="Mode · ${escapeHtml(mode)}" aria-label="Mode · ${escapeHtml(mode)}">${MODE_ICON.watch}${MODE_ICON.review}${MODE_ICON.comment}<span class="sr" data-plan-mode-value>${escapeHtml(mode)}</span></span>
@@ -2211,6 +2251,7 @@ export function renderPlanPage(options: {
         </div>
       </div>
     </div>
+    <h1 class="brand" id="plan-title">${escapeHtml(plan.title)}</h1>
     <div class="chrome-tools">
       <div class="tabs" role="tablist" aria-label="Living Plan views">
         ${tabButton('plan', 'Plan', true)}

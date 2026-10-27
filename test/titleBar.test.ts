@@ -44,10 +44,29 @@ function header(html: string): string {
   return html.slice(barStart, barEnd)
 }
 
-test('the logo opens a card; tabs and Plans stay in the corner', () => {
+test('the logo opens a card; the title sits on the solid bar', () => {
   const html = page()
   const bar = header(html)
   const shell = html.indexOf('<div class="shell">')
+  const logoAt = bar.indexOf('class="titlebar-logo"')
+  const titleAt = bar.indexOf('<h1 class="brand" id="plan-title">')
+  const toolsAt = bar.indexOf('class="chrome-tools"')
+  const cardAt = bar.indexOf('data-plan-card')
+
+  assert.match(html, /--titlebar-offset:\s*3\.75rem;/)
+  assert.match(html, /\.titlebar\s*\{[^}]*height:\s*var\(--titlebar-offset\);/)
+  assert.match(html, /\.titlebar\s*\{[^}]*background:\s*var\(--panel-strong\);/)
+  assert.match(html, /\.titlebar\s*\{[^}]*border-bottom:\s*1px solid var\(--line\);/)
+  assert.match(html, /\.titlebar\s*\{[^}]*backdrop-filter:\s*blur\(16px\);/)
+  assert.match(html, /\.brand\s*\{[^}]*font-size:\s*1\.45rem;/)
+  assert.match(html, /\.plan-card\s*\{[^}]*transform-origin:\s*top left;/)
+  assert.match(html, /\.plan-card\[data-open\]\s*\{[^}]*processes-panel-in 280ms cubic-bezier\(0\.22, 1, 0\.36, 1\) both/)
+  assert.match(html, /\.plan-card\[data-closed\]\s*\{[^}]*processes-panel-out 240ms ease both/)
+  assert.match(html, /setAttribute\('data-closed', ''\)/)
+  assert.match(html, /addEventListener\('animationend', planDetailsCloseListener\)/)
+  assert.match(html, /setTimeout\(finishPlanDetailsClose, 320\)/)
+  assert.doesNotMatch(html, /\.titlebar\s*\{[^}]*background:\s*none/)
+  assert.doesNotMatch(html, /\.plan-card \.brand/)
 
   assert.match(bar, /data-plan-details-toggle/)
   assert.match(bar, /aria-expanded="false"/)
@@ -55,6 +74,9 @@ test('the logo opens a card; tabs and Plans stay in the corner', () => {
   assert.match(bar, /class="titlebar-logo" src="\/favicon.png"/)
   assert.match(bar, /data-plan-card[^>]*hidden/)
   assert.match(bar, /<h1 class="brand" id="plan-title">POS-22 Google Ads scripts migration \(AI-DLC\)<\/h1>/)
+  assert.ok(logoAt >= 0 && cardAt > logoAt && titleAt > cardAt && toolsAt > titleAt)
+  assert.ok(bar.lastIndexOf('</div>', titleAt) < titleAt)
+  assert.doesNotMatch(bar.slice(cardAt, bar.lastIndexOf('</div>', titleAt)), /<h1 /)
   assert.match(bar, /<p class="lede">POS-30 in review\.<\/p>/)
   assert.match(bar, /aria-label="Plan"/)
   assert.match(bar, /aria-label="Workflow"/)
