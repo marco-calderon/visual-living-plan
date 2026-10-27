@@ -175,6 +175,24 @@
   line-height: 1.25;
 }
 
+a.rf-step-label {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+a.rf-step-label:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.16em;
+}
+
+a.rf-step-label:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .rf-step-detail {
   margin-top: 0.35rem;
   color: var(--muted);

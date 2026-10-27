@@ -181,3 +181,23 @@ Settings leads with the newest changelog, as cards for bugs fixed, improvements,
 ### Notes
 
 `docs/changelogs` ships with the package. No registry restart needed.
+
+## 0.5.3
+
+**PR:** [#55](https://github.com/marco-calderon/visual-living-plan/pull/55)
+
+**Bump:** patch
+
+### Summary
+
+References in a plan jump to the matching entry on the same page. Back returns to the tab and scroll position you left.
+
+### New features
+
+- A workflow node title, a plan step, a hash link, or a bare ref scrolls to that entry instead of leaving the page.
+- The jump is a history entry. Back and Forward restore the previous tab and position.
+- Opening a plan URL that already has a hash scrolls to that entry. A live run still opens on the Workflow tab.
+
+### Notes
+
+No registry restart needed.
