@@ -19,3 +19,23 @@ Contributor workflow for version bumps and changelogs, plus a clearer local glob
 ### Notes
 
 No registry restart needed.
+
+## 0.3.0
+
+**PR:** [#46](https://github.com/marco-calderon/visual-living-plan/pull/46)
+
+**Bump:** minor
+
+### Summary
+
+Workflow diagrams are laid out with ELK.js. Connectors are squared and orthogonal instead of the previous curved Dagre paths.
+
+### Changes
+
+- Layered left-to-right placement for chains, fan-in, and wide rows.
+- Squared orthogonal edge paths.
+- Fan-in and return rails still separate overlapping edges.
+
+### Notes
+
+No registry restart needed.
