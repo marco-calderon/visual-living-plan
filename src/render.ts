@@ -1810,8 +1810,7 @@ function clientScript(
   try { history.scrollRestoration = 'manual'; } catch {}
 
   let scrollGeneration = 0;
-  let activeJump = '';
-  let activeJumpTimer = 0;
+  let jumpDepth = 0;
 
   function decodeToken(value) {
     const raw = String(value || '').replace(/^#/, '');
@@ -1888,12 +1887,11 @@ function clientScript(
       const next = new URL(window.location.href);
       if (hash) next.hash = hash;
       const sameEntry = Boolean(hash) && history.state && history.state.livingPlanJump === canonical && location.hash === next.hash;
-      if (sameEntry || activeJump === canonical) return;
-      activeJump = canonical;
-      clearTimeout(activeJumpTimer);
-      activeJumpTimer = setTimeout(() => { if (activeJump === canonical) activeJump = ''; }, 400);
+      if (sameEntry || jumpDepth > 0) return;
+      jumpDepth += 1;
       snapshotView();
       if (hash) history.pushState({ livingPlanJump: canonical }, '', next);
+      jumpDepth -= 1;
     }
     activateTab('plan');
     highlightPlanTarget(section);

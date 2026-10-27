@@ -122,6 +122,12 @@ test('in-plan references jump on this page and Back restores the position', { ti
     assert.equal(new URL(page.url()).hash, '')
     assert.equal(await page.locator('#plan-design').evaluate((node) => node.classList.contains('plan-ref-focus')), false)
 
+    await step.evaluate((node) => node.click())
+    await page.waitForURL(/#plan-design$/)
+    await expectInView(page, '#plan-design')
+    await historyBy(page, 'back')
+    await page.waitForFunction((target) => Math.abs(window.scrollY - target) < 40, before)
+
     await historyBy(page, 'forward')
     await page.waitForURL(/#plan-design$/)
     await expectInView(page, '#plan-design')
