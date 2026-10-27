@@ -486,8 +486,8 @@ const STYLES = `
   --danger-soft: rgba(180, 35, 24, 0.08);
   --danger-border: rgba(180, 35, 24, 0.28);
   --pulse: rgba(15, 118, 110, 0.45);
-  --noise-opacity: 0.35;
-  --noise-blend: multiply;
+  --grid-major: color-mix(in srgb, var(--accent) 20.4%, transparent);
+  --grid-minor: color-mix(in srgb, var(--accent) 9.6%, transparent);
   --stage-bg: #f7faf8;
   --dot: rgba(20, 32, 27, 0.12);
   --node-bg: rgba(255, 255, 255, 0.94);
@@ -539,8 +539,8 @@ const STYLES = `
   --danger-soft: rgba(248, 113, 113, 0.12);
   --danger-border: rgba(248, 113, 113, 0.4);
   --pulse: rgba(45, 212, 191, 0.45);
-  --noise-opacity: 0.16;
-  --noise-blend: overlay;
+  --grid-major: color-mix(in srgb, var(--accent) 15.6%, transparent);
+  --grid-minor: color-mix(in srgb, var(--accent) 7.2%, transparent);
   --stage-bg: #0e1614;
   --dot: rgba(232, 243, 238, 0.14);
   --node-bg: rgba(18, 32, 28, 0.96);
@@ -570,21 +570,15 @@ body {
   overflow-x: clip;
   color: var(--ink);
   font-family: var(--font-body);
-  background:
-    radial-gradient(1200px 600px at 10% -10%, var(--wash-accent), transparent 55%),
-    radial-gradient(900px 500px at 100% 0%, var(--wash-warm), transparent 50%),
-    linear-gradient(180deg, var(--page-top) 0%, var(--paper) 40%, var(--paper-2) 100%);
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--grid-major) 2px, transparent 2px),
+    linear-gradient(90deg, var(--grid-major) 2px, transparent 2px),
+    linear-gradient(var(--grid-minor) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-minor) 1px, transparent 1px);
+  background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+  background-position: -2px -2px, -2px -2px, -1px -1px, -1px -1px;
   background-attachment: fixed;
-}
-
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  opacity: var(--noise-opacity);
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
-  mix-blend-mode: var(--noise-blend);
 }
 
 .shell {
