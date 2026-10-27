@@ -1,3 +1,4 @@
+import { planEntries } from './planEntries'
 import type { CompletionState } from './processRecord'
 import type { PlanDocument } from './types'
 
@@ -12,7 +13,7 @@ export type PlanProgress = {
 
 /** Completion is phases marked done plus interactions that already have an answer. */
 export function measurePlan(plan: PlanDocument, answered: Iterable<string>): PlanProgress {
-  const phases = plan.blocks.filter((block) => block.type === 'phase')
+  const phases = planEntries(plan).filter((entry) => entry.type === 'phase')
   const phaseTotal = phases.length
   const phaseDone = phases.filter((block) => block.status === 'done').length
   const phaseActive = phases.some((block) => block.status === 'active' || block.status === 'blocked')

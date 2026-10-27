@@ -94,7 +94,7 @@ bunx visual-living-plan theme set --accent #0369a1 --plan path/to/work.plan.md
 
 ## Primitives
 
-Each structured block is a fenced YAML block. The fence language is the type. Give every interactive block a stable `id` and do not rename it mid-run.
+Each structured block is a Markdoc tag. The tag name is the type. Give every interactive block a stable `id` and do not rename it mid-run. A tag may contain another tag. A YAML fence whose language is the type still renders; write new blocks as tags.
 
 - `phase` — step in the timeline. `status`: `pending` \| `active` \| `blocked` \| `done` \| `failed`. One `active` phase at a time.
 - `callout` — `kind`: `note` \| `tip` \| `risk` \| `decision` \| `warning`.
@@ -118,12 +118,13 @@ Copy-paste schemas and response examples: [primitives.md](primitives.md).
 - `execution stop` before `wait` or before expecting a review decision.
 - Open the browser for the human. Do not pass `--no-open` unless they cannot use a local browser.
 - Phase and callout bodies support headings, lists, pipe tables, fenced code, bold, italic, and inline code. The row under a table header is `| --- |`. A blank line ends the table.
-- A mermaid fence draws a figure in the plan text. Put it in the plan markdown, or indent it inside a phase, callout, or approve `body`.
+- A mermaid fence draws a figure in the plan text. Put it in the plan markdown, or inside a phase, callout, or approve tag.
+- `{% status status="active" /%}` is an inline status chip in that prose. It is not a section.
 - Include one `workflow` block. `check` fails when that block is missing.
 
 ## Showing code
 
-Put the fence in the plan markdown, or indent it under a phase, callout, or approve `body: |`. The inner fence must be indented so it does not close the YAML block. `mermaid` and the YAML block types (`phase`, `callout`, `choice`, and the rest) are not code.
+Put the fence in the plan markdown, or inside a phase, callout, or approve tag. `mermaid` is a figure. A `yaml` fence inside a tag holds that entry's fields. Entry types (`phase`, `callout`, `choice`, and the rest) are tags, not code fences.
 
 Use a **language fence** when the human should read the code as it stands. Name the syntax (`ts`, `python`, `bash`, `json`). The block is highlighted and numbered from 1. Add `start=40` after the language when the snippet is a slice of a larger file and a note should point at those real lines. `start=` applies only to source, not to a diff.
 

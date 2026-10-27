@@ -1,8 +1,14 @@
 # Live Plan primitives
 
-Fenced blocks are YAML. The fence language is the block type (`phase`, `callout`, `choice`, `form`, `questions`, `approve`, `checklist`, `workflow`). Anything outside those fences is markdown. A pipe table in that markdown renders as a table. A mermaid fence draws a figure. Any other fence is highlighted source.
+Author each entry as a Markdoc tag. The tag name is the entry type (`phase`, `callout`, `choice`, `form`, `questions`, `approve`, `checklist`, `workflow`). Anything outside those tags is markdown. A pipe table in that markdown renders as a table. A mermaid fence draws a figure. Any other fence is highlighted source.
 
-Every plan includes one `workflow` block. That block is the execution path.
+A tag can contain another tag. A callout can contain a choice. An inline `{% status status="active" /%}` draws a status chip in the prose; it is not its own section.
+
+Put short fields on the tag (`id`, `title`, `status`, `prompt`). Put a long field list or a workflow graph in a `yaml` fence inside the tag. Plan files do not run Markdoc functions, partials, or `$variables`.
+
+A YAML fence whose language is an entry type (` ```phase `, and the rest) still renders. New plans use tags.
+
+Every plan includes one `workflow` tag. That block is the execution path.
 
 `live-plan wait <id>` prints one interaction response as JSON. `live-plan review` prints the review result.
 
@@ -27,23 +33,20 @@ Status timeline. Use one block per major step. Set exactly one phase to `active`
 
 `id` defaults to a slug of `title`.
 
-```phase
-id: implement
-title: Implement gateway middleware
-status: active
-body: |
-  Wire the limiter into the request path. Default the flag to off.
+```markdown
+{% phase id="implement" title="Implement gateway middleware" status="active" %}
+Wire the limiter into the request path. Default the flag to off.
+{% /phase %}
 ```
 
 ## callout
 
 `kind`: `note` | `tip` | `risk` | `decision` | `warning`. Unknown values become `note`.
 
-```callout
-kind: risk
-title: Redis dependency
-body: |
-  A Redis outage must not take down the API.
+```markdown
+{% callout kind="risk" title="Redis dependency" %}
+A Redis outage must not take down the API.
+{% /callout %}
 ```
 
 ## choice
@@ -54,16 +57,15 @@ The human picks one option. `wait` prints:
 { "kind": "choice", "id": "fail-mode", "optionId": "open", "label": "Fail open" }
 ```
 
-```choice
-id: fail-mode
-prompt: If Redis is unreachable, how should the limiter behave?
-options:
-  - id: open
-    label: Fail open
-    description: Allow traffic if Redis is down.
-  - id: closed
-    label: Fail closed
-    description: Reject traffic if Redis is down.
+```markdown
+{% choice id="fail-mode" prompt="If Redis is unreachable, how should the limiter behave?" %}
+{% option id="open" label="Fail open" %}
+Allow traffic if Redis is down.
+{% /option %}
+{% option id="closed" label="Fail closed" %}
+Reject traffic if Redis is down.
+{% /option %}
+{% /choice %}
 ```
 
 Give every option an `id`. `description` is optional.
@@ -84,9 +86,9 @@ Give every option an `id`. `description` is optional.
 }
 ```
 
-```form
-id: limits
-prompt: Set the initial production limits
+````markdown
+{% form id="limits" prompt="Set the initial production limits" %}
+```yaml
 fields:
   - name: max_rps
     label: Max requests per window
@@ -100,12 +102,14 @@ fields:
     options: ["1", "5", "25", "100"]
     default: "5"
 ```
+{% /form %}
+````
 
 `name` is the key in `values`. Do not rename it after the form is on screen.
 
 ## questions
 
-One free-text answer per item. Answer keys are the item index as a string (`"0"`, `"1"`, …), in the order written under `items`.
+One free-text answer per item. Answer keys are the item index as a string (`"0"`, `"1"`, …), in the order of the `{% item %}` tags.
 
 `wait` prints:
 
@@ -120,12 +124,11 @@ One free-text answer per item. Answer keys are the item index as a string (`"0"`
 }
 ```
 
-```questions
-id: rollout-notes
-prompt: Anything else before coding?
-items:
-  - Which environments should receive the flag first?
-  - Is there an existing dashboard to extend?
+```markdown
+{% questions id="rollout-notes" prompt="Anything else before coding?" %}
+{% item %}Which environments should receive the flag first?{% /item %}
+{% item %}Is there an existing dashboard to extend?{% /item %}
+{% /questions %}
 ```
 
 `prompt` is optional. `id` is required in practice so `wait` has a stable target (it otherwise slugs from `prompt` or `"questions"`).
@@ -140,24 +143,21 @@ Yes/no gate. `wait` prints:
 
 `note` is omitted when the human leaves it blank.
 
-```approve
-id: proceed-implement
-prompt: Proceed with implementation using the answers above?
-body: |
-  Phase statuses in this file will update as the work proceeds.
+```markdown
+{% approve id="proceed-implement" prompt="Proceed with implementation using the answers above?" %}
+Phase statuses in this file will update as the work proceeds.
+{% /approve %}
 ```
 
 ## checklist
 
 Not an interaction. You flip `done` as you finish. A bare string is an open item.
 
-```checklist
-title: Done when
-items:
-  - text: Middleware behind a flag
-    done: false
-  - text: 429 + Retry-After covered by tests
-    done: true
+```markdown
+{% checklist title="Done when" %}
+{% item done=false %}Middleware behind a flag{% /item %}
+{% item done=true %}429 + Retry-After covered by tests{% /item %}
+{% /checklist %}
 ```
 
 ## workflow
@@ -166,9 +166,9 @@ Required. This block is the execution path. The Workflow tab draws it before the
 
 `check` exits 1 when this block is missing or has no nodes.
 
-```workflow
-id: rollout
-title: Expected execution
+````markdown
+{% workflow id="rollout" title="Expected execution" %}
+```yaml
 nodes:
   - id: design
     ref: design
@@ -183,6 +183,8 @@ edges:
     to: implement
     label: retry
 ```
+{% /workflow %}
+````
 
 An edge may point at its own node. That self-loop is drawn as an arc, with optional `label`. To close a loop through another card, set `fromSide` and `toSide` (`top`, `right`, `bottom`, or `left`) so the return edge does not sit on the forward path. Optional node fields: `detail`, `status`, `x`, `y`. The diagram lays the graph out automatically, so `x` and `y` are not required.
 
@@ -199,19 +201,15 @@ flowchart LR
 ```
 ````
 
-The same fence works in a phase, callout, or approve `body`. Indent it under `body: |` so the inner fence does not close the outer block:
+The same fence works inside a phase, callout, or approve tag:
 
 ````markdown
-```phase
-id: design
-title: Confirm limiter design
-status: active
-body: |
-  ```mermaid
-  flowchart LR
-    Gateway --> Redis
-  ```
+{% phase id="design" title="Confirm limiter design" status="active" %}
+```mermaid
+flowchart LR
+  Gateway --> Redis
 ```
+{% /phase %}
 ````
 
 A diagram that cannot be parsed stays as source with a short error under it.
@@ -220,7 +218,7 @@ A diagram that cannot be parsed stays as source with a short error under it.
 
 Highlighted source. Use this when the human should read the code as it stands. Use [diff](#diff) when they should see a change.
 
-The fence language is the syntax (`ts`, `python`, `bash`, `json`, and the rest). `mermaid` and the YAML block types are not code.
+The fence language is the syntax (`ts`, `python`, `bash`, `json`, and the rest). `mermaid` is a figure, not code. A `yaml` fence inside a tag is entry data, not a highlighted block.
 
 Put the fence in the plan markdown:
 
@@ -230,20 +228,16 @@ if (!flag.enabled) return next()
 ```
 ````
 
-The same fence works in a phase, callout, or approve `body`. Indent it under `body: |` so the inner fence does not close the outer block:
+The same fence works inside a phase, callout, or approve tag:
 
 ````markdown
-```phase
-id: implement
-title: Implement gateway middleware
-status: active
-body: |
-  The limiter, as it stands:
+{% phase id="implement" title="Implement gateway middleware" status="active" %}
+The limiter, as it stands:
 
-  ```ts
-  if (!flag.enabled) return next()
-  ```
+```ts
+if (!flag.enabled) return next()
 ```
+{% /phase %}
 ````
 
 A fence with no language still renders as code, without a language label. An unknown language stays readable as plain text. Every block shows line numbers, starting at 1, so a note can point at a line.
@@ -309,7 +303,7 @@ A hunk with no `---` / `+++` headers still renders. Put a language before `diff`
 ```
 ````
 
-Indent the fence under `body: |` the same way as a source fence.
+Put a diff fence in the tag body the same way as a source fence.
 
 ## review result
 

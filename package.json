@@ -1,6 +1,6 @@
 {
   "name": "visual-living-plan",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "description": "Agent-authored living plans with human interaction, live updates, and a swappable execution canvas",
   "type": "module",
   "bin": {
@@ -47,6 +47,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
+    "@markdoc/markdoc": "^0.5.11",
     "@semos-labs/glyph": "^0.2.10",
     "drizzle-orm": "^0.45.4",
     "elkjs": "^0.12.0",

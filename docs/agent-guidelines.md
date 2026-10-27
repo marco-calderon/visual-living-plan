@@ -108,22 +108,22 @@ Section diffs are computed from the previous snapshot of that plan session. Edit
 
 ## Primitives
 
-A plan is optional YAML frontmatter, then markdown, plus fenced YAML blocks. Every interactive block needs a stable `id`. Do not rename an id after a human may have answered it.
+A plan is optional YAML frontmatter, then markdown, plus Markdoc tags. Every interactive block needs a stable `id`. Do not rename an id after a human may have answered it. A YAML fence whose language is the tag name still renders. Write new entries as tags. A tag may contain another tag.
 
-| Fence | Role | Human input |
+| Tag | Role | Human input |
 |---|---|---|
 | `phase` | Timeline step. `status`: `pending`, `active`, `blocked`, `done`, `failed` | No |
 | `callout` | Highlight. `kind`: `note`, `tip`, `risk`, `decision`, `warning` | No |
-| `choice` | Mutually exclusive options | One option |
-| `form` | Named fields (`text`, `number`, `textarea`, `select`) | Field values |
-| `questions` | Open questions, one string per item | One answer per item |
+| `choice` | Mutually exclusive options. Each option is an `{% option %}` tag | One option |
+| `form` | Named fields (`text`, `number`, `textarea`, `select`) in a `yaml` fence inside the tag | Field values |
+| `questions` | Open questions, one `{% item %}` per question | One answer per item |
 | `approve` | Yes/no gate with an optional note | `approved` plus optional note |
-| `checklist` | Definition of done | No (you update `done`) |
-| `workflow` | Required. The execution path. The Workflow tab draws it before the run, and the live run follows it. Node `ref` is the plan block a click opens. | No |
+| `checklist` | Definition of done. Each `{% item done=false %}` is a row | No (you update `done`) |
+| `workflow` | Required. The execution path. The Workflow tab draws it before the run, and the live run follows it. Node `ref` is the plan block a click opens. Nodes and edges live in a `yaml` fence inside the tag | No |
 
 Frontmatter fields the parser reads: `title`, `summary`, `agent`, `mode` (`watch` or `review`). A leading `#` heading is the title when frontmatter has none.
 
-Full YAML and the JSON each interaction returns are in [`skills/live-plan/primitives.md`](../skills/live-plan/primitives.md). A worked file is [`examples/rate-limit.plan.md`](../examples/rate-limit.plan.md). An execution graph is [`examples/execution-graph.json`](../examples/execution-graph.json).
+Full tag shapes and the JSON each interaction returns are in [`skills/live-plan/primitives.md`](../skills/live-plan/primitives.md). A fence-authored file that still renders is [`examples/rate-limit.plan.md`](../examples/rate-limit.plan.md). An execution graph is [`examples/execution-graph.json`](../examples/execution-graph.json).
 
 Authoring rules:
 
@@ -131,11 +131,11 @@ Authoring rules:
 - Mark exactly one phase `active` while work is underway.
 - Add an interaction only when you will block on the answer.
 - Prose is connective. Status, risks, and decisions belong in `phase` and `callout` blocks.
-- Phase and callout `body` is a small markdown subset: headings, lists, pipe tables, fenced code, `**bold**`, `*italic*`, and `` `code` ``.
+- Phase and callout bodies are markdown: headings, lists, pipe tables, fenced code, `**bold**`, `*italic*`, and `` `code` ``. `{% status status="active" /%}` is an inline status chip in that prose.
 - A pipe table renders as a table. The row under the header is a separator such as `| --- |`. `:---`, `---:`, and `:---:` align that column left, right, and center. A blank line ends the table.
-- Show source the human should read with a language fence (`ts`, `python`, `bash`). It is highlighted and numbered from 1. Add `start=40` after the language when the snippet is a slice of a larger file. Indent that fence inside a YAML `body: |` block so it does not close the outer `phase`, `callout`, or `approve` fence.
+- Show source the human should read with a language fence (`ts`, `python`, `bash`). It is highlighted and numbered from 1. Add `start=40` after the language when the snippet is a slice of a larger file. Put that fence in the plan markdown or inside a `phase`, `callout`, or `approve` tag.
 - Show a change with a `diff` or `patch` fence, not the whole file. Write `---` / `+++` file headers and a `@@ -oldStart,oldCount +newStart,newCount @@` hunk. A `-` line counts only as old, a `+` line only as new, and a leading space counts as both. Those counts must match. A hunk without file headers still renders; `ts diff` highlights that hunk as TypeScript. `start=` does not apply to a diff.
-- A mermaid fence draws a figure in the plan text. Indent that fence inside a YAML `body: |` block so it does not close the outer `phase`, `callout`, or `approve` fence.
+- A mermaid fence draws a figure in the plan text. Put that fence in the plan markdown or inside a `phase`, `callout`, or `approve` tag.
 - Include one `workflow` block. `check` fails when it is missing.
 
 ## Execution graph

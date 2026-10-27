@@ -147,6 +147,7 @@ A row overlaps the selected window when it started before the end of the window 
 | `src/agentEvents.ts` | SSE reader, ack helper, and `planApiUrl` used by the CLI |
 | `src/dashboard.ts`, `src/dashboardPage.ts`, `src/tui/` | Period summary, the dashboard page, and the terminal view of the same read |
 | `src/planArchive.ts` | Copy a plan file into the registry home and serve that copy |
+| `src/parse.ts`, `src/markdoc/` | Parse `.plan.md` with Markdoc and render tags to the section HTML the page already understands. Existing YAML fences are rewritten to those tags ([ADR 0018](decisions/0018-markdoc-plan-tags.md)) |
 | `src/render.ts`, `client/` | The plan page. API calls are prefixed with the plan's base path |
 
 ## What survives a restart
