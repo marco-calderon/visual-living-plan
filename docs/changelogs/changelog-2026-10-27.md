@@ -39,3 +39,23 @@ Workflow diagrams are laid out with ELK.js. Connectors are squared and orthogona
 ### Notes
 
 No registry restart needed.
+
+## 0.4.0
+
+**PR:** [#47](https://github.com/marco-calderon/visual-living-plan/pull/47)
+
+**Bump:** minor
+
+### Summary
+
+Plan title, summary, and status open from the logo. The fixed header is gone, so the page starts under the floating tabs.
+
+### Changes
+
+- Click the logo to open a card with the title, summary, and icon status row. Click again, click outside, or press Escape to close it. The logo shows an accent ring while the card is open.
+- A pending count above zero is an amber badge on the logo and an inbox icon in the card. A count of zero stays off the row.
+- Plan, Workflow, and Settings stay icon tabs in the top-right, next to the Plans switcher.
+
+### Notes
+
+No registry restart needed.
