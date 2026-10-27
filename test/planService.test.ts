@@ -738,7 +738,8 @@ test('mode changes stay on the open session and iterate keeps review open', asyn
     const watching = await (await fetch(hosted.url)).text()
     assert.match(watching, /data-plan-mode="review"/)
     assert.match(watching, /id="review-dock" class="review-dock" hidden/)
-    assert.match(watching, /data-review-decision>iterate/)
+    assert.match(watching, /data-decision="iterate"/)
+    assert.match(watching, /data-review-value>iterate/)
 
     const more = await fetch(new URL('api/comments', hosted.url), {
       method: 'POST',

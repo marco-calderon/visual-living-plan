@@ -499,7 +499,7 @@ const STYLES = `
   --node-blocked-border: rgba(180, 83, 9, 0.55);
   --handle-border: #ffffff;
   --minimap-idle: #94a3b8;
-  --titlebar-offset: 3.75rem;
+  --titlebar-offset: 3.25rem;
 }
 
 :root[data-theme="dark"] {
@@ -553,7 +553,7 @@ const STYLES = `
   --handle-border: #10201b;
   --minimap-idle: #64748b;
   --review-bg: #172420;
-  --titlebar-offset: 3.75rem;
+  --titlebar-offset: 3.25rem;
 }
 
 * { box-sizing: border-box; }
@@ -626,26 +626,179 @@ body.has-review-bar .shell {
   right: 0;
   z-index: 8;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 0.85rem;
-  height: var(--titlebar-offset);
-  padding: 0 1rem;
-  background: var(--panel-strong);
-  border-bottom: 1px solid var(--line);
-  backdrop-filter: blur(16px);
+  padding: 0.72rem 1rem 0;
+  pointer-events: none;
+  background: none;
+  border: 0;
+}
+.plan-details { position: relative; pointer-events: none; }
+.logo-btn,
+.plan-card,
+.chrome-tools,
+.chrome-tools > * { pointer-events: auto; }
+.logo-btn {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+.logo-btn[aria-expanded="true"] {
+  box-shadow: 0 0 0 3px var(--pulse);
+}
+.logo-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 .titlebar-logo {
   width: 29px;
   height: 29px;
-  flex: 0 0 auto;
   display: block;
   border-radius: 50%;
 }
-.plan-intro {
-  margin-bottom: 1.25rem;
+.logo-badge {
+  position: absolute;
+  top: -0.15rem;
+  right: -0.35rem;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  padding: 0 0.28rem;
+  border-radius: 999px;
+  background: var(--accent-2);
+  color: #14201b;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.05rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
 }
-.plan-intro > .meta-row:first-child {
-  margin-top: 0;
+.logo-badge[hidden] { display: none !important; }
+.plan-card {
+  position: absolute;
+  z-index: 9;
+  top: calc(100% + 0.55rem);
+  left: 0;
+  width: min(29rem, calc(100vw - 2rem));
+  padding: 1rem 1.1rem 0.95rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel-strong);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(16px);
+}
+.plan-card[hidden] { display: none !important; }
+.plan-card[data-open] {
+  animation: processes-panel-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .plan-card[data-open] { animation: none; }
+}
+.plan-card .brand {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  font-size: 1.35rem;
+  line-height: 1.15;
+}
+.plan-card .lede {
+  margin-top: 0.7rem;
+  max-width: none;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+.chrome-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.95rem;
+}
+.fact {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  height: 1.75rem;
+  padding: 0 0.55rem 0 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--chip-bg);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.fact.solo {
+  width: 1.75rem;
+  padding: 0;
+}
+.fact .val {
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.fact svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+  flex: 0 0 auto;
+}
+.fact svg[data-mode-icon],
+.fact svg[data-review-icon] { display: none; }
+.fact[data-mode="watch"] svg[data-mode-icon="watch"],
+.fact[data-mode="review"] svg[data-mode-icon="review"],
+.fact[data-mode="comment"] svg[data-mode-icon="comment"],
+.fact[data-decision="approve"] svg[data-review-icon="approve"],
+.fact[data-decision="deny"] svg[data-review-icon="deny"],
+.fact[data-decision="iterate"] svg[data-review-icon="iterate"] { display: block; }
+.fact[hidden] { display: none !important; }
+.fact[data-mode="watch"],
+.fact[data-mode="review"],
+.fact[data-workflow="live"] {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+}
+.fact[data-mode="comment"],
+.fact[data-decision="iterate"] {
+  color: var(--accent-2);
+  background: var(--wash-warm);
+}
+.fact[data-decision="approve"] {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+  border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+}
+.fact[data-decision="deny"] {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: var(--danger-border);
+}
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .brand {
@@ -1611,6 +1764,80 @@ function clientScript(
     setTimeout(() => toast.classList.remove('show'), 1600);
   }
 
+  const planDetails = document.querySelector('[data-plan-details]');
+  const planDetailsBtn = document.querySelector('[data-plan-details-toggle]');
+  const planCard = document.querySelector('[data-plan-card]');
+  function setPlanDetails(open) {
+    if (!planDetailsBtn || !planCard) return;
+    planDetailsBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) {
+      planCard.hidden = false;
+      planCard.setAttribute('data-open', '');
+      return;
+    }
+    planCard.hidden = true;
+    planCard.removeAttribute('data-open');
+  }
+  if (planDetails && planDetailsBtn && planCard) {
+    planDetailsBtn.addEventListener('click', () => {
+      setPlanDetails(planDetailsBtn.getAttribute('aria-expanded') !== 'true');
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') setPlanDetails(false);
+    });
+    document.addEventListener('click', (event) => {
+      if (planCard.hidden) return;
+      if (event.target instanceof Node && planDetails.contains(event.target)) return;
+      setPlanDetails(false);
+    });
+  }
+
+  function syncPending(text) {
+    const count = Math.max(0, Number(text) || 0);
+    const label = 'Pending · ' + count;
+    document.querySelectorAll('[data-pending-count]').forEach((node) => {
+      node.textContent = String(count);
+    });
+    const fact = document.querySelector('[data-pending-fact]');
+    if (fact) {
+      fact.hidden = count <= 0;
+      fact.setAttribute('aria-label', label);
+      fact.setAttribute('title', label);
+    }
+    const badge = document.querySelector('[data-pending-badge]');
+    if (badge) {
+      badge.hidden = count <= 0;
+      badge.textContent = String(count);
+    }
+    if (planDetailsBtn) {
+      planDetailsBtn.setAttribute('aria-label', count > 0 ? 'Plan details, ' + count + ' pending' : 'Plan details');
+    }
+  }
+
+  function setModeChip(next) {
+    const chip = document.querySelector('[data-plan-mode-chip]');
+    if (!chip) return;
+    const label = 'Mode · ' + next;
+    chip.setAttribute('data-mode', next);
+    chip.setAttribute('aria-label', label);
+    chip.setAttribute('title', label);
+    const value = chip.querySelector('[data-plan-mode-value]');
+    if (value) value.textContent = next;
+  }
+
+  function setReview(decision) {
+    const reviewChip = document.querySelector('[data-review-chip]');
+    const reviewValue = document.querySelector('[data-review-value]');
+    if (!reviewChip) return;
+    reviewChip.hidden = !decision;
+    if (!decision) return;
+    const label = 'Review · ' + decision;
+    reviewChip.setAttribute('data-decision', decision);
+    reviewChip.setAttribute('aria-label', label);
+    reviewChip.setAttribute('title', label);
+    if (reviewValue) reviewValue.textContent = decision;
+  }
+
   function ensureAccentStyle() {
     let style = document.getElementById('living-plan-accent-vars');
     if (!style) {
@@ -1951,16 +2178,10 @@ function clientScript(
   function applyMode(payload) {
     if (!payload || (payload.mode !== 'watch' && payload.mode !== 'comment' && payload.mode !== 'review')) return;
     mode = payload.mode;
-    const chip = document.querySelector('[data-plan-mode-chip]');
-    if (chip) chip.textContent = mode;
+    setModeChip(mode);
     document.body.dataset.planMode = mode;
     const decision = payload.review && payload.review.decision;
-    const reviewChip = document.querySelector('[data-review-chip]');
-    const reviewValue = document.querySelector('[data-review-decision]');
-    if (reviewChip) {
-      reviewChip.hidden = !decision;
-      if (reviewValue && decision) reviewValue.textContent = decision;
-    }
+    setReview(decision || '');
     const showBar = mode === 'review' && !decision && !interactionsLocked;
     document.body.classList.toggle('has-review-bar', showBar);
     const dock = document.getElementById('review-dock');
@@ -2088,8 +2309,7 @@ function clientScript(
       const lede = document.querySelector('p.lede');
       if (nextLede && lede) lede.textContent = nextLede.textContent || '';
       const nextPending = parsed.querySelector('[data-pending-count]');
-      const pending = document.querySelector('[data-pending-count]');
-      if (nextPending && pending) pending.textContent = nextPending.textContent || '';
+      if (nextPending) syncPending(nextPending.textContent || '0');
       if (parsed.title) document.title = parsed.title;
     } catch {
       showToast('Could not update the plan');
@@ -2154,10 +2374,7 @@ function clientScript(
       document.body.classList.remove('has-review-bar');
       const dock = document.getElementById('review-dock');
       if (dock) dock.hidden = true;
-      const reviewChip = document.querySelector('[data-review-chip]');
-      const reviewValue = document.querySelector('[data-review-decision]');
-      if (reviewChip) reviewChip.hidden = false;
-      if (reviewValue) reviewValue.textContent = 'iterate';
+      setReview('iterate');
       window.dispatchEvent(new CustomEvent('living-plan-review', { detail: payload }));
     } catch {}
   });
@@ -2169,6 +2386,26 @@ function clientScript(
 })();
 `
 }
+
+function statusIcon(paths: string, attrs = ''): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${attrs}>${paths}</svg>`
+}
+
+const MODE_ICON = {
+  watch: statusIcon('<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>', ' data-mode-icon="watch"'),
+  review: statusIcon('<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>', ' data-mode-icon="review"'),
+  comment: statusIcon('<path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/>', ' data-mode-icon="comment"'),
+} as const
+
+const AGENT_ICON = statusIcon('<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>')
+const ITERATION_ICON = statusIcon('<path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/>')
+const PENDING_ICON = statusIcon('<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>')
+const CHANGED_ICON = statusIcon('<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M9 10h6"/><path d="M12 13V7"/><path d="M9 17h6"/>')
+const REVIEW_ICON = {
+  approve: statusIcon('<path d="M20 6 9 17l-5-5"/>', ' data-review-icon="approve"'),
+  deny: statusIcon('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', ' data-review-icon="deny"'),
+  iterate: statusIcon('<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>', ' data-review-icon="iterate"'),
+} as const
 
 const TAB_ICONS = {
   plan: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>',
@@ -2215,6 +2452,7 @@ export function renderPlanPage(options: {
   const reviewJson = JSON.stringify(options.review ?? null).replaceAll('<', '\\u003c')
 
   const locked = Boolean(execution.active)
+  const pendingCount = pendingInteractionIds.length
   const showReviewBar = mode === 'review' && !reviewDecision && !locked
   const planned = planToExpectedGraph(plan)
   const workflowState = locked ? 'live' : planned ? 'planned' : 'idle'
@@ -2291,28 +2529,35 @@ export function renderPlanPage(options: {
 </head>
 <body class="${showReviewBar ? 'has-review-bar' : ''}${theme.fullWidth ? ' layout-full' : ''}" data-plan-mode="${escapeHtml(mode)}">
   <header class="titlebar">
-    <img class="titlebar-logo" src="/favicon.png" alt="Living Plan" width="29" height="29" />
-    <h1 class="brand">${escapeHtml(plan.title)}</h1>
-    <div class="tabs" role="tablist" aria-label="Living Plan views">
-      ${tabButton('plan', 'Plan', true)}
-      ${tabButton('workflow', 'Workflow', false)}
-      ${tabButton('settings', 'Settings', false)}
-    </div>
-    ${processesPanelMarkup(selfId)}
-  </header>
-  <div class="shell">
-    <div class="plan-intro">
-      ${plan.summary ? `<p class="lede">${escapeHtml(plan.summary)}</p>` : ''}
-      <div class="meta-row">
-        <span class="chip">Mode <strong data-plan-mode-chip>${escapeHtml(mode)}</strong></span>
-        ${plan.agent ? `<span class="chip">Agent <strong>${escapeHtml(plan.agent)}</strong></span>` : ''}
-        <span class="chip">Iteration <strong>v${iteration}</strong></span>
-        <span class="chip">Pending <strong data-pending-count>${pendingInteractionIds.length}</strong></span>
-        <span class="chip">Workflow <strong>${workflowState}</strong></span>
-        ${changed ? `<span class="chip">Changed <strong>${changed}</strong></span>` : ''}
-        <span class="chip" data-review-chip${reviewDecision ? '' : ' hidden'}>Review <strong data-review-decision>${escapeHtml(reviewDecision ?? '')}</strong></span>
+    <div class="plan-details" data-plan-details>
+      <button type="button" class="logo-btn" data-plan-details-toggle aria-expanded="false" aria-controls="plan-card" aria-label="${pendingCount > 0 ? `Plan details, ${pendingCount} pending` : 'Plan details'}">
+        <img class="titlebar-logo" src="/favicon.png" alt="" width="29" height="29" />
+        <span class="logo-badge" data-pending-badge${pendingCount > 0 ? '' : ' hidden'}>${pendingCount}</span>
+      </button>
+      <div class="plan-card" id="plan-card" data-plan-card role="dialog" aria-labelledby="plan-title" hidden>
+        <h1 class="brand" id="plan-title">${escapeHtml(plan.title)}</h1>
+        ${plan.summary ? `<p class="lede">${escapeHtml(plan.summary)}</p>` : ''}
+        <div class="facts">
+          <span class="fact solo" data-plan-mode-chip data-mode="${escapeHtml(mode)}" title="Mode · ${escapeHtml(mode)}" aria-label="Mode · ${escapeHtml(mode)}">${MODE_ICON.watch}${MODE_ICON.review}${MODE_ICON.comment}<span class="sr" data-plan-mode-value>${escapeHtml(mode)}</span></span>
+          ${plan.agent ? `<span class="fact" title="Agent · ${escapeHtml(plan.agent)}" aria-label="Agent · ${escapeHtml(plan.agent)}">${AGENT_ICON}<span class="val">${escapeHtml(plan.agent)}</span></span>` : ''}
+          <span class="fact" title="Iteration · v${iteration}" aria-label="Iteration · v${iteration}">${ITERATION_ICON}<span class="val">v${iteration}</span></span>
+          <span class="fact" data-pending-fact title="Pending · ${pendingCount}" aria-label="Pending · ${pendingCount}"${pendingCount > 0 ? '' : ' hidden'}>${PENDING_ICON}<span class="val" data-pending-count>${pendingCount}</span></span>
+          <span class="fact solo" data-workflow="${workflowState}" title="Workflow · ${escapeHtml(workflowState)}" aria-label="Workflow · ${escapeHtml(workflowState)}">${TAB_ICONS.workflow}</span>
+          ${changed ? `<span class="fact" title="Changed · ${changed}" aria-label="Changed · ${changed}">${CHANGED_ICON}<span class="val">${changed}</span></span>` : ''}
+          <span class="fact solo" data-review-chip data-decision="${escapeHtml(reviewDecision ?? '')}" title="${reviewDecision ? `Review · ${escapeHtml(reviewDecision)}` : 'Review'}" aria-label="${reviewDecision ? `Review · ${escapeHtml(reviewDecision)}` : 'Review'}"${reviewDecision ? '' : ' hidden'}>${REVIEW_ICON.approve}${REVIEW_ICON.deny}${REVIEW_ICON.iterate}<span class="sr" data-review-value>${escapeHtml(reviewDecision ?? '')}</span></span>
+        </div>
       </div>
     </div>
+    <div class="chrome-tools">
+      <div class="tabs" role="tablist" aria-label="Living Plan views">
+        ${tabButton('plan', 'Plan', true)}
+        ${tabButton('workflow', 'Workflow', false)}
+        ${tabButton('settings', 'Settings', false)}
+      </div>
+      ${processesPanelMarkup(selfId)}
+    </div>
+  </header>
+  <div class="shell">
     <section class="tab-panel${locked ? ' plan-locked' : ''}" data-tab-panel="plan" role="tabpanel">
       ${
         locked

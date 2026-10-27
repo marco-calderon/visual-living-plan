@@ -19,7 +19,10 @@ Keep the account structure.
   'pos-22.plan.md',
 )
 
-function page(theme = themePayload(defaultThemeConfig(), 'live-plan.config.json')): string {
+function page(
+  theme?: Parameters<typeof renderPlanPage>[0]['theme'],
+  extras: Partial<Parameters<typeof renderPlanPage>[0]> = {},
+): string {
   return renderPlanPage({
     plan,
     mode: 'watch',
@@ -29,19 +32,30 @@ function page(theme = themePayload(defaultThemeConfig(), 'live-plan.config.json'
     pendingInteractionIds: [],
     execution: createIdleExecutionState(),
     clientAssets: null,
-    theme,
+    theme: theme ?? themePayload(defaultThemeConfig(), 'live-plan.config.json'),
+    ...extras,
   })
 }
 
-test('the fixed title bar keeps the logo, title, icon tabs, and Plans', () => {
-  const html = page()
+function header(html: string): string {
   const barStart = html.indexOf('<header class="titlebar">')
   const barEnd = html.indexOf('</header>')
   assert.ok(barStart >= 0 && barEnd > barStart)
-  const bar = html.slice(barStart, barEnd)
+  return html.slice(barStart, barEnd)
+}
 
-  assert.match(bar, /<img class="titlebar-logo" src="\/favicon.png" alt="Living Plan"/)
-  assert.match(bar, /<h1 class="brand">POS-22 Google Ads scripts migration \(AI-DLC\)<\/h1>/)
+test('the logo opens a card; tabs and Plans stay in the corner', () => {
+  const html = page()
+  const bar = header(html)
+  const shell = html.indexOf('<div class="shell">')
+
+  assert.match(bar, /data-plan-details-toggle/)
+  assert.match(bar, /aria-expanded="false"/)
+  assert.match(bar, /aria-label="Plan details"/)
+  assert.match(bar, /class="titlebar-logo" src="\/favicon.png"/)
+  assert.match(bar, /data-plan-card[^>]*hidden/)
+  assert.match(bar, /<h1 class="brand" id="plan-title">POS-22 Google Ads scripts migration \(AI-DLC\)<\/h1>/)
+  assert.match(bar, /<p class="lede">POS-30 in review\.<\/p>/)
   assert.match(bar, /aria-label="Plan"/)
   assert.match(bar, /aria-label="Workflow"/)
   assert.match(bar, /aria-label="Settings"/)
@@ -49,17 +63,22 @@ test('the fixed title bar keeps the logo, title, icon tabs, and Plans', () => {
   assert.doesNotMatch(bar, />Plan</)
   assert.doesNotMatch(bar, />Workflow</)
   assert.doesNotMatch(bar, />Settings</)
-  assert.doesNotMatch(bar, /class="lede"|data-plan-mode-chip|data-pending-count/)
+  assert.doesNotMatch(html, /class="plan-intro"/)
+  assert.ok(html.indexOf('class="lede"') < shell)
+  assert.ok(html.indexOf('data-plan-mode-chip') < shell)
 
-  const introStart = html.indexOf('<div class="plan-intro">')
-  assert.ok(introStart > barEnd)
-  const intro = html.slice(introStart, html.indexOf('data-tab-panel="plan"'))
-  assert.match(intro, /<p class="lede">POS-30 in review\.<\/p>/)
-  assert.match(intro, /Mode <strong data-plan-mode-chip>watch<\/strong>/)
-  assert.match(intro, /Agent <strong>claude-code<\/strong>/)
-  assert.match(intro, /Iteration <strong>v1<\/strong>/)
-  assert.match(intro, /Pending <strong data-pending-count>0<\/strong>/)
-  assert.match(intro, /Workflow <strong>idle<\/strong>/)
+  assert.match(bar, /data-plan-mode-chip[^>]*data-mode="watch"/)
+  assert.match(bar, /data-plan-mode-value>watch</)
+  assert.match(bar, /aria-label="Agent · claude-code"/)
+  assert.match(bar, />claude-code</)
+  assert.match(bar, /aria-label="Iteration · v1"/)
+  assert.match(bar, />v1</)
+  assert.match(bar, /data-pending-fact[^>]*hidden/)
+  assert.match(bar, /data-pending-count>0</)
+  assert.match(bar, /data-pending-badge[^>]*hidden/)
+  assert.match(bar, /data-workflow="idle"/)
+  assert.match(bar, /data-review-chip[^>]*hidden/)
+  assert.doesNotMatch(bar, />Mode |Agent <strong|Iteration <strong|Pending <strong|Workflow <strong/)
 
   assert.match(html, /data-layout="centered"/)
   assert.match(html, /id="layout-full-width"/)
@@ -69,4 +88,25 @@ test('the fixed title bar keeps the logo, title, icon tabs, and Plans', () => {
   const full = page(themePayload({ ...defaultThemeConfig(), fullWidth: true }, 'live-plan.config.json'))
   assert.match(full, /data-layout="full"/)
   assert.match(full, /class="[^"]*layout-full/)
+})
+
+test('pending, review, and changed sections use icons and the logo badge', () => {
+  const html = page(undefined, {
+    mode: 'review',
+    pendingInteractionIds: ['a', 'b'],
+    reviewDecision: 'approve',
+    diffs: [{ index: 0, status: 'edited' }],
+  })
+  const bar = header(html)
+  assert.match(bar, /aria-label="Plan details, 2 pending"/)
+  assert.match(bar, /data-mode="review"/)
+  assert.match(bar, /data-pending-count>2</)
+  assert.doesNotMatch(bar, /data-pending-fact[^>]*hidden/)
+  assert.doesNotMatch(bar, /data-pending-badge[^>]*hidden/)
+  assert.match(bar, /data-review-chip[^>]*data-decision="approve"/)
+  assert.match(bar, /data-review-value>approve</)
+  assert.doesNotMatch(bar, /data-review-chip[^>]*hidden/)
+  assert.match(bar, /aria-label="Changed · 1"/)
+  assert.match(bar, /data-review-icon="deny"/)
+  assert.match(bar, /data-review-icon="iterate"/)
 })

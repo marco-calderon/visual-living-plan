@@ -5,9 +5,19 @@ test.describe.configure({ mode: 'serial' })
 
 test('sample plan works on a desktop viewport', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('banner').getByRole('heading', { name: 'Rate limiting rollout' })).toBeVisible()
-  await expect(page.getByText('Add a sliding-window limiter at the API gateway')).toBeVisible()
+  const details = page.getByRole('button', { name: 'Plan details' })
+  const cardTitle = page.locator('#plan-title')
+  const summary = page.locator('#plan-card .lede')
+  await expect(details).toHaveAttribute('aria-expanded', 'false')
+  await expect(cardTitle).toBeHidden()
+  await expect(summary).toBeHidden()
+  await details.click()
+  await expect(details).toHaveAttribute('aria-expanded', 'true')
+  await expect(cardTitle).toHaveText('Rate limiting rollout')
+  await expect(summary).toContainText('Add a sliding-window limiter at the API gateway')
   await expect(page.locator('[data-plan-mode-chip]')).toHaveText('watch')
+  await page.keyboard.press('Escape')
+  await expect(cardTitle).toBeHidden()
 
   await test.step('plan text, diagram, code, and diff', async () => {
     await expect(page.getByRole('heading', { name: 'Implement gateway middleware' })).toBeVisible()
@@ -118,7 +128,9 @@ test('sample plan works on a desktop viewport', async ({ page }) => {
     expect(stopResponse.ok()).toBeTruthy()
     await stopped
     await expect(page.getByText('Execution is live')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Plan details' }).click()
     await expect(page.locator('[data-plan-mode-chip]')).toHaveText('watch')
+    await page.keyboard.press('Escape')
   })
 
   await mkdir('/opt/cursor/artifacts', { recursive: true })
