@@ -373,7 +373,7 @@ export async function openPlanSession(options: {
 
   async function reloadThemeFromDisk(): Promise<void> {
     const next = await loadThemeConfig(themeConfigPath)
-    if (next.accent === theme.accent) return
+    if (next.accent === theme.accent && next.fullWidth === theme.fullWidth) return
     theme = next
     broadcast('theme', currentTheme())
   }
@@ -537,10 +537,20 @@ export async function openPlanSession(options: {
 
   async function updateTheme(body: unknown): Promise<unknown> {
     touch()
-    const payload = jsonBody(body, true) as { accent?: string }
-    const accent = normalizeAccent(payload.accent)
-    if (!accent) throw new HttpError(400, 'Invalid accent color. Use a hex value like #0f766e.')
-    const view = await applyTheme({ accent }, true)
+    const payload = jsonBody(body, true) as { accent?: string; fullWidth?: boolean }
+    const hasAccent = payload.accent !== undefined
+    const hasFullWidth = payload.fullWidth !== undefined
+    if (!hasAccent && !hasFullWidth) {
+      throw new HttpError(400, 'Provide accent and/or fullWidth.')
+    }
+    let accent = theme.accent
+    if (hasAccent) {
+      const normalized = normalizeAccent(payload.accent)
+      if (!normalized) throw new HttpError(400, 'Invalid accent color. Use a hex value like #0f766e.')
+      accent = normalized
+    }
+    const fullWidth = hasFullWidth ? Boolean(payload.fullWidth) : theme.fullWidth
+    const view = await applyTheme({ accent, fullWidth }, true)
     return { ok: true, theme: view }
   }
 

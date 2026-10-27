@@ -19,7 +19,7 @@ Keep the account structure.
   'pos-22.plan.md',
 )
 
-function page(): string {
+function page(theme = themePayload(defaultThemeConfig(), 'live-plan.config.json')): string {
   return renderPlanPage({
     plan,
     mode: 'watch',
@@ -29,7 +29,7 @@ function page(): string {
     pendingInteractionIds: [],
     execution: createIdleExecutionState(),
     clientAssets: null,
-    theme: themePayload(defaultThemeConfig(), 'live-plan.config.json'),
+    theme,
   })
 }
 
@@ -60,4 +60,13 @@ test('the fixed title bar keeps the logo, title, icon tabs, and Plans', () => {
   assert.match(intro, /Iteration <strong>v1<\/strong>/)
   assert.match(intro, /Pending <strong data-pending-count>0<\/strong>/)
   assert.match(intro, /Workflow <strong>idle<\/strong>/)
+
+  assert.match(html, /data-layout="centered"/)
+  assert.match(html, /id="layout-full-width"/)
+  assert.match(html, /overflow-x:\s*clip/)
+  assert.match(html, /--shell-width:\s*min\(920px/)
+
+  const full = page(themePayload({ ...defaultThemeConfig(), fullWidth: true }, 'live-plan.config.json'))
+  assert.match(full, /data-layout="full"/)
+  assert.match(full, /class="[^"]*layout-full/)
 })

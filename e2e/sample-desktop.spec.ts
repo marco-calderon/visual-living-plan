@@ -56,12 +56,20 @@ test('sample plan works on a desktop viewport', async ({ page }) => {
     await expect(page.locator('#plan-design')).toBeVisible()
   })
 
-  await test.step('settings accent saves', async () => {
+  await test.step('settings accent and full width save', async () => {
     await page.getByRole('tab', { name: 'Settings' }).click()
     await page.getByRole('button', { name: 'Sky accent' }).click()
     await expect(page.locator('#theme-accent-hex')).toHaveText('#0369a1')
     await expect(page.locator('html')).toHaveAttribute('data-accent', '#0369a1')
     await expect(page.getByRole('status')).toHaveText('Accent saved')
+
+    await expect(page.locator('html')).toHaveAttribute('data-layout', 'centered')
+    await page.getByLabel('Full width').check()
+    await expect(page.locator('html')).toHaveAttribute('data-layout', 'full')
+    await expect(page.getByRole('status')).toHaveText('Full width on')
+    await page.getByLabel('Full width').uncheck()
+    await expect(page.locator('html')).toHaveAttribute('data-layout', 'centered')
+    await expect(page.getByRole('status')).toHaveText('Centered layout')
   })
 
   await test.step('comment on a plan part', async () => {

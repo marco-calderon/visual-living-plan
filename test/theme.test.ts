@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { accentCssCustomProperties, DEFAULT_ACCENT } from '../src/theme.ts'
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import {
+  accentCssCustomProperties,
+  DEFAULT_ACCENT,
+  parseThemeConfig,
+  saveThemeConfig,
+  themePayload,
+} from '../src/theme.ts'
 
 function themeBlock(css: string, mode: 'light' | 'dark'): string {
   const [light, dark] = css.split(':root[data-theme="dark"]')
@@ -57,4 +66,27 @@ test('dark panels and the stage take the accent tint', () => {
   assert.ok(channels)
   const [, r, g, b] = channels.map(Number)
   assert.ok(b > g && r > g)
+})
+
+test('fullWidth defaults off and parses from theme config', () => {
+  assert.equal(parseThemeConfig({ theme: { accent: '#0369a1' } }).fullWidth, false)
+  assert.equal(parseThemeConfig({ theme: { accent: '#0369a1', fullWidth: true } }).fullWidth, true)
+  assert.equal(parseThemeConfig({ theme: { accent: '#0369a1' }, layout: { fullWidth: true } }).fullWidth, true)
+  const payload = themePayload(parseThemeConfig({ theme: { accent: DEFAULT_ACCENT, fullWidth: true } }), 'cfg')
+  assert.equal(payload.fullWidth, true)
+})
+
+test('saveThemeConfig persists fullWidth beside accent', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'live-plan-theme-'))
+  const path = join(dir, 'live-plan.config.json')
+  await writeFile(path, `${JSON.stringify({ theme: { accent: '#0f766e' }, note: 'keep' }, null, 2)}\n`)
+  const saved = await saveThemeConfig(path, { accent: '#0369a1', fullWidth: true })
+  assert.deepEqual(saved, { accent: '#0369a1', fullWidth: true })
+  const onDisk = JSON.parse(await readFile(path, 'utf8')) as {
+    theme: { accent: string; fullWidth: boolean }
+    note?: string
+  }
+  assert.equal(onDisk.theme.accent, '#0369a1')
+  assert.equal(onDisk.theme.fullWidth, true)
+  assert.equal(onDisk.note, 'keep')
 })

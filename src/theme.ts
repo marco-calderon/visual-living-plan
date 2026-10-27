@@ -6,6 +6,8 @@ export const DEFAULT_CONFIG_FILENAME = 'live-plan.config.json'
 
 export type ThemeConfig = {
   accent: string
+  /** When true, the plan page uses the full viewport width instead of the centered column. */
+  fullWidth: boolean
 }
 
 export type ThemeAccentVars = {
@@ -37,7 +39,7 @@ const PRESETS = [
 export const ACCENT_PRESETS = PRESETS
 
 export function defaultThemeConfig(): ThemeConfig {
-  return { accent: DEFAULT_ACCENT }
+  return { accent: DEFAULT_ACCENT, fullWidth: false }
 }
 
 export function configPathBesidePlan(planPath: string, filename = DEFAULT_CONFIG_FILENAME): string {
@@ -68,6 +70,10 @@ export function normalizeAccent(raw: string | undefined | null): string | null {
   return null
 }
 
+function parseFullWidth(value: unknown): boolean {
+  return value === true || value === 'true' || value === 1 || value === '1'
+}
+
 export function parseThemeConfig(raw: unknown): ThemeConfig {
   const defaults = defaultThemeConfig()
   if (!raw || typeof raw !== 'object') return defaults
@@ -77,8 +83,19 @@ export function parseThemeConfig(raw: unknown): ThemeConfig {
       ? (record.theme as Record<string, unknown>)
       : record
   const accent = normalizeAccent(typeof theme.accent === 'string' ? theme.accent : undefined)
+  const layout =
+    record.layout && typeof record.layout === 'object'
+      ? (record.layout as Record<string, unknown>)
+      : undefined
+  const fullWidthRaw =
+    theme.fullWidth !== undefined
+      ? theme.fullWidth
+      : layout?.fullWidth !== undefined
+        ? layout.fullWidth
+        : record.fullWidth
   return {
     accent: accent ?? defaults.accent,
+    fullWidth: fullWidthRaw === undefined ? defaults.fullWidth : parseFullWidth(fullWidthRaw),
   }
 }
 
@@ -99,9 +116,40 @@ export async function saveThemeConfig(path: string, config: ThemeConfig): Promis
   if (!accent) {
     throw new Error(`Invalid accent color: ${config.accent}`)
   }
-  const next: ThemeConfig = { accent }
+  const next: ThemeConfig = { accent, fullWidth: Boolean(config.fullWidth) }
   await mkdir(dirname(absolute), { recursive: true })
-  await writeFile(absolute, `${JSON.stringify({ theme: next }, null, 2)}\n`, 'utf8')
+  let existing: Record<string, unknown> = {}
+  try {
+    const text = await readFile(absolute, 'utf8')
+    const parsed = JSON.parse(text) as unknown
+    if (parsed && typeof parsed === 'object') existing = parsed as Record<string, unknown>
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code !== 'ENOENT') throw error
+  }
+  const previousTheme =
+    existing.theme && typeof existing.theme === 'object'
+      ? (existing.theme as Record<string, unknown>)
+      : {}
+  const themeRest = { ...previousTheme }
+  delete themeRest.fullWidth
+  const payload: Record<string, unknown> = {
+    ...existing,
+    theme: {
+      ...themeRest,
+      accent: next.accent,
+      fullWidth: next.fullWidth,
+    },
+  }
+  // Prefer theme.fullWidth; drop a top-level layout.fullWidth twin if present.
+  if (payload.layout && typeof payload.layout === 'object') {
+    const layout = { ...(payload.layout as Record<string, unknown>) }
+    delete layout.fullWidth
+    if (Object.keys(layout).length === 0) delete payload.layout
+    else payload.layout = layout
+  }
+  delete payload.fullWidth
+  await writeFile(absolute, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
   return next
 }
 
@@ -343,6 +391,7 @@ ${lines(dark, 'dark')}
 export function themePayload(config: ThemeConfig, configPath: string) {
   return {
     accent: config.accent,
+    fullWidth: Boolean(config.fullWidth),
     configPath,
     presets: PRESETS.map((preset) => ({ ...preset })),
     css: accentCssCustomProperties(config.accent),

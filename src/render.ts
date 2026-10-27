@@ -19,6 +19,7 @@ import { planToExpectedGraph, withPlannedWorkflow } from './workflow'
 
 export type RenderTheme = {
   accent: string
+  fullWidth?: boolean
   configPath: string
   presets: Array<{ id: string; label: string; accent: string }>
 }
@@ -502,8 +503,17 @@ const STYLES = `
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; min-height: 100%; }
+html {
+  margin: 0;
+  min-height: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+}
 body {
+  margin: 0;
+  min-height: 100%;
+  max-width: 100%;
+  overflow-x: clip;
   color: var(--ink);
   font-family: var(--font-body);
   background:
@@ -524,14 +534,35 @@ body::before {
 }
 
 .shell {
-  width: min(920px, calc(100% - 2rem));
+  --shell-width: min(920px, calc(100% - 2rem));
+  width: var(--shell-width);
+  max-width: 100%;
+  min-width: 0;
   margin: 0 auto;
   padding: calc(var(--titlebar-offset) + 1.35rem) 0 7rem;
   position: relative;
   z-index: 1;
+  overflow-x: clip;
+}
+:root[data-layout="full"] .shell,
+body.layout-full .shell {
+  --shell-width: calc(100% - 2rem);
 }
 body.has-review-bar .shell {
   padding-bottom: 14rem;
+}
+.stack,
+.tab-panel,
+.settings-stack,
+.block,
+.phase,
+.phase-body,
+.rich,
+.execution-shell,
+.execution-banner,
+.execution-stage {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .titlebar {
@@ -720,6 +751,45 @@ body.has-review-bar .shell {
   padding: 0.1rem 0.35rem;
   border-radius: 6px;
 }
+.settings-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  margin: 0 0 0.85rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--control-solid);
+  cursor: pointer;
+  color: var(--ink);
+}
+.settings-toggle:hover {
+  border-color: var(--accent-hover-border);
+}
+.settings-toggle:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.settings-toggle input {
+  margin: 0.2rem 0 0;
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+}
+.settings-toggle-copy {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.settings-toggle-copy strong {
+  font-weight: 600;
+}
+.settings-toggle-copy span {
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
 
 .stack { display: grid; gap: 1rem; }
 
@@ -850,18 +920,24 @@ body.plan-live .block.change-applied {
   letter-spacing: -0.02em;
   margin: 0 0 0.55rem;
 }
-.rich p, .rich li { line-height: 1.55; color: var(--ink); }
+.rich p, .rich li { line-height: 1.55; color: var(--ink); overflow-wrap: anywhere; }
 .rich p { margin: 0 0 0.75rem; }
 .rich ul, .rich ol { margin: 0 0 0.75rem; padding-left: 1.2rem; }
+.rich {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 .rich-table {
   margin: 0 0 0.85rem;
+  max-width: 100%;
   overflow-x: auto;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--panel-strong);
 }
 .rich-table table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   margin: 0;
 }
@@ -890,12 +966,15 @@ body.plan-live .block.change-applied {
   background: var(--code-inline-bg);
   padding: 0.1rem 0.35rem;
   border-radius: 0.35rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .code-block code {
   font-size: 0.9em;
 }
 .code-block {
   margin: 0 0 0.85rem;
+  max-width: 100%;
   overflow: auto;
   padding: 0.9rem 1rem;
   border-radius: 12px;
@@ -904,9 +983,15 @@ body.plan-live .block.change-applied {
 }
 .code-host {
   margin: 0 0 0.85rem;
+  max-width: 100%;
   border: 1px solid var(--line);
   border-radius: 12px;
   overflow: hidden;
+}
+.plan-code {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
 }
 .rich > .code-host:last-child,
 .rich > .code-block:last-child {
@@ -1032,7 +1117,7 @@ body.mermaid-maximized { overflow: hidden; }
   font-size: 0.85rem;
 }
 
-.phase { display: grid; grid-template-columns: 18px 1fr; gap: 0.9rem; }
+.phase { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 0.9rem; }
 .phase-rail {
   width: 4px;
   margin: 0.2rem auto;
@@ -1326,40 +1411,62 @@ function clientScript(
     return style;
   }
 
+  let currentFullWidth = ${JSON.stringify(Boolean(theme.fullWidth))};
+
+  function applyLayout(fullWidth) {
+    currentFullWidth = Boolean(fullWidth);
+    document.documentElement.dataset.layout = currentFullWidth ? 'full' : 'centered';
+    document.body.classList.toggle('layout-full', currentFullWidth);
+    const toggle = document.getElementById('layout-full-width');
+    if (toggle && 'checked' in toggle) toggle.checked = currentFullWidth;
+  }
+
   function applyTheme(payload) {
-    if (!payload || !payload.accent) return;
-    currentAccent = payload.accent;
-    document.documentElement.dataset.accent = payload.accent;
-    if (payload.css) ensureAccentStyle().textContent = payload.css;
-    document.querySelectorAll('[data-accent-swatch]').forEach((node) => {
-      const swatch = node.getAttribute('data-accent-swatch');
-      node.setAttribute('aria-checked', swatch === payload.accent ? 'true' : 'false');
-    });
-    const colorInput = document.getElementById('theme-accent-picker');
-    if (colorInput && 'value' in colorInput) colorInput.value = payload.accent;
-    const hex = document.getElementById('theme-accent-hex');
-    if (hex) hex.textContent = payload.accent;
-    const customHex = document.getElementById('theme-accent-custom-hex');
-    if (customHex) customHex.textContent = payload.accent;
+    if (!payload) return;
+    if (payload.accent) {
+      currentAccent = payload.accent;
+      document.documentElement.dataset.accent = payload.accent;
+      if (payload.css) ensureAccentStyle().textContent = payload.css;
+      document.querySelectorAll('[data-accent-swatch]').forEach((node) => {
+        const swatch = node.getAttribute('data-accent-swatch');
+        node.setAttribute('aria-checked', swatch === payload.accent ? 'true' : 'false');
+      });
+      const colorInput = document.getElementById('theme-accent-picker');
+      if (colorInput && 'value' in colorInput) colorInput.value = payload.accent;
+      const hex = document.getElementById('theme-accent-hex');
+      if (hex) hex.textContent = payload.accent;
+      const customHex = document.getElementById('theme-accent-custom-hex');
+      if (customHex) customHex.textContent = payload.accent;
+    }
+    if (payload.fullWidth !== undefined) applyLayout(payload.fullWidth);
     window.dispatchEvent(new CustomEvent('living-plan-theme', { detail: payload }));
   }
 
-  async function putAccent(accent) {
+  async function putTheme(partial) {
     const response = await fetch(apiBase + '/api/theme', {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ accent }),
+      body: JSON.stringify(partial),
     });
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(text || 'Failed to save accent');
+      throw new Error(text || 'Failed to save settings');
     }
     const payload = await response.json();
-    applyTheme(payload.theme || { accent });
+    applyTheme(payload.theme || partial);
+    return payload;
+  }
+
+  async function putAccent(accent) {
+    await putTheme({ accent });
     showToast('Accent saved');
   }
 
-  applyTheme(${JSON.stringify({ accent: theme.accent, css: accentCssCustomProperties(theme.accent) })});
+  applyTheme(${JSON.stringify({
+    accent: theme.accent,
+    fullWidth: Boolean(theme.fullWidth),
+    css: accentCssCustomProperties(theme.accent),
+  })});
 
   document.querySelectorAll('[data-accent-swatch]').forEach((button) => {
     button.addEventListener('click', async () => {
@@ -1388,6 +1495,23 @@ function clientScript(
         await putAccent(picker.value);
       } catch (error) {
         showToast(error instanceof Error ? error.message : 'Accent update failed');
+      }
+    });
+  }
+
+  const fullWidthToggle = document.getElementById('layout-full-width');
+  if (fullWidthToggle) {
+    fullWidthToggle.addEventListener('change', async () => {
+      if (!('checked' in fullWidthToggle)) return;
+      const next = Boolean(fullWidthToggle.checked);
+      const previous = currentFullWidth;
+      applyLayout(next);
+      try {
+        await putTheme({ fullWidth: next });
+        showToast(next ? 'Full width on' : 'Centered layout');
+      } catch (error) {
+        applyLayout(previous);
+        showToast(error instanceof Error ? error.message : 'Layout update failed');
       }
     });
   }
@@ -1877,8 +2001,9 @@ export function renderPlanPage(options: {
     })
     .join('')
 
+  const layoutMode = theme.fullWidth ? 'full' : 'centered'
   return `<!doctype html>
-<html lang="en" data-accent="${escapeHtml(theme.accent)}">
+<html lang="en" data-accent="${escapeHtml(theme.accent)}" data-layout="${layoutMode}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -1892,7 +2017,7 @@ export function renderPlanPage(options: {
   ${accentStyleTag(theme.accent)}
   ${assetCss}
 </head>
-<body class="${showReviewBar ? 'has-review-bar' : ''}" data-plan-mode="${escapeHtml(mode)}">
+<body class="${showReviewBar ? 'has-review-bar' : ''}${theme.fullWidth ? ' layout-full' : ''}" data-plan-mode="${escapeHtml(mode)}">
   <header class="titlebar">
     <img class="titlebar-logo" src="/favicon.png" alt="Living Plan" width="29" height="29" />
     <h1 class="brand">${escapeHtml(plan.title)}</h1>
@@ -1951,6 +2076,19 @@ export function renderPlanPage(options: {
             <code id="theme-accent-custom-hex">${escapeHtml(theme.accent)}</code>
           </label>
           <p class="settings-meta">Saved to <code>${escapeHtml(configName)}</code>. Agents can also run <code>live-plan theme set --accent #hex</code>.</p>
+        </section>
+        <section class="block settings-section" data-section>
+          <div class="settings-kicker">Layout</div>
+          <h3>Page width</h3>
+          <p class="settings-copy">Use the centered column by default, or stretch the plan content across the viewport.</p>
+          <label class="settings-toggle" for="layout-full-width">
+            <input id="layout-full-width" type="checkbox"${theme.fullWidth ? ' checked' : ''} />
+            <span class="settings-toggle-copy">
+              <strong>Full width</strong>
+              <span>Remove the centered column margins and let Plan, Workflow, and Settings use the available width.</span>
+            </span>
+          </label>
+          <p class="settings-meta">Saved to <code>${escapeHtml(configName)}</code> with the accent settings.</p>
         </section>
       </main>
     </section>
