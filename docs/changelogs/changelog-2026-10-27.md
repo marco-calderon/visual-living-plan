@@ -82,7 +82,7 @@ No registry restart needed.
 
 ## 0.5.0
 
-**PR:** #TBD
+**PR:** [#51](https://github.com/marco-calderon/visual-living-plan/pull/51)
 
 **Bump:** minor
 
