@@ -1,8 +1,8 @@
 import { chmodSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 import winston from 'winston'
 import DailyRotateFile from 'winston-daily-rotate-file'
+import { defaultLogHome } from './configHome'
 import { HttpError } from './http'
 
 export type LogLevel = 'error' | 'warn' | 'log'
@@ -61,9 +61,7 @@ function clip(value: string, max: number): string {
 
 /** Directory that holds the log files. Tests set `LIVE_PLAN_LOG_HOME`. */
 export function appLogHome(): string {
-  const override = process.env.LIVE_PLAN_LOG_HOME?.trim()
-  if (override) return override
-  return join(homedir(), '.living-plan')
+  return defaultLogHome()
 }
 
 /** Local calendar day, matching the daily file name winston writes. */
