@@ -1,6 +1,6 @@
 import type { ClientAssets } from './assets'
 import type { ExecutionState } from './execution'
-import { blockAnchorId, planPartScope } from './parse'
+import { renderPlanHtml } from './markdoc/renderPlan'
 import type { PlanMode } from './processRecord'
 import { clientLogScript } from './clientLog'
 import { faviconLink } from './favicon'
@@ -13,7 +13,6 @@ import {
 } from './diffsTheme'
 import type {
   InteractionResponse,
-  PlanBlock,
   PlanComment,
   PlanDocument,
   ReviewDecision,
@@ -86,350 +85,6 @@ function diffsThemeOptionsMarkup(presets: DiffsThemePreset[], selectedId: string
     .join('')
 }
 
-function responseFor(
-  responses: Record<string, InteractionResponse>,
-  id: string,
-): InteractionResponse | undefined {
-  return responses[id]
-}
-
-function anchorAttrs(anchorId?: string): string {
-  if (!anchorId) return ''
-  return ` id="plan-${escapeHtml(anchorId)}" data-plan-ref="${escapeHtml(anchorId)}" tabindex="-1"`
-}
-
-function partAttrs(partId: string, kind: string): string {
-  return ` data-plan-part="${escapeHtml(partId)}" data-plan-kind="${escapeHtml(kind)}"`
-}
-
-function renderPhase(
-  block: Extract<PlanBlock, { type: 'phase' }>,
-  anchorId: string | undefined,
-  scope: string,
-  diff?: SectionDiff,
-): string {
-  return `
-    <section class="block phase status-${block.status} diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}${partAttrs(scope, 'section')}>
-      <div class="phase-rail" aria-hidden="true"></div>
-      <div class="phase-body">
-        <div class="phase-meta">
-          <span class="phase-status">${escapeHtml(block.status)}</span>
-          <h3${partAttrs(`${scope}/title`, 'title')}>${escapeHtml(block.title)}</h3>
-        </div>
-        <div class="rich">${block.bodyHtml}</div>
-      </div>
-    </section>
-  `
-}
-
-function renderCallout(
-  block: Extract<PlanBlock, { type: 'callout' }>,
-  anchorId: string | undefined,
-  scope: string,
-  diff?: SectionDiff,
-): string {
-  return `
-    <section class="block callout kind-${block.kind} diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}${partAttrs(scope, 'section')}>
-      <div class="callout-label"${partAttrs(`${scope}/label`, 'label')}>${escapeHtml(block.kind)}${block.title ? ` · ${escapeHtml(block.title)}` : ''}</div>
-      <div class="rich">${block.bodyHtml}</div>
-    </section>
-  `
-}
-
-function renderChoice(
-  block: Extract<PlanBlock, { type: 'choice' }>,
-  responses: Record<string, InteractionResponse>,
-  locked: boolean,
-  anchorId: string | undefined,
-  scope: string,
-  diff?: SectionDiff,
-): string {
-  const existing = responseFor(responses, block.id)
-  const selected = existing?.kind === 'choice' ? existing.optionId : undefined
-  const disabled = Boolean(existing) || locked
-  const options = block.options
-    .map((option) => {
-      const isSelected = selected === option.id
-      return `
-        <button
-          type="button"
-          class="choice-option${isSelected ? ' selected' : ''}"
-          data-choice-id="${escapeHtml(block.id)}"
-          data-option-id="${escapeHtml(option.id)}"
-          data-option-label="${escapeHtml(option.label)}"
-          ${partAttrs(`${scope}/option:${option.id}`, 'choice')}
-          ${disabled ? 'disabled' : ''}
-        >
-          <span class="choice-label">${escapeHtml(option.label)}</span>
-          ${option.description ? `<span class="choice-desc">${escapeHtml(option.description)}</span>` : ''}
-        </button>
-      `
-    })
-    .join('')
-
-  return `
-    <section class="block interaction choice diff-${diff?.status ?? 'unchanged'}" data-section data-interaction-id="${escapeHtml(block.id)}"${anchorAttrs(anchorId)}${partAttrs(scope, 'section')}>
-      <div class="interaction-kicker">Needs your choice</div>
-      <h3${partAttrs(`${scope}/prompt`, 'prompt')}>${escapeHtml(block.prompt)}</h3>
-      <div class="choice-grid">${options}</div>
-      <div class="interaction-state" data-state-for="${escapeHtml(block.id)}">
-        ${
-          locked
-            ? 'Locked during execution'
-            : selected
-              ? `Selected: <strong>${escapeHtml(selected)}</strong>`
-              : 'Waiting for a selection'
-        }
-      </div>
-    </section>
-  `
-}
-
-function renderApprove(
-  block: Extract<PlanBlock, { type: 'approve' }>,
-  responses: Record<string, InteractionResponse>,
-  locked: boolean,
-  anchorId: string | undefined,
-  scope: string,
-  diff?: SectionDiff,
-): string {
-  const existing = responseFor(responses, block.id)
-  const decided = existing?.kind === 'approve' ? existing : undefined
-  const disabled = Boolean(decided) || locked
-
-  return `
-    <section class="block interaction approve diff-${diff?.status ?? 'unchanged'}" data-section data-interaction-id="${escapeHtml(block.id)}"${anchorAttrs(anchorId)}${partAttrs(scope, 'section')}>
-      <div class="interaction-kicker">Approval gate</div>
-      <h3${partAttrs(`${scope}/prompt`, 'prompt')}>${escapeHtml(block.prompt)}</h3>
-      <div class="rich">${block.bodyHtml}</div>
-      <label class="field">
-        <span>Optional note</span>
-        <textarea data-approve-note="${escapeHtml(block.id)}" ${disabled ? 'disabled' : ''} placeholder="Direction for the agent">${decided?.note ? escapeHtml(decided.note) : ''}</textarea>
-      </label>
-      <div class="button-row">
-        <button type="button" class="btn danger" data-approve-id="${escapeHtml(block.id)}" data-approved="false" ${disabled ? 'disabled' : ''}>Deny</button>
-        <button type="button" class="btn primary" data-approve-id="${escapeHtml(block.id)}" data-approved="true" ${disabled ? 'disabled' : ''}>Approve</button>
-      </div>
-      <div class="interaction-state" data-state-for="${escapeHtml(block.id)}">
-        ${
-          locked
-            ? 'Locked during execution'
-            : decided
-              ? decided.approved
-                ? 'Approved'
-                : 'Denied'
-              : 'Waiting for approval'
-        }
-      </div>
-    </section>
-  `
-}
-
-function renderForm(
-  block: Extract<PlanBlock, { type: 'form' }>,
-  responses: Record<string, InteractionResponse>,
-  locked: boolean,
-  anchorId: string | undefined,
-  scope: string,
-  diff?: SectionDiff,
-): string {
-  const existing = responseFor(responses, block.id)
-  const values = existing?.kind === 'form' ? existing.values : {}
-  const disabled = Boolean(existing) || locked
-  const fields = block.fields
-    .map((field) => {
-      const current = values[field.name] ?? field.default ?? ''
-      const fieldAttrs = partAttrs(`${scope}/field:${field.name}`, 'field')
-      if (field.type === 'textarea') {
-        return `
-          <label class="field"${fieldAttrs}>
-            <span>${escapeHtml(field.label)}${field.required ? ' *' : ''}</span>
-            <textarea name="${escapeHtml(field.name)}" ${field.required ? 'required' : ''} ${disabled ? 'disabled' : ''} placeholder="${escapeHtml(field.placeholder ?? '')}">${escapeHtml(String(current))}</textarea>
-          </label>
-        `
-      }
-      if (field.type === 'select') {
-        const options = (field.options ?? [])
-          .map(
-            (option) =>
-              `<option value="${escapeHtml(option)}" ${String(current) === option ? 'selected' : ''}>${escapeHtml(option)}</option>`,
-          )
-          .join('')
-        return `
-          <label class="field"${fieldAttrs}>
-            <span>${escapeHtml(field.label)}${field.required ? ' *' : ''}</span>
-            <select name="${escapeHtml(field.name)}" ${field.required ? 'required' : ''} ${disabled ? 'disabled' : ''}>${options}</select>
-          </label>
-        `
-      }
-      return `
-        <label class="field"${fieldAttrs}>
-          <span>${escapeHtml(field.label)}${field.required ? ' *' : ''}</span>
-          <input
-            type="${field.type === 'number' ? 'number' : 'text'}"
-            name="${escapeHtml(field.name)}"
-            value="${escapeHtml(String(current))}"
-            ${field.required ? 'required' : ''}
-            ${disabled ? 'disabled' : ''}
-            placeholder="${escapeHtml(field.placeholder ?? '')}"
-          />
-        </label>
-      `
-    })
-    .join('')
-
-  return `
-    <section class="block interaction form diff-${diff?.status ?? 'unchanged'}" data-section data-interaction-id="${escapeHtml(block.id)}"${anchorAttrs(anchorId)}${partAttrs(scope, 'section')}>
-      <div class="interaction-kicker">Needs input</div>
-      <h3${partAttrs(`${scope}/prompt`, 'prompt')}>${escapeHtml(block.prompt)}</h3>
-      <form data-form-id="${escapeHtml(block.id)}">
-        ${fields}
-        <button type="submit" class="btn primary" ${disabled ? 'disabled' : ''}>Submit</button>
-      </form>
-      <div class="interaction-state" data-state-for="${escapeHtml(block.id)}">
-        ${locked ? 'Locked during execution' : existing ? 'Submitted' : 'Waiting for form values'}
-      </div>
-    </section>
-  `
-}
-
-function renderQuestions(
-  block: Extract<PlanBlock, { type: 'questions' }>,
-  responses: Record<string, InteractionResponse>,
-  locked: boolean,
-  anchorId: string | undefined,
-  scope: string,
-  diff?: SectionDiff,
-): string {
-  const existing = responseFor(responses, block.id)
-  const answers = existing?.kind === 'questions' ? existing.answers : {}
-  const disabled = Boolean(existing) || locked
-  const items = block.items
-    .map((item, index) => {
-      const key = String(index)
-      return `
-        <label class="field"${partAttrs(`${scope}/question:${index + 1}`, 'question')}>
-          <span>${index + 1}. ${escapeHtml(item)}</span>
-          <textarea name="${key}" ${disabled ? 'disabled' : ''} placeholder="Your answer">${escapeHtml(String(answers[key] ?? ''))}</textarea>
-        </label>
-      `
-    })
-    .join('')
-
-  return `
-    <section class="block interaction questions diff-${diff?.status ?? 'unchanged'}" data-section data-interaction-id="${escapeHtml(block.id)}"${anchorAttrs(anchorId)}${partAttrs(scope, 'section')}>
-      <div class="interaction-kicker">Open questions</div>
-      ${block.prompt ? `<h3${partAttrs(`${scope}/prompt`, 'prompt')}>${escapeHtml(block.prompt)}</h3>` : `<h3${partAttrs(`${scope}/prompt`, 'prompt')}>Please answer</h3>`}
-      <form data-questions-id="${escapeHtml(block.id)}">
-        ${items}
-        <button type="submit" class="btn primary" ${disabled ? 'disabled' : ''}>Send answers</button>
-      </form>
-      <div class="interaction-state" data-state-for="${escapeHtml(block.id)}">
-        ${locked ? 'Locked during execution' : existing ? 'Answers sent' : 'Waiting for answers'}
-      </div>
-    </section>
-  `
-}
-
-function renderChecklist(
-  block: Extract<PlanBlock, { type: 'checklist' }>,
-  anchorId: string | undefined,
-  scope: string,
-  diff?: SectionDiff,
-): string {
-  const items = block.items
-    .map(
-      (item, index) =>
-        `<li class="${item.done ? 'done' : ''}"${partAttrs(`${scope}/item:${index + 1}`, 'checklist-item')}><span class="check">${item.done ? 'done' : 'todo'}</span>${escapeHtml(item.text)}</li>`,
-    )
-    .join('')
-  return `
-    <section class="block checklist diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}${partAttrs(scope, 'section')}>
-      ${block.title ? `<h3${partAttrs(`${scope}/title`, 'title')}>${escapeHtml(block.title)}</h3>` : ''}
-      <ul>${items}</ul>
-    </section>
-  `
-}
-
-function renderWorkflow(
-  block: Extract<PlanBlock, { type: 'workflow' }>,
-  anchorId: string | undefined,
-  scope: string,
-  diff?: SectionDiff,
-): string {
-  const steps = block.nodes
-    .map((node) => {
-      const ref = node.ref ?? node.id
-      const label = node.label ?? node.id
-      return `
-        <li>
-          <button type="button" class="workflow-step" data-plan-jump="${escapeHtml(ref)}"${partAttrs(`${scope}/step:${node.id}`, 'workflow-step')}>
-            <span class="workflow-step-label">${escapeHtml(label)}</span>
-            <span class="workflow-step-ref">Plan · ${escapeHtml(ref)}</span>
-          </button>
-        </li>
-      `
-    })
-    .join('')
-
-  return `
-    <section class="block workflow diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}${partAttrs(scope, 'section')}>
-      <div class="interaction-kicker">Expected workflow</div>
-      <h3${partAttrs(`${scope}/title`, 'title')}>${escapeHtml(block.title ?? 'Execution plan')}</h3>
-      <p class="workflow-note"${partAttrs(`${scope}/note`, 'paragraph')}>These steps are the execution plan before the run is laid down. The Workflow tab draws the same path. Select a step there to jump to the matching place in this plan.</p>
-      <ol class="workflow-steps">${steps}</ol>
-      <button type="button" class="btn" data-tab-jump="workflow">Open workflow diagram</button>
-    </section>
-  `
-}
-
-function sourceStamp(source: string): string {
-  let hash = 2166136261
-  for (let index = 0; index < source.length; index += 1) {
-    hash ^= source.charCodeAt(index)
-    hash = Math.imul(hash, 16777619)
-  }
-  return (hash >>> 0).toString(36)
-}
-
-function withStamp(html: string, source: string): string {
-  return html.replace('<section ', `<section data-plan-stamp="${sourceStamp(source)}" `)
-}
-
-function renderBlock(
-  block: PlanBlock,
-  index: number,
-  responses: Record<string, InteractionResponse>,
-  diffs: SectionDiff[],
-  locked: boolean,
-): string {
-  const diff = diffs.find((entry) => entry.index === index)
-  const anchorId = blockAnchorId(block, index)
-  const scope = planPartScope(block, index)
-  switch (block.type) {
-    case 'markdown':
-      return withStamp(
-        `<section class="block markdown diff-${diff?.status ?? 'unchanged'}" data-section${anchorAttrs(anchorId)}${partAttrs(scope, 'section')}><div class="rich">${block.html}</div></section>`,
-        block.source,
-      )
-    case 'phase':
-      return withStamp(renderPhase(block, anchorId, scope, diff), block.source)
-    case 'callout':
-      return withStamp(renderCallout(block, anchorId, scope, diff), block.source)
-    case 'choice':
-      return withStamp(renderChoice(block, responses, locked, anchorId, scope, diff), block.source)
-    case 'approve':
-      return withStamp(renderApprove(block, responses, locked, anchorId, scope, diff), block.source)
-    case 'form':
-      return withStamp(renderForm(block, responses, locked, anchorId, scope, diff), block.source)
-    case 'questions':
-      return withStamp(renderQuestions(block, responses, locked, anchorId, scope, diff), block.source)
-    case 'checklist':
-      return withStamp(renderChecklist(block, anchorId, scope, diff), block.source)
-    case 'workflow':
-      return withStamp(renderWorkflow(block, anchorId, scope, diff), block.source)
-  }
-}
 
 const THEME_BOOTSTRAP = `
 (() => {
@@ -1508,6 +1163,22 @@ body.mermaid-maximized { overflow: hidden; }
   font-weight: 600;
   color: var(--muted);
 }
+.status-chip {
+  display: inline-block;
+  margin: 0 0.15rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.68rem;
+  font-weight: 600;
+  vertical-align: 0.05em;
+}
+.status-chip.status-active { color: var(--accent); }
+.status-chip.status-done { color: var(--ok); }
+.status-chip.status-blocked,
+.status-chip.status-failed { color: var(--danger); }
 
 .callout-label {
   text-transform: uppercase;
@@ -2450,9 +2121,7 @@ export function renderPlanPage(options: {
   const showReviewBar = mode === 'review' && !reviewDecision && !locked
   const planned = planToExpectedGraph(plan)
   const workflowState = locked ? 'live' : planned ? 'planned' : 'idle'
-  const body = plan.blocks
-    .map((block, index) => renderBlock(block, index, responses, diffs, locked))
-    .join('\n')
+  const body = renderPlanHtml(plan, { responses, diffs, locked })
 
   const changed = diffs.filter((diff) => diff.status !== 'unchanged').length
   const hasMermaid = body.includes('class="mermaid-diagram"')

@@ -67,6 +67,19 @@ export type ChecklistItem = {
   done: boolean
 }
 
+/** One tag in the plan, including tags nested inside another tag. */
+export type PlanEntry = {
+  type: PlanBlock['type']
+  id?: string
+  title?: string
+  prompt?: string
+  status?: PhaseStatus
+  kind?: string
+  anchor?: string
+  nodes?: WorkflowNodeSpec[]
+  edges?: WorkflowEdgeSpec[]
+}
+
 export type PlanDocument = {
   title: string
   summary?: string
@@ -75,6 +88,8 @@ export type PlanDocument = {
   sourcePath?: string
   source: string
   blocks: PlanBlock[]
+  /** Every entry tag, nested ones included. Absent on hand-built documents. */
+  entries?: PlanEntry[]
   interactionIds: string[]
 }
 

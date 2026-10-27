@@ -21,5 +21,6 @@ Decisions are numbered in the order they were made. Superseded decisions stay he
 | [0015](0015-service-logs.md) | 2026-10-22 | Accepted | Diagnostic logs are files under the config home, by day and by plan |
 | [0016](0016-loopback-address.md) | 2026-10-22 | Accepted | Loopback plans are published as 127.0.0.1 |
 | [0017](0017-xdg-config-home.md) | 2026-10-27 | Accepted | Machine config, registry, and logs live under ~/.config/living-plan |
+| [0018](0018-markdoc-plan-tags.md) | 2026-10-27 | Accepted | Plan entries are Markdoc tags, rendered to the existing section HTML |
 
-Add the next decision as `0018-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.
+Add the next decision as `0019-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.

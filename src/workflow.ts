@@ -6,9 +6,17 @@ import type {
   ExecutionPortSide,
   ExecutionState,
 } from './execution'
-import { blockAnchorId } from './parse'
 import { layoutWorkflowNodes } from './layoutGraph'
-import type { PlanBlock, PlanDocument } from './types'
+import {
+  entryAnchor,
+  entryInAutoWorkflow,
+  entryKindLabel,
+  entryLabel,
+  entryPhaseStatus,
+  entryWorkflow,
+  planEntries,
+} from './planEntries'
+import type { PlanBlock, PlanDocument, PlanEntry } from './types'
 
 const NODE_STATUSES = new Set<ExecutionNodeStatus>([
   'pending',
@@ -50,43 +58,6 @@ export function blockPlanLabel(block: PlanBlock): string | undefined {
   }
 }
 
-function blockKindLabel(block: PlanBlock): string | undefined {
-  switch (block.type) {
-    case 'phase':
-      return 'Phase'
-    case 'choice':
-      return 'Choice'
-    case 'approve':
-      return 'Approval'
-    case 'form':
-      return 'Form'
-    case 'questions':
-      return 'Questions'
-    case 'checklist':
-      return 'Checklist'
-    case 'callout':
-      return block.kind
-    default:
-      return undefined
-  }
-}
-
-function includeInAutoWorkflow(block: PlanBlock): boolean {
-  switch (block.type) {
-    case 'phase':
-    case 'choice':
-    case 'approve':
-    case 'form':
-    case 'questions':
-      return true
-    case 'checklist':
-    case 'callout':
-      return Boolean(block.id || block.title)
-    default:
-      return false
-  }
-}
-
 function asPortSide(value: string | undefined): ExecutionPortSide | undefined {
   if (value === 'top' || value === 'right' || value === 'bottom' || value === 'left') return value
   return undefined
@@ -111,19 +82,20 @@ function layoutNodes(
   return layoutWorkflowNodes(nodes, edges)
 }
 
-function indexAnchors(plan: PlanDocument): Map<string, PlanBlock> {
-  const anchors = new Map<string, PlanBlock>()
-  plan.blocks.forEach((block, index) => {
-    const anchor = blockAnchorId(block, index)
-    if (anchor && !anchors.has(anchor)) anchors.set(anchor, block)
+function indexAnchors(plan: PlanDocument): Map<string, PlanEntry> {
+  const anchors = new Map<string, PlanEntry>()
+  planEntries(plan).forEach((entry, index) => {
+    const anchor = entryAnchor(entry, index)
+    if (anchor && !anchors.has(anchor)) anchors.set(anchor, entry)
   })
   return anchors
 }
 
 /** A plan must name its execution path with a workflow block. */
 export function workflowRequirementError(plan: PlanDocument): string | undefined {
-  const workflow = plan.blocks.find((block) => block.type === 'workflow')
-  if (!workflow || workflow.type !== 'workflow' || workflow.nodes.length === 0) {
+  const workflow = planEntries(plan).find((entry) => entry.type === 'workflow')
+  const graph = workflow ? entryWorkflow(workflow) : undefined
+  if (!graph || graph.nodes.length === 0) {
     return 'A plan requires a workflow block. That block is the execution path.'
   }
   return undefined
@@ -132,26 +104,27 @@ export function workflowRequirementError(plan: PlanDocument): string | undefined
 /** Expected execution diagram for a plan, available before a live run starts. */
 export function planToExpectedGraph(plan: PlanDocument): ExecutionGraph | undefined {
   const anchors = indexAnchors(plan)
-  const workflow = plan.blocks.find((block) => block.type === 'workflow')
+  const workflow = planEntries(plan).find((entry) => entry.type === 'workflow')
+  const graph = workflow ? entryWorkflow(workflow) : undefined
 
-  if (workflow && workflow.type === 'workflow' && workflow.nodes.length > 0) {
-    const nodes: ExecutionGraphNode[] = workflow.nodes.map((node) => {
+  if (workflow && graph && graph.nodes.length > 0) {
+    const nodes: ExecutionGraphNode[] = graph.nodes.map((node) => {
       const planRef = node.ref ?? (anchors.has(node.id) ? node.id : undefined)
       const linked = planRef ? anchors.get(planRef) : undefined
-      const linkedLabel = linked ? blockPlanLabel(linked) : undefined
-      const linkedStatus = linked?.type === 'phase' ? phaseStatus(linked.status) : undefined
+      const linkedLabel = linked ? entryLabel(linked) : undefined
+      const linkedStatus = linked ? entryPhaseStatus(linked) : undefined
       return {
         id: node.id,
         label: node.label ?? linkedLabel ?? node.id,
-        detail: node.detail ?? (linked ? blockKindLabel(linked) : undefined),
-        status: asStatus(node.status) ?? linkedStatus ?? 'pending',
+        detail: node.detail ?? (linked ? entryKindLabel(linked) : undefined),
+        status: asStatus(node.status) ?? (linkedStatus ? phaseStatus(linkedStatus) : undefined) ?? 'pending',
         x: node.x,
         y: node.y,
         planRef,
         planLabel: linkedLabel,
       }
     })
-    const edges = toExecutionEdges(workflow.edges)
+    const edges = toExecutionEdges(graph.edges)
     return {
       title: workflow.title ?? 'Expected workflow',
       nodes: layoutNodes(nodes, edges),
@@ -160,16 +133,17 @@ export function planToExpectedGraph(plan: PlanDocument): ExecutionGraph | undefi
   }
 
   const nodes: ExecutionGraphNode[] = []
-  plan.blocks.forEach((block, index) => {
-    if (block.type === 'workflow' || !includeInAutoWorkflow(block)) return
-    const anchor = blockAnchorId(block, index)
+  planEntries(plan).forEach((entry, index) => {
+    if (entry.type === 'workflow' || !entryInAutoWorkflow(entry)) return
+    const anchor = entryAnchor(entry, index)
     if (!anchor) return
-    const label = blockPlanLabel(block) ?? anchor
+    const label = entryLabel(entry) ?? anchor
+    const status = entryPhaseStatus(entry)
     nodes.push({
       id: anchor,
       label,
-      detail: blockKindLabel(block),
-      status: block.type === 'phase' ? phaseStatus(block.status) : 'pending',
+      detail: entryKindLabel(entry),
+      status: status ? phaseStatus(status) : 'pending',
       planRef: anchor,
       planLabel: label,
     })

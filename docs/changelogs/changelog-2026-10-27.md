@@ -79,3 +79,24 @@ The plan page background is theme-aware graph paper instead of the radial wash, 
 ### Notes
 
 No registry restart needed.
+
+## 0.5.0
+
+**PR:** #TBD
+
+**Bump:** minor
+
+### Summary
+
+Plan entries are Markdoc tags. A callout can contain a choice, and existing YAML fences still render.
+
+### Changes
+
+- Author `phase`, `callout`, `choice`, `form`, `questions`, `approve`, `checklist`, and `workflow` as tags. The page still receives the same section HTML, part ids, and interaction JSON.
+- `{% status %}` is an inline status chip. It is not its own section.
+- Mermaid, code, and diff fences are unchanged. A YAML fence whose language is an entry type still opens.
+- `skills/live-plan` tells agents to write tags. Wait responses keep the same JSON shapes.
+
+### Notes
+
+No registry restart needed. Open sessions written with YAML fences keep rendering.
