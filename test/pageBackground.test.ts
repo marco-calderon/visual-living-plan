@@ -37,10 +37,10 @@ test('the plan page uses a theme-aware graph paper grid', () => {
   const dark = css.split(':root[data-theme="dark"]')[1]
   assert.ok(dark)
 
-  assert.match(css, /--grid-major:\s*color-mix\(in srgb, var\(--accent\) 34%, transparent\)/)
-  assert.match(css, /--grid-minor:\s*color-mix\(in srgb, var\(--accent\) 16%, transparent\)/)
-  assert.match(dark, /--grid-major:\s*color-mix\(in srgb, var\(--accent\) 26%, transparent\)/)
-  assert.match(dark, /--grid-minor:\s*color-mix\(in srgb, var\(--accent\) 12%, transparent\)/)
+  assert.match(css, /--grid-major:\s*color-mix\(in srgb, var\(--accent\) 20\.4%, transparent\)/)
+  assert.match(css, /--grid-minor:\s*color-mix\(in srgb, var\(--accent\) 9\.6%, transparent\)/)
+  assert.match(dark, /--grid-major:\s*color-mix\(in srgb, var\(--accent\) 15\.6%, transparent\)/)
+  assert.match(dark, /--grid-minor:\s*color-mix\(in srgb, var\(--accent\) 7\.2%, transparent\)/)
 
   assert.match(css, /background-color:\s*var\(--paper\)/)
   assert.match(css, /linear-gradient\(var\(--grid-major\) 2px, transparent 2px\)/)

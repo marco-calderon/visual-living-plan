@@ -486,8 +486,8 @@ const STYLES = `
   --danger-soft: rgba(180, 35, 24, 0.08);
   --danger-border: rgba(180, 35, 24, 0.28);
   --pulse: rgba(15, 118, 110, 0.45);
-  --grid-major: color-mix(in srgb, var(--accent) 34%, transparent);
-  --grid-minor: color-mix(in srgb, var(--accent) 16%, transparent);
+  --grid-major: color-mix(in srgb, var(--accent) 20.4%, transparent);
+  --grid-minor: color-mix(in srgb, var(--accent) 9.6%, transparent);
   --stage-bg: #f7faf8;
   --dot: rgba(20, 32, 27, 0.12);
   --node-bg: rgba(255, 255, 255, 0.94);
@@ -539,8 +539,8 @@ const STYLES = `
   --danger-soft: rgba(248, 113, 113, 0.12);
   --danger-border: rgba(248, 113, 113, 0.4);
   --pulse: rgba(45, 212, 191, 0.45);
-  --grid-major: color-mix(in srgb, var(--accent) 26%, transparent);
-  --grid-minor: color-mix(in srgb, var(--accent) 12%, transparent);
+  --grid-major: color-mix(in srgb, var(--accent) 15.6%, transparent);
+  --grid-minor: color-mix(in srgb, var(--accent) 7.2%, transparent);
   --stage-bg: #0e1614;
   --dot: rgba(232, 243, 238, 0.14);
   --node-bg: rgba(18, 32, 28, 0.96);
