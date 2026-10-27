@@ -140,3 +140,22 @@ Plan entries are Markdoc tags. A callout can contain a choice, and existing YAML
 ### Notes
 
 No registry restart needed. Open sessions written with YAML fences keep rendering.
+
+## 0.5.1
+
+**PR:** [#52](https://github.com/marco-calderon/visual-living-plan/pull/52)
+
+**Bump:** patch
+
+### Summary
+
+Running plan cards no longer show a separate open button. The plan title still opens the site.
+
+### Changes
+
+- Remove the round external-open control from the bottom-right of each card in the Running plans panel.
+- Leave the title, mode icon, folder, copy path, git line, and uptime pill in place.
+
+### Notes
+
+No registry restart needed. The title link is unchanged.

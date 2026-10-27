@@ -131,7 +131,7 @@ export const PROCESSES_PANEL_STYLES = `
 }
 .process-card.is-current .process-mode,
 .process-card.is-current .process-pill:not(.is-pending),
-.process-card.is-current .process-icon-btn:not(.primary) {
+.process-card.is-current .process-icon-btn {
   background: var(--panel-strong);
 }
 .process-title-row {
@@ -229,16 +229,6 @@ a.process-title:hover { color: var(--accent); }
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-.process-icon-btn.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
-}
-.process-icon-btn.primary:hover {
-  background: var(--accent);
-  color: var(--on-accent);
-  box-shadow: var(--accent-hover-shadow);
-}
 .process-icon-btn.is-copied {
   color: var(--ok);
   border-color: var(--ok);
@@ -300,11 +290,6 @@ a.process-title:hover { color: var(--accent); }
 .process-git-row .process-git {
   margin-top: 0;
   min-width: 0;
-}
-.process-foot {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 0.55rem;
 }
 .process-paths {
   margin: 0.3rem 0 0;
@@ -472,7 +457,6 @@ export function processesPanelScript(): string {
   const ICON_COMMENT = lucide('<path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/>');
   const ICON_COPY = lucide('<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>');
   const ICON_CHECK = lucide('<path d="M20 6 9 17l-5-5"/>');
-  const ICON_EXTERNAL = lucide('<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>');
   const ICON_CLOCK = lucide('<path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="10"/>');
   const ICON_FOLDER = lucide('<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>');
   const ICON_BRANCH = lucide('<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>');
@@ -608,19 +592,6 @@ export function processesPanelScript(): string {
 
     if (record.executionActive) {
       card.append(el('span', 'process-meta', record.executionStep ? 'live · ' + record.executionStep : 'execution live'));
-    }
-    if (site) {
-      const foot = el('div', 'process-foot');
-      const openLink = el('a', 'process-icon-btn primary');
-      openLink.href = site;
-      openLink.target = '_blank';
-      openLink.rel = 'noopener noreferrer';
-      const openLabel = current ? 'This site' : 'Open';
-      openLink.setAttribute('aria-label', openLabel);
-      openLink.title = openLabel;
-      openLink.innerHTML = ICON_EXTERNAL;
-      foot.append(openLink);
-      card.append(foot);
     }
     return card;
   }
