@@ -1,6 +1,6 @@
 {
   "name": "visual-living-plan",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Agent-authored living plans with human interaction, live updates, and a swappable execution canvas",
   "type": "module",
   "bin": {
@@ -26,6 +26,7 @@
   "scripts": {
     "build": "node scripts/build-cli.mjs",
     "prepack": "npm run build",
+    "install:global": "npm run build && npm install -g .",
     "build:client": "vite build",
     "dev": "bun src/cli.ts",
     "serve": "bun src/cli.ts serve",
