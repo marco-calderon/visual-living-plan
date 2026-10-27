@@ -82,7 +82,7 @@ No registry restart needed.
 
 ## 0.4.2
 
-**PR:** (opened with this change)
+**PR:** [#53](https://github.com/marco-calderon/visual-living-plan/pull/53)
 
 **Bump:** patch
 
