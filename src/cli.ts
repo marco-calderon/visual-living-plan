@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { spawn } from 'node:child_process'
 import { writeSync } from 'node:fs'
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { access, readFile, writeFile, mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadClientAssets } from './assets'
@@ -17,10 +17,10 @@ import {
 import type { PlanSubmissionEvent } from './types'
 import { startLivingPlanServer } from './server'
 import type { ExecutionGraph, ExecutionState } from './execution'
+import { cwdThemeConfigPath, globalThemeConfigPath } from './configHome'
 import {
   configPathBesidePlan,
   DEFAULT_ACCENT,
-  DEFAULT_CONFIG_FILENAME,
   loadThemeConfig,
   normalizeAccent,
   saveThemeConfig,
@@ -97,13 +97,15 @@ Modes:
   theme       Read or write the accent color in live-plan.config.json (or via a running server).
   check       Print plan summary. Exits 1 when the required workflow block is missing.
   processes   List plans hosted by the service. \`ps\` is the same command.
-  logs        Print the development log saved under ~/.living-plan. Not shown on the page. --day reads one registry day (today when omitted). --url reads one plan.
+  logs        Print the development log saved under ~/.config/living-plan/logs. Not shown on the page. --day reads one registry day (today when omitted). --url reads one plan.
   dashboard   Open the control dashboard (running and executed plans, by day, week, or month).
   tui         The registry in the terminal: running plans, and the day, week, and month dashboard. Starts the plan service when it is not already running. Quitting leaves that service up. Active plans are listed first. Click a control, or use Tab, arrows, p, d, and the number keys.
   registry    Run the plan service in the foreground. serve and review start it on their own.
 
 Every plan includes a \`workflow\` block. That block is the execution path the Workflow tab draws.
-Accent color is saved in live-plan.config.json beside the plan (override with --config).
+Per-plan accent color is saved in live-plan.config.json beside the plan (override with --config).
+Without --plan or --config, theme get/set uses ~/.config/living-plan/live-plan.config.json.
+Service state and diagnostic logs live under ~/.config/living-plan (LIVE_PLAN_HOME / LIVE_PLAN_LOG_HOME override).
 --no-open skips launching a browser.
 --version prints the package version and exits. -v is the short flag.
 --detach registers the plan and returns. Without it, serve prints the next undelivered submissions and exits. The page stays up on the service.
@@ -923,7 +925,7 @@ async function cmdDashboard(args: string[]): Promise<number> {
 
 async function cmdRegistry(args: string[]): Promise<number> {
   const { startRegistryServer } = await import('./registryService')
-  const home = process.env.LIVE_PLAN_HOME ?? defaultRegistryHome()
+  const home = defaultRegistryHome()
   const portFlag = getFlag(args, '--port')
   const port = portFlag ? Number(portFlag) : DEFAULT_REGISTRY_PORT
   const host = getFlag(args, '--host') ?? DEFAULT_REGISTRY_HOST
@@ -961,12 +963,26 @@ async function cmdRegistry(args: string[]): Promise<number> {
   return 0
 }
 
-function resolveThemeConfigPath(args: string[]): string {
+async function resolveThemeConfigPath(args: string[], options?: { forWrite?: boolean }): Promise<string> {
   const explicit = getFlag(args, '--config')
   if (explicit) return resolve(explicit)
   const plan = getFlag(args, '--plan')
   if (plan) return configPathBesidePlan(plan)
-  return resolve(DEFAULT_CONFIG_FILENAME)
+  const preferred = globalThemeConfigPath()
+  if (options?.forWrite) return preferred
+  try {
+    await access(preferred)
+    return preferred
+  } catch {
+    // Older installs wrote a CWD live-plan.config.json when theme ran without --plan.
+    const cwdPath = cwdThemeConfigPath()
+    try {
+      await access(cwdPath)
+      return cwdPath
+    } catch {
+      return preferred
+    }
+  }
 }
 
 async function cmdTheme(args: string[]): Promise<number> {
@@ -985,7 +1001,7 @@ async function cmdTheme(args: string[]): Promise<number> {
       console.log(JSON.stringify(await response.json(), null, 2))
       return 0
     }
-    const configPath = resolveThemeConfigPath(rest)
+    const configPath = await resolveThemeConfigPath(rest)
     const config = await loadThemeConfig(configPath)
     console.log(JSON.stringify(themePayload(config, configPath), null, 2))
     return 0
@@ -1015,10 +1031,11 @@ async function cmdTheme(args: string[]): Promise<number> {
       return 0
     }
 
-    const configPath = resolveThemeConfigPath(rest)
-    const current = await loadThemeConfig(configPath)
-    const saved = await saveThemeConfig(configPath, { ...current, accent })
-    console.log(JSON.stringify(themePayload(saved, configPath), null, 2))
+    const readPath = await resolveThemeConfigPath(rest)
+    const writePath = await resolveThemeConfigPath(rest, { forWrite: true })
+    const current = await loadThemeConfig(readPath)
+    const saved = await saveThemeConfig(writePath, { ...current, accent })
+    console.log(JSON.stringify(themePayload(saved, writePath), null, 2))
     return 0
   }
 

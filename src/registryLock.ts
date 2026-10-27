@@ -1,6 +1,6 @@
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { defaultRegistryHome as resolveRegistryHome } from './configHome'
 
 export type RegistryLock = {
   pid: number
@@ -13,8 +13,9 @@ export type RegistryLock = {
   version?: string
 }
 
+/** Service data directory. See `configHome.ts` for XDG defaults and legacy migration. */
 export function defaultRegistryHome(): string {
-  return process.env.LIVE_PLAN_HOME ?? join(homedir(), '.visual-living-plan')
+  return resolveRegistryHome()
 }
 
 export function registryLockPath(home: string): string {

@@ -5,13 +5,13 @@
 
 ## Context
 
-The plan page shows status, forms, the workflow, and settings. Failures that do not belong to those surfaces were easy to miss. A plan reload error was broadcast as an `error` event the page never rendered. Browser console output, a dropped event stream, parse failures, execution start and stop, and service failures such as a local-name publish or a prune error only reached the detached process log at `~/.visual-living-plan/registry.log`.
+The plan page shows status, forms, the workflow, and settings. Failures that do not belong to those surfaces were easy to miss. A plan reload error was broadcast as an `error` event the page never rendered. Browser console output, a dropped event stream, parse failures, execution start and stop, and service failures such as a local-name publish or a prune error only reached the detached process log at `registry.log` beside the registry home (now `~/.config/living-plan/registry.log`; see [ADR 0017](0017-xdg-config-home.md)).
 
 These messages are not submissions. An agent should not see them on `events`, and they should not be stored as `plan_events`.
 
 ## Decision
 
-Development logs are files under `~/.living-plan` (`LIVE_PLAN_LOG_HOME` in tests). winston writes them. `winston-daily-rotate-file` writes one registry file per local day at `registry/YYYY-MM-DD.log` and keeps 30 days. A plan event is also appended to `plans/<planId>.log` with winston's file transport (about 1MB, three files). Events that are not tied to a plan stay in the daily file only.
+Development logs are files under `~/.config/living-plan/logs` (`LIVE_PLAN_LOG_HOME` in tests; older installs used `~/.living-plan`, see [ADR 0017](0017-xdg-config-home.md)). winston writes them. `winston-daily-rotate-file` writes one registry file per local day at `registry/YYYY-MM-DD.log` and keeps 30 days. A plan event is also appended to `plans/<planId>.log` with winston's file transport (about 1MB, three files). Events that are not tied to a plan stay in the daily file only.
 
 `console.error`, `console.warn`, and `console.log` in the server process are copied into those files. The level `log` is stored as winston `info`, with `levelName` set back to `log`. Plan reload and theme reload failures are recorded there. `parsePlan` records a frontmatter or fence failure and then throws. `check` records a missing workflow block. Execution start, update, and stop are recorded on the plan, and a graph that has no `nodes` array is a warning. The open page posts its own console output, script errors, and unhandled rejections to `POST /api/logs`.
 

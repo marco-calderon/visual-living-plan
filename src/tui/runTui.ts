@@ -15,7 +15,7 @@ export type TuiOptions = {
 export type RunTuiOptions = {
   /** When omitted, both stdin and stdout must be a TTY. */
   interactive?: boolean
-  /** Registry home. Omit to use `LIVE_PLAN_HOME` or `~/.visual-living-plan`. */
+  /** Registry home. Omit to use `LIVE_PLAN_HOME` or `~/.config/living-plan`. */
   home?: string
 }
 
