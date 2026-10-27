@@ -20,6 +20,7 @@ import type {
   SectionDiff,
 } from './types'
 import { planToExpectedGraph, withPlannedWorkflow } from './workflow'
+import { changelogSectionHtml, type ChangelogRelease } from './changelog'
 
 export type RenderTheme = {
   accent: string
@@ -529,6 +530,69 @@ body.has-review-bar .shell {
   margin: 0 0 1rem;
   color: var(--muted);
   line-height: 1.5;
+}
+.release-cards {
+  display: grid;
+  gap: 0.7rem;
+}
+.release-card {
+  display: grid;
+  grid-template-columns: 8.5rem minmax(0, 1fr);
+  column-gap: 0.9rem;
+  align-items: start;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--control-solid);
+  padding: 0.95rem 1rem 1rem;
+  min-width: 0;
+}
+.release-stat { display: grid; align-content: start; gap: 0.15rem; }
+.release-card .settings-kicker { margin: 0; }
+.release-count {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 2.6rem;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+}
+.release-card[data-empty="true"] .release-count { color: var(--muted); }
+.release-card[data-kind="bugs"]:not([data-empty="true"]) .release-count { color: var(--danger); }
+.release-card[data-kind="improvements"]:not([data-empty="true"]) .release-count { color: var(--accent-2); }
+.release-card[data-kind="features"]:not([data-empty="true"]) .release-count { color: var(--ok); }
+.release-card[data-kind="changes"] .release-count { color: var(--accent); }
+.release-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+.release-list li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.45rem 0.5rem;
+  align-items: start;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+.release-list .ver {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 999px;
+  padding: 0.16rem 0.42rem;
+  margin-top: 0.15rem;
+  white-space: nowrap;
+}
+.release-empty {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
 }
 .settings-preview {
   display: flex;
@@ -2139,6 +2203,8 @@ export function renderPlanPage(options: {
   basePath?: string
   selfId?: string
   comments?: PlanComment[]
+  /** Newest changelog, already parsed. Omit to hide the release block. */
+  changelog?: ChangelogRelease | null
 }): string {
   const {
     plan,
@@ -2280,6 +2346,7 @@ export function renderPlanPage(options: {
     </section>
     <section class="tab-panel" data-tab-panel="settings" role="tabpanel" hidden>
       <main class="settings-stack">
+        ${options.changelog ? changelogSectionHtml(options.changelog) : ''}
         <section class="block settings-section" data-section>
           <div class="settings-kicker">Appearance</div>
           <h3>Accent color</h3>
