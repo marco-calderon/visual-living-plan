@@ -101,6 +101,25 @@ The plan page has a solid top bar again. The title sits beside the logo, and the
 
 No registry restart needed.
 
+## 0.4.3
+
+**PR:** [#50](https://github.com/marco-calderon/visual-living-plan/pull/50)
+
+**Bump:** patch
+
+### Summary
+
+The workflow card no longer names the canvas library or says that plan interactions are available. The diagram stays on the page.
+
+### Changes
+
+- Remove “Canvas · React Flow” from the workflow card.
+- Remove “Plan interactions available” from the workflow card.
+
+### Notes
+
+No registry restart needed.
+
 ## 0.5.0
 
 **PR:** [#51](https://github.com/marco-calderon/visual-living-plan/pull/51)

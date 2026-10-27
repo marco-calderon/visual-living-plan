@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { ExecutionCanvas } from './ExecutionCanvas'
 import type { ExecutionState } from '../src/execution.ts'
 import { createIdleExecutionState, mergePlannedExecution } from '../src/execution.ts'
-import { getActiveExecutionCanvasAdapter } from './execution-canvas/registry.ts'
 import { subscribePlanEvents } from './planEvents.ts'
 import { sampleLoopExecution } from './sampleLoopExecution.ts'
 import './execution.css'
@@ -33,7 +32,6 @@ function readBootstrap(): ExecutionState {
 
 function ExecutionApp() {
   const [execution, setExecution] = useState<ExecutionState>(readBootstrap)
-  const adapter = getActiveExecutionCanvasAdapter()
   const plannedGraph = useMemo(
     () => mergePlannedExecution(execution.planned, execution.graph),
     [execution.graph, execution.planned],
@@ -111,14 +109,11 @@ function ExecutionApp() {
           ) : null}
         </div>
         <div className="execution-meta">
-          <span>Canvas · {adapter.label}</span>
-          <span>
-            {showingSample
-              ? 'Shown until this plan has a workflow'
-              : execution.active
-                ? 'Forms locked on Plan tab'
-                : 'Plan interactions available'}
-          </span>
+          {showingSample ? (
+            <span>Shown until this plan has a workflow</span>
+          ) : execution.active ? (
+            <span>Forms locked on Plan tab</span>
+          ) : null}
           {execution.updatedAt ? (
             <span>Updated {new Date(execution.updatedAt).toLocaleTimeString()}</span>
           ) : null}
