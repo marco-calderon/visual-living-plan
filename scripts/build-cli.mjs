@@ -5,9 +5,20 @@ import { fileURLToPath } from 'node:url'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 
-// `npm install -g github:...` leaks the global prefix into this script.
-// Dependencies then land in the global folder, and `tsc` is not on PATH.
-function localEnv() {
+/**
+ * Build dist/ for `npm run build`, `prepack`, and local global install
+ * (`npm run install:global` → `npm install -g .`).
+ *
+ * 1. Install build tools into this package if they are missing
+ * 2. Compile TypeScript
+ * 3. Copy the favicon into dist/
+ * 4. Bundle the Vite client
+ * 5. Mark dist/cli.js executable
+ *
+ * `npm install -g` can leak a global prefix into child processes. Strip those
+ * vars so deps land in this package’s node_modules, not the global folder.
+ */
+function envWithoutGlobalNpm() {
   const env = { ...process.env }
   for (const key of Object.keys(env)) {
     if (/^(npm_config_prefix|npm_config_global|npm_config_production|NODE_ENV)$/i.test(key)) {
@@ -21,7 +32,7 @@ function run(command, args) {
   const result = spawnSync(command, args, {
     cwd: root,
     stdio: 'inherit',
-    env: localEnv(),
+    env: envWithoutGlobalNpm(),
   })
   if (result.error) {
     console.error(result.error.message)
@@ -33,11 +44,19 @@ function run(command, args) {
 const tsc = join(root, 'node_modules/typescript/lib/tsc.js')
 const vite = join(root, 'node_modules/vite/bin/vite.js')
 
+// 1. Build tools (needed when packing from a sparse checkout / global install)
 if (!existsSync(tsc) || !existsSync(vite)) {
   run('npm', ['install', '--include=dev', '--ignore-scripts', '--no-audit', '--no-fund'])
 }
 
+// 2. TypeScript → dist/
 run(process.execPath, [tsc, '-p', join(root, 'tsconfig.json')])
+
+// 3. Favicon next to the compiled CLI
 copyFileSync(join(root, 'src/favicon.png'), join(root, 'dist/favicon.png'))
+
+// 4. Client bundle
 run(process.execPath, [vite, 'build'])
+
+// 5. Executable bit for the bin entry
 chmodSync(join(root, 'dist/cli.js'), 0o755)

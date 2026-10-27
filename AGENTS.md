@@ -1,0 +1,13 @@
+# Agent instructions
+
+Project context for changing this repo: [docs/context.md](docs/context.md).
+Architecture: [docs/architecture/README.md](docs/architecture/README.md).
+Authoring living plans (consumers): [skills/live-plan/SKILL.md](skills/live-plan/SKILL.md).
+
+## Project skills
+
+| Skill | When |
+|---|---|
+| [version-bump](.cursor/skills/version-bump/SKILL.md) | Before opening a PR that ships user-facing or package changes — bump semver and add `docs/changelogs/changelog-yyyy-mm-dd.md` |
+
+Follow that skill for every qualifying PR. Changelogs use the template defined inside the skill.
