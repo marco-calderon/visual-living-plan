@@ -35,7 +35,8 @@ const DIR: Record<PortSide, Point> = {
   left: { x: -1, y: 0 },
 }
 
-const CORNER_RADIUS = 6
+/** Squared orthogonal corners — no bezier/quadratic rounding. */
+const CORNER_RADIUS = 0
 const CHANNEL_PAD = 12
 const RAIL_GAP = 22
 const PARALLEL_GAP = 36
