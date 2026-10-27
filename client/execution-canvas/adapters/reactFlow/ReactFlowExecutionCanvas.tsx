@@ -15,7 +15,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import type { ExecutionCanvasProps } from '../../types.ts'
-import { layoutWorkflowNodes } from '../../../../src/layoutGraph.ts'
+import { layoutWorkflowNodes } from '../../../layoutWorkflow.ts'
 import {
   ExecutionStepNode,
   PlanRefContext,
@@ -198,7 +198,7 @@ function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: Execu
   }, [model, edgeColors, setNodes, setEdges, fit])
 
   // Card height follows the label, so the first positions are an estimate.
-  // Once React Flow measures the cards, Dagre runs again and the edge router
+  // Once React Flow measures the cards, ELK runs again and the edge router
   // uses those real boxes.
   useLayoutEffect(() => {
     if (nodes.length === 0 || nodes.some((node) => (node.measured?.width ?? 0) <= 0 || (node.measured?.height ?? 0) <= 0)) {

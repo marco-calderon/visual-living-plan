@@ -88,7 +88,7 @@ test('stored coordinates and self-loops do not keep the manual grid', () => {
   assert.equal(overlapCount(laidOut), 0)
 })
 
-test('a planned workflow uses the dagre positions', () => {
+test('a planned workflow uses the elk positions', () => {
   const plan = parsePlan(`---
 title: Wide
 ---
@@ -131,7 +131,17 @@ edges:
 })
 
 test('the sample loop and a fan-in stay clear of the cards after routing', () => {
-  const sample = graphToCanvasModel(graph as ExecutionGraph)
+  const sampleGraph = graph as ExecutionGraph
+  const sampleLaidOut = layoutWorkflowNodes(sampleGraph.nodes, sampleGraph.edges ?? [])
+  assert.equal(boxesOverlap(sampleLaidOut), false)
+  const sample = graphToCanvasModel({
+    ...sampleGraph,
+    nodes: sampleLaidOut.map((node) => ({
+      ...node,
+      x: node.x,
+      y: node.y,
+    })),
+  })
   assert.equal(boxesOverlap(sample.nodes.map((node) => ({ ...node, x: node.position.x, y: node.position.y }))), false)
 
   const sources = ['roles', 'table', 'notes', 'catalog'].map((id) => ({ id, label: labelFor(id) }))

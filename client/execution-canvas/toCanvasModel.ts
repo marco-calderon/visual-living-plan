@@ -1,5 +1,4 @@
 import type { ExecutionGraph, ExecutionPortSide, ExecutionState } from '../../src/execution.ts'
-import { layoutWorkflowNodes } from '../../src/layoutGraph.ts'
 import type { ExecutionCanvasModel } from './types.ts'
 
 const PORT_SIDES = new Set<ExecutionPortSide>(['top', 'right', 'bottom', 'left'])
@@ -8,12 +7,16 @@ function portSide(value: ExecutionPortSide | undefined, fallback: ExecutionPortS
   return value && PORT_SIDES.has(value) ? value : fallback
 }
 
+/**
+ * Map an execution graph onto the canvas. Node x/y come from the server ELK
+ * layout (or a live push). Once React Flow measures the cards, the canvas
+ * adapter runs ELK again with real sizes.
+ */
 export function graphToCanvasModel(
   graph: ExecutionGraph,
   scene?: Record<string, unknown>,
 ): ExecutionCanvasModel {
-  const laidOut = layoutWorkflowNodes(graph.nodes, graph.edges ?? [])
-  const nodes = laidOut.map((node) => ({
+  const nodes = graph.nodes.map((node) => ({
     id: node.id,
     label: node.label,
     detail: node.detail,
