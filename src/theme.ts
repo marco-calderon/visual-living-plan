@@ -1,5 +1,22 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
+import {
+  DEFAULT_DIFFS_THEME,
+  DIFFS_THEME_PRESETS,
+  diffsThemePreset,
+  normalizeDiffsTheme,
+} from './diffsTheme'
+
+export {
+  DEFAULT_DIFFS_THEME,
+  DIFFS_THEME_PRESETS,
+  diffsThemePair,
+  diffsThemePreset,
+  isKnownDiffsTheme,
+  normalizeDiffsTheme,
+  type DiffsThemePreset,
+  type DiffsThemeSample,
+} from './diffsTheme'
 
 export const DEFAULT_ACCENT = '#0f766e'
 export const DEFAULT_CONFIG_FILENAME = 'live-plan.config.json'
@@ -8,6 +25,8 @@ export type ThemeConfig = {
   accent: string
   /** When true, the plan page uses the full viewport width instead of the centered column. */
   fullWidth: boolean
+  /** Pierre @pierre/diffs theme family (light/dark pair). */
+  diffsTheme: string
 }
 
 export type ThemeAccentVars = {
@@ -39,7 +58,7 @@ const PRESETS = [
 export const ACCENT_PRESETS = PRESETS
 
 export function defaultThemeConfig(): ThemeConfig {
-  return { accent: DEFAULT_ACCENT, fullWidth: false }
+  return { accent: DEFAULT_ACCENT, fullWidth: false, diffsTheme: DEFAULT_DIFFS_THEME }
 }
 
 export function configPathBesidePlan(planPath: string, filename = DEFAULT_CONFIG_FILENAME): string {
@@ -93,9 +112,16 @@ export function parseThemeConfig(raw: unknown): ThemeConfig {
       : layout?.fullWidth !== undefined
         ? layout.fullWidth
         : record.fullWidth
+  const diffsThemeRaw =
+    typeof theme.diffsTheme === 'string'
+      ? theme.diffsTheme
+      : typeof record.diffsTheme === 'string'
+        ? record.diffsTheme
+        : undefined
   return {
     accent: accent ?? defaults.accent,
     fullWidth: fullWidthRaw === undefined ? defaults.fullWidth : parseFullWidth(fullWidthRaw),
+    diffsTheme: normalizeDiffsTheme(diffsThemeRaw),
   }
 }
 
@@ -116,7 +142,8 @@ export async function saveThemeConfig(path: string, config: ThemeConfig): Promis
   if (!accent) {
     throw new Error(`Invalid accent color: ${config.accent}`)
   }
-  const next: ThemeConfig = { accent, fullWidth: Boolean(config.fullWidth) }
+  const diffsTheme = normalizeDiffsTheme(config.diffsTheme)
+  const next: ThemeConfig = { accent, fullWidth: Boolean(config.fullWidth), diffsTheme }
   await mkdir(dirname(absolute), { recursive: true })
   let existing: Record<string, unknown> = {}
   try {
@@ -133,12 +160,14 @@ export async function saveThemeConfig(path: string, config: ThemeConfig): Promis
       : {}
   const themeRest = { ...previousTheme }
   delete themeRest.fullWidth
+  delete themeRest.diffsTheme
   const payload: Record<string, unknown> = {
     ...existing,
     theme: {
       ...themeRest,
       accent: next.accent,
       fullWidth: next.fullWidth,
+      diffsTheme: next.diffsTheme,
     },
   }
   // Prefer theme.fullWidth; drop a top-level layout.fullWidth twin if present.
@@ -149,6 +178,7 @@ export async function saveThemeConfig(path: string, config: ThemeConfig): Promis
     else payload.layout = layout
   }
   delete payload.fullWidth
+  delete payload.diffsTheme
   await writeFile(absolute, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
   return next
 }
@@ -389,11 +419,24 @@ ${lines(dark, 'dark')}
 }
 
 export function themePayload(config: ThemeConfig, configPath: string) {
+  const diffsTheme = normalizeDiffsTheme(config.diffsTheme)
+  const diffs = diffsThemePreset(diffsTheme)
   return {
     accent: config.accent,
     fullWidth: Boolean(config.fullWidth),
+    diffsTheme,
+    diffsThemePair: { light: diffs.light, dark: diffs.dark },
     configPath,
     presets: PRESETS.map((preset) => ({ ...preset })),
+    diffsThemes: DIFFS_THEME_PRESETS.map((preset) => ({
+      id: preset.id,
+      label: preset.label,
+      description: preset.description,
+      light: preset.light,
+      dark: preset.dark,
+      lightSample: { ...preset.lightSample },
+      darkSample: { ...preset.darkSample },
+    })),
     css: accentCssCustomProperties(config.accent),
   }
 }
