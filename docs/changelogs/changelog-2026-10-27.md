@@ -19,3 +19,63 @@ Contributor workflow for version bumps and changelogs, plus a clearer local glob
 ### Notes
 
 No registry restart needed.
+
+## 0.3.0
+
+**PR:** [#46](https://github.com/marco-calderon/visual-living-plan/pull/46)
+
+**Bump:** minor
+
+### Summary
+
+Workflow diagrams are laid out with ELK.js. Connectors are squared and orthogonal instead of the previous curved Dagre paths.
+
+### Changes
+
+- Layered left-to-right placement for chains, fan-in, and wide rows.
+- Squared orthogonal edge paths.
+- Fan-in and return rails still separate overlapping edges.
+
+### Notes
+
+No registry restart needed.
+
+## 0.4.0
+
+**PR:** [#47](https://github.com/marco-calderon/visual-living-plan/pull/47)
+
+**Bump:** minor
+
+### Summary
+
+Plan title, summary, and status open from the logo. The fixed header is gone, so the page starts under the floating tabs.
+
+### Changes
+
+- Click the logo to open a card with the title, summary, and icon status row. Click again, click outside, or press Escape to close it. The logo shows an accent ring while the card is open.
+- A pending count above zero is an amber badge on the logo and an inbox icon in the card. A count of zero stays off the row.
+- Plan, Workflow, and Settings stay icon tabs in the top-right, next to the Plans switcher.
+
+### Notes
+
+No registry restart needed.
+
+## 0.4.1
+
+**PR:** [#48](https://github.com/marco-calderon/visual-living-plan/pull/48)
+
+**Bump:** patch
+
+### Summary
+
+The plan page background is theme-aware graph paper instead of the radial wash, with the quieter line opacity from the follow-up pass.
+
+### Changes
+
+- A 2px line every 100px and a 1px line every 20px, on the paper color.
+- Lines follow the accent. Light mode uses 20.4% and 9.6%. Dark mode uses 15.6% and 7.2%, which is 60% of the first pass so the grid stays quiet in both schemes.
+- Registry and dashboard pages keep their own washes.
+
+### Notes
+
+No registry restart needed.
