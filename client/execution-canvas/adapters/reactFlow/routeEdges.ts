@@ -91,10 +91,14 @@ export function routeWorkflowEdges(nodes: RoutedNode[], edges: RoutedEdgeInput[]
   for (const edge of ordered) {
     const lane = forwardLane.get(edge.id) ?? 0
     const local = isBackward(edge) ? null : isMixed(edge) ? routeMixed(edge, lane) : routeForward(edge, lane)
+    const clear = local && !middleIntersects(local, nodes) ? local : null
+    // A forward edge that would cross a card steps into the gutter beside it.
+    // The outer rail is for a real return, which leaves the row and comes back.
+    const detour = clear || isBackward(edge) ? null : routeDetour(edge, nodes)
     const points =
-      local && !middleIntersects(local, nodes)
-        ? local
-        : routeOuter(edge, railLane.get(edge.id) ?? Math.abs(Math.round(lane)), nodes, reservedY, reservedX)
+      clear ??
+      detour ??
+      routeOuter(edge, railLane.get(edge.id) ?? Math.abs(Math.round(lane)), nodes, reservedY, reservedX)
     byId.set(edge.id, {
       id: edge.id,
       points: dedupe(points),
@@ -149,12 +153,8 @@ export function portPoint(node: RoutedNode, side: PortSide, role: 'source' | 'ta
   }
 }
 
-function anchorRatio(side: PortSide, role: 'source' | 'target'): number {
-  if (side === 'top' && role === 'source') return 0.78
-  if (side === 'bottom' && role === 'source') return 0.22
-  if (side === 'bottom' && role === 'target') return 0.78
-  if (side === 'left' && role === 'source') return 0.78
-  if (side === 'right' && role === 'target') return 0.78
+/** Every port is the center of its side, so a squared edge meets the handle. */
+function anchorRatio(_side: PortSide, _role: 'source' | 'target'): number {
   return 0.5
 }
 
@@ -277,6 +277,45 @@ function routeMixed(edge: RoutedEdgeInput, lane: number): Point[] {
       ? { x: departed.x, y: arrived.y + shift }
       : { x: arrived.x + shift, y: departed.y }
   return [source, departed, corner, arrived, target]
+}
+
+/** Step over a card that sits between two ports, staying beside that card. */
+function routeDetour(edge: RoutedEdgeInput, nodes: RoutedNode[]): Point[] | null {
+  const sourceHorizontal = edge.sourceSide === 'left' || edge.sourceSide === 'right'
+  const targetHorizontal = edge.targetSide === 'left' || edge.targetSide === 'right'
+  if (sourceHorizontal !== targetHorizontal) return null
+  const span = Math.abs(travel(edge))
+  if (span < 8) return null
+  const offset = Math.max(fittedOffset(span), 12)
+  const source = edge.sourcePoint
+  const target = edge.targetPoint
+  const sourceDir = DIR[edge.sourceSide]
+  const targetDir = DIR[edge.targetSide]
+  const departed = {
+    x: source.x + sourceDir.x * offset,
+    y: source.y + sourceDir.y * offset,
+  }
+  const arrived = {
+    x: target.x + targetDir.x * offset,
+    y: target.y + targetDir.y * offset,
+  }
+  const preferred = sourceHorizontal ? (source.y + target.y) / 2 : (source.x + target.x) / 2
+  for (let delta = 0; delta <= 240; delta += 6) {
+    const shifts = delta === 0 ? [0] : [delta, -delta]
+    for (const shift of shifts) {
+      const lane = preferred + shift
+      const blocked = sourceHorizontal
+        ? horizontalHits(lane, departed.x, arrived.x, nodes)
+        : verticalHits(lane, departed.y, arrived.y, nodes)
+      if (blocked) continue
+      const points = sourceHorizontal
+        ? [source, departed, { x: departed.x, y: lane }, { x: arrived.x, y: lane }, arrived, target]
+        : [source, departed, { x: lane, y: departed.y }, { x: lane, y: arrived.y }, arrived, target]
+      const clean = dedupe(points)
+      if (!middleIntersects(clean, nodes)) return clean
+    }
+  }
+  return null
 }
 
 function routeOuter(

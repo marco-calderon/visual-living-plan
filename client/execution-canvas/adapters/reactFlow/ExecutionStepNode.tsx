@@ -1,4 +1,4 @@
-import { createContext, memo, useContext, type CSSProperties } from 'react'
+import { createContext, memo, useContext } from 'react'
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
 import type { ExecutionNodeStatus } from '../../../../src/execution.ts'
 import { planRefHash } from '../../../../src/planRefNavigation.ts'
@@ -20,16 +20,15 @@ const ports: Array<{
   id: string
   type: 'source' | 'target'
   position: Position
-  style?: CSSProperties
 }> = [
   { id: 'in-left', type: 'target', position: Position.Left },
   { id: 'out-right', type: 'source', position: Position.Right },
   { id: 'in-top', type: 'target', position: Position.Top },
-  { id: 'out-top', type: 'source', position: Position.Top, style: { left: '78%' } },
-  { id: 'out-bottom', type: 'source', position: Position.Bottom, style: { left: '22%' } },
-  { id: 'in-bottom', type: 'target', position: Position.Bottom, style: { left: '78%' } },
-  { id: 'out-left', type: 'source', position: Position.Left, style: { top: '78%' } },
-  { id: 'in-right', type: 'target', position: Position.Right, style: { top: '78%' } },
+  { id: 'out-top', type: 'source', position: Position.Top },
+  { id: 'out-bottom', type: 'source', position: Position.Bottom },
+  { id: 'in-bottom', type: 'target', position: Position.Bottom },
+  { id: 'out-left', type: 'source', position: Position.Left },
+  { id: 'in-right', type: 'target', position: Position.Right },
 ]
 
 function ExecutionStepNodeComponent({ data }: NodeProps<ExecutionStepNodeType>) {
@@ -45,7 +44,6 @@ function ExecutionStepNodeComponent({ data }: NodeProps<ExecutionStepNodeType>) 
           type={port.type}
           position={port.position}
           className="rf-handle"
-          style={port.style}
         />
       ))}
       <div className="rf-step-status">
