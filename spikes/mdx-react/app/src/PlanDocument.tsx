@@ -68,7 +68,7 @@ export function PlanDocument({ body }: PlanDocumentProps) {
   }
   if (!content) return <p data-plan-rendering="">Rendering plan…</p>
   return (
-    <article className="plan-document" data-plan-rendered="">
+    <article className="plan-document plan-ui" data-plan-rendered="">
       {content}
     </article>
   )

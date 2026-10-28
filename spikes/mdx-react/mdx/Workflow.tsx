@@ -24,35 +24,33 @@ export function Workflow({ id, title = 'Expected execution', nodes, edges, child
   }, [edges, nodes, source])
 
   return (
-    <section id={id} className="vlp-workflow" aria-label={title}>
-      <h3 style={{ marginTop: 0 }}>{title}</h3>
+    <section id={id} className="vlp-workflow plan-panel" aria-label={title}>
+      <h3 className="plan-title">{title}</h3>
       {layout.nodes.length === 0 ? <p>Workflow has no steps.</p> : null}
       {layout.nodes.length > 0 ? (
         <svg
           role="img"
           aria-label={title}
           viewBox={`${layout.minX} ${layout.minY} ${layout.width} ${layout.height}`}
-          style={{ width: '100%', height: 'auto', display: 'block' }}
         >
           <defs>
             <marker id={`${id || 'workflow'}-arrow`} markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-              <path d="M0,0 L7,3 L0,6 Z" fill="#5b6b63" />
+              <path className="vlp-workflow-arrow" d="M0,0 L7,3 L0,6 Z" />
             </marker>
             <marker id={`${id || 'workflow'}-loop`} markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-              <path d="M0,0 L7,3 L0,6 Z" fill="#0f766e" />
+              <path className="vlp-workflow-arrow is-loop" d="M0,0 L7,3 L0,6 Z" />
             </marker>
           </defs>
           {layout.edges.map((edge) => (
             <g key={edge.id}>
               <path
+                className={edge.loop ? 'vlp-workflow-edge is-loop' : 'vlp-workflow-edge'}
                 d={edge.path}
-                fill="none"
-                stroke={edge.loop ? '#0f766e' : '#5b6b63'}
                 strokeWidth={edge.loop ? 1.75 : 1.4}
                 markerEnd={`url(#${id || 'workflow'}-${edge.loop ? 'loop' : 'arrow'})`}
               />
               {edge.label ? (
-                <text x={edge.labelX} y={edge.labelY - 6} textAnchor="middle" fill="#14201b" fontSize="12">
+                <text className="vlp-workflow-edge-label" x={edge.labelX} y={edge.labelY - 6} textAnchor="middle" fontSize="12">
                   {edge.label}
                 </text>
               ) : null}
@@ -76,15 +74,14 @@ function WorkflowCard({ node }: { node: PlacedWorkflowNode }) {
     <a href={node.planRef ? `#${node.planRef}` : undefined}>
       <g>
         <rect
+          className="vlp-workflow-card"
           x={node.x}
           y={node.y}
           width={node.width}
           height={node.height}
           rx="12"
-          fill="rgba(255, 255, 255, 0.94)"
-          stroke="rgba(20, 32, 27, 0.12)"
         />
-        <text x={node.x + 16} y={node.y + cursor} fill="#14201b" fontSize="15" fontWeight="600">
+        <text className="vlp-workflow-label" x={node.x + 16} y={node.y + cursor} fontSize="15" fontWeight="600">
           {labelLines.map((line) => {
             const y = cursor
             cursor += 22
@@ -96,7 +93,7 @@ function WorkflowCard({ node }: { node: PlacedWorkflowNode }) {
           })}
         </text>
         {detailLines.length > 0 ? (
-          <text x={node.x + 16} y={node.y + (cursor += 8)} fill="#5b6b63" fontSize="13">
+          <text className="vlp-workflow-detail" x={node.x + 16} y={node.y + (cursor += 8)} fontSize="13">
             {detailLines.map((line) => {
               const y = cursor
               cursor += 20
@@ -109,7 +106,7 @@ function WorkflowCard({ node }: { node: PlacedWorkflowNode }) {
           </text>
         ) : null}
         {reference ? (
-          <text x={node.x + 16} y={node.y + cursor + 18} fill="#0f766e" fontSize="12">
+          <text className="vlp-workflow-ref" x={node.x + 16} y={node.y + cursor + 18} fontSize="12">
             {`Plan · ${reference}`}
           </text>
         ) : null}

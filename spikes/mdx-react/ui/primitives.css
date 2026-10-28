@@ -1,12 +1,56 @@
-/* Dark tokens from the plan page (:root[data-theme="dark"] in src/render.ts). */
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,680&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap");
+/* Tokens, grid, and motion copied from src/render.ts and src/processesPanel.ts. */
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap");
 
-.plan-ui {
+:root {
+  color-scheme: light;
+  --ink: #14201b;
+  --muted: #5b6b63;
+  --paper: #eef3f0;
+  --paper-2: #e3ebe6;
+  --page-top: #f7faf8;
+  --panel: rgba(255, 255, 255, 0.72);
+  --panel-strong: rgba(255, 255, 255, 0.86);
+  --line: rgba(20, 32, 27, 0.12);
+  --accent: #0f766e;
+  --accent-2: #b45309;
+  --danger: #b42318;
+  --ok: #166534;
+  --on-accent: #ffffff;
+  --shadow: 0 18px 50px rgba(20, 32, 27, 0.08);
+  --radius: 18px;
+  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --font-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --wash-accent: rgba(15, 118, 110, 0.16);
+  --wash-warm: rgba(180, 83, 9, 0.12);
+  --chip-bg: rgba(255, 255, 255, 0.55);
+  --tabs-bg: rgba(255, 255, 255, 0.62);
+  --control-bg: rgba(255, 255, 255, 0.8);
+  --control-solid: rgba(255, 255, 255, 0.7);
+  --surface-soft: rgba(255, 255, 255, 0.55);
+  --code-inline-bg: rgba(15, 118, 110, 0.08);
+  --code-block-bg: #12201b;
+  --code-block-fg: #dff7ef;
+  --accent-soft: rgba(15, 118, 110, 0.08);
+  --accent-border: rgba(15, 118, 110, 0.22);
+  --accent-hover-border: rgba(15, 118, 110, 0.45);
+  --accent-hover-shadow: 0 10px 24px rgba(15, 118, 110, 0.12);
+  --danger-soft: rgba(180, 35, 24, 0.08);
+  --danger-border: rgba(180, 35, 24, 0.28);
+  --pulse: rgba(15, 118, 110, 0.45);
+  --grid-major: color-mix(in srgb, var(--accent) 20.4%, transparent);
+  --grid-minor: color-mix(in srgb, var(--accent) 9.6%, transparent);
+  --node-bg: rgba(255, 255, 255, 0.94);
+  --node-shadow: 0 10px 24px rgba(20, 32, 27, 0.08);
+}
+
+:root[data-theme="dark"] {
   color-scheme: dark;
   --ink: #e8f3ee;
   --muted: #b7c7c0;
   --paper: #101816;
   --paper-2: #0c1210;
+  --page-top: #0d1513;
   --panel: rgba(22, 36, 32, 0.78);
   --panel-strong: rgba(16, 26, 23, 0.92);
   --line: rgba(232, 243, 238, 0.14);
@@ -16,13 +60,16 @@
   --ok: #4ade80;
   --on-accent: #06221e;
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.38);
-  --radius: 18px;
-  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
-  --font-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --wash-accent: rgba(45, 212, 191, 0.16);
+  --wash-warm: rgba(251, 191, 36, 0.1);
+  --chip-bg: rgba(255, 255, 255, 0.06);
+  --tabs-bg: rgba(255, 255, 255, 0.05);
   --control-bg: rgba(8, 14, 12, 0.55);
   --control-solid: rgba(8, 14, 12, 0.45);
   --surface-soft: rgba(255, 255, 255, 0.04);
+  --code-inline-bg: rgba(45, 212, 191, 0.14);
+  --code-block-bg: #07110e;
+  --code-block-fg: #dff7ef;
   --accent-soft: rgba(45, 212, 191, 0.14);
   --accent-border: rgba(45, 212, 191, 0.32);
   --accent-hover-border: rgba(45, 212, 191, 0.55);
@@ -30,6 +77,13 @@
   --danger-soft: rgba(248, 113, 113, 0.12);
   --danger-border: rgba(248, 113, 113, 0.4);
   --pulse: rgba(45, 212, 191, 0.45);
+  --grid-major: color-mix(in srgb, var(--accent) 15.6%, transparent);
+  --grid-minor: color-mix(in srgb, var(--accent) 7.2%, transparent);
+  --node-bg: rgba(18, 32, 28, 0.96);
+  --node-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+
+.plan-ui {
   color: var(--ink);
   font-family: var(--font-body);
   font-size: 1rem;
@@ -41,12 +95,20 @@
   box-sizing: border-box;
 }
 
+.plan-graph,
 .plan-surface {
   background-color: var(--paper);
   background-image:
-    linear-gradient(color-mix(in srgb, var(--accent) 16%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--accent) 16%, transparent) 1px, transparent 1px);
-  background-size: 20px 20px;
+    linear-gradient(var(--grid-major) 2px, transparent 2px),
+    linear-gradient(90deg, var(--grid-major) 2px, transparent 2px),
+    linear-gradient(var(--grid-minor) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-minor) 1px, transparent 1px);
+  background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+  background-position: -2px -2px, -2px -2px, -1px -1px, -1px -1px;
+  background-attachment: fixed;
+}
+
+.plan-surface {
   min-height: 100%;
   padding: 1.25rem;
 }
@@ -61,12 +123,25 @@
   max-width: 100%;
 }
 
+.plan-panel,
 .plan-box[data-surface="panel"] {
-  background: var(--panel-strong);
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 1.15rem 1.25rem;
+  backdrop-filter: blur(10px);
   box-shadow: var(--shadow);
+  animation: rise 0.55s ease both;
+}
+
+.plan-popover {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel-strong);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(16px);
+  transform-origin: top left;
+  animation: processes-panel-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .plan-box[data-surface="soft"] {
@@ -203,10 +278,14 @@
   margin: 0;
   color: var(--ink);
   font-family: var(--font-display);
-  font-weight: 560;
+  font-weight: 700;
   font-size: 1.35rem;
   letter-spacing: -0.02em;
   line-height: 1.15;
+}
+
+.plan-phase .plan-title {
+  font-size: 1.25rem;
 }
 
 .plan-kicker,
@@ -224,19 +303,75 @@
 .plan-rich {
   min-width: 0;
   overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
-.plan-rich > * + * { margin-top: 0.75rem; }
-.plan-rich :is(p, ul, ol) { margin: 0; }
-.plan-rich :is(p, li) { line-height: 1.55; }
+.plan-document {
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+
+.plan-document > :is(h1, h2, h3),
+.plan-rich :is(h1, h2, h3):not(.plan-title) {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.55rem;
+  line-height: 1.15;
+}
+
+.plan-document > h1 {
+  font-size: 1.45rem;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.plan-rich :is(p, li),
+.plan-document > :is(p, li) {
+  line-height: 1.55;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.plan-rich p,
+.plan-document > p { margin: 0 0 0.75rem; }
+
+.plan-rich :is(ul, ol),
+.plan-document > :is(ul, ol) { margin: 0 0 0.75rem; padding-left: 1.2rem; }
+
+.plan-document > blockquote {
+  margin: 0 0 0.85rem;
+  color: var(--muted);
+}
+
+.plan-document a { color: var(--accent); }
+
+.plan-rich :not(pre) > code,
+.plan-document :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--code-inline-bg);
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.35rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.plan-document pre:not(.mermaid),
+.plan-rich pre:not(.mermaid),
+.code-block {
+  margin: 0 0 0.85rem;
+  max-width: 100%;
+  overflow: auto;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  background: var(--code-block-bg);
+  color: var(--code-block-fg);
+  font-family: var(--font-mono);
+}
 
 .plan-entry {
   scroll-margin: 1.25rem;
-}
-
-.plan-entry .plan-entry {
-  box-shadow: none;
-  background: var(--control-solid);
 }
 
 .plan-entry[data-locked="true"] { opacity: 0.78; }
@@ -254,7 +389,7 @@
 
 .plan-phase[data-status="active"] .plan-phase-rail {
   background: var(--accent);
-  animation: plan-glow 1.6s ease infinite;
+  animation: glow 1.6s ease infinite;
 }
 
 .plan-phase[data-status="done"] .plan-phase-rail { background: var(--ok); }
@@ -278,10 +413,6 @@
 .plan-callout[data-kind="risk"] .plan-callout-label,
 .plan-callout[data-kind="warning"] .plan-callout-label { color: var(--danger); }
 .plan-callout[data-kind="decision"] .plan-callout-label { color: var(--accent-2); }
-
-.plan-callout[data-kind="risk"],
-.plan-callout[data-kind="warning"] { border-color: var(--danger-border); }
-.plan-callout[data-kind="decision"] { border-color: color-mix(in srgb, var(--accent-2) 45%, transparent); }
 
 .plan-choice-option {
   width: 100%;
@@ -408,13 +539,132 @@
 
 .plan-workflow-edges { color: var(--muted); font-size: 0.88rem; }
 
-@keyframes plan-glow {
-  0%, 100% { box-shadow: 0 0 0 0 var(--pulse); }
-  50% { box-shadow: 0 0 0 4px transparent; }
+.vlp-workflow h3 {
+  margin: 0 0 0.45rem;
+}
+
+.vlp-workflow svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  font-family: var(--font-body);
+}
+
+.vlp-workflow-card {
+  fill: var(--node-bg);
+  stroke: var(--line);
+}
+
+.vlp-workflow-label { fill: var(--ink); }
+.vlp-workflow-detail { fill: var(--muted); }
+.vlp-workflow-ref { fill: var(--accent); }
+.vlp-workflow-edge { fill: none; stroke: var(--muted); }
+.vlp-workflow-edge.is-loop { stroke: var(--accent); }
+.vlp-workflow-arrow { fill: var(--muted); }
+.vlp-workflow-arrow.is-loop { fill: var(--accent); }
+.vlp-workflow-edge-label { fill: var(--ink); }
+
+.vlp-chart {
+  margin: 0 0 1rem;
+  color: var(--ink);
+}
+
+.vlp-chart figcaption {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.mermaid-diagram {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-strong);
+  overflow: hidden;
+  --pele-bg: var(--paper);
+  --pele-fg: var(--ink);
+  --pele-muted: var(--muted);
+  --pele-line: var(--accent);
+  --pele-surface: color-mix(in srgb, var(--accent) 14%, var(--paper));
+  --pele-surface-alt: color-mix(in srgb, var(--accent) 8%, var(--paper-2));
+  --pele-border: var(--accent);
+  --pele-accent: var(--accent);
+  --pele-critical: var(--danger);
+  --pele-error: var(--danger);
+  --pele-font: var(--font-body);
+  --pele-font-mono: var(--font-mono);
+  --pele-radius: 8px;
+  --pele-series-1: var(--accent);
+  --pele-series-2: var(--accent-2);
+  --pele-series-3: var(--ok);
+  --pele-series-4: var(--danger);
+  --pele-series-5: color-mix(in srgb, var(--accent) 62%, var(--accent-2));
+  --pele-series-6: color-mix(in srgb, var(--accent-2) 68%, var(--ink));
+  --pele-series-7: color-mix(in srgb, var(--accent) 48%, var(--danger));
+  --pele-series-8: color-mix(in srgb, var(--ok) 55%, var(--accent));
+}
+
+:root[data-theme="dark"] .mermaid-diagram {
+  --pele-surface: color-mix(in srgb, var(--accent) 22%, var(--paper));
+  --pele-surface-alt: color-mix(in srgb, var(--accent) 12%, var(--paper-2));
+  --pele-line: color-mix(in srgb, var(--accent) 78%, var(--ink));
+  --pele-border: color-mix(in srgb, var(--accent) 72%, var(--ink));
+}
+
+.mermaid-diagram .mermaid {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  white-space: pre-wrap;
+  color: var(--muted);
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes processes-panel-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -12px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes processes-panel-out {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, -12px, 0) scale(0.96);
+  }
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 var(--pulse); }
+  70% { box-shadow: 0 0 0 10px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+@keyframes glow {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .plan-phase[data-status="active"] .plan-phase-rail { animation: none; }
+  .plan-phase[data-status="active"] .plan-phase-rail,
+  .plan-panel,
+  .plan-box[data-surface="panel"],
+  .plan-popover { animation: none; }
   .plan-choice-option,
   .plan-btn { transition: none; }
 }

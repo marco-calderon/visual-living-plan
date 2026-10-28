@@ -23,7 +23,7 @@ export function LineChart({ ariaLabel, title, rows, height = 280, children }: Li
         lineY(data, {
           x: 'label',
           y: 'value',
-          stroke: '#0f766e',
+          stroke: 'var(--accent)',
         }),
       ],
       scales: {
@@ -41,8 +41,8 @@ export function LineChart({ ariaLabel, title, rows, height = 280, children }: Li
   }, [rows, source, title])
 
   return (
-    <figure className="vlp-chart" aria-label={ariaLabel} style={{ margin: '0 0 1rem' }}>
-      {title ? <figcaption style={{ fontWeight: 600, marginBottom: 8 }}>{title}</figcaption> : null}
+    <figure className="vlp-chart" aria-label={ariaLabel}>
+      {title ? <figcaption>{title}</figcaption> : null}
       <Chart definition={definition} ariaLabel={ariaLabel} height={height} initialWidth={720} />
     </figure>
   )

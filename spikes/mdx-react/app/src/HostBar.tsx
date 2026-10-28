@@ -32,7 +32,7 @@ export function HostBar(props: HostBarProps) {
   const canRestore = selected !== '' && selected !== openPlan?.headSnapshotId
 
   return (
-    <header className="host-bar">
+    <header className="host-bar plan-popover">
       <div className="host-row">
         <p className="host-name">MDX plan</p>
         <p className="host-status" data-connected={props.connected ? 'true' : 'false'}>
