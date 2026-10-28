@@ -25,7 +25,7 @@ No registry restart needed. The comment fields and the page were already in plac
 
 ## 0.7.0
 
-**PR:** (link once known)
+**PR:** [#57](https://github.com/marco-calderon/visual-living-plan/pull/57)
 
 **Bump:** minor
 
