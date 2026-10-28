@@ -42,3 +42,21 @@ No registry restart needed. The comment fields and the page were already in plac
 ### Notes
 
 Installing this version does not turn LAN publishing on. `lan on` restarts the local service so the new bind takes effect. ADR 0016 stays accepted: `serve` and `review` still print `http://127.0.0.1:9477/plans/<id>/`, and the CLI does not resolve `*.local`.
+
+## 0.7.1
+
+**PR:** (link once opened)
+
+**Bump:** patch
+
+### Summary
+
+A sample under `spikes/mdx-react` renders one MDX plan with React entries, a Pele diagram, a TanStack chart, and an ELK workflow. The live plan page and the CLI are unchanged.
+
+### New features
+
+- The sample host stores the plan in SQLite and streams edits over one shared event connection. Restoring a snapshot updates the open plan without a reload.
+
+### Notes
+
+No registry restart needed. The sample is not part of the published package.
