@@ -370,9 +370,12 @@
 }
 
 .plan-step-digit {
+  display: block;
   font-size: clamp(1.125rem, 52cqi, 1.75rem);
   font-variant-numeric: tabular-nums;
   line-height: 1;
+  /* DM Sans figures sit high in the em box. This puts the ink in the middle of the square. */
+  transform: translateY(0.07em);
 }
 
 a.plan-step-number { cursor: pointer; }
