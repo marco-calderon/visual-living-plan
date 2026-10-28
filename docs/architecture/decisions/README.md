@@ -23,6 +23,7 @@ Decisions are numbered in the order they were made. Superseded decisions stay he
 | [0017](0017-xdg-config-home.md) | 2026-10-27 | Accepted | Machine config, registry, and logs live under ~/.config/living-plan |
 | [0018](0018-markdoc-plan-tags.md) | 2026-10-27 | Superseded by 0020 | Plan entries are Markdoc tags, rendered to the existing section HTML |
 | [0019](0019-lan-publishing.md) | 2026-10-28 | Accepted | LAN publishing is opt-in and does not replace the loopback URL |
-| [0020](0020-mdx-plan-page.md) | 2026-10-28 | Accepted | The plan page is the MDX React app; Markdoc is not on the render path |
+| [0020](0020-mdx-plan-page.md) | 2026-10-28 | Accepted; fence rewrite superseded by 0021 | The plan page is the MDX React app; Markdoc is not on the render path |
+| [0021](0021-mdx-plan-entries.md) | 2026-10-28 | Accepted | Agents author MDX components; Markdoc tags and YAML entry fences are not parsed |
 
-Add the next decision as `0021-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.
+Add the next decision as `0022-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.

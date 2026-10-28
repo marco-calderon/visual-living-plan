@@ -93,34 +93,18 @@ test('a planned workflow uses the elk positions', () => {
 title: Wide
 ---
 
+<workflow id="wide" title="Wide row">
 \`\`\`workflow
-id: wide
-title: Wide row
-nodes:
-  - id: design
-    label: Confirm limiter design
-    x: 10
-    y: 10
-  - id: redis
-    label: Redis dependency
-    x: 10
-    y: 10
-  - id: fail-mode
-    label: Choose fail mode
-    x: 10
-    y: 10
-  - id: limits
-    label: Set production limits
-    x: 10
-    y: 10
-edges:
-  - from: design
-    to: redis
-  - from: redis
-    to: fail-mode
-  - from: fail-mode
-    to: limits
+design | Confirm limiter design | design
+redis | Redis dependency | redis
+fail-mode | Choose fail mode | fail-mode
+limits | Set production limits | limits
+--
+design -> redis
+redis -> fail-mode
+fail-mode -> limits
 \`\`\`
+</workflow>
 `)
   const expected = planToExpectedGraph(plan)
   assert.ok(expected)

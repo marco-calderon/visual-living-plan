@@ -293,62 +293,6 @@ function paint(chroma: Chroma, saturation: number, lightness: number): { r: numb
   })
 }
 
-/**
- * Page surfaces keep the same lightness as the built-in green cast, but take
- * their hue from the configured accent so the background follows the theme.
- */
-function surfaceCustomProperties(accent: string, mode: 'light' | 'dark'): string {
-  const chroma = accentChroma(accentForMode(accent, mode))
-  if (mode === 'light') {
-    const ink = paint(chroma, 0.23, 0.102)
-    const pageTop = paint(chroma, 0.231, 0.975)
-    return `
-  --ink: ${toHex(ink)};
-  --muted: ${toHex(paint(chroma, 0.081, 0.388))};
-  --paper: ${toHex(paint(chroma, 0.172, 0.943))};
-  --paper-2: ${toHex(paint(chroma, 0.167, 0.906))};
-  --page-top: ${toHex(pageTop)};
-  --stage-bg: ${toHex(pageTop)};
-  --line: ${rgba(ink, 0.12)};
-  --shadow: 0 18px 50px ${rgba(ink, 0.08)};
-  --dot: ${rgba(ink, 0.12)};
-  --node-shadow: 0 10px 24px ${rgba(ink, 0.08)};
-  --code-block-bg: ${toHex(paint(chroma, 0.281, 0.098))};
-  --code-block-fg: ${toHex(paint(chroma, 0.599, 0.922))};
-  --toast-bg: ${toHex(ink)};
-  --minimap-mask: ${rgba(pageTop, 0.65)};`
-  }
-
-  const ink = paint(chroma, 0.314, 0.931)
-  const pageTop = paint(chroma, 0.236, 0.067)
-  const stage = paint(chroma, 0.222, 0.071)
-  const control = paint(chroma, 0.279, 0.043)
-  const onLight = paint(chroma, 0.335, 0.094)
-  return `
-  --ink: ${toHex(ink)};
-  --muted: ${toHex(paint(chroma, 0.125, 0.749))};
-  --paper: ${toHex(paint(chroma, 0.2, 0.078))};
-  --paper-2: ${toHex(paint(chroma, 0.199, 0.059))};
-  --page-top: ${toHex(pageTop)};
-  --stage-bg: ${toHex(stage)};
-  --panel: ${rgba(paint(chroma, 0.241, 0.114), 0.78)};
-  --panel-strong: ${rgba(paint(chroma, 0.236, 0.082), 0.92)};
-  --node-bg: ${rgba(paint(chroma, 0.28, 0.098), 0.96)};
-  --line: ${rgba(ink, 0.14)};
-  --dot: ${rgba(ink, 0.14)};
-  --control-bg: ${rgba(control, 0.55)};
-  --control-solid: ${rgba(control, 0.45)};
-  --code-block-bg: ${toHex(paint(chroma, 0.415, 0.047))};
-  --code-block-fg: ${toHex(paint(chroma, 0.599, 0.922))};
-  --tab-active-bg: ${toHex(ink)};
-  --tab-active-fg: ${toHex(onLight)};
-  --toast-bg: ${toHex(ink)};
-  --toast-fg: ${toHex(onLight)};
-  --handle-border: ${toHex(onLight)};
-  --review-bg: ${toHex(paint(chroma, 0.221, 0.116))};
-  --minimap-mask: ${rgba(control, 0.55)};`
-}
-
 /** Lift dark accents toward a readable mid luminance on dark surfaces. */
 export function accentForMode(accent: string, mode: 'light' | 'dark'): string {
   const normalized = normalizeAccent(accent) ?? DEFAULT_ACCENT
@@ -391,6 +335,7 @@ export function deriveAccentVars(accent: string, mode: 'light' | 'dark'): ThemeA
   }
 }
 
+/** Accent swatches and node highlights only. Canvas, surface, and ink stay in the page stylesheet. */
 export function accentCssCustomProperties(accent: string): string {
   const light = deriveAccentVars(accent, 'light')
   const dark = deriveAccentVars(accent, 'dark')
@@ -406,7 +351,6 @@ export function accentCssCustomProperties(accent: string): string {
   --pulse: ${vars.pulse};
   --node-active-border: ${vars.nodeActiveBorder};
   --node-active-ring: ${vars.nodeActiveRing};
-${surfaceCustomProperties(accent, mode)}
 `
   return `
 :root {

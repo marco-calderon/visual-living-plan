@@ -151,7 +151,7 @@ A row overlaps the selected window when it started before the end of the window 
 | `src/agentEvents.ts` | SSE reader, ack helper, and `planApiUrl` used by the CLI |
 | `src/dashboard.ts`, `src/dashboardPage.ts`, `src/tui/` | Period summary, the dashboard page, and the terminal view of the same read |
 | `src/planArchive.ts` | Copy a plan file into the registry home and serve that copy |
-| `src/parse.ts`, `src/markdoc/` | Parse `.plan.md` for the session model (interactions, workflow, progress). Markdoc is not used to render the page ([ADR 0020](decisions/0020-mdx-plan-page.md)) |
+| `src/parse.ts`, `src/planMdx/outline.ts` | Parse MDX plan components for the session model (interactions, workflow, progress). `{% tags %}` and YAML entry fences are rejected ([ADR 0021](decisions/0021-mdx-plan-entries.md)) |
 | `src/planMdx/`, `src/planSnapshots.ts`, `client/planMdx.tsx`, `spikes/mdx-react/` | The plan column. The page compiles MDX and renders the React entries, Pele diagrams, ELK workflow, and TanStack charts. Source history is the sample's snapshot tables |
 | `src/render.ts`, `client/` | The plan shell: title bar, dashboard navigation, settings, review, comments. API calls are prefixed with the plan's base path |
 

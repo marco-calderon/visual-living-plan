@@ -2,6 +2,7 @@
 
 Project context for changing this repo: [docs/context.md](docs/context.md).
 Architecture: [docs/architecture/README.md](docs/architecture/README.md).
+Design system: [DESIGN.md](DESIGN.md).
 Authoring living plans (consumers): [skills/live-plan/SKILL.md](skills/live-plan/SKILL.md).
 
 ## Project skills

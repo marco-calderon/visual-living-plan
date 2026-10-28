@@ -33,7 +33,7 @@ const appearanceBase = {
   overflow: 'scroll' as const,
   unsafeCSS: `
     :host {
-      --diffs-font-family: "IBM Plex Mono", ui-monospace, monospace;
+      --diffs-font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       --diffs-font-size: 13.5px;
       --diffs-line-height: 22px;
     }

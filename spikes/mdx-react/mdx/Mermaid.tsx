@@ -2,8 +2,8 @@ import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { render } from 'pele'
 import { collectText } from './textChildren.ts'
 
-const FONT = '"IBM Plex Sans", "Helvetica Neue", Arial, sans-serif'
-const FONT_MONO = '"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace'
+const FONT = '"DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif'
+const FONT_MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
 
 type MermaidProps = {
   chart?: string

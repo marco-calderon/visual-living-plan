@@ -26,7 +26,6 @@ export const PROCESSES_PANEL_STYLES = `
   font: inherit;
   font-weight: 600;
   cursor: pointer;
-  backdrop-filter: blur(14px);
 }
 .processes-toggle:focus-visible {
   outline: 2px solid var(--accent);
@@ -50,10 +49,9 @@ export const PROCESSES_PANEL_STYLES = `
   max-height: min(70vh, 640px);
   overflow: auto;
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: 16px;
   background: var(--panel-strong);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(16px);
   padding: 0.85rem;
   transform-origin: top right;
 }
@@ -97,6 +95,7 @@ export const PROCESSES_PANEL_STYLES = `
 }
 .processes-head strong {
   font-family: var(--font-display);
+  font-weight: 600;
   font-size: 1.15rem;
 }
 .processes-links { display: flex; gap: 0.7rem; }
@@ -201,7 +200,7 @@ a.process-title:hover { color: var(--accent); }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8rem;
   line-height: 1.4;
   color: var(--ink);
@@ -296,7 +295,7 @@ a.process-title:hover { color: var(--accent); }
   padding: 0;
   list-style: none;
   color: var(--muted);
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
 }
 `

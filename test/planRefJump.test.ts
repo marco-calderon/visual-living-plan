@@ -18,38 +18,22 @@ title: Reference jumps
 
 # Reference jumps
 
-\`\`\`phase
-id: design
-title: Confirm limiter design
-status: pending
-body: |
-  Start here.
-\`\`\`
+<phase id="design" title="Confirm limiter design" status="pending">
+Start here.
+</phase>
 
 ${filler}
 
-\`\`\`phase
-id: later
-title: Later step
-status: pending
-body: |
-  End of the plan.
-\`\`\`
+<phase id="later" title="Later step" status="pending">
+End of the plan.
+</phase>
 
-\`\`\`workflow
-id: rollout
-title: Expected execution
-nodes:
-  - id: design
-    ref: design
-    label: Confirm limiter design
-  - id: later
-    ref: later
-    label: Later step
-edges:
-  - from: design
-    to: later
-\`\`\`
+<workflow id="rollout" title="Expected execution">
+design | Confirm limiter design | design
+later | Later step | later
+--
+design -> later
+</workflow>
 `,
   'reference-jumps.plan.md',
 )

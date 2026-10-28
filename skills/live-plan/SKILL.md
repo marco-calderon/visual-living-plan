@@ -15,6 +15,8 @@ description: >-
 
 Keep one `.plan.md` file as the channel between you and the human. You update the file. They watch a URL, answer interactions, and (in review) Approve, Deny, or Iterate.
 
+The page follows [DESIGN.md](../../DESIGN.md): a white document in light mode and a quiet dark document in dark mode. Author the MDX components that page renders. Do not author Markdoc tags or YAML entry fences.
+
 ## Invoke
 
 Use bunx unless `live-plan` is already on `PATH`. Bun must be installed.
@@ -40,7 +42,7 @@ Skip when the change is a single obvious step, the user asked for plain prose, o
 
 ## Loop
 
-1. Write the plan: title, short summary, phases, a `workflow` block, then only the interactions you need now. The workflow block is required. It is the execution path. Schemas are in [primitives.md](primitives.md).
+1. Write the plan: title, short summary, phases, a `<workflow>` component, then only the interactions you need now. The workflow component is required. It is the execution path. The page follows [DESIGN.md](../../DESIGN.md). Schemas are in [primitives.md](primitives.md).
 2. Validate: `bunx visual-living-plan check path/to/work.plan.md`.
 3. `serve --detach` the file so you get the URL back, or `review` when you need a verdict on the whole plan.
 4. Start `events --url <printed-url>` in the background. It prints one JSON object per line and exits. Each line is `{ "event", "id", "seq", "data" }`. `event` is `comment`, `interaction`, or `review`. An approve/deny gate is an `interaction` with `approved`. A review verdict is `approve`, `deny`, or `iterate`. If submissions are already waiting on the server, this command prints them and exits immediately.
@@ -110,18 +112,20 @@ bunx visual-living-plan theme set --accent #0369a1 --plan path/to/work.plan.md
 
 ## Primitives
 
-Each structured block is a Markdoc tag. The tag name is the type. Give every interactive block a stable `id` and do not rename it mid-run. A tag may contain another tag. A YAML fence whose language is the type still renders; write new blocks as tags.
+Each structured block is an MDX component. The component name is the type. Give every interactive block a stable `id` and do not rename it mid-run. A component may contain another component. `{% tags %}` and a fence whose language is the type (`phase`, `choice`, and the rest) are rejected. Do not write those.
 
-- `phase` — step in the timeline. `status`: `pending` \| `active` \| `blocked` \| `done` \| `failed`. One `active` phase at a time.
-- `callout` — `kind`: `note` \| `tip` \| `risk` \| `decision` \| `warning`.
-- `choice` — human picks one option. Response: `{ kind, id, optionId, label }`.
-- `form` — fields of type `text` \| `number` \| `textarea` \| `select`. Response: `{ kind, id, values }`.
-- `questions` — one free-text item per question. Response: `{ kind, id, answers }`.
-- `approve` — yes/no plus optional note. Response: `{ kind, id, approved, note? }`.
-- `checklist` — definition of done. You set `done`; the human does not submit it.
-- `workflow` — required. This block is the execution path. The Workflow tab draws it before the run, and the live run follows it.
+- `<phase>` — step in the timeline. `status`: `pending` \| `active` \| `blocked` \| `done` \| `failed`. One `active` phase at a time.
+- `<callout>` — `kind`: `note` \| `tip` \| `risk` \| `decision` \| `warning`.
+- `<choice>` with `<option>` children — human picks one option. Response: `{ kind, id, optionId, label }`.
+- `<form>` with `<field>` children — type `text` \| `number` \| `textarea` \| `select`. Response: `{ kind, id, values }`.
+- `<questions>` with `<item>` children — one free-text item per question. Response: `{ kind, id, answers }`. Answer keys are item indexes `"0"`, `"1"`.
+- `<approve>` — yes/no plus optional note. Response: `{ kind, id, approved, note? }`.
+- `<checklist>` — definition of done. You set `done`; the human does not submit it.
+- `<workflow>` — required. This component is the execution path. Its body is a pipe table (`id | label | ref | detail`, then `--`, then `from -> to`). The Workflow tab draws it before the run, and the live run follows it.
+- `<Box>`, `<HStack>`, `<VStack>`, `<Stack>`, `<Row>`, `<ResponsiveStack>` arrange children. They are not plan entries.
+- `<Mermaid>`, `<BarChart>`, and `<LineChart>` draw figures. A `mermaid` fence, a language fence, and a `diff` fence still render in the markdown.
 
-Use the same node id as the plan block id so a click jumps to that section. A self-loop (`from` and `to` are the same id) is drawn as an arc. To close a loop with another card, set `fromSide` and `toSide` (`top`, `right`, `bottom`, or `left`) on the return edge. Live graph nodes use `id`, `label`, optional `detail`, `status` (`pending` \| `active` \| `blocked` \| `done` \| `failed`), and optional `x` / `y`. Edges are `{ from, to }` plus optional `label`, `fromSide`, and `toSide`.
+Use the same node id as the plan block id so a click jumps to that section. A self-loop (`from` and `to` are the same id) is drawn as an arc. To close a loop with another card, set sides on the return edge (`from -> to @ bottom>bottom`). Live graph nodes use `id`, `label`, optional `detail`, `status` (`pending` \| `active` \| `blocked` \| `done` \| `failed`), and optional `x` / `y`. Edges are `{ from, to }` plus optional `label`, `fromSide`, and `toSide`.
 
 Copy-paste schemas and response examples: [primitives.md](primitives.md).
 
@@ -135,13 +139,12 @@ Copy-paste schemas and response examples: [primitives.md](primitives.md).
 - `execution stop` before `wait` or before expecting a review decision.
 - Open the browser for the human. Do not pass `--no-open` unless they cannot use a local browser.
 - Phase and callout bodies support headings, lists, pipe tables, fenced code, bold, italic, and inline code. The row under a table header is `| --- |`. A blank line ends the table.
-- A mermaid fence draws a figure in the plan text. Put it in the plan markdown, or inside a phase, callout, or approve tag.
-- `{% status status="active" /%}` is an inline status chip in that prose. It is not a section.
-- Include one `workflow` block. `check` fails when that block is missing.
+- A mermaid fence, or a `<Mermaid>` component, draws a figure in the plan text. Put it in the plan markdown, or inside a phase, callout, or approve component.
+- Include one `<workflow>` component. `check` fails when that component is missing.
 
 ## Showing code
 
-Put the fence in the plan markdown, or inside a phase, callout, or approve tag. `mermaid` is a figure. A `yaml` fence inside a tag holds that entry's fields. Entry types (`phase`, `callout`, `choice`, and the rest) are tags, not code fences.
+Put the fence in the plan markdown, or inside a phase, callout, or approve component. `mermaid` is a figure. Entry types (`phase`, `callout`, `choice`, and the rest) are MDX components, not code fences. A `workflow` fence is allowed only as the structured body inside `<workflow>`.
 
 Use a **language fence** when the human should read the code as it stands. Name the syntax (`ts`, `python`, `bash`, `json`). The block is highlighted and numbered from 1. Add `start=40` after the language when the snippet is a slice of a larger file and a note should point at those real lines. `start=` applies only to source, not to a diff.
 

@@ -1,8 +1,5 @@
-import { buildOutline } from './markdoc/outline'
-import { parseMarkup } from './markdoc/parseMarkup'
 import { slugify } from './markdoc/payload'
-import { markupErrors, planConfig } from './markdoc/schema'
-import { renderState } from './markdoc/scope'
+import { buildMdxOutline, legacyPlanSyntaxError } from './planMdx/outline'
 import { preparePlanSource } from './markdoc/source'
 import { recordLog } from './serviceLog'
 import type { PlanBlock, PlanDocument } from './types'
@@ -25,24 +22,20 @@ function rememberParseFailure(error: unknown, where: string, sourcePath?: string
 export function parsePlan(source: string, sourcePath?: string, planId?: string): PlanDocument {
   let meta: Record<string, unknown>
   let body: string
-  let rewritten: string
   try {
     const prepared = preparePlanSource(source)
     meta = prepared.meta
     body = prepared.body
-    rewritten = prepared.rewritten
   } catch (error) {
     rememberParseFailure(error, 'frontmatter', sourcePath, planId)
     throw error
   }
 
-  let outline: ReturnType<typeof buildOutline>
+  let outline: ReturnType<typeof buildMdxOutline>
   try {
-    const ast = parseMarkup(rewritten)
-    const config = planConfig(renderState(rewritten))
-    const errors = markupErrors(ast, config)
-    if (errors.length > 0) throw new Error(errors.join('\n'))
-    outline = buildOutline(ast, rewritten)
+    const legacy = legacyPlanSyntaxError(body)
+    if (legacy) throw new Error(legacy)
+    outline = buildMdxOutline(body)
   } catch (error) {
     rememberParseFailure(error, 'markup', sourcePath, planId)
     throw error
