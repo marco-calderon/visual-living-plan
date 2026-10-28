@@ -141,7 +141,7 @@ The canvas, hairline cards, title bar, dashboard, popups, comments, and workflow
 
 ## 1.0.1
 
-**PR:** link once the pull request is open
+**PR:** [#65](https://github.com/marco-calderon/visual-living-plan/pull/65)
 
 **Bump:** patch
 
