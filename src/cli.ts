@@ -68,6 +68,8 @@ Usage:
   live-plan close --url <plan-url> [--token TOKEN]
   live-plan mode <watch|comment|review> --url <plan-url>
   live-plan reply <comment-id> --url <plan-url> --text "..."
+  live-plan addressing <comment-id> --url <plan-url>
+  live-plan address <comment-id> --url <plan-url> [--outcome implemented|errored|issues]
   live-plan execution start --url <plan-url> [--step TEXT] [--detail TEXT] [--graph file.json]
   live-plan execution push --url <plan-url> [--step TEXT] [--detail TEXT] [--graph file.json] [--scene file.json]
   live-plan execution stop --url <plan-url>
@@ -92,7 +94,9 @@ Modes:
   watch       Switch to watch mode and stay running while the plan executes. Prints submissions without exiting.
   close       Drop a plan from the machine service.
   mode        Switch the open session between watch, comment, and review. The open tab follows.
-  reply       Answer one plan comment. The page shows it on that comment's minibar or part thread.
+  reply       Answer one plan comment. The page shows the text on that comment's minibar or part thread.
+  addressing  Mark one comment as being reviewed. The page shows Addressing or Working.
+  address     Mark one comment answered. The page shows Addressed, or the outcome on a minibar message.
   execution   Start/push/stop the live workflow canvas (locks plan forms while active).
   theme       Read or write the accent color in live-plan.config.json (or via a running server).
   check       Print plan summary. Exits 1 when the required workflow block is missing.
@@ -722,19 +726,12 @@ async function cmdMode(args: string[]): Promise<number> {
   return 0
 }
 
-async function cmdReply(args: string[]): Promise<number> {
-  const commentId = args[0]
-  const published = getFlag(args, '--url')
-  const text = getFlag(args, '--text')
-  if (!commentId || commentId.startsWith('--') || !published || text == null) {
-    console.error('Usage: live-plan reply <comment-id> --url <plan-url> --text "..."')
-    return 1
-  }
+async function postPlan(published: string, apiPath: string, body?: unknown): Promise<number> {
   const url = await localServiceUrl(published)
-  const response = await fetch(planApiUrl(url, `/api/comments/${encodeURIComponent(commentId)}/reply`), {
+  const response = await fetch(planApiUrl(url, apiPath), {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ text }),
+    headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
   })
   if (!response.ok) {
     console.error(await response.text())
@@ -742,6 +739,53 @@ async function cmdReply(args: string[]): Promise<number> {
   }
   console.log(JSON.stringify(await response.json(), null, 2))
   return 0
+}
+
+function commentIdFrom(args: string[]): string | undefined {
+  const commentId = args[0]
+  if (!commentId || commentId.startsWith('--')) return undefined
+  return commentId
+}
+
+async function cmdReply(args: string[]): Promise<number> {
+  const commentId = commentIdFrom(args)
+  const published = getFlag(args, '--url')
+  const text = getFlag(args, '--text')
+  if (!commentId || !published || text == null) {
+    console.error('Usage: live-plan reply <comment-id> --url <plan-url> --text "..."')
+    return 1
+  }
+  return postPlan(published, `/api/comments/${encodeURIComponent(commentId)}/reply`, { text })
+}
+
+async function cmdAddressing(args: string[]): Promise<number> {
+  const commentId = commentIdFrom(args)
+  const published = getFlag(args, '--url')
+  if (!commentId || !published) {
+    console.error('Usage: live-plan addressing <comment-id> --url <plan-url>')
+    return 1
+  }
+  return postPlan(published, `/api/comments/${encodeURIComponent(commentId)}/addressing`)
+}
+
+async function cmdAddress(args: string[]): Promise<number> {
+  const usage = 'Usage: live-plan address <comment-id> --url <plan-url> [--outcome implemented|errored|issues]'
+  const commentId = commentIdFrom(args)
+  const published = getFlag(args, '--url')
+  const outcome = getFlag(args, '--outcome')
+  if (!commentId || !published) {
+    console.error(usage)
+    return 1
+  }
+  if (hasFlag(args, '--outcome') && outcome !== 'implemented' && outcome !== 'errored' && outcome !== 'issues') {
+    console.error(usage)
+    return 1
+  }
+  return postPlan(
+    published,
+    `/api/comments/${encodeURIComponent(commentId)}/address`,
+    outcome ? { outcome } : undefined,
+  )
 }
 
 async function cmdClose(args: string[]): Promise<number> {
@@ -1120,6 +1164,14 @@ async function main(): Promise<number> {
 
   if (command === 'reply') {
     return cmdReply(args.slice(1))
+  }
+
+  if (command === 'addressing') {
+    return cmdAddressing(args.slice(1))
+  }
+
+  if (command === 'address') {
+    return cmdAddress(args.slice(1))
   }
 
   if (command === 'execution') {

@@ -1030,3 +1030,116 @@ test('watch stays in watch mode and keeps running after a comment', async () => 
     await rm(home, { recursive: true, force: true })
   }
 })
+
+function runCli(home: string, args: string[]): Promise<{ status: number | null; stdout: string; stderr: string }> {
+  return new Promise((resolveExit) => {
+    const child = spawn(process.execPath, ['src/cli.ts', ...args], {
+      cwd: resolve('.'),
+      env: { ...process.env, LIVE_PLAN_HOME: home },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    let stdout = ''
+    let stderr = ''
+    child.stdout?.setEncoding('utf8')
+    child.stderr?.setEncoding('utf8')
+    child.stdout?.on('data', (chunk: string) => {
+      stdout += chunk
+    })
+    child.stderr?.on('data', (chunk: string) => {
+      stderr += chunk
+    })
+    const timer = setTimeout(() => child.kill('SIGKILL'), 10_000)
+    child.once('exit', (status) => {
+      clearTimeout(timer)
+      resolveExit({ status, stdout, stderr })
+    })
+  })
+}
+
+test('addressing, reply, and address move a comment from reviewing to answered', { timeout: 30_000 }, async () => {
+  const home = await tempHome()
+  const registry = await startRegistryServer({ home, port: 0, token: 'test-token-value' })
+  try {
+    const hosted = await registerHostedPlan(registry.url, registry.token, {
+      planPath,
+      mode: 'watch',
+      cwd: process.cwd(),
+    })
+    const posted = await fetch(new URL('api/comments', hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        partId: 'review:message',
+        kind: 'message',
+        text: 'Is the flag on in staging?',
+      }),
+    })
+    assert.equal(posted.status, 200)
+    const created = (await posted.json()) as { comment: { id: string } }
+
+    const missing = await runCli(home, ['addressing'])
+    assert.equal(missing.status, 1)
+    assert.match(missing.stderr, /Usage: live-plan addressing/)
+
+    const badOutcome = await runCli(home, ['address', created.comment.id, '--url', hosted.url, '--outcome', 'done'])
+    assert.equal(badOutcome.status, 1)
+    assert.match(badOutcome.stderr, /--outcome implemented\|errored\|issues/)
+
+    const reviewing = await runCli(home, ['addressing', created.comment.id, '--url', hosted.url])
+    assert.equal(reviewing.status, 0, reviewing.stderr)
+    const reviewingBody = JSON.parse(reviewing.stdout) as {
+      comment: { addressingAt: number | null; addressedAt: number | null }
+    }
+    assert.equal(typeof reviewingBody.comment.addressingAt, 'number')
+    assert.equal(reviewingBody.comment.addressedAt, null)
+
+    const again = await runCli(home, ['addressing', created.comment.id, '--url', hosted.url])
+    assert.equal(again.status, 0, again.stderr)
+    const againBody = JSON.parse(again.stdout) as { comment: { addressingAt: number | null } }
+    assert.equal(againBody.comment.addressingAt, reviewingBody.comment.addressingAt)
+
+    const reply = await runCli(home, [
+      'reply',
+      created.comment.id,
+      '--url',
+      hosted.url,
+      '--text',
+      'Yes. Staging defaults the flag on.',
+    ])
+    assert.equal(reply.status, 0, reply.stderr)
+    const replyBody = JSON.parse(reply.stdout) as {
+      reply: { text: string }
+      comment: { addressingAt: number | null; replies: Array<{ text: string }> }
+    }
+    assert.equal(replyBody.reply.text, 'Yes. Staging defaults the flag on.')
+    assert.equal(replyBody.comment.replies[0]?.text, 'Yes. Staging defaults the flag on.')
+    assert.equal(typeof replyBody.comment.addressingAt, 'number')
+
+    const answered = await runCli(home, ['address', created.comment.id, '--url', hosted.url, '--outcome', 'implemented'])
+    assert.equal(answered.status, 0, answered.stderr)
+    const answeredBody = JSON.parse(answered.stdout) as {
+      comment: { addressingAt: number | null; addressedAt: number | null; outcome?: string }
+    }
+    assert.equal(answeredBody.comment.addressingAt, null)
+    assert.equal(typeof answeredBody.comment.addressedAt, 'number')
+    assert.equal(answeredBody.comment.outcome, 'implemented')
+
+    const plan = (await (await fetch(new URL('api/plan', hosted.url))).json()) as {
+      comments: Array<{
+        id: string
+        addressingAt: number | null
+        addressedAt: number | null
+        outcome?: string
+        replies?: Array<{ text: string }>
+      }>
+    }
+    const stored = plan.comments.find((comment) => comment.id === created.comment.id)
+    assert.equal(stored?.addressingAt, null)
+    assert.equal(typeof stored?.addressedAt, 'number')
+    assert.equal(stored?.outcome, 'implemented')
+    assert.equal(stored?.replies?.[0]?.text, 'Yes. Staging defaults the flag on.')
+  } finally {
+    await registry.close()
+    await rm(home, { recursive: true, force: true })
+  }
+})

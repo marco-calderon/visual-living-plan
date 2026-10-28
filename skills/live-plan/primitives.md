@@ -321,6 +321,41 @@ Put a diff fence in the tag body the same way as a source fence.
 
 `responses` is every interaction answered during that server process, in submission order. `iteration` is the `--iteration` you passed.
 
+## comment
+
+`events` prints a comment as one JSON line. `data` is the comment. Answer it with `addressing`, then `reply`, then `address`. Those three commands are in [SKILL.md](SKILL.md). They do not create another `events` line.
+
+```json
+{
+  "event": "comment",
+  "id": "evt_example",
+  "seq": 4,
+  "data": {
+    "id": "cmt_example",
+    "partId": "phase:implement/paragraph:1",
+    "kind": "paragraph",
+    "blockId": "implement",
+    "excerpt": "Wire the limiter",
+    "text": "Default the flag on in staging.",
+    "createdAt": 1761600000000,
+    "addressingAt": null,
+    "addressedAt": null,
+    "replies": []
+  }
+}
+```
+
+A message from the minibar uses `kind` `message` and `partId` `review:message`. The same three commands apply.
+
+| Field | Who writes it | What the page shows |
+|---|---|---|
+| `addressingAt` | `addressing`. A number while the comment is being reviewed. Empty before that. Iterate sets it on comments that are not yet answered. | Reviewing. A part comment shows the Addressing spinner, and the corner icon switches to that spinner. A minibar message shows Working. |
+| `replies[].text` | `reply --text`. Each reply is `{ "id", "text", "createdAt" }`. The id starts with `rpl_`. | The reply text. A minibar message shows it on the tray. Any other comment shows it in that part's thread, labeled Agent. |
+| `addressedAt` | `address`. A number when the comment is answered. Clears `addressingAt`. | Answered. A part comment says Addressed and the corner icon clears. |
+| `outcome` | `address --outcome`. `implemented` (the default), `errored`, or `issues`. | On a minibar message: Implemented, Errored, or Had issues. A part comment still says Addressed. |
+
+Until `addressingAt` or `addressedAt` is set, a part comment shows Mark addressed and a minibar message shows no state. Until `reply` runs, no reply text is shown.
+
 ## execution graph
 
 `execution start` and `execution push` accept `--graph` (preferred) and optional `--scene`.

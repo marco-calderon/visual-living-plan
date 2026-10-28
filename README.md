@@ -166,7 +166,7 @@ live-plan theme set --accent #0369a1 --url <printed-plan-url>
 - `GET /api/events` — browser SSE (`hello`, `reload`, `interaction`, `review`, `comment`, `mode`, `execution`, `theme`, `error`)
 - `GET /api/agent-events` — agent SSE. On the shared service this requires the plan token or the service token. `hello` includes responses, review, comments, execution, and `pending` (`plan_events` rows whose `delivered_at` is empty). A live submission arrives as `notice`.
 - `POST /api/agent-events/ack` — `{ "ids": ["evt_..."] }` sets `delivered_at`. The CLI calls this after it prints.
-- `POST /api/comments` — comment on one plan part. `POST /api/comments/:id/addressing` marks it in progress. `POST /api/comments/:id/address` marks it addressed with outcome `implemented` (default), `errored`, or `issues`.
+- `POST /api/comments` — comment on one plan part. `live-plan addressing` (`POST /api/comments/:id/addressing`) marks it reviewing. `live-plan reply` (`POST /api/comments/:id/reply`) appends the reply text. `live-plan address` (`POST /api/comments/:id/address`) marks it answered with outcome `implemented` (default), `errored`, or `issues`.
 - `POST /api/mode` — set the session to `watch`, `comment`, or `review`. The open tab follows.
 - `GET /api/processes` — plans hosted by the service (directory, git status, site URL). `status` is `ok`, `offline`, or `disabled`
 - `GET /dashboard` — registry page for running and executed plans: day, week, and month summaries, plus a table (status, completion, folder, files modified, start time, duration)
