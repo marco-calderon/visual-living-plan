@@ -121,7 +121,7 @@ The plan page is a flat document, and a plan is authored as the MDX components t
 
 This breaks the plan schema. Plans written with `{% tags %}` or entry fences such as ` ```phase ` need to be rewritten as MDX. The title bar, dashboard, comments, and approve / decline / message stay. No registry restart needed beyond the usual version check.
 
-## 1.0.1
+## 1.0.2
 
 **PR:** [#64](https://github.com/marco-calderon/visual-living-plan/pull/64)
 
