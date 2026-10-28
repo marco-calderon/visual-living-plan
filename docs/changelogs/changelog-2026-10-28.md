@@ -86,7 +86,7 @@ Loopback, LAN, and `addressing` / `reply` / `address` are unchanged. Parsing sti
 
 ## 0.8.1
 
-**PR:** (link once known)
+**PR:** [#63](https://github.com/marco-calderon/visual-living-plan/pull/63)
 
 **Bump:** patch
 
