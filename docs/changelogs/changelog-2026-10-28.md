@@ -83,3 +83,21 @@ The plan you open is the MDX React page. Markdoc no longer draws it. The title b
 ### Notes
 
 Loopback, LAN, and `addressing` / `reply` / `address` are unchanged. Parsing still reads the plan file for interactions and the workflow. No registry restart needed beyond the usual version check.
+
+## 0.8.1
+
+**PR:** (link once known)
+
+**Bump:** patch
+
+### Summary
+
+Workflow connectors meet the center of each step’s incoming and outgoing side, including a branch and a return.
+
+### Bugs fixed
+
+- Squared workflow lines follow the cards after layout and land on the center of each side, instead of riding the border between the ports.
+
+### Notes
+
+No registry restart needed.

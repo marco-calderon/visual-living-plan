@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
 import { BaseEdge, EdgeLabelRenderer, useStore, type Edge, type EdgeProps } from '@xyflow/react'
 import {
+  portPoint,
   routeWorkflowEdges,
   sideFromHandle,
   type PortSide,
@@ -15,23 +15,11 @@ export type RoutedEdgeData = {
 
 type RoutedEdgeType = Edge<RoutedEdgeData, 'routed'>
 
-type HandleBox = {
-  id?: string | null
-  x: number
-  y: number
-  width: number
-  height: number
-}
-
 type MeasuredNode = {
   id: string
   measured?: { width?: number; height?: number }
   internals?: {
     positionAbsolute?: { x: number; y: number }
-    handleBounds?: {
-      source?: HandleBox[] | null
-      target?: HandleBox[] | null
-    }
   }
 }
 
@@ -54,30 +42,6 @@ function routesFor(nodes: RoutedNode[], edges: RoutedEdgeInput[]): Map<string, W
   return routes
 }
 
-function handleAnchor(
-  node: MeasuredNode,
-  handleId: string | null | undefined,
-  role: 'source' | 'target',
-  side: PortSide,
-): { x: number; y: number } | null {
-  const origin = node.internals?.positionAbsolute
-  const handles = role === 'source' ? node.internals?.handleBounds?.source : node.internals?.handleBounds?.target
-  const handle = handles?.find((item) => item.id === handleId)
-  if (!origin || !handle) return null
-  const x = origin.x + handle.x
-  const y = origin.y + handle.y
-  switch (side) {
-    case 'top':
-      return { x: x + handle.width / 2, y }
-    case 'right':
-      return { x: x + handle.width, y: y + handle.height / 2 }
-    case 'bottom':
-      return { x: x + handle.width / 2, y: y + handle.height }
-    case 'left':
-      return { x, y: y + handle.height / 2 }
-  }
-}
-
 function geometryFrom(
   nodeLookup: Map<string, MeasuredNode>,
   edges: StoreEdge[],
@@ -97,22 +61,19 @@ function geometryFrom(
   const nodeById = new Map(nodes.map((node) => [node.id, node]))
   const inputs: RoutedEdgeInput[] = []
   for (const edge of routed) {
-    const sourceNode = nodeLookup.get(edge.source)
-    const targetNode = nodeLookup.get(edge.target)
-    if (!sourceNode || !targetNode || !nodeById.has(edge.source) || !nodeById.has(edge.target)) return null
+    const sourceBox = nodeById.get(edge.source)
+    const targetBox = nodeById.get(edge.target)
+    if (!sourceBox || !targetBox) return null
     const sourceSide = sideFromHandle(edge.sourceHandle, 'right')
     const targetSide = sideFromHandle(edge.targetHandle, 'left')
-    const sourcePoint = handleAnchor(sourceNode, edge.sourceHandle, 'source', sourceSide)
-    const targetPoint = handleAnchor(targetNode, edge.targetHandle, 'target', targetSide)
-    if (!sourcePoint || !targetPoint) return null
     inputs.push({
       id: edge.id,
       source: edge.source,
       target: edge.target,
       sourceSide,
       targetSide,
-      sourcePoint,
-      targetPoint,
+      sourcePoint: portPoint(sourceBox, sourceSide, 'source'),
+      targetPoint: portPoint(targetBox, targetSide, 'target'),
     })
   }
 
@@ -132,13 +93,13 @@ export function RoutedEdge({
   label,
   data,
 }: EdgeProps<RoutedEdgeType>) {
-  const nodeLookup = useStore((state) => state.nodeLookup as Map<string, MeasuredNode>)
-  const edges = useStore((state) => state.edges as StoreEdge[])
-  const route = useMemo(() => {
-    const geometry = geometryFrom(nodeLookup, edges)
+  // nodeLookup is mutated in place and the store is notified with the same Map.
+  // Read the boxes inside the selector so a later ELK placement recomputes the path.
+  const route = useStore((state) => {
+    const geometry = geometryFrom(state.nodeLookup as Map<string, MeasuredNode>, state.edges as StoreEdge[])
     if (!geometry) return undefined
     return routesFor(geometry.nodes, geometry.edges).get(id)
-  }, [nodeLookup, edges, id])
+  }, sameRoute)
 
   const path =
     route?.path ||
@@ -191,6 +152,10 @@ function fallbackPath(
     ],
   )
   return route?.path || `M ${sourceX} ${sourceY} L ${targetX} ${targetY}`
+}
+
+function sameRoute(previous: WorkflowRoute | undefined, next: WorkflowRoute | undefined): boolean {
+  return previous?.path === next?.path && previous?.labelX === next?.labelX && previous?.labelY === next?.labelY
 }
 
 function positionSide(position: EdgeProps['sourcePosition']): PortSide {

@@ -91,6 +91,73 @@ test('fan-in rails and stacked returns each keep their own line', () => {
   assert.ok(Math.abs(queueReturn - registryReturn) >= 18, `${queueReturn} vs ${registryReturn}`)
 })
 
+test('uneven cards meet the center of each side with a squared step', () => {
+  const approval: RoutedNode = { id: 'approval', x: 0, y: 0, width: 200, height: 120 }
+  const checklist: RoutedNode = { id: 'checklist', x: 280, y: 36, width: 200, height: 72 }
+  const charts: RoutedNode = { id: 'charts', x: 280, y: 156, width: 200, height: 96 }
+  const nodes = [approval, checklist, charts]
+  const edges = [
+    link('to-checklist', approval, checklist),
+    link('to-charts', approval, charts),
+    link('return', checklist, charts, 'right', 'right'),
+  ]
+  const routes = routeWorkflowEdges(nodes, edges)
+  const byId = new Map(routes.map((route) => [route.id, route]))
+
+  for (const edge of edges) {
+    const route = byId.get(edge.id)
+    assert.ok(route, edge.id)
+    assert.deepEqual(route.points[0], edge.sourcePoint)
+    assert.deepEqual(route.points[route.points.length - 1], edge.targetPoint)
+    assert.notEqual(route.points[0]?.y, route.points[route.points.length - 1]?.y)
+    assert.equal(segmentEntersAny(route.points, nodes), false, edge.id)
+    for (let index = 1; index < route.points.length; index += 1) {
+      const from = route.points[index - 1]
+      const to = route.points[index]
+      assert.ok(from && to)
+      const axisAligned = Math.abs(from.x - to.x) <= 0.5 || Math.abs(from.y - to.y) <= 0.5
+      assert.equal(axisAligned, true, edge.id)
+    }
+  }
+
+  assert.deepEqual(byId.get('to-checklist')?.points[0], portPoint(approval, 'right', 'source'))
+  assert.deepEqual(byId.get('to-checklist')?.points.at(-1), portPoint(checklist, 'left', 'target'))
+  assert.deepEqual(byId.get('return')?.points.at(-1), portPoint(charts, 'right', 'target'))
+})
+
+test('a branch past an in-between card stays in the gutter', () => {
+  const approval: RoutedNode = { id: 'approval', x: 2300, y: 48, width: 196, height: 114 }
+  const checklist: RoutedNode = { id: 'checklist', x: 2616, y: 0, width: 196, height: 114 }
+  const charts: RoutedNode = { id: 'charts', x: 2932, y: 35, width: 240, height: 133 }
+  const nodes = [approval, checklist, charts]
+  const edges = [
+    link('to-checklist', approval, checklist),
+    link('to-charts', approval, charts),
+    link('return', checklist, charts, 'right', 'right'),
+  ]
+  const routes = routeWorkflowEdges(nodes, edges)
+  const byId = new Map(routes.map((route) => [route.id, route]))
+
+  for (const edge of edges) {
+    const route = byId.get(edge.id)
+    assert.ok(route, edge.id)
+    assert.deepEqual(route.points[0], edge.sourcePoint)
+    assert.deepEqual(route.points.at(-1), edge.targetPoint)
+    assert.equal(segmentEntersAny(route.points, nodes), false, edge.id)
+    const minX = Math.min(edge.sourcePoint.x, edge.targetPoint.x) - 28
+    const maxX = Math.max(edge.sourcePoint.x, edge.targetPoint.x) + 28
+    for (const point of route.points) {
+      assert.ok(point.x >= minX && point.x <= maxX, `${edge.id} x ${point.x}`)
+      const axis = route.points.every((item, index) => {
+        if (index === 0) return true
+        const previous = route.points[index - 1]
+        return previous && (Math.abs(previous.x - item.x) <= 0.5 || Math.abs(previous.y - item.y) <= 0.5)
+      })
+      assert.equal(axis, true, edge.id)
+    }
+  }
+})
+
 test('a return edge into another card stays outside the cards', () => {
   const nodes: RoutedNode[] = [
     { id: 'design', x: 40, y: 40, width: 220, height: 110 },
