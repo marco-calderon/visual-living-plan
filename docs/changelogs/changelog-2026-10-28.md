@@ -138,3 +138,22 @@ Plan cards and stacked plan components sit apart by the documentation-card step 
 ### Notes
 
 The canvas, hairline cards, title bar, dashboard, popups, comments, and workflow connectors are unchanged. No registry restart needed beyond the usual version check.
+
+## 1.0.2
+
+**PR:** [#65](https://github.com/marco-calderon/visual-living-plan/pull/65)
+
+**Bump:** patch
+
+### Summary
+
+The plan page compiles its MDX from the app itself. Markdoc is no longer installed with this package.
+
+### Improvements
+
+- Phases, choices, forms, questions, approvals, checklists, callouts, Pele diagrams, TanStack charts, and the ELK workflow render from the app. A plan is still the MDX components on that page.
+- Headings, tables, source blocks, and mermaid figures in the bundle-less column keep their comment targets and in-page jumps.
+
+### Notes
+
+A workflow graph stays the pipe table inside `<workflow>`. `{% tags %}` and entry fences such as ` ```phase ` stay rejected. No registry restart needed beyond the usual version check.

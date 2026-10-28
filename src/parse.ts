@@ -1,6 +1,6 @@
-import { slugify } from './markdoc/payload'
 import { buildMdxOutline, legacyPlanSyntaxError } from './planMdx/outline'
-import { preparePlanSource } from './markdoc/source'
+import { preparePlanSource } from './planMdx/frontmatter'
+import { slugify } from './planMdx/payload'
 import { recordLog } from './serviceLog'
 import type { PlanBlock, PlanDocument } from './types'
 

@@ -7,8 +7,8 @@ import { planSourceFlags, planSourceToMdx, renderPlanStaticHtml } from '../src/p
 import { parsePlan } from '../src/parse.ts'
 import { renderPlanPage } from '../src/render.ts'
 import { defaultThemeConfig, themePayload } from '../src/theme.ts'
-import { recmaPlanComponents } from '../spikes/mdx-react/mdx/recmaPlanComponents.ts'
-import { remarkMermaid } from '../spikes/mdx-react/mdx/remarkMermaid.ts'
+import { recmaPlanComponents } from '../client/mdx/recmaPlanComponents.ts'
+import { remarkMermaid } from '../client/mdx/remarkMermaid.ts'
 
 const rateLimit = readFileSync(new URL('../examples/rate-limit.plan.md', import.meta.url), 'utf8')
 

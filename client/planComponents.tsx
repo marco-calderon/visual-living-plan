@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react'
-import { BarChart } from '../../mdx/BarChart'
-import { LineChart } from '../../mdx/LineChart'
-import { Mermaid } from '../../mdx/Mermaid'
-import { Row } from '../../mdx/Row'
-import { Stack } from '../../mdx/Stack'
-import { Workflow as ElkWorkflow } from '../../mdx/Workflow'
-import { components as uiComponents, Field as UiField, Item as UiItem } from '../../ui'
-import { markEntry } from '../../ui/planEntry'
+import { BarChart } from './mdx/BarChart'
+import { LineChart } from './mdx/LineChart'
+import { Mermaid } from './mdx/Mermaid'
+import { Row } from './mdx/Row'
+import { Stack } from './mdx/Stack'
+import { Workflow as ElkWorkflow } from './mdx/Workflow'
+import { components as uiComponents, Field as UiField, Item as UiItem } from './entries'
+import { markEntry } from './entries/planEntry'
 
 type MdxFieldProps = {
   name: string
@@ -49,7 +49,7 @@ const Field = markEntry(MdxField, 'field')
 const Item = markEntry(MdxItem, 'item')
 
 /**
- * UI plan entries, with the MDX package's ELK workflow, Pele mermaid, and TanStack charts.
+ * Plan entries for the page, plus the ELK workflow, Pele diagrams, and TanStack charts.
  * Lowercase keys are the tags in the plan source.
  */
 export const planComponents = {

@@ -152,7 +152,7 @@ test('the repo changelog is classified and Settings renders it above Appearance'
   assert.equal(release.classified, true)
   assert.equal(release.bugs.length, 3)
   assert.equal(release.versions[0], '0.6.0')
-  assert.equal(release.versions.at(-1), '1.0.1')
+  assert.equal(release.versions.at(-1), '1.0.2')
   assert.ok(release.bugs.some((line) => line.version === '0.8.1' && line.text.includes('center of each side')))
   assert.ok(release.bugs.some((line) => line.version === '1.0.1' && line.text.includes('24px')))
   assert.ok(release.improvements.some((line) => line.version === '0.8.0' && line.text.includes('React')))

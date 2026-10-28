@@ -116,22 +116,19 @@ Visual builders optimize for humans drawing graphs. Living Plan optimizes for **
 
 ## Plan vocabulary
 
-See `examples/rate-limit.plan.md` (YAML fences, still rendered) and `skills/live-plan/primitives.md` (tags, the authoring language).
+See `examples/rate-limit.plan.md` and `skills/live-plan/primitives.md`. A plan is MDX components.
 
-Markdoc tags:
-
-- `phase` — status timeline
-- `callout` — note / tip / risk / decision / warning. A callout can contain another tag, such as a choice
-- `choice` / `form` / `questions` / `approve` — human interactions. Options and question items are nested tags. Form fields and the workflow graph are a `yaml` fence inside the tag
-- `checklist` — definition of done
-- `workflow` — required execution path (`nodes` with `id`, `label`, `ref`, optional `status` / `x` / `y`, and `edges` with `from` / `to`, optional `label`, `fromSide`, `toSide`). `ref` is the plan block id a click jumps to. The Workflow tab draws this block before the run, and the live run follows it
-- `{% status %}` — an inline status chip in prose. It is not its own section
-- mermaid — a figure in the plan text. Use a fence whose language is `mermaid`, in the plan markdown or inside a phase, callout, or approve tag
+- `<phase>` — status timeline
+- `<callout>` — note / tip / risk / decision / warning. A callout can contain another component, such as a choice
+- `<choice>` / `<form>` / `<questions>` / `<approve>` — human interactions. Options, fields, and question items are nested components
+- `<checklist>` — definition of done
+- `<workflow>` — required execution path. The body is a pipe table: `id | label | ref | detail`, then `--`, then `from -> to`. A `workflow` fence may wrap that table. `ref` is the plan block id a click jumps to. The Workflow tab draws this block before the run, and the live run follows it
+- mermaid — a figure in the plan text. Use a fence whose language is `mermaid`, in the plan markdown or inside a phase, callout, or approve component. `<Mermaid>` draws the same figure
 - table — a pipe table in the plan markdown or a block body. The row under the header is `| --- |`. Use `:---`, `---:`, or `:---:` in that separator to align a column left, right, or center. A blank line ends the table
-- code — a highlighted source block with line numbers, starting at 1. Add `start=40` after the language to number the snippet from another line. Use any fence language other than `mermaid` and `yaml` (`ts`, `python`, `bash`, and so on), in the plan markdown or inside a phase, callout, or approve tag. A fence with no language still renders as code
+- code — a highlighted source block with line numbers, starting at 1. Add `start=40` after the language to number the snippet from another line. Use any fence language other than `mermaid` (`ts`, `python`, `bash`, and so on), in the plan markdown or inside a phase, callout, or approve component. A fence with no language still renders as code
 - diff — a unified diff rendered as hunks. Use a `diff` or `patch` fence, or add `diff` after the language (`ts diff`). Include `---` / `+++` file headers and `@@` hunk ranges; those ranges are the line numbers. A hunk without file headers still renders
-
-A YAML fence whose language is an entry type (`phase`, `choice`, and the rest) still renders.
+- `<BarChart>` and `<LineChart>` — a chart. One `label, value` row per line
+- `<Stack>`, `<Row>`, `<Box>`, `<HStack>`, `<VStack>`, `<ResponsiveStack>` — layout only. They are not plan entries
 
 ## Execution canvas adapters
 

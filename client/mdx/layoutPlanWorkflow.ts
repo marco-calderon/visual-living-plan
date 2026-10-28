@@ -6,12 +6,12 @@ import {
   type Point,
   type PortSide,
   type RoutedNode,
-} from '../../../client/execution-canvas/adapters/reactFlow/routeEdges.ts'
+} from '../execution-canvas/adapters/reactFlow/routeEdges.ts'
 import {
   estimateWorkflowNodeSize,
   roundLayout,
   WORKFLOW_ELK_OPTIONS,
-} from '../../../src/workflowLayoutShared.ts'
+} from '../../src/workflowLayoutShared.ts'
 
 type ElkFakeWorker = {
   dispatcher: { saveDispatch: (event: { data: unknown }) => void }

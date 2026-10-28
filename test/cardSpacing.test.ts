@@ -73,7 +73,7 @@ test('documentation cards use the space scale in both color schemes', () => {
 })
 
 test('plan component stacks use the same scale, not a one-off gap', () => {
-  const css = readFileSync(new URL('../spikes/mdx-react/ui/primitives.css', import.meta.url), 'utf8')
+  const css = readFileSync(new URL('../client/entries/primitives.css', import.meta.url), 'utf8')
   assertSpaceScale(css)
   assert.match(css, /\[data-gap="xs"\] \{ gap: var\(--space-xs\); \}/)
   assert.match(css, /\[data-gap="sm"\] \{ gap: var\(--space-sm\); \}/)

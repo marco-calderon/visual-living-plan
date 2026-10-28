@@ -33,7 +33,7 @@ The service and the private server are Elysia apps. Route handlers live in `src/
 | `src/serviceLog.ts`, `src/clientLog.ts` | Development log of errors, warnings, and logs. Files under `~/.config/living-plan/logs`. Read with `live-plan logs` |
 | `src/httpServer.ts` | `Bun.serve` binding for an Elysia app |
 | `src/agentEvents.ts` | Client-side SSE reader. Use `planApiUrl` so `/plans/<id>/` URLs resolve correctly |
-| `src/parse.ts`, `src/planMdx/`, `client/planMdx.tsx` | Plan file in. The page compiles it as MDX and renders the React plan |
+| `src/parse.ts`, `src/planMdx/`, `client/planMdx.tsx`, `client/entries/`, `client/mdx/` | Plan file in. The page compiles it as MDX and renders the React plan |
 | `src/workflow.ts`, `src/execution.ts` | Expected workflow and the live execution overlay |
 | `client/` | React Flow canvas. It reads `window.__LIVE_PLAN_BASE__` and calls `/api/...` under that prefix |
 | `test/` | Node test runner via `npm test` |
