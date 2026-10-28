@@ -10,7 +10,10 @@ import { archivePlanFile, archivedPlanPath, isPathInside } from './planArchive'
 import { createPlanHost, type PlanHost } from './planHost'
 import { registerPlanRoutes } from './planRoutes'
 import { readClientAsset } from './planSession'
-import { formatHttpOrigin } from './localName'
+import { authorizeLan, cookieValue, currentPeer, grantLanEntry, LAN_COOKIE } from './lanAccess'
+import { readLanEnabled, readLanSecret } from './lanConfig'
+import { attachLanPublisher, type LanPublisher } from './mdnsPublish'
+import { registryBindUrl } from './registryClient'
 import { DEFAULT_REGISTRY_HOST, STALE_MS } from './registryConstants'
 import { registryDatabasePath, registryPlansDir, registryStartingPath, writeRegistryLock } from './registryLock'
 import { renderRegistryPage } from './registryPage'
@@ -24,6 +27,7 @@ export type RegistryServer = {
   host: string
   token: string
   home: string
+  publishing: boolean
   close: () => Promise<void>
 }
 
@@ -173,10 +177,16 @@ export async function startRegistryServer(options: {
   token?: string
   staleMs?: number
   version?: string
+  /** Test seam. Production reads the socket address captured when the request was accepted. */
+  resolvePeer?: (request: Request) => string | null
+  /** Skip mDNS. Tests set this so a LAN-enabled home does not open UDP 5353. */
+  advertise?: boolean
 }): Promise<RegistryServer> {
   installServiceLogCapture()
   const host = options.host ?? DEFAULT_REGISTRY_HOST
   const token = options.token ?? randomBytes(24).toString('hex')
+  const lanEnabled = await readLanEnabled(options.home)
+  const lanSecret = lanEnabled ? await readLanSecret(options.home) : null
   const staleMs = options.staleMs ?? STALE_MS
   const store: RegistryStore = await openRegistryStore(registryDatabasePath(options.home))
   const plansDir = registryPlansDir(options.home)
@@ -206,8 +216,24 @@ export async function startRegistryServer(options: {
 
   const app = registerPlanRoutes(
     new Elysia({ strictPath: true })
-      .onBeforeHandle(({ set }) => {
+      .onBeforeHandle(({ request, set }) => {
         set.headers['cache-control'] = 'no-store'
+        const url = new URL(request.url)
+        const peer = options.resolvePeer ? (options.resolvePeer(request) ?? '') : currentPeer()
+        const decision = authorizeLan({
+          enabled: lanEnabled,
+          secret: lanSecret,
+          method: request.method,
+          pathname: url.pathname,
+          peer,
+          cookie: cookieValue(request.headers.get('cookie'), LAN_COOKIE),
+          querySecret: url.searchParams.get('lan'),
+        })
+        if (decision.action === 'deny') {
+          set.status = 401
+          return { error: 'Unauthorized' }
+        }
+        if (decision.setCookie) set.headers['set-cookie'] = decision.setCookie
       })
       .onError(({ code, error, set, request }) => {
         if (error instanceof HttpError) {
@@ -258,6 +284,31 @@ export async function startRegistryServer(options: {
           set.status = 404
           return { error: 'Archived plan not found' }
         }
+      })
+      .get('/lan/*', ({ params, request, set }) => {
+        if (!lanEnabled) {
+          set.status = 404
+          return { error: 'Not found' }
+        }
+        const presented = String(params['*'] ?? '').replace(/\/$/, '')
+        if (!presented || presented.includes('/')) {
+          set.status = 404
+          return { error: 'Not found' }
+        }
+        const next = new URL(request.url).searchParams.get('next')
+        const decision = grantLanEntry(presented, lanSecret, next)
+        if (decision.action === 'deny') {
+          set.status = 401
+          return { error: 'Unauthorized' }
+        }
+        return new Response(null, {
+          status: 302,
+          headers: {
+            location: decision.location,
+            'set-cookie': decision.setCookie,
+            'cache-control': 'no-store',
+          },
+        })
       })
       .get('/api/health', () => ({
         ok: true,
@@ -422,7 +473,7 @@ export async function startRegistryServer(options: {
     throw error
   }
 
-  const url = formatHttpOrigin(host, bound.port)
+  const url = registryBindUrl({ host, port: bound.port })
   originBox.current = url
   await writeRegistryLock(options.home, {
     pid: process.pid,
@@ -434,6 +485,14 @@ export async function startRegistryServer(options: {
     version: options.version,
   })
   await rm(registryStartingPath(options.home), { force: true })
+
+  const lan: LanPublisher = await attachLanPublisher({
+    enabled: lanEnabled,
+    advertise: options.advertise !== false,
+    bindHost: host,
+    port: bound.port,
+    home: options.home,
+  })
 
   const timer = setInterval(() => {
     try {
@@ -455,8 +514,10 @@ export async function startRegistryServer(options: {
     host,
     token,
     home: options.home,
+    publishing: lan.publishing,
     async close() {
       clearInterval(timer)
+      await lan.stop()
       const { readRegistryLock, registryLockPath } = await import('./registryLock')
       const lock = await readRegistryLock(options.home)
       if (lock?.pid === process.pid) {

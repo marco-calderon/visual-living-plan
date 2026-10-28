@@ -22,3 +22,23 @@ An agent can mark a plan comment as reviewing, write the reply, and mark it answ
 ### Notes
 
 No registry restart needed. The comment fields and the page were already in place.
+
+## 0.7.0
+
+**PR:** (link once known)
+
+**Bump:** minor
+
+### Summary
+
+`live-plan lan on` publishes the plan service on the local network. A fresh install stays on `127.0.0.1` until someone on that machine turns it on.
+
+### New features
+
+- `lan on` remembers the choice, listens on all interfaces, advertises `living-plan.local` at a private LAN address, and prints a LAN URL. `lan off` withdraws the advertisement, removes a firewall rule this tool added, and binds `127.0.0.1` again. `lan status` prints the bind, advertised name, LAN URL, and firewall result.
+- Other devices open the printed LAN URL. That sets a cookie. Plan pages and plan APIs reject other non-loopback requests. Loopback stays open. The agent stream still requires its bearer token.
+- The firewall change is best effort. A missing tool or a failed command prints the manual command, and the loopback service stays up.
+
+### Notes
+
+Installing this version does not turn LAN publishing on. `lan on` restarts the local service so the new bind takes effect. ADR 0016 stays accepted: `serve` and `review` still print `http://127.0.0.1:9477/plans/<id>/`, and the CLI does not resolve `*.local`.

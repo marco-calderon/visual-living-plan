@@ -1,12 +1,14 @@
-import { spawn, type SpawnOptions } from 'node:child_process'
+import { execFile, spawn, type SpawnOptions } from 'node:child_process'
+import { promisify } from 'node:util'
 import { closeSync, openSync } from 'node:fs'
 import { mkdir, open, readFile, rm, stat } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { readGitSnapshot } from './gitStatus'
 import { isPidAlive } from './pid'
 import type { CompletionState, GitSnapshot, ProcessPulse, ProcessRecord, ProcessRegistration } from './processRecord'
+import { chooseBindHost, readLanEnabled } from './lanConfig'
 import { formatHttpOrigin } from './localName'
-import { DEFAULT_REGISTRY_HOST, DEFAULT_REGISTRY_PORT, HEARTBEAT_MS } from './registryConstants'
+import { DEFAULT_REGISTRY_PORT, HEARTBEAT_MS } from './registryConstants'
 import {
   defaultRegistryHome,
   readRegistryLock,
@@ -197,14 +199,26 @@ function childArgs(entryFile: string, commandArgs: string[]): string[] {
   return [entryFile, ...commandArgs]
 }
 
+const execFileAsync = promisify(execFile)
+
+async function processCommand(pid: number): Promise<string> {
+  try {
+    return await readFile(`/proc/${pid}/cmdline`, 'utf8')
+  } catch {
+    // macOS has no /proc. `ps` is the fallback so `lan on` can restart the service there.
+  }
+  try {
+    const { stdout } = await execFileAsync('ps', ['-p', String(pid), '-o', 'command='], { timeout: 1_000 })
+    return stdout
+  } catch {
+    return ''
+  }
+}
+
 async function looksLikeRegistryProcess(pid: number): Promise<boolean> {
   if (!isPidAlive(pid)) return false
-  try {
-    const cmdline = await readFile(`/proc/${pid}/cmdline`, 'utf8')
-    return cmdline.includes('registry')
-  } catch {
-    return false
-  }
+  const command = await processCommand(pid)
+  return command.includes('registry')
 }
 
 /** Drop a lock whose process is gone. Stop a wedged registry only when its command line is ours. */
@@ -238,8 +252,8 @@ export async function readPackageVersion(entryFile: string): Promise<string> {
   }
 }
 
-/** Stop a registry this package started. Used when its package version is stale. */
-async function stopOwnedRegistry(home: string): Promise<void> {
+/** Stop a registry this package started. Used when its package version is stale or LAN bind changes. */
+export async function stopRegistry(home: string): Promise<void> {
   const lock = await readRegistryLock(home)
   if (!lock) return
   if (isPidAlive(lock.pid) && (await looksLikeRegistryProcess(lock.pid))) {
@@ -300,26 +314,26 @@ export async function ensureRegistry(options: {
   host?: string
 }): Promise<RegistryLock> {
   const home = options.home ?? defaultRegistryHome()
-  const host = options.host ?? DEFAULT_REGISTRY_HOST
+  const host = chooseBindHost(options.host, await readLanEnabled(home))
   const port = options.port ?? DEFAULT_REGISTRY_PORT
   const version = await readPackageVersion(options.entryFile)
   await mkdir(home, { recursive: true, mode: 0o700 })
 
   const already = await runningRegistry(home)
   if (already?.version === version) return already
-  if (already) await stopOwnedRegistry(home)
+  if (already) await stopRegistry(home)
 
   const age = await startingLockAge(home)
   if (age !== null && age < STARTING_STALE_MS) {
     const waited = await waitForRunning(home, STARTING_STALE_MS)
     if (waited?.version === version) return waited
-    if (waited) await stopOwnedRegistry(home)
+    if (waited) await stopRegistry(home)
   }
 
   await rm(registryStartingPath(home), { force: true })
   const stillThere = await runningRegistry(home)
   if (stillThere?.version === version) return stillThere
-  if (stillThere) await stopOwnedRegistry(home)
+  if (stillThere) await stopRegistry(home)
   await retireUnhealthyRegistry(home)
 
   const acquired = await acquireStartingLock(home)
@@ -334,11 +348,11 @@ export async function ensureRegistry(options: {
   const waited = await waitForRunning(home, STARTING_STALE_MS)
   await rm(registryStartingPath(home), { force: true })
   if (waited?.version === version) return waited
-  if (waited) await stopOwnedRegistry(home)
+  if (waited) await stopRegistry(home)
 
   const late = await runningRegistry(home)
   if (late?.version === version) return late
-  if (late) await stopOwnedRegistry(home)
+  if (late) await stopRegistry(home)
 
   if (child.pid && isPidAlive(child.pid)) {
     try {
