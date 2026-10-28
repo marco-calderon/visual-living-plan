@@ -123,7 +123,7 @@ This breaks the plan schema. Plans written with `{% tags %}` or entry fences suc
 
 ## 1.0.1
 
-**PR:** (link once the pull request is open)
+**PR:** [#64](https://github.com/marco-calderon/visual-living-plan/pull/64)
 
 **Bump:** patch
 
