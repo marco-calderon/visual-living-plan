@@ -45,7 +45,7 @@ Installing this version does not turn LAN publishing on. `lan on` restarts the l
 
 ## 0.7.1
 
-**PR:** (link once opened)
+**PR:** [#58](https://github.com/marco-calderon/visual-living-plan/pull/58)
 
 **Bump:** patch
 
