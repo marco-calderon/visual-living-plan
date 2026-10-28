@@ -106,9 +106,14 @@
 .plan-responsive-stack { flex-direction: column; }
 
 .plan-hstack > *,
-.plan-vstack > *,
-.plan-responsive-stack > * {
+.plan-vstack > * {
   min-width: 0;
+}
+
+.plan-responsive-stack > * {
+  flex: 1 1 auto;
+  min-width: min(100%, 12rem);
+  max-width: 100%;
 }
 
 .plan-hstack[data-gap="xs"],
@@ -179,6 +184,7 @@
 
   .plan-responsive-stack > * {
     flex: 1 1 12rem;
+    min-width: min(100%, 12rem);
   }
 }
 

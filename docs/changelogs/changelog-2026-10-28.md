@@ -53,6 +53,10 @@ Installing this version does not turn LAN publishing on. `lan on` restarts the l
 
 A sample under `spikes/mdx-react` renders one MDX plan with React entries, a Pele diagram, a TanStack chart, and an ELK workflow. The live plan page and the CLI are unchanged.
 
+### Bugs fixed
+
+- Side-by-side columns in the sample plan keep a readable width. A narrow window wraps them instead of painting the panels on top of each other.
+
 ### New features
 
 - The sample host stores the plan in SQLite and streams edits over one shared event connection. Restoring a snapshot updates the open plan without a reload.

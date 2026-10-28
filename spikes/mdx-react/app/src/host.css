@@ -145,6 +145,25 @@ button:disabled {
   border-color: var(--accent);
 }
 
+.vlp-stack {
+  width: 100%;
+  min-width: 0;
+}
+
+.vlp-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+}
+
+.vlp-row > * {
+  flex: 1 1 16rem;
+  min-width: min(100%, 16rem);
+  max-width: 100%;
+}
+
 .plan-slot:empty {
   min-height: 12rem;
   border-style: dashed;

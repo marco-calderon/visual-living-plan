@@ -7,7 +7,7 @@ type StackProps = {
 
 export function Stack({ children, gap = 16 }: StackProps) {
   return (
-    <div className="vlp-stack" style={{ display: 'flex', flexDirection: 'column', gap }}>
+    <div className="vlp-stack" style={{ display: 'flex', flexDirection: 'column', gap, width: '100%', minWidth: 0 }}>
       {children}
     </div>
   )
