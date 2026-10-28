@@ -57,11 +57,11 @@ export function Phase({ id, title, status, children, className }: PhaseProps) {
                 aria-label={`Step ${number}`}
                 title="Show on the workflow diagram"
               >
-                {number}
+                <span className="plan-step-digit">{number}</span>
               </a>
             ) : (
               <span className="plan-step-number" aria-label={`Step ${number}`}>
-                {number}
+                <span className="plan-step-digit">{number}</span>
               </span>
             )}
             <div className="plan-step-copy">

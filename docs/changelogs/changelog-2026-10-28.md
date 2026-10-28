@@ -170,7 +170,7 @@ A plan step shows its number in a square beside the title, colored for that step
 
 ### Improvements
 
-- The number sits in a square beside the title, with the status word under the title. The square is as tall as that title and status together, and just as wide. Done, active, and pending use the document success, accent, and muted colors. An active step shows the same spinner as a workflow diagram step.
+- The number sits in a square beside the title, with the status word under the title. The square is as tall as that title and status together, and just as wide. The numeral scales with the square. Done, active, and pending use the document success, accent, and muted colors. An active step shows the same spinner as a workflow diagram step.
 
 ### New features
 

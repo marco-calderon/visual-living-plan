@@ -77,7 +77,7 @@ function staticBlock(block: PlanBlock, phaseOrdinal = 1): string {
     const href = workflowStepHash(block.id)
     const spinner = block.status === 'active' ? activeStepSpinnerHtml() : ''
     const jump = `href="${escapeHtml(href)}" data-workflow-jump="${escapeHtml(block.id)}"`
-    return `<section class="block plan-entry plan-phase" id="plan-${escapeHtml(block.id)}" data-entry="phase" data-entry-id="${escapeHtml(block.id)}" data-status="${escapeHtml(block.status)}"><div class="plan-step-heading"><a class="plan-step-number" ${jump} aria-label="Step ${escapeHtml(step.number)}">${escapeHtml(step.number)}</a><div class="plan-step-copy"><h3 class="plan-title"><a class="plan-step-label" ${jump}>${escapeHtml(step.label)}</a></h3><span class="plan-phase-status">${spinner}${escapeHtml(block.status)}</span></div></div>${block.bodyHtml}</section>`
+    return `<section class="block plan-entry plan-phase" id="plan-${escapeHtml(block.id)}" data-entry="phase" data-entry-id="${escapeHtml(block.id)}" data-status="${escapeHtml(block.status)}"><div class="plan-step-heading"><a class="plan-step-number" ${jump} aria-label="Step ${escapeHtml(step.number)}"><span class="plan-step-digit">${escapeHtml(step.number)}</span></a><div class="plan-step-copy"><h3 class="plan-title"><a class="plan-step-label" ${jump}>${escapeHtml(step.label)}</a></h3><span class="plan-phase-status">${spinner}${escapeHtml(block.status)}</span></div></div>${block.bodyHtml}</section>`
   }
   if (block.type === 'callout') {
     const anchor = block.id ? ` id="plan-${escapeHtml(block.id)}"` : ''
