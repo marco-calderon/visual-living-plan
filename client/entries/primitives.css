@@ -320,7 +320,104 @@
 }
 
 .plan-kicker { color: var(--accent-2); }
-.plan-phase-status { color: var(--muted); font-weight: 600; }
+.plan-phase-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.plan-step-heading {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.plan-step-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.plan-step-number {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.75rem;
+  height: 1.75rem;
+  padding: 0 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--canvas);
+  color: var(--muted);
+  font-family: var(--font-display);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-decoration: none;
+}
+
+a.plan-step-number { cursor: pointer; }
+a.plan-step-number:hover { border-color: var(--accent); }
+
+a.plan-step-number:focus-visible,
+a.plan-step-label:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.plan-phase[data-status="pending"] .plan-step-number {
+  color: var(--muted);
+  background: var(--canvas);
+  border-color: var(--line);
+}
+
+.plan-phase[data-status="active"] .plan-step-number {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+}
+
+.plan-phase[data-status="done"] .plan-step-number {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+  border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+}
+
+.plan-phase[data-status="failed"] .plan-step-number,
+.plan-phase[data-status="blocked"] .plan-step-number {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: var(--danger-border);
+}
+
+a.plan-step-label {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+a.plan-step-label:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.16em;
+}
+
+.rf-progress-icon {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  animation: rf-progress-spin 0.9s linear infinite;
+}
+
+@keyframes rf-progress-spin {
+  to { transform: rotate(360deg); }
+}
 
 .plan-rich {
   min-width: 0;
@@ -396,6 +493,13 @@
 }
 
 .plan-document a { color: var(--accent); }
+.plan-document a.plan-step-label,
+.plan-document a.plan-step-number { color: inherit; text-decoration: none; }
+.plan-phase[data-status="pending"] a.plan-step-number { color: var(--muted); }
+.plan-phase[data-status="active"] a.plan-step-number { color: var(--accent); }
+.plan-phase[data-status="done"] a.plan-step-number { color: var(--ok); }
+.plan-phase[data-status="failed"] a.plan-step-number,
+.plan-phase[data-status="blocked"] a.plan-step-number { color: var(--danger); }
 
 .plan-rich :not(pre) > code,
 .plan-document :not(pre) > code {
@@ -720,7 +824,8 @@
   .plan-phase[data-status="active"] .plan-phase-rail,
   .plan-panel,
   .plan-box[data-surface="panel"],
-  .plan-popover { animation: none; }
+  .plan-popover,
+  .rf-progress-icon { animation: none; }
   .plan-choice-option,
   .plan-btn { transition: none; }
 }

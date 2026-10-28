@@ -157,3 +157,25 @@ The plan page compiles its MDX from the app itself. Markdoc is no longer install
 ### Notes
 
 A workflow graph stays the pipe table inside `<workflow>`. `{% tags %}` and entry fences such as ` ```phase ` stay rejected. No registry restart needed beyond the usual version check.
+
+## 1.1.0
+
+**PR:** (link once known)
+
+**Bump:** minor
+
+### Summary
+
+A plan step shows its number in a small box colored for that step's state, and clicking the number or the title opens that step on the workflow diagram.
+
+### Improvements
+
+- The number sits in a box above the step label. Done, active, and pending use the document success, accent, and muted colors. An active step shows the same spinner as a workflow diagram step.
+
+### New features
+
+- Clicking the step number or the step title switches to the workflow diagram and frames that step, zooming in when it is outside the view or too small to read. Back and forward restore the previous tab and scroll position.
+
+### Notes
+
+No registry restart needed. The title bar, dashboard, comments, and approve / decline / message stay.

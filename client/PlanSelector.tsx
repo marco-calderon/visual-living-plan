@@ -145,6 +145,13 @@ export function PlanSelector() {
   const modeRef = useRef(mode)
   modeRef.current = mode
   const enabled = mode === 'review' ? commentsOn : mode !== 'watch'
+
+  useEffect(() => {
+    document.documentElement.dataset.comments = enabled ? 'on' : 'off'
+    return () => {
+      delete document.documentElement.dataset.comments
+    }
+  }, [enabled])
   const [comments, setComments] = useState<PlanComment[]>(readComments)
   const commentsRef = useRef(comments)
   const [freshReplies, setFreshReplies] = useState<ReadonlySet<string>>(() => new Set())

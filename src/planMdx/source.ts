@@ -1,3 +1,5 @@
+import { workflowStepHash } from '../planRefNavigation'
+import { activeStepSpinnerHtml, stepNumberFor } from '../planStepHeading'
 import { buildMdxOutline, legacyPlanSyntaxError } from './outline'
 import type { PlanBlock } from '../types'
 
@@ -42,7 +44,13 @@ export function renderPlanStaticHtml(source: string): string {
   const legacy = legacyPlanSyntaxError(body)
   if (legacy) throw new Error(legacy)
   const outline = buildMdxOutline(body)
-  const html = outline.blocks.map(staticBlock).join('\n')
+  let phaseOrdinal = 0
+  const html = outline.blocks
+    .map((block) => {
+      const ordinal = block.type === 'phase' ? ++phaseOrdinal : 0
+      return staticBlock(block, ordinal)
+    })
+    .join('\n')
   return `<article class="plan-document plan-ui" data-plan-rendered>${html}</article>`
 }
 
@@ -51,7 +59,7 @@ function stripFrontmatter(source: string): string {
   return match ? source.slice(match[0].length) : source
 }
 
-function staticBlock(block: PlanBlock): string {
+function staticBlock(block: PlanBlock, phaseOrdinal = 1): string {
   if (block.type === 'markdown') return block.html
   if (block.type === 'workflow') {
     const links = block.nodes
@@ -65,7 +73,11 @@ function staticBlock(block: PlanBlock): string {
     return `<section class="block plan-entry plan-workflow"${block.id ? ` id="plan-${escapeHtml(block.id)}"` : ''} data-entry="workflow"><h3 class="plan-title">${escapeHtml(title)}</h3>${links}</section>`
   }
   if (block.type === 'phase') {
-    return `<section class="block plan-entry plan-phase" id="plan-${escapeHtml(block.id)}" data-entry="phase" data-entry-id="${escapeHtml(block.id)}"><h3 class="plan-title">${escapeHtml(block.title)}</h3>${block.bodyHtml}</section>`
+    const step = stepNumberFor(block.title, phaseOrdinal)
+    const href = workflowStepHash(block.id)
+    const spinner = block.status === 'active' ? activeStepSpinnerHtml() : ''
+    const jump = `href="${escapeHtml(href)}" data-workflow-jump="${escapeHtml(block.id)}"`
+    return `<section class="block plan-entry plan-phase" id="plan-${escapeHtml(block.id)}" data-entry="phase" data-entry-id="${escapeHtml(block.id)}" data-status="${escapeHtml(block.status)}"><div class="plan-step-heading"><a class="plan-step-number" ${jump} aria-label="Step ${escapeHtml(step.number)}">${escapeHtml(step.number)}</a><div class="plan-step-copy"><span class="plan-phase-status">${spinner}${escapeHtml(block.status)}</span><h3 class="plan-title"><a class="plan-step-label" ${jump}>${escapeHtml(step.label)}</a></h3></div></div>${block.bodyHtml}</section>`
   }
   if (block.type === 'callout') {
     const anchor = block.id ? ` id="plan-${escapeHtml(block.id)}"` : ''

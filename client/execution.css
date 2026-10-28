@@ -129,6 +129,11 @@
   border-color: var(--accent);
 }
 
+.react-flow__node.workflow-focus .rf-step {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
 .rf-step-status {
   display: flex;
   align-items: center;

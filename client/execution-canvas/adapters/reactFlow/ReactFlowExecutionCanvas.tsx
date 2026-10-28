@@ -16,6 +16,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import type { ExecutionCanvasProps } from '../../types.ts'
 import { layoutWorkflowNodes } from '../../../layoutWorkflow.ts'
+import { stepNeedsFrame } from '../../stepNeedsFrame.ts'
 import {
   ExecutionStepNode,
   PlanRefContext,
@@ -148,8 +149,18 @@ function toFlowEdges(model: ExecutionCanvasProps['model'], colors: EdgeColors): 
   })
 }
 
+type WorkflowFocusWindow = Window & {
+  livingPlanPendingWorkflowFocus?: string | null
+  livingPlanWorkflowFocusMissed?: () => void
+}
+
+function pendingWorkflowFocus(): string | null {
+  const ref = (window as WorkflowFocusWindow).livingPlanPendingWorkflowFocus
+  return ref ? ref : null
+}
+
 function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: ExecutionCanvasProps) {
-  const { fitView } = useReactFlow()
+  const { fitView, flowToScreenPosition, getViewport } = useReactFlow()
   const theme = useResolvedTheme()
   const edgeColors = useMemo<EdgeColors>(
     () => ({
@@ -180,12 +191,79 @@ function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: Execu
 
   const hostRef = useRef<HTMLDivElement>(null)
   const placedKey = useRef('')
+  const nodesRef = useRef(nodes)
+  nodesRef.current = nodes
+
+  const focusStep = useCallback(
+    (ref: string): boolean => {
+      const host = hostRef.current
+      const node = nodesRef.current.find((item) => item.data.planRef === ref || item.id === ref)
+      if (!host || !node) return false
+      const width = node.measured?.width ?? 0
+      const height = node.measured?.height ?? 0
+      if (width <= 0 || height <= 0) return false
+
+      setNodes((existing) => {
+        let changed = false
+        const next = existing.map((item) => {
+          const match = item.id === node.id
+          const className = match ? 'workflow-focus' : undefined
+          if (Boolean(item.selected) === match && item.className === className) return item
+          changed = true
+          return { ...item, selected: match, className }
+        })
+        return changed ? next : existing
+      })
+
+      const topLeft = flowToScreenPosition(node.position)
+      const bottomRight = flowToScreenPosition({
+        x: node.position.x + width,
+        y: node.position.y + height,
+      })
+      const bounds = host.getBoundingClientRect()
+      if (
+        stepNeedsFrame({
+          top: topLeft.y,
+          left: topLeft.x,
+          right: bottomRight.x,
+          bottom: bottomRight.y,
+          width,
+          zoom: getViewport().zoom,
+          bounds: { top: bounds.top, left: bounds.left, right: bounds.right, bottom: bounds.bottom },
+        })
+      ) {
+        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        void fitView({
+          nodes: [{ id: node.id }],
+          padding: 0.42,
+          duration: reduce ? 0 : 220,
+          minZoom: 0.2,
+          maxZoom: 1.15,
+        })
+      }
+      return true
+    },
+    [fitView, flowToScreenPosition, getViewport, setNodes],
+  )
 
   const fit = useCallback(() => {
     const host = hostRef.current
     if (!host || host.clientWidth < 40 || host.clientHeight < 40) return
+    const pending = pendingWorkflowFocus()
+    if (pending) {
+      if (focusStep(pending)) return
+      const current = nodesRef.current
+      const measured = current.length > 0 && current.every((node) => (node.measured?.width ?? 0) > 0)
+      if (!measured) return
+      const known = current.some((node) => node.data.planRef === pending || node.id === pending)
+      if (!known) {
+        ;(window as WorkflowFocusWindow).livingPlanPendingWorkflowFocus = null
+        ;(window as WorkflowFocusWindow).livingPlanWorkflowFocusMissed?.()
+      }
+      return
+    }
     void fitView({ padding: 0.28, duration: 220, minZoom: 0.2, maxZoom: 1.15 })
-  }, [fitView])
+  }, [fitView, focusStep])
 
   useEffect(() => {
     placedKey.current = ''
@@ -214,6 +292,14 @@ function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: Execu
       fit()
     })
   }, [measureKey, edgeKey, nodes, edges, setNodes, fit])
+
+  useEffect(() => {
+    const onFocus = () => {
+      requestAnimationFrame(() => fit())
+    }
+    window.addEventListener('living-plan-focus-workflow', onFocus)
+    return () => window.removeEventListener('living-plan-focus-workflow', onFocus)
+  }, [fit])
 
   useEffect(() => {
     const host = hostRef.current
