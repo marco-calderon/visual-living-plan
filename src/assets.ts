@@ -21,6 +21,8 @@ export type ClientAssets = {
   highlightCssHrefs: string[]
   selectorHref: string | null
   selectorCssHrefs: string[]
+  planMdxHref: string | null
+  planMdxCssHrefs: string[]
 }
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -42,13 +44,18 @@ export async function loadClientAssets(): Promise<ClientAssets | null> {
       manifestEntry(manifest, ['client/main.tsx', 'main']) ??
       Object.values(manifest).find(
         (item) =>
-          item.isEntry && item.name !== 'mermaid' && item.name !== 'highlight' && item.name !== 'selector',
+          item.isEntry &&
+          item.name !== 'mermaid' &&
+          item.name !== 'highlight' &&
+          item.name !== 'selector' &&
+          item.name !== 'planMdx',
       )
 
     if (!entry) return null
     const mermaid = manifestEntry(manifest, ['client/mermaid.ts', 'mermaid'])
     const highlight = manifestEntry(manifest, ['client/highlight.tsx', 'highlight'])
     const selector = manifestEntry(manifest, ['client/PlanSelector.tsx', 'selector'])
+    const planMdx = manifestEntry(manifest, ['client/planMdx.tsx', 'planMdx'])
     return {
       jsHref: `/client/${entry.file}`,
       cssHrefs: (entry.css ?? []).map((file) => `/client/${file}`),
@@ -58,6 +65,8 @@ export async function loadClientAssets(): Promise<ClientAssets | null> {
       highlightCssHrefs: (highlight?.css ?? []).map((file) => `/client/${file}`),
       selectorHref: selector ? `/client/${selector.file}` : null,
       selectorCssHrefs: (selector?.css ?? []).map((file) => `/client/${file}`),
+      planMdxHref: planMdx ? `/client/${planMdx.file}` : null,
+      planMdxCssHrefs: (planMdx?.css ?? []).map((file) => `/client/${file}`),
     }
   } catch {
     return null

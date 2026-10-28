@@ -92,6 +92,14 @@ export function registerPlanRoutes(app: any, options: PlanRouteOptions): any {
     })
     .get(options.hosted ? '/plans/:id/' : '/', (context: RouteContext) => sessionFor(idOf(context)).page())
     .get(route('/api/plan'), (context: RouteContext) => sessionFor(idOf(context)).planPayload())
+    .get(route('/api/plan-mdx'), (context: RouteContext) => sessionFor(idOf(context)).planMdxPayload())
+    .post(route('/api/plan-mdx/restore'), (context: RouteContext) => {
+      const body = jsonBody(context.body, true) as { snapshotId?: unknown }
+      if (typeof body.snapshotId !== 'string' || !body.snapshotId) {
+        throw new HttpError(400, 'snapshotId is required')
+      }
+      return sessionFor(idOf(context)).restoreMdxSnapshot(body.snapshotId)
+    })
     .get(route('/api/theme'), (context: RouteContext) => sessionFor(idOf(context)).themeView())
     .put(route('/api/theme'), (context: RouteContext) => sessionFor(idOf(context)).updateTheme(context.body))
     .get(route('/api/execution'), (context: RouteContext) => sessionFor(idOf(context)).executionPayload())

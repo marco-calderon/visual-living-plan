@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid'
 import { watch } from 'node:fs'
-import { readFile, stat } from 'node:fs/promises'
+import { readFile, stat, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { clientDistDir, loadClientAssets, type ClientAssets } from './assets'
@@ -10,6 +10,8 @@ import { createIdleExecutionState, type ExecutionState } from './execution'
 import { collectSectionSources, parsePlan } from './parse'
 import { recordLog } from './serviceLog'
 import { loadLatestChangelog } from './changelog'
+import { defaultRegistryHome } from './configHome'
+import { openPlanSnapshots, type PlanSnapshotStore } from './planSnapshots'
 import { renderPlanPage } from './render'
 import {
   configPathBesidePlan,
@@ -101,6 +103,22 @@ export type PlanSession = {
   setMode: (mode: PlanMode, iteration?: number) => void
   updateMode: (body: unknown) => unknown
   page: () => Response
+  planMdxPayload: () => {
+    source: string
+    title: string
+    responses: Record<string, InteractionResponse>
+    locked: boolean
+    snapshots: ReturnType<PlanSnapshotStore['list']>
+    headSnapshotId: string | null
+  }
+  restoreMdxSnapshot: (snapshotId: string) => Promise<{
+    source: string
+    title: string
+    responses: Record<string, InteractionResponse>
+    locked: boolean
+    snapshots: ReturnType<PlanSnapshotStore['list']>
+    headSnapshotId: string | null
+  }>
   planPayload: () => unknown
   themeView: () => ReturnType<typeof themePayload>
   updateTheme: (body: unknown) => Promise<unknown>
@@ -186,6 +204,36 @@ export async function openPlanSession(options: {
   let theme = await loadThemeConfig(themeConfigPath)
   let lastSeenAt = options.lastSeenAt ?? startedAt
   let closed = false
+  let mdxStore: PlanSnapshotStore | null = null
+  try {
+    const opened = openPlanSnapshots(join(defaultRegistryHome(), 'mdx', `${id}.sqlite`), id)
+    try {
+      opened.sync(plan.title, source)
+      mdxStore = opened
+    } catch (error) {
+      opened.close()
+      throw error
+    }
+  } catch (error) {
+    void recordLog({
+      level: 'warn',
+      message: 'Plan snapshots did not open',
+      detail: error instanceof Error ? error.message : undefined,
+      source: 'plan',
+      planId: id,
+    }).catch(() => undefined)
+  }
+
+  function mdxPayload() {
+    return {
+      source,
+      title: plan.title,
+      responses,
+      locked: Boolean(execution.active),
+      snapshots: mdxStore?.list() ?? [],
+      headSnapshotId: mdxStore?.head()?.headSnapshotId ?? null,
+    }
+  }
 
   const responses: Record<string, InteractionResponse> = { ...(options.responses ?? {}) }
   const waiters = new Map<string, Waiter[]>()
@@ -309,6 +357,10 @@ export async function openPlanSession(options: {
   function broadcast(event: string, data: unknown): void {
     for (const client of browserClients) client.write(event, data)
     for (const client of agentClients) client.write(event, data)
+  }
+
+  function broadcastBrowsers(event: string, data: unknown): void {
+    for (const client of browserClients) client.write(event, data)
   }
 
   function eventStream(bucket: Set<SseClient>, hello: unknown, signal: AbortSignal): Response {
@@ -436,6 +488,18 @@ export async function openPlanSession(options: {
     previousSections = nextSections
     source = nextSource
     plan = nextPlan
+    try {
+      const applied = mdxStore?.sync(nextPlan.title, nextSource)
+      if (applied?.changed) broadcastBrowsers('plan', mdxPayload())
+    } catch (error) {
+      void recordLog({
+        level: 'warn',
+        message: 'Plan snapshot was not saved',
+        detail: error instanceof Error ? error.message : undefined,
+        source: 'plan',
+        planId: id,
+      }).catch(() => undefined)
+    }
     broadcast('reload', { at: Date.now(), changed: diffs.filter((diff) => diff.status !== 'unchanged').length })
     broadcast('execution', executionView())
     persist()
@@ -514,8 +578,37 @@ export async function openPlanSession(options: {
         basePath,
         selfId,
         changelog: loadLatestChangelog(fileURLToPath(import.meta.url)),
+        mdxSnapshots: mdxStore?.list() ?? [],
+        mdxHeadSnapshotId: mdxStore?.head()?.headSnapshotId ?? null,
       }),
     )
+  }
+
+  function planMdxPayload(): ReturnType<typeof mdxPayload> {
+    touch()
+    return mdxPayload()
+  }
+
+  async function restoreMdxSnapshot(snapshotId: string): Promise<ReturnType<typeof mdxPayload>> {
+    touch()
+    if (!mdxStore) throw new HttpError(404, 'Snapshots are not available')
+    let applied: ReturnType<PlanSnapshotStore['restore']>
+    try {
+      applied = mdxStore.restore(snapshotId)
+    } catch (error) {
+      throw new HttpError(404, error instanceof Error ? error.message : 'Snapshot not found')
+    }
+    if (applied.changed) {
+      source = applied.plan.body
+      plan = parsePlan(source, planPath, id)
+      previousSections = collectSectionSources(plan)
+      diffs = previousSections.map((_, index) => ({ index, status: 'unchanged' as const }))
+      await writeFile(planPath, source)
+      broadcastBrowsers('plan', mdxPayload())
+      broadcast('reload', { at: Date.now(), changed: 1 })
+      persist()
+    }
+    return mdxPayload()
   }
 
   function planPayload(): unknown {
@@ -863,6 +956,8 @@ export async function openPlanSession(options: {
     setMode,
     updateMode,
     page,
+    planMdxPayload,
+    restoreMdxSnapshot,
     planPayload,
     themeView,
     updateTheme,
@@ -884,6 +979,7 @@ export async function openPlanSession(options: {
       closed = true
       watcher.close()
       themeWatcher?.close()
+      mdxStore?.close()
       for (const client of [...browserClients, ...agentClients]) client.close()
       browserClients.clear()
       agentClients.clear()

@@ -42,3 +42,44 @@ No registry restart needed. The comment fields and the page were already in plac
 ### Notes
 
 Installing this version does not turn LAN publishing on. `lan on` restarts the local service so the new bind takes effect. ADR 0016 stays accepted: `serve` and `review` still print `http://127.0.0.1:9477/plans/<id>/`, and the CLI does not resolve `*.local`.
+
+## 0.7.1
+
+**PR:** [#58](https://github.com/marco-calderon/visual-living-plan/pull/58)
+
+**Bump:** patch
+
+### Summary
+
+A sample under `spikes/mdx-react` renders one MDX plan with React entries, a Pele diagram, a TanStack chart, and an ELK workflow. The live plan page and the CLI are unchanged.
+
+### Bugs fixed
+
+- Side-by-side columns in the sample plan keep a readable width. A narrow window wraps them instead of painting the panels on top of each other.
+
+### New features
+
+- The sample host stores the plan in SQLite and streams edits over one shared event connection. Restoring a snapshot updates the open plan without a reload.
+
+### Notes
+
+No registry restart needed. The sample is not part of the published package.
+
+## 0.8.0
+
+**PR:** [#60](https://github.com/marco-calderon/visual-living-plan/pull/60)
+
+**Bump:** minor
+
+### Summary
+
+The plan you open is the MDX React page. Markdoc no longer draws it. The title bar, dashboard, comments, and approve / decline / message stay on that page.
+
+### Improvements
+
+- Plan entries render as React: phases, choices, forms, questions, approvals, checklists, callouts, Pele diagrams, TanStack charts, and an ELK workflow.
+- The plan source is kept as snapshots. Restoring one writes that version back to the plan file and updates the open page.
+
+### Notes
+
+Loopback, LAN, and `addressing` / `reply` / `address` are unchanged. Parsing still reads the plan file for interactions and the workflow. No registry restart needed beyond the usual version check.

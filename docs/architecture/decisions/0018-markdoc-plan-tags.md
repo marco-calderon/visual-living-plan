@@ -1,6 +1,6 @@
 # ADR 0018: Plan entries are Markdoc tags
 
-- Status: Accepted
+- Status: Superseded by [0020](0020-mdx-plan-page.md)
 - Date: 2026-10-27
 
 ## Context

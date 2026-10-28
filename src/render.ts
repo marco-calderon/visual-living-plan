@@ -1,6 +1,7 @@
 import type { ClientAssets } from './assets'
 import type { ExecutionState } from './execution'
-import { renderPlanHtml } from './markdoc/renderPlan'
+import { planSourceFlags, renderPlanStaticHtml } from './planMdx/source'
+import type { PlanSnapshotRecord } from './planSnapshots'
 import type { PlanMode } from './processRecord'
 import { clientLogScript } from './clientLog'
 import { faviconLink } from './favicon'
@@ -2277,6 +2278,23 @@ function clientScript(
   source.addEventListener('interaction', (event) => {
     try {
       const payload = JSON.parse(event.data);
+      if (!payload || typeof payload.id !== 'string') return;
+      if (payload.kind === 'choice' && typeof payload.label === 'string') {
+        markState(payload.id, 'Selected: <strong>' + payload.label + '</strong>');
+        return;
+      }
+      if (payload.kind === 'form') {
+        markState(payload.id, 'Submitted');
+        return;
+      }
+      if (payload.kind === 'questions') {
+        markState(payload.id, 'Answers sent');
+        return;
+      }
+      if (payload.kind === 'approve') {
+        markState(payload.id, payload.approved ? 'Approved' : 'Denied');
+        return;
+      }
       markState(payload.id, 'Updated');
     } catch {}
   });
@@ -2349,6 +2367,9 @@ export function renderPlanPage(options: {
   comments?: PlanComment[]
   /** Newest changelog, already parsed. Omit to hide the release block. */
   changelog?: ChangelogRelease | null
+  /** Append-only source history for the MDX page. */
+  mdxSnapshots?: PlanSnapshotRecord[]
+  mdxHeadSnapshotId?: string | null
 }): string {
   const {
     plan,
@@ -2366,17 +2387,31 @@ export function renderPlanPage(options: {
   const selfId = options.selfId
   const commentsJson = JSON.stringify(options.comments ?? []).replaceAll('<', '\\u003c')
   const reviewJson = JSON.stringify(options.review ?? null).replaceAll('<', '\\u003c')
+  const mdxBoot = JSON.stringify({
+    source: plan.source,
+    title: plan.title,
+    responses,
+    locked: Boolean(execution.active),
+    snapshots: options.mdxSnapshots ?? [],
+    headSnapshotId: options.mdxHeadSnapshotId ?? null,
+  }).replaceAll('<', '\\u003c')
 
   const locked = Boolean(execution.active)
   const pendingCount = pendingInteractionIds.length
   const showReviewBar = mode === 'review' && !reviewDecision && !locked
   const planned = planToExpectedGraph(plan)
   const workflowState = locked ? 'live' : planned ? 'planned' : 'idle'
-  const body = renderPlanHtml(plan, { responses, diffs, locked })
+  const flags = planSourceFlags(plan.source)
+  const hasMermaid = flags.mermaid
+  const hasCode = flags.code
+  const planMdxHref = clientAssets?.planMdxHref
+  const planMdxCss = (clientAssets?.planMdxCssHrefs ?? [])
+    .map((href) => `<link rel="stylesheet" href="${escapeHtml(href)}" />`)
+    .join('\n')
+  const staticPlan = renderPlanStaticHtml(plan.source)
+  const body = `<div id="plan-mdx-root" data-plan-mdx class="${planMdxHref ? 'plan-mdx-pending' : ''}">${staticPlan}</div>`
 
   const changed = diffs.filter((diff) => diff.status !== 'unchanged').length
-  const hasMermaid = body.includes('class="mermaid-diagram"')
-  const hasCode = body.includes('class="code-block"')
   const assetCss = [
     ...(clientAssets?.cssHrefs ?? []),
     ...(clientAssets?.selectorCssHrefs ?? []),
@@ -2398,6 +2433,9 @@ export function renderPlanPage(options: {
       : ''
   const selectorJs = clientAssets?.selectorHref
     ? `<script type="module" src="${escapeHtml(clientAssets.selectorHref)}"></script>`
+    : ''
+  const planMdxJs = planMdxHref
+    ? `<script type="module" src="${escapeHtml(planMdxHref)}"></script>`
     : ''
   const executionFallback = clientAssets
     ? ''
@@ -2440,6 +2478,8 @@ export function renderPlanPage(options: {
   <style>${STYLES}${PROCESSES_PANEL_STYLES}</style>
   ${accentStyleTag(theme.accent)}
   ${assetCss}
+  ${planMdxCss}
+  ${planMdxHref ? '<style>.plan-mdx-pending{display:none}</style><noscript><style>.plan-mdx-pending{display:block}</style></noscript>' : ''}
 </head>
 <body class="${showReviewBar ? 'has-review-bar' : ''}${theme.fullWidth ? ' layout-full' : ''}" data-plan-mode="${escapeHtml(mode)}">
   <header class="titlebar">
@@ -2568,12 +2608,14 @@ export function renderPlanPage(options: {
   <div id="toast" class="toast" role="status"></div>
   <script type="application/json" id="living-plan-comments">${commentsJson}</script>
   <script type="application/json" id="living-plan-review">${reviewJson}</script>
+  <script type="application/json" id="living-plan-mdx">${mdxBoot}</script>
   <script>${clientLogScript(`${basePath}/api/logs`)}</script>
   <script>${clientScript(mode, locked, theme, basePath)}
 ${processesPanelScript()}</script>
   ${mermaidJs}
   ${highlightJs}
   ${selectorJs}
+  ${planMdxJs}
 </body>
 </html>`
 }
