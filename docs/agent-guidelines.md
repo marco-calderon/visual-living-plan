@@ -73,13 +73,14 @@ Swap the `bunx visual-living-plan` prefix for `live-plan` when that command is o
 | `processes` | List plans hosted by the service, including directory and git status. `ps` is the same command. | `0` |
 | `logs` | Print the development log saved under `~/.config/living-plan/logs`. The page does not show it. `--level error`, `warn`, or `log` filters. `--day YYYY-MM-DD` reads one registry day (today when omitted). `--url` reads one plan and ignores `--day`. | `0` printed, including when the file is missing, `1` bad arguments |
 | `dashboard` | Open the registry dashboard of running and executed plans (day, week, and month). | `0` when the registry is up, `1` when it is not |
+| `lan on\|off\|status` | Opt in to publishing the plan service on the local network. Off by default. `on` prints the LAN URL. Agents keep using the loopback URL from `serve`. | `0` including when there is no LAN address or the firewall command fails, `1` when the service cannot rebind |
 | `tui` | The registry in the terminal. Starts the plan service when it is not already running. `p` is the running-plan list. `d` is the dashboard (`--period` is `day` by default, or `week` or `month`). Active plans are listed first. Quitting leaves the service up. | `0` when you quit, `1` when the terminal is not interactive, the arguments are wrong, or the registry cannot start |
 | `theme get\|set` | Read or write the accent color. Prefer `--url` while `serve`/`review` is up; otherwise `--config` / `--plan` writes `live-plan.config.json`. | `0` ok, `1` usage or HTTP error |
 
 Flags:
 
 - `--port` is the private server port with `--no-registry`. Otherwise it is used only when the service is not already running.
-- `--host` defaults to `127.0.0.1`. The printed URL uses that address, for example `http://127.0.0.1:9477/plans/<id>/`. Set `--host` to a reachable address when a cloud agent must share the URL.
+- `--host` defaults to `127.0.0.1`. The printed URL uses that address, for example `http://127.0.0.1:9477/plans/<id>/`. Set `--host` to a reachable address when a cloud agent must share the URL. `lan on` is how a person on that machine publishes the service to other devices. It does not change the URL `serve` prints, and the CLI does not resolve `*.local`.
 - `--timeout` defaults to 4 hours. Always include a unit: `30s`, `45m`, `4h`. A bare number is milliseconds.
 - `--iteration N` labels a review round (default `1`). Bump it when you re-open review after Iterate.
 - `--out <file>` writes the review JSON as well as printing it.

@@ -82,6 +82,7 @@ Usage:
   live-plan dashboard
   live-plan tui [--period day|week|month] [--registry-port N] [--registry-host HOST]
   live-plan registry [--port N] [--host HOST]
+  live-plan lan on|off|status
   live-plan --version
 
 Requires Bun (https://bun.sh). Invoke with \`bunx visual-living-plan <command>\` when the \`live-plan\` command is not installed. \`living-plan\` is the same binary.
@@ -105,6 +106,7 @@ Modes:
   dashboard   Open the control dashboard (running and executed plans, by day, week, or month).
   tui         The registry in the terminal: running plans, and the day, week, and month dashboard. Starts the plan service when it is not already running. Quitting leaves that service up. Active plans are listed first. Click a control, or use Tab, arrows, p, d, and the number keys.
   registry    Run the plan service in the foreground. serve and review start it on their own.
+  lan         Publish this machine's plan service on the local network. Off until \`lan on\`.
 
 Every plan includes a \`workflow\` block. That block is the execution path the Workflow tab draws.
 Per-plan accent color is saved in live-plan.config.json beside the plan (override with --config).
@@ -120,6 +122,7 @@ The machine service keeps running after serve, events, wait, review, dashboard, 
 --port sets that private process port. With the service, --port is used only when the service is not already running.
 --registry-port and --registry-host choose the service (default ${DEFAULT_REGISTRY_HOST}:${DEFAULT_REGISTRY_PORT}).
 The printed URL uses that address. On loopback it is http://127.0.0.1:${DEFAULT_REGISTRY_PORT}/plans/<id>/. --host other than loopback is the address a cloud agent shares.
+LAN publishing is off on a fresh install. \`lan on\` listens on all interfaces, advertises living-plan.local, and prints a LAN URL for other devices. \`serve\` and \`review\` still print the loopback plan URL. The CLI dials 127.0.0.1 and does not resolve *.local.
 --token authorizes the agent event stream. Omitted, the local service token is used.
 `)
 }
@@ -972,7 +975,8 @@ async function cmdRegistry(args: string[]): Promise<number> {
   const home = defaultRegistryHome()
   const portFlag = getFlag(args, '--port')
   const port = portFlag ? Number(portFlag) : DEFAULT_REGISTRY_PORT
-  const host = getFlag(args, '--host') ?? DEFAULT_REGISTRY_HOST
+  const { chooseBindHost, readLanEnabled } = await import('./lanConfig')
+  const host = chooseBindHost(getFlag(args, '--host'), await readLanEnabled(home))
   const version = await readPackageVersion(fileURLToPath(import.meta.url))
   const existing = await readRegistryLock(home)
   if (existing && existing.version === version && isPidAlive(existing.pid) && (await registryHealthy(registryBindUrl(existing)))) {
@@ -1197,6 +1201,17 @@ async function main(): Promise<number> {
 
   if (command === 'registry') {
     return cmdRegistry(args.slice(1))
+  }
+
+  if (command === 'lan') {
+    const { lanOff, lanOn, lanStatus } = await import('./lanCommand')
+    const action = args[1]
+    const entry = fileURLToPath(import.meta.url)
+    if (action === 'on') return lanOn(entry)
+    if (action === 'off') return lanOff(entry)
+    if (action === 'status') return lanStatus()
+    console.error('Usage: live-plan lan <on|off|status>')
+    return 1
   }
 
   if (command === 'theme') {

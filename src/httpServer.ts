@@ -1,5 +1,11 @@
+import { runWithPeer } from './lanAccess'
+
 export type FetchApp = {
   fetch: (request: Request) => Response | Promise<Response>
+}
+
+type RequestIp = {
+  requestIP?: (request: Request) => { address?: string } | null
 }
 
 export type BoundServer = {
@@ -16,7 +22,10 @@ export function bindElysiaAt(app: FetchApp, host: string, port: number): BoundSe
     port,
     hostname: host,
     idleTimeout: 0,
-    fetch: (request) => app.fetch(request),
+    fetch: (request, server: RequestIp) => {
+      const peer = server.requestIP?.(request)?.address ?? ''
+      return runWithPeer(peer, () => app.fetch(request))
+    },
   })
   const bound = server.port
   if (!bound) {

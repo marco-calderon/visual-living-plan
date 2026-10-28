@@ -12,7 +12,7 @@ Authoring rules for agents who *use* the tool live in [docs/agent-guidelines.md]
 
 ## How a plan is hosted
 
-One service per machine, default `127.0.0.1:9477`, hosts every plan. `serve` registers the file and subscribes to that plan's agent stream. On loopback it prints `http://127.0.0.1:9477/plans/<id>/`. It prints undelivered submissions and exits. The page and the service stay up after it exits. `--detach` registers and returns. `events` is the client to start again for the next submission. `wait` blocks on one id. A client of another plan does not see the event. The service is a detached process and keeps running when a CLI client disconnects. `--host` other than loopback is the address a cloud agent shares.
+One service per machine, default `127.0.0.1:9477`, hosts every plan. `serve` registers the file and subscribes to that plan's agent stream. On loopback it prints `http://127.0.0.1:9477/plans/<id>/`. It prints undelivered submissions and exits. The page and the service stay up after it exits. `--detach` registers and returns. `events` is the client to start again for the next submission. `wait` blocks on one id. A client of another plan does not see the event. The service is a detached process and keeps running when a CLI client disconnects. `--host` other than loopback is the address a cloud agent shares. `live-plan lan on` is a separate opt-in that publishes the same service on the local network ([ADR 0019](architecture/decisions/0019-lan-publishing.md)). Agents keep the loopback URL. The LAN URL is printed only by `lan on` and `lan status`.
 
 `--no-registry` is the exception: one private server for one plan. Keep that path working.
 
@@ -48,7 +48,7 @@ Home directory for the service is `~/.config/living-plan` (`$XDG_CONFIG_HOME/liv
 - Browser API calls from a hosted page are prefixed with `/plans/<id>`. Root `/api/...` on the service is the catalog, the dashboard, and the service log, not a plan.
 - `new URL('/api/plan', planUrl)` is wrong for a plan URL that has a path. Use `planApiUrl`.
 - User submissions are pushed on the agent stream and stored in `plan_events`. `delivered_at` is set when the CLI acks. Do not poll `/api/plan` from the CLI.
-- The agent stream on the service requires a bearer token. Browser submission routes stay open on loopback.
+- The agent stream on the service requires a bearer token. Browser submission routes stay open on loopback. With LAN publishing on, a non-loopback peer needs the LAN secret before a plan page or plan API succeeds.
 - A plan session is closed on `live-plan close`, and when it has no open browser or agent stream and `lastSeenAt` is 6 hours old. Approve and deny return that session to watch and leave it open. Iterate leaves it open in review.
 - Restart the service when the package version in the lock file does not match the CLI.
 - The service process stays running after `serve`, `events`, `wait`, `review`, `dashboard`, and `tui` exit.

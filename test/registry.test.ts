@@ -396,6 +396,9 @@ test('rewriteToBindUrl keeps the plan path on the bind address', () => {
     startedAt: 0,
   }
   assert.equal(registryBindUrl(lock), 'http://127.0.0.1:9477')
+  assert.equal(registryBindUrl({ ...lock, host: '0.0.0.0' }), 'http://127.0.0.1:9477')
+  assert.equal(registryBindUrl({ ...lock, host: '::' }).includes('.local'), false)
+  assert.equal(registryBindUrl({ ...lock, host: '::' }), 'http://127.0.0.1:9477')
   assert.equal(
     rewriteToBindUrl(lock, 'http://living-plan.local:9477/plans/abcdefghi/'),
     'http://127.0.0.1:9477/plans/abcdefghi/',
