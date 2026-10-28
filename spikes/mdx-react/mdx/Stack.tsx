@@ -5,9 +5,18 @@ type StackProps = {
   gap?: number | string
 }
 
-export function Stack({ children, gap = 16 }: StackProps) {
+export function Stack({ children, gap }: StackProps) {
   return (
-    <div className="vlp-stack" style={{ display: 'flex', flexDirection: 'column', gap, width: '100%', minWidth: 0 }}>
+    <div
+      className="vlp-stack"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100%',
+        minWidth: 0,
+        ...(gap != null ? { gap } : {}),
+      }}
+    >
       {children}
     </div>
   )

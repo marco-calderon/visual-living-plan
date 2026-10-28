@@ -14,6 +14,7 @@ const rowLayout = `
 .vlp-row {
   width: 100%;
   min-width: 0;
+  gap: var(--space-xl);
 }
 .vlp-row > * {
   flex: 1 1 16rem;
@@ -23,13 +24,22 @@ const rowLayout = `
 }
 `
 
-export function Row({ children, gap = 16 }: RowProps) {
+export function Row({ children, gap }: RowProps) {
   return (
     <Fragment>
       <style href="vlp-row" precedence="default">
         {rowLayout}
       </style>
-      <div className="vlp-row" style={{ display: 'flex', flexWrap: 'wrap', gap, alignItems: 'stretch', width: '100%' }}>
+      <div
+        className="vlp-row"
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'stretch',
+          width: '100%',
+          ...(gap != null ? { gap } : {}),
+        }}
+      >
         {children}
       </div>
     </Fragment>

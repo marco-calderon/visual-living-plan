@@ -120,3 +120,21 @@ The plan page is a flat document, and a plan is authored as the MDX components t
 ### Notes
 
 This breaks the plan schema. Plans written with `{% tags %}` or entry fences such as ` ```phase ` need to be rewritten as MDX. The title bar, dashboard, comments, and approve / decline / message stay. No registry restart needed beyond the usual version check.
+
+## 1.0.1
+
+**PR:** [#64](https://github.com/marco-calderon/visual-living-plan/pull/64)
+
+**Bump:** patch
+
+### Summary
+
+Plan cards and stacked plan components sit apart by the documentation-card step on the existing space scale. Light and dark use the same spacing.
+
+### Bugs fixed
+
+- Phases, callouts, choices, forms, questions, approvals, checklists, and workflow sections no longer sit flush against the next card. The gap is 24px (`xl`), the documentation-card padding already on the space scale. Stacks and rows of those cards use that same step. Space inside a card uses `xs` through `lg` from that scale.
+
+### Notes
+
+The canvas, hairline cards, title bar, dashboard, popups, comments, and workflow connectors are unchanged. No registry restart needed beyond the usual version check.

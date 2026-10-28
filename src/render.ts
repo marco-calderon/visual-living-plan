@@ -141,6 +141,18 @@ const STYLES = `
   --shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
   --shadow-modal: 0 12px 16px -4px rgba(36, 36, 36, 0.08);
   --radius: 16px;
+  --space-xxs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 20px;
+  --space-xl: 24px;
+  --space-xxl: 32px;
+  --space-xxxl: 40px;
+  --space-section-sm: 48px;
+  --space-section: 64px;
+  --space-section-lg: 80px;
+  --space-hero: 96px;
   --font-display: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-body: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -960,10 +972,33 @@ body.has-review-bar .shell {
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: 16px;
-  padding: 24px;
+  padding: var(--space-xl);
   box-shadow: none;
   animation: rise 0.55s ease both;
 }
+.plan-document > :is(.plan-entry, .block, .plan-panel, .vlp-workflow, .vlp-stack, .vlp-row, .vlp-box, .vlp-chart),
+.plan-document > div:has(> .plan-entry) {
+  margin-top: var(--space-xl);
+}
+.plan-document > :first-child,
+.plan-document > div:first-child:has(> .plan-entry) {
+  margin-top: 0;
+}
+.plan-rich > :is(.plan-entry, .plan-panel, .vlp-stack, .vlp-row, .vlp-box, .vlp-chart),
+.plan-rich > div:has(> .plan-entry) {
+  margin-top: var(--space-xl);
+}
+.plan-rich > :is(.plan-entry, .plan-panel, .vlp-stack, .vlp-row, .vlp-box, .vlp-chart):not(:last-child),
+.plan-rich > div:has(> .plan-entry):not(:last-child) {
+  margin-bottom: var(--space-xl);
+}
+.vlp-stack,
+.vlp-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+.vlp-row { gap: var(--space-xl); }
 body.plan-live .block {
   animation: none;
 }

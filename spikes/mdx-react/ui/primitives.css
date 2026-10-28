@@ -35,6 +35,18 @@
   --shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
   --shadow-modal: 0 12px 16px -4px rgba(36, 36, 36, 0.08);
   --radius: 16px;
+  --space-xxs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 20px;
+  --space-xl: 24px;
+  --space-xxl: 32px;
+  --space-xxxl: 40px;
+  --space-section-sm: 48px;
+  --space-section: 64px;
+  --space-section-lg: 80px;
+  --space-hero: 96px;
   --font-display: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-body: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -140,7 +152,7 @@
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: 16px;
-  padding: 24px;
+  padding: var(--space-xl);
   box-shadow: none;
   animation: rise 0.55s ease both;
 }
@@ -203,19 +215,19 @@
 
 .plan-hstack[data-gap="xs"],
 .plan-vstack[data-gap="xs"],
-.plan-responsive-stack[data-gap="xs"] { gap: 0.35rem; }
+.plan-responsive-stack[data-gap="xs"] { gap: var(--space-xs); }
 
 .plan-hstack[data-gap="sm"],
 .plan-vstack[data-gap="sm"],
-.plan-responsive-stack[data-gap="sm"] { gap: 0.55rem; }
+.plan-responsive-stack[data-gap="sm"] { gap: var(--space-sm); }
 
 .plan-hstack[data-gap="md"],
 .plan-vstack[data-gap="md"],
-.plan-responsive-stack[data-gap="md"] { gap: 0.9rem; }
+.plan-responsive-stack[data-gap="md"] { gap: var(--space-md); }
 
 .plan-hstack[data-gap="lg"],
 .plan-vstack[data-gap="lg"],
-.plan-responsive-stack[data-gap="lg"] { gap: 1.25rem; }
+.plan-responsive-stack[data-gap="lg"] { gap: var(--space-lg); }
 
 .plan-hstack[data-align="start"],
 .plan-vstack[data-align="start"],
@@ -320,6 +332,35 @@
   color: var(--ink);
   font-family: var(--font-body);
 }
+
+.plan-document > :is(.plan-entry, .block, .plan-panel, .vlp-workflow, .vlp-stack, .vlp-row, .vlp-box, .vlp-chart),
+.plan-document > div:has(> .plan-entry) {
+  margin-top: var(--space-xl);
+}
+
+.plan-document > :first-child,
+.plan-document > div:first-child:has(> .plan-entry) {
+  margin-top: 0;
+}
+
+.plan-rich > :is(.plan-entry, .plan-panel, .vlp-stack, .vlp-row, .vlp-box, .vlp-chart),
+.plan-rich > div:has(> .plan-entry) {
+  margin-top: var(--space-xl);
+}
+
+.plan-rich > :is(.plan-entry, .plan-panel, .vlp-stack, .vlp-row, .vlp-box, .vlp-chart):not(:last-child),
+.plan-rich > div:has(> .plan-entry):not(:last-child) {
+  margin-bottom: var(--space-xl);
+}
+
+.vlp-stack,
+.vlp-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+.vlp-row { gap: var(--space-xl); }
 
 .plan-document > :is(h1, h2, h3),
 .plan-rich :is(h1, h2, h3):not(.plan-title) {
