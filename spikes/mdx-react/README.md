@@ -4,9 +4,10 @@ A sample host for a React plan page and a Bun server. The live plan renderer sta
 
 | Path | What it is |
 |---|---|
-| `app/` | Vite host page. One shared `EventSource`, snapshot list, restore, and a raw source sender. |
+| `app/` | Vite host page. One shared `EventSource`, snapshot list, restore, and the rendered plan. |
 | `server/` | Bun server. SQLite stores plan documents and append-only snapshots. |
-| `ui/` | Plan components, owned separately. Optional `PlanRoot` export. |
+| `ui/` | Plan entry components. The host uses this map for phase, choice, form, and the other entries. |
+| `mdx/` | Sample plan, Pele mermaid, TanStack charts, and the ELK workflow. |
 | `server/protocol.ts` | Event names, row shapes, and `PlanHostProps`. |
 
 ## Run
@@ -20,14 +21,13 @@ bun spikes/mdx-react/server/index.ts
 In another:
 
 ```bash
-cd spikes/mdx-react/app
-bun install
-bun run dev
+cd spikes/mdx-react/mdx && bun install
+cd ../app && bun install && bun run dev
 ```
 
 Open `http://127.0.0.1:5199/`. The server listens on `127.0.0.1:9488`. Vite proxies `/events` and `/api` to it.
 
-`MDX_SPIKE_PORT` changes the server port (default `9488`). `MDX_SPIKE_DB` changes the SQLite file (default `spikes/mdx-react/server/data/plans.sqlite`). An empty database gets one sample plan, `plan_sample`.
+`MDX_SPIKE_PORT` changes the server port (default `9488`). `MDX_SPIKE_DB` changes the SQLite file (default `spikes/mdx-react/server/data/plans.sqlite`). An empty database stores `mdx/sample-plan.mdx` as plan `plan_sample`.
 
 ```bash
 bun test spikes/mdx-react/server/server.test.ts spikes/mdx-react/app/src/reducePlanStream.test.ts
@@ -139,20 +139,14 @@ One row per server change.
 
 `app/` renders the connection, the plan switcher, the snapshot list, restore, and the raw source sender. Those controls post `create`, `edit`, and `restore`.
 
-The plan surface is a slot:
+The open document is compiled as MDX and rendered inside:
 
 ```html
 <div data-plan-root data-plan-id="…" data-snapshot-id="…"></div>
 ```
 
-`data-snapshot-id` is the head snapshot. When `ui/index.tsx` or `ui/index.ts` exports `PlanRoot`, the host renders it inside the slot and passes `PlanHostProps` from `server/protocol.ts`:
+`data-snapshot-id` is the head snapshot. A `plan` event replaces `body`, the host compiles that source again, and the slot updates without a reload.
 
-```tsx
-export function PlanRoot(props: PlanHostProps) {
-  return <article>{props.plan?.title}</article>
-}
-```
+The component map is `ui`'s `components`. `workflow` is the ELK layout from `mdx/Workflow`. `Mermaid` is Pele. `BarChart` and `LineChart` are TanStack charts. `Stack` and `Row` come from `mdx` because the sample uses those layout tags.
 
-`onEdit(body, title?)` and `onRestore(snapshotId)` apply to the open plan. `onCreate(title, body)` stores a new document and opens it. `props.plan` and `props.snapshots` change when a stream event arrives. `PlanRoot` should render from those props and should not open its own `EventSource`.
-
-Without that export, the slot stays empty. `window.__MDX_PLAN_HOST__` exposes the same actions for the open plan: `plan`, `snapshots`, `edit`, `restore`, `create`, `open`.
+`window.__MDX_PLAN_HOST__` exposes the open plan: `plan`, `snapshots`, `edit`, `restore`, `create`, `open`.

@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { SpikeError } from './errors'
@@ -50,14 +50,8 @@ export type SpikeDb = {
   close: () => void
 }
 
-const sampleBody = `# Sample plan
-
-This document is MDX source stored by the spike server. The host page streams it. Rendering lives in \`ui/\`.
-
-## Versioning
-
-Each server change appends a snapshot. Restore writes a new snapshot with the older source and updates the open plan in place.
-`
+const sampleBody = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../mdx/sample-plan.mdx'), 'utf8')
+const sampleTitle = 'Rate limiting rollout'
 
 export function defaultDbPath(): string {
   return join(dirname(fileURLToPath(import.meta.url)), 'data', 'plans.sqlite')
@@ -126,7 +120,7 @@ function seedSample(db: Database): void {
   insertDocument(db, {
     id: samplePlanId,
     snapshotId: sampleSnapshotId,
-    title: 'Sample plan',
+    title: sampleTitle,
     body: sampleBody,
     reason: 'create',
     parentId: null,

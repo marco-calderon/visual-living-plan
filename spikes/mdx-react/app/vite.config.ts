@@ -5,16 +5,24 @@ import { defineConfig } from 'vite'
 
 const appDir = dirname(fileURLToPath(import.meta.url))
 const spikeDir = resolve(appDir, '..')
+const repoRoot = resolve(spikeDir, '../..')
 const spikePort = process.env.MDX_SPIKE_PORT ?? '9488'
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    dedupe: ['react', 'react-dom'],
+    alias: {
+      react: resolve(appDir, 'node_modules/react'),
+      'react-dom': resolve(appDir, 'node_modules/react-dom'),
+    },
+  },
   server: {
     host: '127.0.0.1',
     port: 5199,
     strictPort: true,
     fs: {
-      allow: [spikeDir],
+      allow: [repoRoot],
     },
     proxy: {
       '/events': {

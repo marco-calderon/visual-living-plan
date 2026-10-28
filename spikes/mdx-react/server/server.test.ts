@@ -144,7 +144,7 @@ describe('plan snapshots', () => {
       const restored = await post(server.url, 'restore', { planId: samplePlanId, snapshotId: sampleSnapshotId })
       expect(restored.status).toBe(200)
       expect(restored.body.changed).toBe(true)
-      expect(restored.body.plan?.body).toContain('updates the open plan in place')
+      expect(restored.body.plan?.body).toContain('Rate limiting rollout')
       expect(restored.body.plan?.headSnapshotId).not.toBe(sampleSnapshotId)
       expect(restored.body.snapshot?.seq).toBe(4)
       expect(restored.body.snapshot?.reason).toBe('restore')
@@ -161,7 +161,7 @@ describe('plan snapshots', () => {
       expect(snapshots.snapshots.map((snapshot) => snapshot.seq)).toEqual([1, 2, 3, 4])
       expect(snapshots.snapshots[1]?.body).toContain('Version two')
       expect(snapshots.snapshots[2]?.body).toContain('Version three')
-      expect(snapshots.snapshots[3]?.body).toContain('updates the open plan in place')
+      expect(snapshots.snapshots[3]?.body).toContain('Rate limiting rollout')
     } finally {
       await server.stop()
     }
