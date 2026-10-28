@@ -1,0 +1,173 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f6f5f2;
+  --ink: #1c1915;
+  --muted: #5e584e;
+  --line: #c8c2b6;
+  --accent: #2f5d50;
+  --paper: #fffdf8;
+  font-family: "Iowan Old Style", Palatino, Georgia, serif;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161513;
+    --ink: #f3efe6;
+    --muted: #b7b0a4;
+    --line: #3c3832;
+    --accent: #8fbfa8;
+    --paper: #221f1b;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+}
+
+.host {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.host-bar,
+.plan-slot {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.host-bar {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.host-row,
+.host-title,
+.host-source {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: center;
+}
+
+.host-name {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.host-status,
+.host-count,
+.host-error {
+  margin: 0;
+}
+
+.host-status[data-connected="false"] {
+  color: #9a3b2f;
+}
+
+label {
+  display: grid;
+  gap: 0.25rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+  color: inherit;
+}
+
+input,
+textarea,
+select {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.4rem 0.55rem;
+}
+
+.host-title input,
+.host-source textarea,
+.host-source {
+  width: 100%;
+}
+
+textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+button {
+  background: var(--accent);
+  color: #f7fffb;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.snapshot-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.snapshot-list li {
+  display: flex;
+  gap: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.8rem;
+}
+
+.snapshot-list li[data-head="true"] {
+  border-color: var(--accent);
+}
+
+.plan-slot:empty {
+  min-height: 12rem;
+  border-style: dashed;
+  display: grid;
+  place-items: center;
+}
+
+.plan-slot:empty::before {
+  content: "data-plan-root";
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .host {
+    padding: 1rem 0.75rem 2rem;
+  }
+
+  .host-row {
+    align-items: stretch;
+  }
+
+  select,
+  button {
+    width: 100%;
+  }
+}
