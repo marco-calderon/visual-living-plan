@@ -64,3 +64,22 @@ A sample under `spikes/mdx-react` renders one MDX plan with React entries, a Pel
 ### Notes
 
 No registry restart needed. The sample is not part of the published package.
+
+## 0.8.0
+
+**PR:** (opened with this change)
+
+**Bump:** minor
+
+### Summary
+
+The plan you open is the MDX React page. Markdoc no longer draws it. The title bar, dashboard, comments, and approve / decline / message stay on that page.
+
+### Improvements
+
+- Plan entries render as React: phases, choices, forms, questions, approvals, checklists, callouts, Pele diagrams, TanStack charts, and an ELK workflow.
+- The plan source is kept as snapshots. Restoring one writes that version back to the plan file and updates the open page.
+
+### Notes
+
+Loopback, LAN, and `addressing` / `reply` / `address` are unchanged. Parsing still reads the plan file for interactions and the workflow. No registry restart needed beyond the usual version check.

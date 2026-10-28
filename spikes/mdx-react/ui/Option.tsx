@@ -20,6 +20,7 @@ export function Option({ id, label, children, className }: OptionProps) {
       aria-pressed={selected}
       disabled={choice?.disabled}
       data-option-id={id}
+      data-option-label={label}
       data-choice-id={choice?.choiceId}
       onClick={() => choice?.onSelect(id, label)}
     >

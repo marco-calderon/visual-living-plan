@@ -13,6 +13,7 @@ export type ChoiceProps = {
   prompt: string
   options?: ChoiceOptionSpec[]
   selectedId?: string
+  selectedLabel?: string
   locked?: boolean
   children?: ReactNode
   className?: string
@@ -24,21 +25,24 @@ export function Choice({
   prompt,
   options,
   selectedId,
+  selectedLabel: savedLabel,
   locked,
   children,
   className,
   onSelect,
 }: ChoiceProps) {
-  const [localSelected, setLocalSelected] = useState<string | undefined>(undefined)
+  const [localSelected, setLocalSelected] = useState<{ id: string; label: string } | undefined>(undefined)
   const picked = useRef(false)
-  const selected = selectedId ?? localSelected
+  const selected = selectedId ?? localSelected?.id
+  const selectedLabel =
+    localSelected && localSelected.id === selected ? localSelected.label : (savedLabel ?? selected)
   const disabled = Boolean(locked) || selected !== undefined
   const { matches, rest } = partitionEntries(children, 'option')
 
   function select(optionId: string, label: string) {
     if (locked || selected !== undefined || picked.current) return
     picked.current = true
-    setLocalSelected(optionId)
+    setLocalSelected({ id: optionId, label })
     onSelect?.({ kind: 'choice', id, optionId, label })
   }
 
@@ -72,10 +76,10 @@ export function Choice({
             {keyedEntries(matches, 'option')}
           </ResponsiveStack>
         </ChoiceContext.Provider>
-        <p className="plan-state">
+        <p className="plan-state" data-state-for={id}>
           {state === 'selected' ? (
             <>
-              Selected: <strong>{selected}</strong>
+              Selected: <strong>{selectedLabel}</strong>
             </>
           ) : (
             state

@@ -1,6 +1,8 @@
-# MDX React spike
+# MDX React plan page
 
-A sample host for a React plan page and a Bun server. The live plan renderer stays in `src/`. This folder does not replace it.
+The plan column people open. The service mounts this app (`client/planMdx.tsx`) and stores source history with the snapshot tables below. Markdoc is not on the render path.
+
+The folders here are the React entries, the MDX compile, and the snapshot shape. `bun spikes/mdx-react/server/index.ts` still runs the sample host by itself.
 
 | Path | What it is |
 |---|---|

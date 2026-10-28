@@ -53,6 +53,7 @@ export function Approve({ id, prompt, children, note, approved, locked, classNam
       id={anchorId(id)}
       data-entry="approve"
       data-entry-id={id}
+      data-interaction-id={id}
       data-locked={locked ? 'true' : undefined}
     >
       <VStack gap="sm">
@@ -76,6 +77,7 @@ export function Approve({ id, prompt, children, note, approved, locked, classNam
             type="button"
             className="plan-btn plan-btn-danger"
             disabled={disabled}
+            data-approve-id={id}
             data-approved="false"
             onClick={() => decide(false)}
           >
@@ -85,13 +87,14 @@ export function Approve({ id, prompt, children, note, approved, locked, classNam
             type="button"
             className="plan-btn plan-btn-primary"
             disabled={disabled}
+            data-approve-id={id}
             data-approved="true"
             onClick={() => decide(true)}
           >
             Approve
           </button>
         </HStack>
-        <p className="plan-state">{state}</p>
+        <p className="plan-state" data-state-for={id}>{state}</p>
       </VStack>
     </Box>
   )

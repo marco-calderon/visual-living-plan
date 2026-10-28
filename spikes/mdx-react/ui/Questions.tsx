@@ -73,7 +73,7 @@ export function Questions({ id, prompt, items, answers, locked, children, classN
                   Send answers
                 </button>
               </div>
-              <p className="plan-state">{state}</p>
+              <p className="plan-state" data-state-for={id}>{state}</p>
             </VStack>
           </form>
         </ItemContext.Provider>

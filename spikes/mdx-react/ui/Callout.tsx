@@ -27,7 +27,13 @@ export function Callout({ id, kind, title, children, className }: CalloutProps) 
       data-kind={normalized}
     >
       <VStack gap="sm">
-        <div className="plan-callout-label">{label}</div>
+        <div
+          className="plan-callout-label"
+          data-plan-part={id ? `callout:${id}/label` : undefined}
+          data-plan-kind="label"
+        >
+          {label}
+        </div>
         {children ? <div className="plan-rich">{children}</div> : null}
       </VStack>
     </Box>

@@ -26,6 +26,10 @@ export function Workflow({ id, title = 'Expected execution', nodes, edges, child
   return (
     <section id={id} className="vlp-workflow plan-panel" aria-label={title}>
       <h3 className="plan-title">{title}</h3>
+      <p className="workflow-note">
+        These steps are the execution plan before the run is laid down. The Workflow tab draws the same path. Select a
+        step there to jump to the matching place in this plan.
+      </p>
       {layout.nodes.length === 0 ? <p>Workflow has no steps.</p> : null}
       {layout.nodes.length > 0 ? (
         <svg
@@ -71,7 +75,11 @@ function WorkflowCard({ node }: { node: PlacedWorkflowNode }) {
   const reference = node.planLabel ?? node.planRef
   let cursor = 22
   return (
-    <a href={node.planRef ? `#${node.planRef}` : undefined}>
+    <a
+      className="workflow-step"
+      href={node.planRef ? `#plan-${node.planRef}` : undefined}
+      data-plan-jump={node.planRef || undefined}
+    >
       <g>
         <rect
           className="vlp-workflow-card"

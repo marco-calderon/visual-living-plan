@@ -82,7 +82,7 @@ export function Form({ id, prompt, fields, values, locked, children, className, 
                 Submit
               </button>
             </div>
-            <p className="plan-state">{state}</p>
+            <p className="plan-state" data-state-for={id}>{state}</p>
           </VStack>
         </FormContext.Provider>
       </form>
