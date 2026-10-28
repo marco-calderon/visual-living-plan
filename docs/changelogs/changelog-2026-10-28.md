@@ -67,7 +67,7 @@ No registry restart needed. The sample is not part of the published package.
 
 ## 0.8.0
 
-**PR:** (opened with this change)
+**PR:** [#60](https://github.com/marco-calderon/visual-living-plan/pull/60)
 
 **Bump:** minor
 
