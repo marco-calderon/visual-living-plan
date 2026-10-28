@@ -29,6 +29,8 @@ After the merge.
   assert.match(html, /data-status="active"/)
   assert.match(html, /class="plan-step-number" href="#workflow\/merge" data-workflow-jump="merge" aria-label="Step 7">7</)
   assert.match(html, /class="plan-step-label" href="#workflow\/merge" data-workflow-jump="merge">Merge #883 and put build 8 on feature</)
+  const heading = html.slice(html.indexOf('plan-step-heading'), html.indexOf('</section>'))
+  assert.ok(heading.indexOf('plan-step-label') < heading.indexOf('plan-phase-status'))
   assert.match(html, /class="rf-progress-icon"/)
   assert.doesNotMatch(html, /plan-step-label[^>]*>7\. Merge/)
   assert.match(html, /data-status="pending"/)

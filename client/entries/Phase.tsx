@@ -65,10 +65,6 @@ export function Phase({ id, title, status, children, className }: PhaseProps) {
               </span>
             )}
             <div className="plan-step-copy">
-              <span className="plan-phase-status">
-                {normalized === 'active' ? <ProgressIcon /> : null}
-                {normalized}
-              </span>
               <h3 className="plan-title">
                 {jump ? (
                   <a className="plan-step-label" href={jump} data-workflow-jump={id}>
@@ -78,6 +74,10 @@ export function Phase({ id, title, status, children, className }: PhaseProps) {
                   label
                 )}
               </h3>
+              <span className="plan-phase-status">
+                {normalized === 'active' ? <ProgressIcon /> : null}
+                {normalized}
+              </span>
             </div>
           </div>
           {children ? <div className="plan-rich">{children}</div> : null}

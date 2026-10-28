@@ -166,11 +166,11 @@ A workflow graph stays the pipe table inside `<workflow>`. `{% tags %}` and entr
 
 ### Summary
 
-A plan step shows its number in a small box colored for that step's state, and clicking the number or the title opens that step on the workflow diagram.
+A plan step shows its number in a square beside the title, colored for that step's state, and clicking the number or the title opens that step on the workflow diagram.
 
 ### Improvements
 
-- The number sits in a box above the step label. Done, active, and pending use the document success, accent, and muted colors. An active step shows the same spinner as a workflow diagram step.
+- The number sits in a square beside the title, with the status word under the title. The square is as tall as that title and status together, and just as wide. Done, active, and pending use the document success, accent, and muted colors. An active step shows the same spinner as a workflow diagram step.
 
 ### New features
 
