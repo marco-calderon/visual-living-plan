@@ -160,7 +160,7 @@ A workflow graph stays the pipe table inside `<workflow>`. `{% tags %}` and entr
 
 ## 1.1.0
 
-**PR:** (link once known)
+**PR:** [#66](https://github.com/marco-calderon/visual-living-plan/pull/66)
 
 **Bump:** minor
 
