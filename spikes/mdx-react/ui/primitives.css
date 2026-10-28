@@ -1,86 +1,104 @@
-/* Tokens, grid, and motion copied from src/render.ts and src/processesPanel.ts. */
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap");
+/* Document tokens. Light and dark follow html[data-theme]. */
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap");
 
 :root {
   color-scheme: light;
-  --ink: #14201b;
-  --muted: #5b6b63;
-  --paper: #eef3f0;
-  --paper-2: #e3ebe6;
-  --page-top: #f7faf8;
-  --panel: rgba(255, 255, 255, 0.72);
-  --panel-strong: rgba(255, 255, 255, 0.86);
-  --line: rgba(20, 32, 27, 0.12);
-  --accent: #0f766e;
-  --accent-2: #b45309;
-  --danger: #b42318;
+  --brand-coral: #ff5a36;
+  --brand-magenta: #e83e8c;
+  --brand-blue: #2563eb;
+  --brand-blue-deep: #1d4ed8;
+  --brand-blue-700: #1e40af;
+  --brand-cyan: #67e8f9;
+  --brand-blue-200: #dbeafe;
+  --brand-purple: #7c3aed;
+  --canvas: #ffffff;
+  --surface: #f4f4f5;
+  --surface-soft: #fafafa;
+  --hairline: #e4e4e7;
+  --ink: #18181b;
+  --charcoal: #27272a;
+  --steel: #71717a;
+  --primary: #09090b;
+  --on-primary: #ffffff;
+  --paper: var(--canvas);
+  --paper-2: var(--surface-soft);
+  --page-top: var(--canvas);
+  --panel: var(--surface);
+  --panel-strong: #ffffff;
+  --line: var(--hairline);
+  --muted: var(--steel);
+  --accent: var(--brand-blue-deep);
+  --accent-2: var(--brand-coral);
+  --danger: #d45656;
   --ok: #166534;
-  --on-accent: #ffffff;
-  --shadow: 0 18px 50px rgba(20, 32, 27, 0.08);
-  --radius: 18px;
-  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
-  --font-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
-  --wash-accent: rgba(15, 118, 110, 0.16);
-  --wash-warm: rgba(180, 83, 9, 0.12);
-  --chip-bg: rgba(255, 255, 255, 0.55);
-  --tabs-bg: rgba(255, 255, 255, 0.62);
-  --control-bg: rgba(255, 255, 255, 0.8);
-  --control-solid: rgba(255, 255, 255, 0.7);
-  --surface-soft: rgba(255, 255, 255, 0.55);
-  --code-inline-bg: rgba(15, 118, 110, 0.08);
-  --code-block-bg: #12201b;
-  --code-block-fg: #dff7ef;
-  --accent-soft: rgba(15, 118, 110, 0.08);
-  --accent-border: rgba(15, 118, 110, 0.22);
-  --accent-hover-border: rgba(15, 118, 110, 0.45);
-  --accent-hover-shadow: 0 10px 24px rgba(15, 118, 110, 0.12);
-  --danger-soft: rgba(180, 35, 24, 0.08);
-  --danger-border: rgba(180, 35, 24, 0.28);
-  --pulse: rgba(15, 118, 110, 0.45);
-  --grid-major: color-mix(in srgb, var(--accent) 20.4%, transparent);
-  --grid-minor: color-mix(in srgb, var(--accent) 9.6%, transparent);
-  --node-bg: rgba(255, 255, 255, 0.94);
-  --node-shadow: 0 10px 24px rgba(20, 32, 27, 0.08);
+  --on-accent: var(--on-primary);
+  --shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
+  --shadow-modal: 0 12px 16px -4px rgba(36, 36, 36, 0.08);
+  --radius: 16px;
+  --font-display: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-body: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --focus: var(--brand-blue-deep);
+  --chip-bg: var(--surface);
+  --tabs-bg: var(--surface);
+  --control-bg: var(--canvas);
+  --control-solid: var(--canvas);
+  --code-inline-bg: var(--brand-blue-200);
+  --code-block-bg: #18181b;
+  --code-block-fg: #fafafa;
+  --accent-soft: var(--brand-blue-200);
+  --accent-border: #bfdbfe;
+  --accent-hover-border: var(--brand-blue);
+  --accent-hover-shadow: none;
+  --danger-soft: #fef2f2;
+  --danger-border: #d45656;
+  --pulse: rgba(29, 78, 216, 0.35);
+  --node-bg: var(--surface);
+  --node-shadow: none;
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --ink: #e8f3ee;
-  --muted: #b7c7c0;
-  --paper: #101816;
-  --paper-2: #0c1210;
-  --page-top: #0d1513;
-  --panel: rgba(22, 36, 32, 0.78);
-  --panel-strong: rgba(16, 26, 23, 0.92);
-  --line: rgba(232, 243, 238, 0.14);
-  --accent: #2dd4bf;
-  --accent-2: #fbbf24;
-  --danger: #f87171;
-  --ok: #4ade80;
-  --on-accent: #06221e;
-  --shadow: 0 18px 50px rgba(0, 0, 0, 0.38);
-  --wash-accent: rgba(45, 212, 191, 0.16);
-  --wash-warm: rgba(251, 191, 36, 0.1);
-  --chip-bg: rgba(255, 255, 255, 0.06);
-  --tabs-bg: rgba(255, 255, 255, 0.05);
-  --control-bg: rgba(8, 14, 12, 0.55);
-  --control-solid: rgba(8, 14, 12, 0.45);
-  --surface-soft: rgba(255, 255, 255, 0.04);
-  --code-inline-bg: rgba(45, 212, 191, 0.14);
-  --code-block-bg: #07110e;
-  --code-block-fg: #dff7ef;
-  --accent-soft: rgba(45, 212, 191, 0.14);
-  --accent-border: rgba(45, 212, 191, 0.32);
-  --accent-hover-border: rgba(45, 212, 191, 0.55);
-  --accent-hover-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
-  --danger-soft: rgba(248, 113, 113, 0.12);
-  --danger-border: rgba(248, 113, 113, 0.4);
-  --pulse: rgba(45, 212, 191, 0.45);
-  --grid-major: color-mix(in srgb, var(--accent) 15.6%, transparent);
-  --grid-minor: color-mix(in srgb, var(--accent) 7.2%, transparent);
-  --node-bg: rgba(18, 32, 28, 0.96);
-  --node-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  --canvas: #0c0c0e;
+  --surface: #18181b;
+  --surface-soft: #141416;
+  --hairline: #27272a;
+  --ink: #fafafa;
+  --charcoal: #e4e4e7;
+  --steel: #a1a1aa;
+  --primary: #fafafa;
+  --on-primary: #0c0c0e;
+  --paper: var(--canvas);
+  --paper-2: #101012;
+  --page-top: var(--canvas);
+  --panel: var(--surface);
+  --panel-strong: #27272a;
+  --line: var(--hairline);
+  --muted: var(--steel);
+  --accent: #93c5fd;
+  --accent-2: #fdba74;
+  --danger: #fca5a5;
+  --ok: #86efac;
+  --on-accent: #0c0c0e;
+  --shadow: 0 4px 6px rgba(0, 0, 0, 0.28);
+  --shadow-modal: 0 12px 16px -4px rgba(0, 0, 0, 0.45);
+  --focus: #93c5fd;
+  --chip-bg: var(--surface);
+  --tabs-bg: var(--surface);
+  --control-bg: var(--canvas);
+  --control-solid: var(--canvas);
+  --code-inline-bg: rgba(147, 197, 253, 0.16);
+  --code-block-bg: #09090b;
+  --code-block-fg: #fafafa;
+  --accent-soft: rgba(147, 197, 253, 0.14);
+  --accent-border: #27272a;
+  --accent-hover-border: #93c5fd;
+  --accent-hover-shadow: none;
+  --danger-soft: rgba(252, 165, 165, 0.12);
+  --danger-border: #fca5a5;
+  --pulse: rgba(147, 197, 253, 0.4);
+  --node-bg: var(--surface);
+  --node-shadow: none;
 }
 
 .plan-ui {
@@ -97,15 +115,9 @@
 
 .plan-graph,
 .plan-surface {
-  background-color: var(--paper);
-  background-image:
-    linear-gradient(var(--grid-major) 2px, transparent 2px),
-    linear-gradient(90deg, var(--grid-major) 2px, transparent 2px),
-    linear-gradient(var(--grid-minor) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-minor) 1px, transparent 1px);
-  background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
-  background-position: -2px -2px, -2px -2px, -1px -1px, -1px -1px;
-  background-attachment: fixed;
+  background-color: var(--canvas);
+  background-image: none;
+  color: var(--charcoal);
 }
 
 .plan-surface {
@@ -125,21 +137,19 @@
 
 .plan-panel,
 .plan-box[data-surface="panel"] {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 1.15rem 1.25rem;
-  backdrop-filter: blur(10px);
-  box-shadow: var(--shadow);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: none;
   animation: rise 0.55s ease both;
 }
 
 .plan-popover {
-  border: 1px solid var(--line);
-  border-radius: 18px;
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
   background: var(--panel-strong);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(16px);
   transform-origin: top left;
   animation: processes-panel-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -278,7 +288,7 @@
   margin: 0;
   color: var(--ink);
   font-family: var(--font-display);
-  font-weight: 700;
+  font-weight: 600;
   font-size: 1.35rem;
   letter-spacing: -0.02em;
   line-height: 1.15;
@@ -314,7 +324,7 @@
 .plan-document > :is(h1, h2, h3),
 .plan-rich :is(h1, h2, h3):not(.plan-title) {
   font-family: var(--font-display);
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.02em;
   margin: 0 0 0.55rem;
   line-height: 1.15;
@@ -420,17 +430,14 @@
   border: 1px solid var(--line);
   background: var(--control-solid);
   color: var(--ink);
-  border-radius: 14px;
-  padding: 0.9rem;
+  border-radius: 9999px;
+  padding: 11px 24px;
   cursor: pointer;
   font: inherit;
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .plan-choice-option:hover:not(:disabled) {
-  transform: translateY(-2px);
-  border-color: var(--accent-hover-border);
-  box-shadow: var(--accent-hover-shadow);
+  border-color: var(--ink);
 }
 
 .plan-choice-option.is-selected {
@@ -455,30 +462,38 @@
 .plan-ui :is(input, textarea, select) {
   width: 100%;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 0.7rem 0.8rem;
-  background: var(--control-bg);
+  border-radius: 8px;
+  min-height: 40px;
+  padding: 0.55rem 0.8rem;
+  background: var(--canvas);
   color: var(--ink);
   font: inherit;
+}
+
+.plan-ui :is(input, textarea, select):focus {
+  outline: 2px solid var(--focus);
+  border-color: var(--focus);
 }
 
 .plan-ui textarea { min-height: 88px; resize: vertical; }
 
 .plan-btn {
-  border: 1px solid var(--line);
-  background: var(--control-bg);
+  border: 1px solid var(--hairline);
+  background: var(--canvas);
   color: var(--ink);
-  border-radius: 999px;
-  padding: 0.65rem 1rem;
+  border-radius: 9999px;
+  padding: 11px 24px;
   font: inherit;
+  font-size: 14px;
   font-weight: 600;
+  line-height: 1.4;
   cursor: pointer;
-  transition: transform 0.15s ease, background 0.15s ease;
 }
 
-.plan-btn:hover:not(:disabled) { transform: translateY(-1px); }
+.plan-btn:hover:not(:disabled) { background: var(--surface); }
 .plan-btn:disabled { opacity: 0.55; cursor: default; }
-.plan-btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.plan-btn-primary,
+.plan-btn-primary:hover:not(:disabled) { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
 .plan-btn-danger { background: var(--danger-soft); border-color: var(--danger-border); color: var(--danger); }
 
 .plan-ui :is(.plan-choice-option, .plan-btn, .plan-workflow-step):focus-visible {
@@ -572,7 +587,7 @@
 .vlp-chart figcaption {
   margin: 0 0 0.5rem;
   font-family: var(--font-display);
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.02em;
 }
 

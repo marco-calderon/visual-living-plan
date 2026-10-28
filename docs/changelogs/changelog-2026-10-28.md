@@ -101,3 +101,22 @@ Workflow connectors meet the center of each step’s incoming and outgoing side,
 ### Notes
 
 No registry restart needed.
+
+## 1.0.0
+
+**PR:** [#62](https://github.com/marco-calderon/visual-living-plan/pull/62)
+
+**Bump:** major
+
+### Summary
+
+The plan page is a flat document, and a plan is authored as the MDX components that page renders. Markdoc tags and YAML entry fences no longer parse.
+
+### Improvements
+
+- The page, dashboard, and registry use the document palette in `DESIGN.md`: canvas background, surface cards with a hairline and 16px radius, pill buttons, and DM Sans. Light and dark stay. An accent color sets the settings swatch and does not tint the canvas or the cards.
+- Agents author `<phase>`, `<choice>`, `<form>`, `<questions>`, `<approve>`, `<checklist>`, `<workflow>`, plus layout components and charts. A workflow graph stays a pipe table inside `<workflow>`. Wait JSON for choice, form, questions, and approve is unchanged.
+
+### Notes
+
+This breaks the plan schema. Plans written with `{% tags %}` or entry fences such as ` ```phase ` need to be rewritten as MDX. The title bar, dashboard, comments, and approve / decline / message stay. No registry restart needed beyond the usual version check.

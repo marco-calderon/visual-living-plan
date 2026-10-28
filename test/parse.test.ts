@@ -14,13 +14,9 @@ A paragraph of context.
 
 - First item
 
-\`\`\`phase
-id: design
-title: Design
-status: active
-body: |
-  Request path.
-\`\`\`
+<phase id="design" title="Design" status="active">
+Request path.
+</phase>
 `)
   const markdown = plan.blocks.find((block) => block.type === 'markdown')
   assert.ok(markdown && markdown.type === 'markdown')
@@ -60,18 +56,14 @@ const n = 1
 })
 
 test('mermaid fences inside a phase body stay inside that phase', () => {
-  const plan = parsePlan(`\`\`\`phase
-id: design
-title: Design
-status: active
-body: |
-  Request path:
+  const plan = parsePlan(`<phase id="design" title="Design" status="active">
+Request path:
 
-  \`\`\`mermaid
-  flowchart LR
-    Gateway --> Redis
-  \`\`\`
+\`\`\`mermaid
+flowchart LR
+  Gateway --> Redis
 \`\`\`
+</phase>
 `)
 
   assert.equal(plan.blocks.length, 1)
@@ -88,13 +80,13 @@ test('a plan requires a workflow block', () => {
     'A plan requires a workflow block. That block is the execution path.',
   )
 
-  const empty = parsePlan('```workflow\nnodes: []\nedges: []\n```\n')
+  const empty = parsePlan('<workflow id="empty" title="Expected execution">\n</workflow>\n')
   assert.equal(
     workflowRequirementError(empty),
     'A plan requires a workflow block. That block is the execution path.',
   )
 
-  const ready = parsePlan('```workflow\nnodes:\n  - id: design\n    label: Design\nedges: []\n```\n')
+  const ready = parsePlan('<workflow id="ready" title="Path">\ndesign | Design | design\n</workflow>\n')
   assert.equal(workflowRequirementError(ready), undefined)
 })
 
@@ -327,15 +319,11 @@ test('a header-only table has no body', () => {
 })
 
 test('a table inside a phase body stays inside that phase', () => {
-  const plan = parsePlan(`\`\`\`phase
-id: design
-title: Design
-status: active
-body: |
-  | Step | State |
-  | --- | :---: |
-  | Parse | done |
-\`\`\`
+  const plan = parsePlan(`<phase id="design" title="Design" status="active">
+| Step | State |
+| --- | :---: |
+| Parse | done |
+</phase>
 `)
   assert.equal(plan.blocks.length, 1)
   const phase = plan.blocks[0]

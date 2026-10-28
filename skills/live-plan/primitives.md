@@ -1,16 +1,18 @@
 # Live Plan primitives
 
-Author each entry as a Markdoc tag. The tag name is the entry type (`phase`, `callout`, `choice`, `form`, `questions`, `approve`, `checklist`, `workflow`). Anything outside those tags is markdown. A pipe table in that markdown renders as a table. A mermaid fence draws a figure. Any other fence is highlighted source.
+Author each entry as an MDX component. The component name is the entry type (`phase`, `callout`, `choice`, `form`, `questions`, `approve`, `checklist`, `workflow`). Anything outside those components is markdown. A pipe table in that markdown renders as a table. A mermaid fence draws a figure. Any other fence is highlighted source.
 
-A tag can contain another tag. A callout can contain a choice. An inline `{% status status="active" /%}` draws a status chip in the prose; it is not its own section.
+A component can contain another component. A callout can contain a choice.
 
-Put short fields on the tag (`id`, `title`, `status`, `prompt`). Put a long field list or a workflow graph in a `yaml` fence inside the tag. Plan files do not run Markdoc functions, partials, or `$variables`.
+`{% tags %}` are not plan entries. A fence whose language is an entry type (` ```phase `, and the rest) is not a plan entry. `check` rejects both.
 
-A YAML fence whose language is an entry type (` ```phase `, and the rest) still renders. New plans use tags.
+Put short fields on the component (`id`, `title`, `status`, `prompt`). A workflow graph is a pipe table in the component body. Plan files do not run Markdoc functions, partials, or `$variables`.
 
-Every plan includes one `workflow` tag. That block is the execution path.
+Every plan includes one `workflow` component. That block is the execution path.
 
 `live-plan wait <id>` prints one interaction response as JSON. `live-plan review` prints the review result.
+
+The page uses the document design in [DESIGN.md](../../DESIGN.md). Light and dark share that system. An accent color tints swatches and node highlights. It does not repaint the canvas, cards, or body text.
 
 ## Frontmatter
 
@@ -33,20 +35,20 @@ Status timeline. Use one block per major step. Set exactly one phase to `active`
 
 `id` defaults to a slug of `title`.
 
-```markdown
-{% phase id="implement" title="Implement gateway middleware" status="active" %}
+```mdx
+<phase id="implement" title="Implement gateway middleware" status="active">
 Wire the limiter into the request path. Default the flag to off.
-{% /phase %}
+</phase>
 ```
 
 ## callout
 
 `kind`: `note` | `tip` | `risk` | `decision` | `warning`. Unknown values become `note`.
 
-```markdown
-{% callout kind="risk" title="Redis dependency" %}
+```mdx
+<callout kind="risk" title="Redis dependency">
 A Redis outage must not take down the API.
-{% /callout %}
+</callout>
 ```
 
 ## choice
@@ -57,24 +59,24 @@ The human picks one option. `wait` prints:
 { "kind": "choice", "id": "fail-mode", "optionId": "open", "label": "Fail open" }
 ```
 
-```markdown
-{% choice id="fail-mode" prompt="If Redis is unreachable, how should the limiter behave?" %}
-{% option id="open" label="Fail open" %}
+```mdx
+<choice id="fail-mode" prompt="If Redis is unreachable, how should the limiter behave?">
+<option id="open" label="Fail open">
 Allow traffic if Redis is down.
-{% /option %}
-{% option id="closed" label="Fail closed" %}
+</option>
+<option id="closed" label="Fail closed">
 Reject traffic if Redis is down.
-{% /option %}
-{% /choice %}
+</option>
+</choice>
 ```
 
-Give every option an `id`. `description` is optional.
+Give every option an `id`. The option body is the description.
 
 ## form
 
-`field.type`: `text` | `number` | `textarea` | `select`. Anything else becomes `text`.
+Each `<field>` has `name`, `label`, and `type`: `text` | `number` | `textarea` | `select`. Anything else becomes `text`.
 
-`select` needs `options` (strings). `default` is a string or number. `placeholder` is optional.
+`select` needs `options`, a comma-separated string. `default` is a string. On a number field it is stored as a number. `placeholder` is optional. `required="true"` or a bare `required` marks the field required.
 
 `wait` prints values keyed by `name`. `number` fields come back as numbers; other types come back as strings.
 
@@ -86,30 +88,19 @@ Give every option an `id`. `description` is optional.
 }
 ```
 
-````markdown
-{% form id="limits" prompt="Set the initial production limits" %}
-```yaml
-fields:
-  - name: max_rps
-    label: Max requests per window
-    type: number
-    required: true
-    default: 120
-  - name: rollout
-    label: Initial rollout percentage
-    type: select
-    required: true
-    options: ["1", "5", "25", "100"]
-    default: "5"
+```mdx
+<form id="limits" prompt="Set the initial production limits">
+<field name="max_rps" label="Max requests per window" type="number" required="true" default="120" />
+<field name="window_s" label="Window seconds" type="number" required="true" default="60" />
+<field name="rollout" label="Initial rollout percentage" type="select" required="true" default="5" options="1, 5, 25, 100" />
+</form>
 ```
-{% /form %}
-````
 
 `name` is the key in `values`. Do not rename it after the form is on screen.
 
 ## questions
 
-One free-text answer per item. Answer keys are the item index as a string (`"0"`, `"1"`, …), in the order of the `{% item %}` tags.
+One free-text answer per item. Answer keys are the item index as a string (`"0"`, `"1"`, …), in the order of the `<item>` components.
 
 `wait` prints:
 
@@ -124,11 +115,15 @@ One free-text answer per item. Answer keys are the item index as a string (`"0"`
 }
 ```
 
-```markdown
-{% questions id="rollout-notes" prompt="Anything else before coding?" %}
-{% item %}Which environments should receive the flag first?{% /item %}
-{% item %}Is there an existing dashboard to extend?{% /item %}
-{% /questions %}
+```mdx
+<questions id="rollout-notes" prompt="Anything else before coding?">
+<item>
+Which environments should receive the flag first?
+</item>
+<item>
+Is there an existing dashboard to extend?
+</item>
+</questions>
 ```
 
 `prompt` is optional. `id` is required in practice so `wait` has a stable target (it otherwise slugs from `prompt` or `"questions"`).
@@ -143,82 +138,76 @@ Yes/no gate. `wait` prints:
 
 `note` is omitted when the human leaves it blank.
 
-```markdown
-{% approve id="proceed-implement" prompt="Proceed with implementation using the answers above?" %}
+```mdx
+<approve id="proceed-implement" prompt="Proceed with implementation using the answers above?">
 Phase statuses in this file will update as the work proceeds.
-{% /approve %}
+</approve>
 ```
 
 ## checklist
 
-Not an interaction. You flip `done` as you finish. A bare string is an open item.
+Not an interaction. You flip `done` as you finish. `done` is true only for `done="true"` or `done={true}`.
 
-```markdown
-{% checklist title="Done when" %}
-{% item done=false %}Middleware behind a flag{% /item %}
-{% item done=true %}429 + Retry-After covered by tests{% /item %}
-{% /checklist %}
+```mdx
+<checklist title="Done when">
+<item done="false">Middleware behind a flag</item>
+<item done="true">429 + Retry-After covered by tests</item>
+</checklist>
 ```
 
 ## workflow
 
-Required. This block is the execution path. The Workflow tab draws it before the run starts, and the live run follows it. Each node `ref` is the plan block id a click jumps to. `ref` defaults to `id` when that block exists. Give phases, callouts, and checklist items ids when a node should point at them.
+Required. This component is the execution path. The Workflow tab draws it before the run starts, and the live run follows it. Each node `ref` is the plan block id a click jumps to. `ref` defaults to `id` when that block exists. Give phases, callouts, and checklist items ids when a node should point at them.
 
-`check` exits 1 when this block is missing or has no nodes.
+`check` exits 1 when this component is missing or has no nodes.
 
-````markdown
-{% workflow id="rollout" title="Expected execution" %}
-```yaml
-nodes:
-  - id: design
-    ref: design
-    label: Confirm limiter design
-  - id: implement
-    ref: implement
-    label: Implement gateway middleware
-edges:
-  - from: design
-    to: implement
-  - from: implement
-    to: implement
-    label: retry
+The body is a pipe table. Node lines come first. A line that is only `--` separates nodes from edges. A `workflow` fence may wrap that table. It is not an entry by itself.
+
+```mdx
+<workflow id="rollout" title="Expected execution">
+```workflow
+design | Confirm limiter design | design
+implement | Implement gateway middleware | implement | Editing gateway.ts
+--
+design -> implement
+implement -> implement @ right>right | retry
 ```
-{% /workflow %}
-````
-
-An edge may point at its own node. That self-loop is drawn as an arc, with optional `label`. To close a loop through another card, set `fromSide` and `toSide` (`top`, `right`, `bottom`, or `left`) so the return edge does not sit on the forward path. Optional node fields: `detail`, `status`, `x`, `y`. The diagram lays the graph out automatically, so `x` and `y` are not required.
-
-## mermaid
-
-A figure in the plan text. The fence language is `mermaid`.
-
-Put the fence in the plan markdown:
-
-````markdown
-```mermaid
-flowchart LR
-  Client --> Gateway --> Redis
+</workflow>
 ```
-````
 
-The same fence works inside a phase, callout, or approve tag:
+Node columns are `id | label | ref | detail`. `ref` and `detail` are optional.
 
-````markdown
-{% phase id="design" title="Confirm limiter design" status="active" %}
-```mermaid
-flowchart LR
-  Gateway --> Redis
+Edge lines are `from -> to`, optionally `from -> to @ fromSide>toSide`, then `| label`. Sides are `top`, `right`, `bottom`, or `left`. An edge that points at its own node is drawn as an arc.
+
+## Layout
+
+These components only arrange their children. They are not plan entries, and they do not need an `id`.
+
+- `<Box surface="panel" padding="md">` — `surface` is `plain`, `panel`, `soft`, or `inset`. `padding` is `none`, `sm`, `md`, or `lg`.
+- `<HStack gap="md">` and `<VStack gap="md">` — `gap` is `xs`, `sm`, `md`, or `lg`. Optional `align`, `justify`, and `wrap`.
+- `<Stack gap={16}>` and `<Row gap={16}>` — vertical and horizontal stacks. `gap` is a pixel number.
+- `<ResponsiveStack>` — a row that wraps on a narrow window.
+
+## Figures
+
+`<Mermaid>` takes the diagram as its children, the same source a `mermaid` fence uses.
+
+`<BarChart ariaLabel="Rejects">` and `<LineChart ariaLabel="Latency">` take one `label, value` row per line:
+
+```mdx
+<BarChart ariaLabel="Rejects by window">
+1s, 12
+5s, 40
+</BarChart>
 ```
-{% /phase %}
-````
 
-A diagram that cannot be parsed stays as source with a short error under it.
+A mermaid fence in the plan markdown, or inside a phase, callout, or approve component, draws the same kind of figure. A diagram that cannot be parsed stays as source with a short error under it.
 
 ## code
 
 Highlighted source. Use this when the human should read the code as it stands. Use [diff](#diff) when they should see a change.
 
-The fence language is the syntax (`ts`, `python`, `bash`, `json`, and the rest). `mermaid` is a figure, not code. A `yaml` fence inside a tag is entry data, not a highlighted block.
+The fence language is the syntax (`ts`, `python`, `bash`, `json`, and the rest). `mermaid` is a figure, not code.
 
 Put the fence in the plan markdown:
 
@@ -228,16 +217,16 @@ if (!flag.enabled) return next()
 ```
 ````
 
-The same fence works inside a phase, callout, or approve tag:
+The same fence works inside a phase, callout, or approve component:
 
-````markdown
-{% phase id="implement" title="Implement gateway middleware" status="active" %}
+````mdx
+<phase id="implement" title="Implement gateway middleware" status="active">
 The limiter, as it stands:
 
 ```ts
 if (!flag.enabled) return next()
 ```
-{% /phase %}
+</phase>
 ````
 
 A fence with no language still renders as code, without a language label. An unknown language stays readable as plain text. Every block shows line numbers, starting at 1, so a note can point at a line.
@@ -303,7 +292,7 @@ A hunk with no `---` / `+++` headers still renders. Put a language before `diff`
 ```
 ````
 
-Put a diff fence in the tag body the same way as a source fence.
+Put a diff fence in the component body the same way as a source fence.
 
 ## review result
 

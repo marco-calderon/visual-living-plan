@@ -34,18 +34,22 @@ test('a plan file becomes MDX the sample components can compile', () => {
   })
 })
 
-test('markdoc tags become the same MDX entries', () => {
-  const mdx = planSourceToMdx(`{% callout id="redis" kind="risk" title="Redis dependency" %}
+test('markdoc tags and entry fences are not the authoring contract', () => {
+  assert.throws(() =>
+    planSourceToMdx(`{% callout id="redis" kind="risk" title="Redis dependency" %}
 A Redis outage must not take down the API.
-{% choice id="fail-mode" prompt="If Redis is unreachable?" %}
-{% option id="open" label="Fail open" %}Allow traffic.{% /option %}
-{% /choice %}
 {% /callout %}
-`)
-  assert.match(mdx, /<callout id="redis" kind="risk" title="Redis dependency">/)
-  assert.match(mdx, /<choice id="fail-mode"/)
-  assert.match(mdx, /<option id="open" label="Fail open">/)
-  assert.doesNotMatch(mdx, /\{%/)
+`),
+  )
+  assert.throws(() => parsePlan('```phase\nid: design\ntitle: Design\nstatus: active\n```\n'))
+  assert.throws(() =>
+    parsePlan(`<phase id="design" title="Design" status="active">
+\`\`\`workflow
+design | Design | design
+\`\`\`
+</phase>
+`),
+  )
 })
 
 test('the plan page mounts the MDX app and keeps a static column for the bundle-less page', () => {

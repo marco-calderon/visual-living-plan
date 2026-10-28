@@ -1,6 +1,6 @@
 {
   "name": "visual-living-plan",
-  "version": "0.8.1",
+  "version": "1.0.0",
   "description": "Agent-authored living plans with human interaction, live updates, and a swappable execution canvas",
   "type": "module",
   "bin": {
@@ -11,6 +11,7 @@
   "files": [
     "dist",
     "docs/changelogs",
+    "DESIGN.md",
     "skills",
     "examples",
     "README.md"

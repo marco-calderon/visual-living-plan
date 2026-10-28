@@ -1,8 +1,8 @@
 import { render } from 'pele'
 import { attachMermaidViewer, collapseMermaidViewer, releaseMermaidViewer, watchMermaidViewer } from './mermaidViewer.ts'
 
-const FONT = '"IBM Plex Sans", "Helvetica Neue", Arial, sans-serif'
-const FONT_MONO = '"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace'
+const FONT = '"DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif'
+const FONT_MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
 
 const PARTS = [
   '.pele-node',

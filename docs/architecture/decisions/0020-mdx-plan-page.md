@@ -1,6 +1,6 @@
 # ADR 0020: The plan page is the MDX React app
 
-- Status: Accepted
+- Status: Accepted. The fence and tag rewrite below is superseded by [0021](0021-mdx-plan-entries.md).
 - Date: 2026-10-28
 - Supersedes: the render half of [0018](0018-markdoc-plan-tags.md)
 
@@ -14,7 +14,7 @@ The page opened for a plan is that MDX app. `renderPlanPage` no longer calls Mar
 
 The plan file stays the document. Opening a session stores that source in the sample's snapshot tables (`plan_documents`, `plan_snapshots`) under the config home. A file change appends an edit. Restore writes that snapshot back to the file and publishes it on the plan event stream. Loopback, LAN, and `addressing` / `reply` / `address` are unchanged.
 
-Markdoc still parses `.plan.md` into the session model (interactions, workflow, progress). It is not on the render path. YAML fences and `{% tags %}` are rewritten to MDX for the page. A file that is already MDX is compiled as written.
+The session model (interactions, workflow, progress) is read from the same MDX components the page renders. Markdoc is not on the render path. [ADR 0021](0021-mdx-plan-entries.md) supersedes the rewrite of YAML fences and `{% tags %}`: those forms are no longer plan entries. A file that is already MDX is compiled as written.
 
 ## Consequences
 

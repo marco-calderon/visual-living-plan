@@ -11,42 +11,50 @@ export function renderRegistryPage(): string {
   <title>Running plans · Living Plan</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,680&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     :root {
       color-scheme: light;
-      --ink: #14211c;
-      --muted: #4d6158;
-      --paper: #f4f7f4;
-      --panel: rgba(255, 255, 255, 0.86);
-      --line: rgba(20, 33, 28, 0.12);
-      --accent: #0f766e;
-      --shadow: 0 18px 40px rgba(20, 33, 28, 0.08);
+      --ink: #18181b;
+      --charcoal: #27272a;
+      --muted: #71717a;
+      --canvas: #ffffff;
+      --surface: #f4f4f5;
+      --paper: var(--canvas);
+      --panel: var(--surface);
+      --line: #e4e4e7;
+      --accent: #1d4ed8;
+      --primary: #09090b;
+      --on-primary: #ffffff;
+      --shadow: none;
     }
     @media (prefers-color-scheme: dark) {
       :root {
         color-scheme: dark;
-        --ink: #e8f3ee;
-        --muted: #b7c7c0;
-        --paper: #101816;
-        --panel: rgba(22, 36, 32, 0.9);
-        --line: rgba(232, 243, 238, 0.14);
-        --accent: #2dd4bf;
-        --shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+        --ink: #fafafa;
+        --charcoal: #e4e4e7;
+        --muted: #a1a1aa;
+        --canvas: #0c0c0e;
+        --surface: #18181b;
+        --paper: var(--canvas);
+        --panel: var(--surface);
+        --line: #27272a;
+        --accent: #93c5fd;
+        --primary: #fafafa;
+        --on-primary: #0c0c0e;
+        --shadow: none;
       }
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      color: var(--ink);
-      font-family: "IBM Plex Sans", sans-serif;
-      background:
-        radial-gradient(900px 400px at 0% -10%, rgba(15, 118, 110, 0.16), transparent 50%),
-        var(--paper);
+      color: var(--charcoal);
+      font-family: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      background: var(--canvas);
     }
     main { width: min(760px, calc(100% - 2rem)); margin: 0 auto; padding: 2.5rem 0 4rem; }
     .kicker { margin: 0 0 0.4rem; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.75rem; font-weight: 600; color: var(--accent); }
-    h1 { font-family: Fraunces, serif; font-size: clamp(2.2rem, 5vw, 3.4rem); line-height: 0.95; margin: 0 0 0.7rem; }
+    h1 { font-family: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif; font-weight: 600; font-size: 32px; line-height: 1.25; letter-spacing: -0.5px; margin: 0 0 0.7rem; color: var(--ink); }
     .lede { margin: 0 0 1rem; color: var(--muted); max-width: 38rem; line-height: 1.5; }
     .lede a { color: var(--accent); font-weight: 600; }
     .status { color: var(--muted); margin: 0 0 0.8rem; }
@@ -59,11 +67,11 @@ export function renderRegistryPage(): string {
       box-shadow: var(--shadow);
     }
     .title-row { display: flex; justify-content: space-between; gap: 0.6rem; align-items: baseline; }
-    h2 { margin: 0; font-size: 1.2rem; font-family: Fraunces, serif; }
+    h2 { margin: 0; font-size: 20px; font-weight: 600; line-height: 1.4; font-family: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif; color: var(--ink); }
     h2 a { color: inherit; text-decoration: none; }
     h2 a:hover { color: var(--accent); }
     .mode { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; }
-    .path { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.78rem; word-break: break-all; margin: 0.45rem 0; }
+    .path { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.78rem; word-break: break-all; margin: 0.45rem 0; }
     .meta { color: var(--muted); font-size: 0.88rem; line-height: 1.45; margin: 0.15rem 0; }
     .actions { display: flex; gap: 0.45rem; margin-top: 0.75rem; }
     a.btn {
@@ -71,8 +79,8 @@ export function renderRegistryPage(): string {
       text-decoration: none;
       border-radius: 999px;
       padding: 0.45rem 0.8rem;
-      background: var(--accent);
-      color: #f4fffc;
+      background: var(--primary);
+      color: var(--on-primary);
       font-weight: 600;
       font-size: 0.88rem;
     }

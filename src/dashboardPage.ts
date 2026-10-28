@@ -12,48 +12,56 @@ export function renderDashboardPage(): string {
   <title>Plan dashboard · Living Plan</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,680&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     :root {
       color-scheme: light;
-      --ink: #14211c;
-      --muted: #4d6158;
-      --paper: #f3f6f3;
-      --panel: rgba(255, 255, 255, 0.92);
-      --line: rgba(20, 33, 28, 0.12);
-      --accent: #0f766e;
-      --accent-soft: rgba(15, 118, 110, 0.12);
+      --ink: #18181b;
+      --charcoal: #27272a;
+      --muted: #71717a;
+      --canvas: #ffffff;
+      --surface: #f4f4f5;
+      --paper: var(--canvas);
+      --panel: var(--surface);
+      --line: #e4e4e7;
+      --accent: #1d4ed8;
+      --primary: #09090b;
+      --on-primary: #ffffff;
+      --accent-soft: #dbeafe;
       --good: #166534;
-      --good-soft: rgba(22, 101, 52, 0.12);
-      --warn: #92400e;
-      --warn-soft: rgba(146, 64, 14, 0.12);
-      --shadow: 0 18px 40px rgba(20, 33, 28, 0.08);
+      --good-soft: #dcfce7;
+      --warn: #9a3412;
+      --warn-soft: #ffedd5;
+      --shadow: none;
     }
     @media (prefers-color-scheme: dark) {
       :root {
         color-scheme: dark;
-        --ink: #e8f3ee;
-        --muted: #b7c7c0;
-        --paper: #101816;
-        --panel: rgba(22, 36, 32, 0.92);
-        --line: rgba(232, 243, 238, 0.14);
-        --accent: #2dd4bf;
-        --accent-soft: rgba(45, 212, 191, 0.14);
+        --ink: #fafafa;
+        --charcoal: #e4e4e7;
+        --muted: #a1a1aa;
+        --canvas: #0c0c0e;
+        --surface: #18181b;
+        --paper: var(--canvas);
+        --panel: var(--surface);
+        --line: #27272a;
+        --accent: #93c5fd;
+        --primary: #fafafa;
+        --on-primary: #0c0c0e;
+        --accent-soft: rgba(147, 197, 253, 0.14);
         --good: #86efac;
         --good-soft: rgba(134, 239, 172, 0.12);
         --warn: #fdba74;
         --warn-soft: rgba(253, 186, 116, 0.12);
-        --shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+        --shadow: none;
       }
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      color: var(--ink);
-      font-family: "IBM Plex Sans", sans-serif;
-      background:
-        radial-gradient(900px 420px at 100% -10%, rgba(15, 118, 110, 0.16), transparent 46%),
-        var(--paper);
+      color: var(--charcoal);
+      font-family: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      background: var(--canvas);
     }
     main { width: min(1180px, calc(100% - 2rem)); margin: 0 auto; padding: 2.2rem 0 4rem; }
     .top {
@@ -72,10 +80,13 @@ export function renderDashboardPage(): string {
       color: var(--accent);
     }
     h1 {
-      font-family: Fraunces, serif;
-      font-size: clamp(2.1rem, 4vw, 3.2rem);
-      line-height: 0.95;
+      font-family: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-weight: 600;
+      font-size: 32px;
+      line-height: 1.25;
+      letter-spacing: -0.5px;
       margin: 0;
+      color: var(--ink);
     }
     .lede { margin: 0.7rem 0 0; color: var(--muted); max-width: 40rem; line-height: 1.5; }
     .nav { display: flex; gap: 0.5rem; align-items: center; }
@@ -105,9 +116,9 @@ export function renderDashboardPage(): string {
       cursor: pointer;
     }
     button.seg[aria-pressed="true"], button.filter[aria-pressed="true"] {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #f4fffc;
+      background: var(--primary);
+      border-color: var(--primary);
+      color: var(--on-primary);
     }
     button.refresh { font-weight: 600; }
     .stats {
@@ -127,7 +138,9 @@ export function renderDashboardPage(): string {
     .stat strong {
       display: block;
       margin-top: 0.25rem;
-      font-family: Fraunces, serif;
+      font-family: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-weight: 600;
+      color: var(--ink);
       font-size: 1.7rem;
       font-variant-numeric: tabular-nums;
     }
@@ -143,7 +156,9 @@ export function renderDashboardPage(): string {
     caption {
       text-align: left;
       padding: 0.85rem 1rem 0;
-      font-family: Fraunces, serif;
+      font-family: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-weight: 600;
+      color: var(--ink);
       font-size: 1.25rem;
     }
     th, td {
@@ -163,7 +178,7 @@ export function renderDashboardPage(): string {
     .title { font-weight: 600; }
     .sub { display: block; margin-top: 0.2rem; color: var(--muted); font-size: 0.82rem; line-height: 1.4; }
     .path {
-      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size: 0.75rem;
       overflow-wrap: break-word;
     }
