@@ -15,7 +15,7 @@ description: >-
 
 Keep one `.plan.md` file as the channel between you and the human. You update the file. They watch a URL, answer interactions, and (in review) Approve, Deny, or Iterate.
 
-The page follows [DESIGN.md](../../DESIGN.md): a white document in light mode and a quiet dark document in dark mode. Author the MDX components that page renders. Do not author Markdoc tags or YAML entry fences.
+The page follows [DESIGN.md](../../DESIGN.md): a white document in light mode and a quiet dark document in dark mode. Author the MDX components that page renders (`<phase>`, `<choice>`, and the rest in [primitives.md](primitives.md)). A workflow graph is the pipe table inside `<workflow>`.
 
 ## Invoke
 

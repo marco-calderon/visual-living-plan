@@ -1,6 +1,5 @@
-import { htmlFor } from '../markdoc/renderPlan'
-import { parseMarkup } from '../markdoc/parseMarkup'
-import { calloutKind, phaseStatus, slugify } from '../markdoc/payload'
+import { renderPlanMarkdown } from './markdown'
+import { calloutKind, phaseStatus, slugify } from './payload'
 import type {
   ChecklistItem,
   ChoiceOption,
@@ -455,9 +454,7 @@ function textOf(nodes: Array<ElementNode | string>): string {
 function markdownHtml(markdown: string, scope: string): string {
   const trimmed = markdown.trim()
   if (!trimmed) return ''
-  const source = `${trimmed}\n`
-  const ast = parseMarkup(source)
-  return htmlFor(ast.children, source, scope)
+  return renderPlanMarkdown(trimmed, scope)
 }
 
 function kindOf(name: string): ElementNode['kind'] {

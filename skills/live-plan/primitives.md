@@ -6,7 +6,7 @@ A component can contain another component. A callout can contain a choice.
 
 `{% tags %}` are not plan entries. A fence whose language is an entry type (` ```phase `, and the rest) is not a plan entry. `check` rejects both.
 
-Put short fields on the component (`id`, `title`, `status`, `prompt`). A workflow graph is a pipe table in the component body. Plan files do not run Markdoc functions, partials, or `$variables`.
+Put short fields on the component (`id`, `title`, `status`, `prompt`). A workflow graph is a pipe table in the component body. That table may sit in a `workflow` fence inside `<workflow>`. It is the execution path, not an entry by itself.
 
 Every plan includes one `workflow` component. That block is the execution path.
 
