@@ -178,4 +178,4 @@ A plan step shows its number in a small box colored for that step's state, and c
 
 ### Notes
 
-No registry restart needed. The title bar, dashboard, comments, and approve / decline / message stay.
+No registry restart needed. The title bar, dashboard, comments, and approve / decline / message stay. Agents working in this repo also have the Emil Kowalski skills under `.agents/skills`. That install does not change the plan page.
