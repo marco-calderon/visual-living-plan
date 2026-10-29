@@ -1372,7 +1372,7 @@ body.mermaid-maximized { overflow: hidden; }
   border: 1px solid var(--line);
   background: var(--control-solid);
   color: var(--ink);
-  border-radius: 9999px;
+  border-radius: var(--radius);
   padding: 11px 24px;
   cursor: pointer;
 }

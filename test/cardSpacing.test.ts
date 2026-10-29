@@ -76,6 +76,22 @@ test('documentation cards use the space scale in both color schemes', () => {
   assert.match(css, /\.plan-card\s*\{[^}]*box-shadow:\s*var\(--shadow\)/)
 })
 
+test('choice cards use the same corner radius as other plan cards', () => {
+  const css = readFileSync(new URL('../client/entries/primitives.css', import.meta.url), 'utf8')
+  const card = css.match(/\.plan-choice-card\s*\{[^}]*\}/)
+  assert.ok(card)
+  assert.match(card[0], /border-radius:\s*var\(--radius\)/)
+  assert.doesNotMatch(card[0], /9999px|999px/)
+  assert.match(css, /--radius:\s*16px/)
+  assert.match(css, /\.plan-panel,\s*\.plan-box\[data-surface="panel"\]\s*\{[^}]*border-radius:\s*16px/)
+  const page = pageCss()
+  const option = page.match(/\.choice-option\s*\{[^}]*\}/)
+  assert.ok(option)
+  assert.match(option[0], /border-radius:\s*var\(--radius\)/)
+  assert.doesNotMatch(option[0], /9999px/)
+  assert.match(page, /--radius:\s*16px/)
+})
+
 test('plan component stacks use the same scale, not a one-off gap', () => {
   const css = readFileSync(new URL('../client/entries/primitives.css', import.meta.url), 'utf8')
   assertSpaceScale(css)
