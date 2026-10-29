@@ -43,6 +43,8 @@ No registry restart needed beyond the usual version check. Version 1.2.0 is the 
 
 ## 1.2.2
 
+**PR:** [#70](https://github.com/marco-calderon/visual-living-plan/pull/70)
+
 **Bump:** patch
 
 ### Summary
