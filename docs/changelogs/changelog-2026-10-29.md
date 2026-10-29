@@ -63,7 +63,7 @@ No registry restart needed.
 
 ## 1.3.0
 
-**PR:** (link once open)
+**PR:** [#71](https://github.com/marco-calderon/visual-living-plan/pull/71)
 
 **Bump:** minor
 
