@@ -54,37 +54,28 @@ export const PROCESSES_PANEL_STYLES = `
   box-shadow: var(--shadow);
   padding: 0.85rem;
   transform-origin: top right;
+  opacity: 0;
+  transform: scale(0.95);
+  transition:
+    opacity 200ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    transform 200ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
 }
 .processes-panel[hidden] { display: none !important; }
 .processes-panel[data-open] {
-  animation: processes-panel-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  opacity: 1;
+  transform: scale(1);
 }
 .processes-panel[data-closed] {
-  animation: processes-panel-out 240ms ease both;
-}
-@keyframes processes-panel-in {
-  from {
-    opacity: 0;
-    transform: translate3d(0, -12px, 0) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-}
-@keyframes processes-panel-out {
-  from {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  to {
-    opacity: 0;
-    transform: translate3d(0, -12px, 0) scale(0.96);
-  }
+  opacity: 0;
+  transform: scale(0.95);
 }
 @media (prefers-reduced-motion: reduce) {
+  .processes-panel,
   .processes-panel[data-open],
-  .processes-panel[data-closed] { animation: none; }
+  .processes-panel[data-closed] {
+    transform: none;
+    transition: opacity 150ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  }
 }
 .processes-head {
   display: flex;
@@ -361,15 +352,11 @@ export function processesPanelScript(): string {
     return name || directory;
   }
 
-  function motionReduced() {
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  }
-
   function cancelClose() {
     window.clearTimeout(closeTimer);
     closeTimer = 0;
     if (closeListener) {
-      panel.removeEventListener('animationend', closeListener);
+      panel.removeEventListener('transitionend', closeListener);
       closeListener = null;
     }
   }
@@ -389,23 +376,19 @@ export function processesPanelScript(): string {
       panel.hidden = false;
       panel.removeAttribute('data-closed');
       panel.removeAttribute('data-open');
-      if (!motionReduced()) void panel.getBoundingClientRect();
+      void panel.getBoundingClientRect();
       panel.setAttribute('data-open', '');
       if (latest) paint(latest);
       return;
     }
     panel.removeAttribute('data-open');
     panel.setAttribute('data-closed', '');
-    if (motionReduced()) {
-      finishClose();
-      return;
-    }
     closeListener = (event) => {
-      if (event.target !== panel) return;
+      if (event.target !== panel || event.propertyName !== 'opacity') return;
       finishClose();
     };
-    panel.addEventListener('animationend', closeListener);
-    closeTimer = window.setTimeout(finishClose, 320);
+    panel.addEventListener('transitionend', closeListener);
+    closeTimer = window.setTimeout(finishClose, 280);
   }
 
   toggle.addEventListener('click', () => {

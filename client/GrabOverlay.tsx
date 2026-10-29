@@ -22,10 +22,12 @@ type Placed = {
   height: number
 }
 
-const GLIDE_MS = 420
-const FADE_MS = 280
-const FADE = `opacity ${FADE_MS}ms ease`
-const GLIDE = `left 420ms cubic-bezier(0.22, 1, 0.36, 1), top 420ms cubic-bezier(0.22, 1, 0.36, 1), width 420ms cubic-bezier(0.22, 1, 0.36, 1), height 420ms cubic-bezier(0.22, 1, 0.36, 1), ${FADE}`
+const GLIDE_MS = 250
+const FADE_MS = 200
+const EASE_OUT = 'var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1))'
+const EASE_IN_OUT = 'var(--ease-in-out, cubic-bezier(0.77, 0, 0.175, 1))'
+const FADE = `opacity ${FADE_MS}ms ${EASE_OUT}`
+const MOVE = `transform ${GLIDE_MS}ms ${EASE_IN_OUT}`
 
 function placeOf(partId: string, rect: DOMRect): Placed {
   return {
@@ -35,6 +37,16 @@ function placeOf(partId: string, rect: DOMRect): Placed {
     width: Math.max(rect.width, 8),
     height: Math.max(rect.height, 8),
   }
+}
+
+function frameTransform(from: Placed, to: Placed): string {
+  const width = Math.max(to.width, 1)
+  const height = Math.max(to.height, 1)
+  const dx = from.left - to.left
+  const dy = from.top - to.top
+  const sx = from.width / width
+  const sy = from.height / height
+  return `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`
 }
 
 function sameBox(left: Placed, right: Placed): boolean {
@@ -64,27 +76,36 @@ export function GrabOverlay({ partId, rect, label, enterFrom, visible, onExited 
     const partChanged = previous !== null && previous.partId !== next.partId
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const gliding = performance.now() < glidingUntil.current
-    if (entering && enterFrom && !reduce) {
-      const size = 14
-      element.style.transition = 'none'
-      element.style.left = `${enterFrom.x - size / 2}px`
-      element.style.top = `${enterFrom.y - size / 2}px`
-      element.style.width = `${size}px`
-      element.style.height = `${size}px`
-      void element.getBoundingClientRect()
-      element.style.transition = GLIDE
-      glidingUntil.current = performance.now() + GLIDE_MS
-    } else if (partChanged && !reduce) {
-      element.style.transition = GLIDE
-      void element.getBoundingClientRect()
-      glidingUntil.current = performance.now() + GLIDE_MS
-    } else if (!gliding) {
-      element.style.transition = 'none'
-    }
     element.style.left = `${next.left}px`
     element.style.top = `${next.top}px`
     element.style.width = `${next.width}px`
     element.style.height = `${next.height}px`
+    if (entering && enterFrom && !reduce) {
+      const size = 14
+      const from = {
+        partId: next.partId,
+        left: enterFrom.x - size / 2,
+        top: enterFrom.y - size / 2,
+        width: size,
+        height: size,
+      }
+      element.style.transition = 'none'
+      element.style.transform = frameTransform(from, next)
+      void element.getBoundingClientRect()
+      element.style.transition = MOVE
+      element.style.transform = 'translate(0px, 0px) scale(1, 1)'
+      glidingUntil.current = performance.now() + GLIDE_MS
+    } else if (partChanged && previous && !reduce) {
+      element.style.transition = 'none'
+      element.style.transform = frameTransform(previous, next)
+      void element.getBoundingClientRect()
+      element.style.transition = MOVE
+      element.style.transform = 'translate(0px, 0px) scale(1, 1)'
+      glidingUntil.current = performance.now() + GLIDE_MS
+    } else if (!gliding) {
+      element.style.transition = 'none'
+      element.style.transform = 'none'
+    }
     placed.current = next
   }, [partId, rect, enterFrom])
 
