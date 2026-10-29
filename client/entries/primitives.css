@@ -604,7 +604,7 @@ a.plan-step-label:hover {
   margin: 0;
   padding: 10px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius);
   background: var(--control-solid);
   color: var(--ink);
   cursor: pointer;

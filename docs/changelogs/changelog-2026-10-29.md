@@ -195,3 +195,21 @@ Plan cards sit closer together. Type, buttons, and form controls stay the same s
 
 No registry restart needed beyond the usual version check.
 
+## 1.5.3
+
+**PR:** [#78](https://github.com/marco-calderon/visual-living-plan/pull/78)
+
+**Bump:** patch
+
+### Summary
+
+Single-select choice cards use the same corner radius as other plan cards, in light and dark.
+
+### Bugs fixed
+
+- A choice option stays a rectangle with the 16px card radius. It is no longer a fully rounded pill.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
+
