@@ -247,6 +247,39 @@ These components only arrange their children. They are not plan entries, and the
 
 A mermaid fence in the plan markdown, or inside a phase, callout, or approve component, draws the same kind of figure. A diagram that cannot be parsed stays as source with a short error under it.
 
+## Data table
+
+`<DataTable>` is a data table, not a markdown pipe table. A pipe table still renders as a plain table. `<DataTable>` searches the loaded rows as you type, sorts every column from its header, and pages only when the table has 100 or more rows (ten rows per page). Below 100 rows there is no pagination control.
+
+One column may set `filter`. That column gets a select of its values, plus All. If more than one column sets `filter`, the first one is the select.
+
+`value` on `<Cell>` is the sort key and, on the filter column, the select value. Search also matches the visible text, a checkbox's checked state, and a checkbox field's label. Omit `value` to sort and filter by that visible text.
+
+A cell's children can be text, `<Chip>`, `<Pill tone="success">` (`success`, `warning`, `danger`, or `neutral`), a markdown list, `<Checkbox checked />`, a `<field type="checkbox">`, or any other plan component.
+
+```mdx
+<DataTable label="Operations">
+<Column id="route" header="Route" />
+<Column id="state" header="State" filter />
+<Column id="owner" header="Owner" />
+<Column id="checks" header="Checks" />
+<Row>
+<Cell>GET /health</Cell>
+<Cell value="succeeded"><Pill tone="success">succeeded</Pill></Cell>
+<Cell><Chip>gateway</Chip></Cell>
+<Cell value="checked">
+<Checkbox checked />
+<ul>
+<li>lease</li>
+<li>retry</li>
+</ul>
+</Cell>
+</Row>
+</DataTable>
+```
+
+`label` is the accessible name. `placeholder` changes the search field (default `Search`). `<Column header>` is the header label. `<Checkbox checked />` is the same check control a checkbox field uses. It does not submit a form unless it sits inside `<form>`.
+
 ## code
 
 Highlighted source. Use this when the human should read the code as it stands. Use [diff](#diff) when they should see a change.

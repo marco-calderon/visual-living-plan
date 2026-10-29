@@ -38,7 +38,18 @@ const LAYOUT_NAMES = new Set([
   'row',
 ])
 
-const EMBED_NAMES = new Set(['Mermaid', 'BarChart', 'LineChart'])
+const EMBED_NAMES = new Set([
+  'Mermaid',
+  'BarChart',
+  'LineChart',
+  'DataTable',
+  'Column',
+  'Row',
+  'Cell',
+  'Chip',
+  'Pill',
+  'Checkbox',
+])
 
 const KNOWN = new Set([...ENTRY_NAMES, ...LAYOUT_NAMES, ...EMBED_NAMES])
 

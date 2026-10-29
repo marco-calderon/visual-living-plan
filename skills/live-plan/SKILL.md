@@ -124,6 +124,30 @@ Each structured block is an MDX component. The component name is the type. Give 
 - `<workflow>` — required. This component is the execution path. Its body is a pipe table (`id | label | ref | detail`, then `--`, then `from -> to`). The Workflow tab draws it before the run, and the live run follows it.
 - `<Box>`, `<HStack>`, `<VStack>`, `<Stack>`, `<Row>`, `<ResponsiveStack>` arrange children. They are not plan entries.
 - `<Mermaid>`, `<BarChart>`, and `<LineChart>` draw figures. A `mermaid` fence, a language fence, and a `diff` fence still render in the markdown.
+- `<DataTable>` is a sortable table. A free-text search filters the loaded rows. One column marked `filter` gets a state select. Pagination appears at 100 rows, ten per page, and stays off below that. A pipe table is still a plain markdown table.
+
+```mdx
+<DataTable label="Operations">
+<Column id="route" header="Route" />
+<Column id="state" header="State" filter />
+<Column id="owner" header="Owner" />
+<Column id="checks" header="Checks" />
+<Row>
+<Cell>GET /health</Cell>
+<Cell value="succeeded"><Pill tone="success">succeeded</Pill></Cell>
+<Cell><Chip>gateway</Chip></Cell>
+<Cell value="checked">
+<Checkbox checked />
+<ul>
+<li>lease</li>
+<li>retry</li>
+</ul>
+</Cell>
+</Row>
+</DataTable>
+```
+
+`value` is the sort key and the state-filter key. The visible text is searched too. A cell can hold a `<Chip>`, a `<Pill tone="success|warning|danger|neutral">`, a markdown list, `<Checkbox checked />` (the same check control a form field uses), a `<field type="checkbox">`, or any other plan component. See [primitives.md](primitives.md).
 
 Use the same node id as the plan block id so a click jumps to that section. A self-loop (`from` and `to` are the same id) is drawn as an arc. To close a loop with another card, set sides on the return edge (`from -> to @ bottom>bottom`). Live graph nodes use `id`, `label`, optional `detail`, `status` (`pending` \| `active` \| `blocked` \| `done` \| `failed`), and optional `x` / `y`. Edges are `{ from, to }` plus optional `label`, `fromSide`, and `toSide`.
 
