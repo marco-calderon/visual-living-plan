@@ -1857,6 +1857,7 @@ function clientScript(
       panel.hidden = panel.getAttribute('data-tab-panel') !== target;
     });
     try { localStorage.setItem('living-plan-tab', target || 'plan'); } catch {}
+    if (target !== 'workflow') window.livingPlanPendingWorkflowFocus = null;
     if (target === 'workflow') {
       requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
     }
@@ -1906,6 +1907,12 @@ function clientScript(
 
   function canonicalRef(section, fallback) {
     return section.getAttribute('data-plan-ref') || section.id || fallback || '';
+  }
+
+  function workflowRefFromHash(hash) {
+    const decoded = decodeToken(hash);
+    if (!decoded.startsWith('workflow/')) return '';
+    return decoded.slice('workflow/'.length);
   }
 
   function highlightPlanTarget(section) {
@@ -1979,8 +1986,30 @@ function clientScript(
   function restoreView(view) {
     scrollGeneration += 1;
     highlightPlanTarget(null);
+    window.livingPlanPendingWorkflowFocus = null;
     if (view && view.tab) activateTab(view.tab);
     if (view && typeof view.y === 'number') pinScroll(view.x || 0, view.y);
+  }
+
+  function focusWorkflowStep(ref, options) {
+    const recordHistory = !options || options.recordHistory !== false;
+    const canonical = decodeToken(ref);
+    if (!canonical) return;
+    if (recordHistory) {
+      const hash = '#workflow/' + encodeURIComponent(canonical);
+      const next = new URL(window.location.href);
+      next.hash = hash;
+      const sameEntry = history.state && history.state.livingPlanWorkflow === canonical && location.hash === next.hash;
+      if (sameEntry || jumpDepth > 0) return;
+      jumpDepth += 1;
+      snapshotView();
+      history.pushState({ livingPlanWorkflow: canonical }, '', next);
+      jumpDepth -= 1;
+    }
+    highlightPlanTarget(null);
+    activateTab('workflow');
+    window.livingPlanPendingWorkflowFocus = canonical;
+    window.dispatchEvent(new CustomEvent('living-plan-focus-workflow', { detail: { ref: canonical } }));
   }
 
   function tokenFromAnchor(link) {
@@ -1999,6 +2028,15 @@ function clientScript(
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const target = event.target;
     if (!(target instanceof Element)) return;
+    const workflowJump = target.closest('[data-workflow-jump]');
+    if (workflowJump) {
+      if (document.documentElement.dataset.comments === 'on') return;
+      const ref = workflowJump.getAttribute('data-workflow-jump');
+      if (!ref) return;
+      event.preventDefault();
+      focusWorkflowStep(ref);
+      return;
+    }
     const planJump = target.closest('[data-plan-jump]');
     if (planJump) {
       const ref = planJump.getAttribute('data-plan-jump');
@@ -2031,6 +2069,19 @@ function clientScript(
     }
     if (state.livingPlanView && state.livingPlanView.captured) {
       restoreView(state.livingPlanView);
+      if (state.livingPlanView.tab === 'workflow' && state.livingPlanWorkflow) {
+        window.livingPlanPendingWorkflowFocus = state.livingPlanWorkflow;
+        window.dispatchEvent(new CustomEvent('living-plan-focus-workflow', { detail: { ref: state.livingPlanWorkflow } }));
+      }
+      return;
+    }
+    if (state.livingPlanWorkflow) {
+      focusWorkflowStep(state.livingPlanWorkflow, { recordHistory: false });
+      return;
+    }
+    const workflowRef = workflowRefFromHash(location.hash);
+    if (workflowRef) {
+      focusWorkflowStep(workflowRef, { recordHistory: false });
       return;
     }
     if (location.hash && findPlanTarget(location.hash)) {
@@ -2041,6 +2092,9 @@ function clientScript(
   });
 
   window.livingPlanFocusPlanRef = focusPlanRef;
+  window.livingPlanWorkflowFocusMissed = function () {
+    showToast('No workflow step for this section');
+  };
 
   try {
     let saved = localStorage.getItem('living-plan-tab');
@@ -2049,7 +2103,10 @@ function clientScript(
     if (preferred) activateTab(preferred);
   } catch {}
 
-  if (!interactionsLocked && location.hash && findPlanTarget(location.hash)) {
+  const openingWorkflowRef = workflowRefFromHash(location.hash);
+  if (openingWorkflowRef) {
+    focusWorkflowStep(openingWorkflowRef, { recordHistory: false });
+  } else if (!interactionsLocked && location.hash && findPlanTarget(location.hash)) {
     focusPlanRef(location.hash, { recordHistory: false, instant: true });
   }
 

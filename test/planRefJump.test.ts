@@ -182,6 +182,46 @@ test('a hash in the address bar opens that entry without an extra history entry'
   }
 })
 
+test('a plan step number or title opens the workflow and Back restores the plan', { timeout: 20_000 }, async () => {
+  const { page, close } = await openPlan(pageHtml())
+  try {
+    const number = page.locator('#plan-later a.plan-step-number')
+    await number.evaluate((node) => node.scrollIntoView({ block: 'center', behavior: 'auto' }))
+    const before = await page.evaluate(() => window.scrollY)
+    assert.ok(before > 200, `expected a scrolled page, got ${before}`)
+    assert.equal(await number.textContent(), '2')
+
+    await number.evaluate((node) => node.click())
+    await page.waitForURL(/#workflow\/later$/)
+    assert.equal(await page.getByRole('tab', { name: 'Workflow' }).getAttribute('aria-selected'), 'true')
+    assert.equal(await page.getByRole('tab', { name: 'Plan' }).getAttribute('aria-selected'), 'false')
+
+    await historyBy(page, 'back')
+    await page.waitForFunction((target) => {
+      const plan = document.querySelector('[data-tab-target="plan"]')
+      return plan?.getAttribute('aria-selected') === 'true' && location.hash === '' && Math.abs(window.scrollY - target) < 40
+    }, before)
+
+    const title = page.locator('#plan-design a.plan-step-label')
+    await title.evaluate((node) => node.click())
+    await page.waitForURL(/#workflow\/design$/)
+    assert.equal(await page.getByRole('tab', { name: 'Workflow' }).getAttribute('aria-selected'), 'true')
+
+    await historyBy(page, 'back')
+    await page.waitForFunction((target) => {
+      const plan = document.querySelector('[data-tab-target="plan"]')
+      return plan?.getAttribute('aria-selected') === 'true' && location.hash === '' && Math.abs(window.scrollY - target) < 40
+    }, before)
+
+    await historyBy(page, 'forward')
+    await page.waitForURL(/#workflow\/design$/)
+    assert.equal(await page.getByRole('tab', { name: 'Workflow' }).getAttribute('aria-selected'), 'true')
+    assert.equal(await page.getByRole('tab', { name: 'Plan' }).getAttribute('aria-selected'), 'false')
+  } finally {
+    await close()
+  }
+})
+
 test('Back from a workflow-tab jump returns to that tab', { timeout: 20_000 }, async () => {
   const { page, close } = await openPlan(pageHtml())
   try {
