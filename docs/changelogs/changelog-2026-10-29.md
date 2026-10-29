@@ -176,3 +176,22 @@ A choice asks for one option with a radio choice card. Multi-select checkboxes a
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.5.2
+
+**PR:** [#76](https://github.com/marco-calderon/visual-living-plan/pull/76)
+
+**Bump:** patch
+
+### Summary
+
+Plan cards sit closer together. Type, buttons, and form controls stay the same size.
+
+### Improvements
+
+- A plan card pads 16px, and the cards sit 16px apart. A card inside another card pads 12px. A row gaps 12px. The column starts 16px under the titlebar. Code blocks pad 12px by 16px.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
+
