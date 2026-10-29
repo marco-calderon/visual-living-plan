@@ -120,7 +120,7 @@ Checkbox fields use the animated check control. A form of checkboxes or steppers
 
 No registry restart needed beyond the usual version check.
 
-## 1.4.1
+## 1.4.3
 
 **PR:** [#77](https://github.com/marco-calderon/visual-living-plan/pull/77)
 
