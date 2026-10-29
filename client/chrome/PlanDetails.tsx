@@ -26,7 +26,14 @@ export function PlanDetails({
 
   return (
     <Popover modal={false}>
-      <PopoverTrigger className="logo-btn" data-plan-details-toggle="" aria-controls="plan-card">
+      <PopoverTrigger
+        className="logo-btn"
+        data-plan-details-toggle=""
+        aria-controls="plan-card"
+        openOnHover
+        delay={0}
+        closeDelay={160}
+      >
         <StableHtml as="span" html={faceHtml} />
       </PopoverTrigger>
       <PopoverContent

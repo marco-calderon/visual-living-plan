@@ -253,3 +253,22 @@ Settings offers Default, Wide, and Full for the document column. Cards, prose, a
 
 No registry restart needed beyond the usual version check.
 
+## 1.5.6
+
+**PR:** [#81](https://github.com/marco-calderon/visual-living-plan/pull/81)
+
+**Bump:** patch
+
+### Summary
+
+The plan page no longer lists snapshots. The description card shows the current file version, and it opens when you hover the logo as well as when you click it.
+
+### Improvements
+
+- The Snapshots section is gone. The layers marker in the description card shows the file version, such as v1. It does not edit or restore a snapshot.
+- The description card opens on hover over the logo, in light and dark. Click still opens it, and a second click closes it.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
+

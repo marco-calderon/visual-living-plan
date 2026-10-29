@@ -101,14 +101,19 @@ test('the logo opens a card; the title sits on the solid bar', () => {
   assert.match(bar, /data-plan-mode-value>watch</)
   assert.match(bar, /aria-label="Agent · claude-code"/)
   assert.match(bar, />claude-code</)
-  assert.match(bar, /aria-label="Iteration · v1"/)
-  assert.match(bar, />v1</)
+  assert.match(bar, /data-file-version[^>]*aria-label="Version · v1"/)
+  assert.match(bar, /data-file-version-value>v1</)
+  assert.doesNotMatch(bar, /Iteration ·/)
+  assert.doesNotMatch(bar, /<button[^>]*data-file-version/)
+  assert.match(html, /planDetailsBtn\.addEventListener\('mouseenter'/)
   assert.match(bar, /data-pending-fact[^>]*hidden/)
   assert.match(bar, /data-pending-count>0</)
   assert.match(bar, /data-pending-badge[^>]*hidden/)
   assert.match(bar, /data-workflow="idle"/)
   assert.match(bar, /data-review-chip[^>]*hidden/)
-  assert.doesNotMatch(bar, />Mode |Agent <strong|Iteration <strong|Pending <strong|Workflow <strong/)
+  assert.doesNotMatch(bar, />Mode |Agent <strong|Version <strong|Pending <strong|Workflow <strong/)
+  assert.doesNotMatch(html, /<h2>Snapshots<\/h2>/)
+  assert.doesNotMatch(html, /plan-snapshots/)
 
   assert.match(html, /data-layout="default"/)
   assert.doesNotMatch(html, /data-page-width="narrow"/)
@@ -158,4 +163,42 @@ test('pending, review, and changed sections use icons and the logo badge', () =>
   assert.match(bar, /aria-label="Changed · 1"/)
   assert.match(bar, /data-review-icon="deny"/)
   assert.match(bar, /data-review-icon="iterate"/)
+})
+
+test('the description card shows the file version and not a snapshot list', () => {
+  const html = page(undefined, {
+    iteration: 9,
+    mdxHeadSnapshotId: 'snap_b',
+    mdxSnapshots: [
+      {
+        id: 'snap_a',
+        documentId: 'plan',
+        seq: 1,
+        parentId: null,
+        title: 'POS-22',
+        body: 'a',
+        reason: 'create',
+        restoredFromId: null,
+        createdAt: 1,
+      },
+      {
+        id: 'snap_b',
+        documentId: 'plan',
+        seq: 4,
+        parentId: 'snap_a',
+        title: 'POS-22',
+        body: 'b',
+        reason: 'edit',
+        restoredFromId: null,
+        createdAt: 2,
+      },
+    ],
+  })
+  const bar = header(html)
+  assert.match(bar, /data-file-version[^>]*aria-label="Version · v4"/)
+  assert.match(bar, /data-file-version-value>v4</)
+  assert.doesNotMatch(bar, /Iteration · v9/)
+  assert.doesNotMatch(bar, /<button[^>]*data-file-version/)
+  assert.doesNotMatch(html, /<h2>Snapshots<\/h2>/)
+  assert.doesNotMatch(html, /plan-snapshots/)
 })

@@ -1,6 +1,7 @@
 import type { ClientAssets } from './assets'
 import type { ExecutionState } from './execution'
 import { planSourceFlags, renderPlanStaticHtml } from './planMdx/source'
+import { fileVersionName, fileVersionSeq, fileVersionText } from './fileVersion'
 import type { PlanSnapshotRecord } from './planSnapshots'
 import type { PlanMode } from './processRecord'
 import { clientLogScript } from './clientLog'
@@ -1685,16 +1686,42 @@ function clientScript(
     planCard.addEventListener('transitionend', planDetailsCloseListener);
     planDetailsCloseTimer = window.setTimeout(finishPlanDetailsClose, 280);
   }
+  let planDetailsPinned = false;
+  let planDetailsHoverTimer = 0;
+  function closePlanDetailsSoon() {
+    window.clearTimeout(planDetailsHoverTimer);
+    planDetailsHoverTimer = window.setTimeout(() => {
+      if (!planDetailsPinned) setPlanDetails(false);
+    }, 160);
+  }
   if (planDetails && planDetailsBtn && planCard) {
+    planDetailsBtn.addEventListener('mouseenter', () => {
+      window.clearTimeout(planDetailsHoverTimer);
+      setPlanDetails(true);
+    });
+    planDetailsBtn.addEventListener('mouseleave', closePlanDetailsSoon);
+    planCard.addEventListener('mouseenter', () => {
+      window.clearTimeout(planDetailsHoverTimer);
+    });
+    planCard.addEventListener('mouseleave', closePlanDetailsSoon);
     planDetailsBtn.addEventListener('click', () => {
-      setPlanDetails(!planDetailsOpen);
+      if (planDetailsPinned) {
+        planDetailsPinned = false;
+        setPlanDetails(false);
+        return;
+      }
+      planDetailsPinned = true;
+      setPlanDetails(true);
     });
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') setPlanDetails(false);
+      if (event.key !== 'Escape') return;
+      planDetailsPinned = false;
+      setPlanDetails(false);
     });
     document.addEventListener('click', (event) => {
       if (!planDetailsOpen) return;
       if (event.target instanceof Node && planDetails.contains(event.target)) return;
+      planDetailsPinned = false;
       setPlanDetails(false);
     });
   }
@@ -2552,7 +2579,7 @@ const MODE_ICON = {
 } as const
 
 const AGENT_ICON = statusIcon('<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>')
-const ITERATION_ICON = statusIcon('<path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/>')
+const FILE_VERSION_ICON = statusIcon('<path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/>')
 const PENDING_ICON = statusIcon('<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>')
 const CHANGED_ICON = statusIcon('<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M9 10h6"/><path d="M12 13V7"/><path d="M9 17h6"/>')
 const REVIEW_ICON = {
@@ -2634,6 +2661,9 @@ export function renderPlanPage(options: {
   const body = `<div id="plan-mdx-root" data-plan-mdx class="${planMdxHref ? 'plan-mdx-pending' : ''}">${staticPlan}</div>`
 
   const changed = diffs.filter((diff) => diff.status !== 'unchanged').length
+  const versionSeq = fileVersionSeq(options.mdxSnapshots ?? [], options.mdxHeadSnapshotId ?? null)
+  const versionName = fileVersionName(versionSeq)
+  const versionText = fileVersionText(versionSeq)
   const assetCss = [
     ...(clientAssets?.cssHrefs ?? []),
     ...(clientAssets?.selectorCssHrefs ?? []),
@@ -2719,7 +2749,7 @@ export function renderPlanPage(options: {
         <div class="facts">
           <span class="fact solo" data-plan-mode-chip data-mode="${escapeHtml(mode)}" title="Mode · ${escapeHtml(mode)}" aria-label="Mode · ${escapeHtml(mode)}">${MODE_ICON.watch}${MODE_ICON.review}${MODE_ICON.comment}<span class="sr" data-plan-mode-value>${escapeHtml(mode)}</span></span>
           ${plan.agent ? `<span class="fact" title="Agent · ${escapeHtml(plan.agent)}" aria-label="Agent · ${escapeHtml(plan.agent)}">${AGENT_ICON}<span class="val">${escapeHtml(plan.agent)}</span></span>` : ''}
-          <span class="fact" title="Iteration · v${iteration}" aria-label="Iteration · v${iteration}">${ITERATION_ICON}<span class="val">v${iteration}</span></span>
+          <span class="fact" data-file-version title="${escapeHtml(versionName)}" aria-label="${escapeHtml(versionName)}">${FILE_VERSION_ICON}<span class="val" data-file-version-value>${escapeHtml(versionText)}</span></span>
           <span class="fact" data-pending-fact title="Pending · ${pendingCount}" aria-label="Pending · ${pendingCount}"${pendingCount > 0 ? '' : ' hidden'}>${PENDING_ICON}<span class="val" data-pending-count>${pendingCount}</span></span>
           <span class="fact solo" data-workflow="${workflowState}" title="Workflow · ${escapeHtml(workflowState)}" aria-label="Workflow · ${escapeHtml(workflowState)}">${TAB_ICONS.workflow}</span>
           ${changed ? `<span class="fact" title="Changed · ${changed}" aria-label="Changed · ${changed}">${CHANGED_ICON}<span class="val">${changed}</span></span>` : ''}
