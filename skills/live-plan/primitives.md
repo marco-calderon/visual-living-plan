@@ -70,7 +70,7 @@ Reject traffic if Redis is down.
 </choice>
 ```
 
-Give every option an `id`. The option body is the description.
+Give every option an `id`. The option body is the description. The page shows each option as a radio choice card. One selection posts the response above and is restored after a refresh. A checkbox field is a different control: it can select several values.
 
 ## form
 

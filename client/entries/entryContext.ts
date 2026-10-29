@@ -6,6 +6,7 @@ export type ChoiceContextValue = {
   selectedId?: string
   disabled: boolean
   onSelect: (optionId: string, label: string) => void
+  remember: (optionId: string, label: string) => void
 }
 
 export const ChoiceContext = createContext<ChoiceContextValue | null>(null)

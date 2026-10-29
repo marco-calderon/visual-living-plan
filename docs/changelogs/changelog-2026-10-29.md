@@ -158,3 +158,21 @@ A plan can include a data table that searches, sorts, and filters its rows on th
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.5.1
+
+**PR:** [#75](https://github.com/marco-calderon/visual-living-plan/pull/75)
+
+**Bump:** patch
+
+### Summary
+
+A choice asks for one option with a radio choice card. Multi-select checkboxes and the rest of the page stay as they are. The selected option is saved with the session and comes back after a refresh.
+
+### Improvements
+
+- Each option in a choice is a radio card: the label, the description, and a radio, in light and dark. Choosing one posts the same choice response.
+
+### Notes
+
+No registry restart needed beyond the usual version check.

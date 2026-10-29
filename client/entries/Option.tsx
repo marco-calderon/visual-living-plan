@@ -1,4 +1,5 @@
-import { useContext, type ReactNode } from 'react'
+import { useContext, useId, type ReactNode } from 'react'
+import { RadioGroupItem } from '../ui/radio-group.tsx'
 import { ChoiceContext } from './entryContext'
 import { markEntry } from './planEntry'
 import { cx } from './styles'
@@ -12,21 +13,24 @@ export type OptionProps = {
 
 export function Option({ id, label, children, className }: OptionProps) {
   const choice = useContext(ChoiceContext)
-  const selected = choice?.selectedId === id
+  const inputId = useId()
+  choice?.remember(id, label)
   return (
-    <button
-      type="button"
-      className={cx('plan-choice-option', selected && 'is-selected', className)}
-      aria-pressed={selected}
-      disabled={choice?.disabled}
+    <label
+      className={cx('plan-choice-card', className)}
+      htmlFor={inputId}
       data-option-id={id}
       data-option-label={label}
       data-choice-id={choice?.choiceId}
-      onClick={() => choice?.onSelect(id, label)}
     >
-      <span className="plan-choice-label">{label}</span>
-      {children ? <span className="plan-choice-desc">{children}</span> : null}
-    </button>
+      <div className="plan-choice-card-body">
+        <div className="plan-choice-copy">
+          <span className="plan-choice-label">{label}</span>
+          {children ? <div className="plan-choice-desc">{children}</div> : null}
+        </div>
+        <RadioGroupItem value={id} id={inputId} />
+      </div>
+    </label>
   )
 }
 

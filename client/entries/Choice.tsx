@@ -1,9 +1,9 @@
 import { useRef, useState, type ReactNode } from 'react'
+import { RadioGroup } from '../ui/radio-group.tsx'
 import { Box } from './Box'
 import { ChoiceContext } from './entryContext'
 import { Option } from './Option'
 import { anchorId, keyedEntries, partitionEntries } from './planEntry'
-import { ResponsiveStack } from './ResponsiveStack'
 import { cx } from './styles'
 import type { ChoiceOptionSpec, ChoiceResponse } from './types'
 import { VStack } from './VStack'
@@ -33,6 +33,7 @@ export function Choice({
 }: ChoiceProps) {
   const [localSelected, setLocalSelected] = useState<{ id: string; label: string } | undefined>(undefined)
   const picked = useRef(false)
+  const labels = useRef(new Map<string, string>())
   const selected = selectedId ?? localSelected?.id
   const selectedLabel =
     localSelected && localSelected.id === selected ? localSelected.label : (savedLabel ?? selected)
@@ -51,6 +52,7 @@ export function Choice({
     : selected
       ? 'selected'
       : 'Waiting for a selection'
+  const promptId = `${anchorId(id)}-prompt`
 
   return (
     <Box
@@ -64,17 +66,38 @@ export function Choice({
     >
       <VStack gap="sm">
         <span className="plan-kicker">Needs your choice</span>
-        <h3 className="plan-title">{prompt}</h3>
+        <h3 className="plan-title" id={promptId}>
+          {prompt}
+        </h3>
         {rest.length > 0 ? <div className="plan-rich">{rest}</div> : null}
-        <ChoiceContext.Provider value={{ choiceId: id, selectedId: selected, disabled, onSelect: select }}>
-          <ResponsiveStack gap="sm">
+        <ChoiceContext.Provider
+          value={{
+            choiceId: id,
+            selectedId: selected,
+            disabled,
+            onSelect: select,
+            remember: (optionId, label) => {
+              labels.current.set(optionId, label)
+            },
+          }}
+        >
+          <RadioGroup
+            className="plan-choice-group"
+            name={id}
+            value={selected ?? ''}
+            disabled={disabled}
+            aria-labelledby={promptId}
+            onValueChange={(optionId) => {
+              select(optionId, labels.current.get(optionId) ?? optionId)
+            }}
+          >
             {options?.map((option) => (
               <Option key={option.id} id={option.id} label={option.label}>
                 {option.description}
               </Option>
             ))}
             {keyedEntries(matches, 'option')}
-          </ResponsiveStack>
+          </RadioGroup>
         </ChoiceContext.Provider>
         <p className="plan-state" data-state-for={id}>
           {state === 'selected' ? (
