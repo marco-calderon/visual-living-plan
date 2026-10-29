@@ -34,8 +34,9 @@ export function Item({ children, done, index, className }: ItemProps) {
     return (
       <label className={cx('plan-field', className)} data-index={position}>
         <VStack gap="xs">
-          <span>
-            {position + 1}. {children}
+          <span className="plan-question-line">
+            <span className="plan-question-index">{position + 1}.</span>
+            <span className="plan-question-text">{children}</span>
           </span>
           <textarea
             name={key}

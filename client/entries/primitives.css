@@ -620,6 +620,26 @@ a.plan-step-label:hover {
 .plan-field > .plan-vstack > span,
 .plan-muted { color: var(--muted); font-size: 0.92rem; }
 
+.plan-question-line {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.35em;
+  min-width: 0;
+}
+
+.plan-question-index { flex: none; }
+
+.plan-question-text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.plan-question-text :is(p) {
+  display: inline;
+  margin: 0;
+}
+
 .plan-checkbox-group {
   display: flex;
   flex-direction: column;
