@@ -140,7 +140,7 @@ No registry restart needed beyond the usual version check.
 
 ## 1.5.0
 
-**PR:** (link once the pull request is open)
+**PR:** [#74](https://github.com/marco-calderon/visual-living-plan/pull/74)
 
 **Bump:** minor
 
