@@ -89,14 +89,33 @@ test('sample plan works on a desktop viewport', async ({ page }) => {
 
     await expect(page.locator('html')).toHaveAttribute('data-layout', 'default')
     await expect(page.locator('.shell')).toHaveCSS('width', '720px')
+    await expect(page.getByRole('radio', { name: 'Narrow' })).toHaveCount(0)
     await page.getByRole('radio', { name: 'Wide' }).click()
     await expect(page.locator('html')).toHaveAttribute('data-layout', 'wide')
     await expect(page.locator('.shell')).toHaveCSS('width', '1120px')
     await expect(page.locator('[data-sonner-toast]')).toHaveText('Wide width')
-    await page.getByRole('radio', { name: 'Narrow' }).click()
-    await expect(page.locator('html')).toHaveAttribute('data-layout', 'narrow')
-    await expect(page.locator('.shell')).toHaveCSS('width', '560px')
-    await expect(page.locator('[data-sonner-toast]')).toHaveText('Narrow width')
+    await page.getByRole('radio', { name: 'Full' }).click()
+    await expect(page.locator('html')).toHaveAttribute('data-layout', 'full')
+    await expect(page.locator('[data-sonner-toast]')).toHaveText('Full width')
+    const fullWidths = await page.evaluate(() => {
+      const shell = document.querySelector('.shell')
+      return {
+        shell: shell ? shell.getBoundingClientRect().width : 0,
+        client: document.documentElement.clientWidth,
+        column: getComputedStyle(document.documentElement).getPropertyValue('--page-column').trim(),
+      }
+    })
+    expect(fullWidths.column).toBe('100%')
+    expect(fullWidths.shell).toBeGreaterThan(1120)
+    expect(fullWidths.client - fullWidths.shell).toBeGreaterThan(16)
+    expect(fullWidths.client - fullWidths.shell).toBeLessThan(48)
+    await page.getByRole('tab', { name: 'Plan' }).click()
+    await expect(page.locator('html')).toHaveAttribute('data-layout', 'full')
+    await page.getByRole('tab', { name: 'Workflow' }).click()
+    await expect(page.locator('html')).toHaveAttribute('data-layout', 'full')
+    const workflowShell = await page.locator('.shell').evaluate((node) => node.getBoundingClientRect().width)
+    expect(Math.abs(workflowShell - fullWidths.shell)).toBeLessThan(1)
+    await page.getByRole('tab', { name: 'Settings' }).click()
     await page.getByRole('radio', { name: 'Default' }).click()
     await expect(page.locator('html')).toHaveAttribute('data-layout', 'default')
     await expect(page.locator('.shell')).toHaveCSS('width', '720px')

@@ -57,6 +57,7 @@
 
 .plan-data-table-scroll {
   max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
   border: 1px solid var(--hairline);
   border-radius: 8px;
@@ -64,8 +65,8 @@
 }
 
 .plan-data-table table {
-  width: 100%;
-  min-width: 36rem;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   margin: 0;
 }
@@ -75,6 +76,12 @@
   text-align: left;
   vertical-align: middle;
   border-bottom: 1px solid var(--row-line);
+}
+.plan-data-table :is(th, td),
+.plan-data-table :is(th, td) * {
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
 }
 
 .plan-data-table th {

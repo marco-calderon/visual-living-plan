@@ -111,15 +111,21 @@ test('the logo opens a card; the title sits on the solid bar', () => {
   assert.doesNotMatch(bar, />Mode |Agent <strong|Iteration <strong|Pending <strong|Workflow <strong/)
 
   assert.match(html, /data-layout="default"/)
-  assert.match(html, /data-page-width="narrow"/)
+  assert.doesNotMatch(html, /data-page-width="narrow"/)
   assert.match(html, /data-page-width="default"/)
   assert.match(html, /data-page-width="wide"/)
+  assert.match(html, /data-page-width="full"/)
   assert.match(html, /aria-checked="true">Default</)
+  assert.match(html, /Full uses the available width/)
   assert.match(html, /overflow-x:\s*clip/)
   assert.match(html, /--page-column:\s*720px/)
-  assert.match(html, /--page-column:\s*560px/)
+  assert.doesNotMatch(html, /--page-column:\s*560px/)
   assert.match(html, /--page-column:\s*1120px/)
+  assert.match(html, /--page-column:\s*100%/)
   assert.match(html, /--shell-width:\s*min\(var\(--page-column\)/)
+  assert.match(html, /#plan-mdx-root/)
+  assert.match(html, /\.rich-table[\s\S]*?overflow-x:\s*auto/)
+  assert.match(html, /\.rich-table :is\(th, td\) \*\s*\{[^}]*white-space:\s*nowrap/)
   assert.match(html, /class="layout-default"/)
 
   const wide = page(themePayload({ ...defaultThemeConfig(), pageWidth: 'wide' }, 'live-plan.config.json'))
@@ -127,9 +133,10 @@ test('the logo opens a card; the title sits on the solid bar', () => {
   assert.match(wide, /class="layout-wide"/)
   assert.match(wide, /data-page-width="wide"[^>]*aria-checked="true"/)
 
-  const narrow = page(themePayload({ ...defaultThemeConfig(), pageWidth: 'narrow' }, 'live-plan.config.json'))
-  assert.match(narrow, /data-layout="narrow"/)
-  assert.match(narrow, /class="layout-narrow"/)
+  const full = page(themePayload({ ...defaultThemeConfig(), pageWidth: 'full' }, 'live-plan.config.json'))
+  assert.match(full, /data-layout="full"/)
+  assert.match(full, /class="layout-full"/)
+  assert.match(full, /data-page-width="full"[^>]*aria-checked="true"/)
 })
 
 test('pending, review, and changed sections use icons and the logo badge', () => {

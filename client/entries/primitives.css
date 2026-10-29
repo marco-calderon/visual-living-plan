@@ -312,6 +312,9 @@
   font-size: 1.35rem;
   letter-spacing: -0.02em;
   line-height: 1.15;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .plan-phase .plan-title {
@@ -443,6 +446,7 @@ a.plan-step-label:hover {
 
 .plan-rich {
   min-width: 0;
+  max-width: 100%;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -450,6 +454,9 @@ a.plan-step-label:hover {
 .plan-document {
   color: var(--ink);
   font-family: var(--font-body);
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .plan-document > :is(.plan-entry, .block, .plan-panel, .vlp-workflow, .vlp-stack, .vlp-row, .vlp-box, .vlp-chart),
@@ -530,8 +537,15 @@ a.plan-step-label:hover {
   background: var(--code-inline-bg);
   padding: 0.1rem 0.35rem;
   border-radius: 0.35rem;
+  white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+.rich-table :is(th, td) code,
+.plan-data-table :is(th, td) code {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .plan-document pre:not(.mermaid),
@@ -549,6 +563,8 @@ a.plan-step-label:hover {
 
 .plan-entry {
   scroll-margin: 1.25rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .plan-entry[data-locked="true"] { opacity: 0.78; }
@@ -1139,6 +1155,9 @@ a.plan-step-label:hover {
   border-radius: 12px;
   background: var(--surface-soft);
   padding: 0.55rem 0.7rem;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .plan-check {
@@ -1191,11 +1210,13 @@ a.plan-step-label:hover {
 
 .plan-check-text {
   min-width: 0;
+  max-width: 100%;
   color: var(--ink);
   font-family: var(--font-body);
   font-size: 1rem;
   font-weight: 400;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .plan-check-text :is(p) {

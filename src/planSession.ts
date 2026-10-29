@@ -665,7 +665,7 @@ export async function openPlanSession(options: {
     let pageWidth: PageWidth = theme.pageWidth
     if (hasPageWidth) {
       if (!isPageWidth(payload.pageWidth)) {
-        throw new HttpError(400, 'Page width must be narrow, default, or wide.')
+        throw new HttpError(400, 'Page width must be default, wide, or full.')
       }
       pageWidth = payload.pageWidth
     } else if (hasFullWidth) {
