@@ -84,7 +84,7 @@ Plan titles use heading-sm or card-title, not hero-display. Body uses body-md.
 ## Layout
 
 - Base unit 4px. Tokens: xxs 4, xs 8, sm 12, md 16, lg 20, xl 24, xxl 32, xxxl 40, section-sm 48, section 64, section-lg 80, hero 96.
-- Documentation cards pad 20–24px. Page column stays readable, about 720px of prose, wider when a row needs two cards.
+- Documentation cards pad 16px (`space-md`). A card nested inside another card pads 12px (`space-sm`). Entries sit 16px apart. A row gaps 12px (`space-sm`). Page column stays readable, about 720px of prose, wider when a row needs two cards.
 - No blueprint grid. No noise overlay.
 
 ## Elevation
@@ -110,7 +110,7 @@ Flat by default. Hairline border, no shadow, on documentation cards. Level 2 sha
 - **button-primary**: black pill, white text, 11px 24px, rounded-full.
 - **button-secondary**: transparent, ink text, 1px ink border, pill.
 - **button-tertiary**: canvas fill, hairline border, pill.
-- **card-base**: canvas was the spec for white cards; this app uses surface (`#f4f4f5`) so the card is visibly different from the white page. 16px radius, 24px padding, 1px hairline.
+- **card-base**: canvas was the spec for white cards; this app uses surface (`#f4f4f5`) so the card is visibly different from the white page. 16px radius, 16px padding, 1px hairline. Nested cards pad 12px.
 - **text-input**: canvas fill, hairline border, 8px radius, 40px height. Focus: 2px brand-blue-deep.
 - **badge-success**, **badge-new**, **badge-beta** as specified, pill shaped.
 - Tabs: underline segmented tabs or black pill tabs. Plan/Workflow/Settings can be pill tabs.

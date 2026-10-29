@@ -292,7 +292,7 @@ body.layout-wide { --page-column: ${PAGE_WIDTH_PX.wide}px; }
   max-width: 100%;
   min-width: 0;
   margin: 0 auto;
-  padding: calc(var(--titlebar-offset) + 1.35rem) 0 7rem;
+  padding: calc(var(--titlebar-offset) + var(--space-md)) 0 7rem;
   position: relative;
   z-index: 1;
   overflow-x: clip;
@@ -986,13 +986,20 @@ body.has-review-bar .shell {
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: 16px;
-  padding: var(--space-xl);
+  padding: var(--space-md);
   box-shadow: none;
   animation: rise 150ms var(--ease-out) both;
 }
+.block .block:not([data-pad]),
+.plan-panel .plan-panel:not([data-pad]),
+.plan-panel .block:not([data-pad]),
+.block .plan-panel:not([data-pad]),
+.plan-box[data-surface="panel"] .plan-box[data-surface="panel"]:not([data-pad]) {
+  padding: var(--space-sm);
+}
 .plan-document > :is(.plan-entry, .block, .plan-panel, .vlp-workflow, .vlp-stack, .vlp-row, .vlp-box, .vlp-chart),
 .plan-document > div:has(> .plan-entry) {
-  margin-top: var(--space-xl);
+  margin-top: var(--space-md);
 }
 .plan-document > :first-child,
 .plan-document > div:first-child:has(> .plan-entry) {
@@ -1000,19 +1007,19 @@ body.has-review-bar .shell {
 }
 .plan-rich > :is(.plan-entry, .plan-panel, .vlp-stack, .vlp-row, .vlp-box, .vlp-chart),
 .plan-rich > div:has(> .plan-entry) {
-  margin-top: var(--space-xl);
+  margin-top: var(--space-md);
 }
 .plan-rich > :is(.plan-entry, .plan-panel, .vlp-stack, .vlp-row, .vlp-box, .vlp-chart):not(:last-child),
 .plan-rich > div:has(> .plan-entry):not(:last-child) {
-  margin-bottom: var(--space-xl);
+  margin-bottom: var(--space-md);
 }
 .vlp-stack,
 .vlp-box {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xl);
+  gap: var(--space-md);
 }
-.vlp-row { gap: var(--space-xl); }
+.vlp-row { gap: var(--space-sm); }
 body.plan-live .block {
   animation: none;
 }
@@ -1136,7 +1143,7 @@ body.plan-live .block.change-applied {
   margin: 0 0 0.85rem;
   max-width: 100%;
   overflow: auto;
-  padding: 0.9rem 1rem;
+  padding: var(--space-sm) var(--space-md);
   border-radius: 12px;
   background: var(--code-block-bg);
   color: var(--code-block-fg);

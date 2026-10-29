@@ -14,7 +14,7 @@ const rowLayout = `
 .vlp-row {
   width: 100%;
   min-width: 0;
-  gap: var(--space-xl);
+  gap: var(--space-sm);
 }
 .vlp-row > * {
   flex: 1 1 16rem;

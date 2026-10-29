@@ -137,7 +137,7 @@
 
 .plan-surface {
   min-height: 100%;
-  padding: 1.25rem;
+  padding: var(--space-md);
 }
 
 .plan-surface,
@@ -155,9 +155,16 @@
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: 16px;
-  padding: var(--space-xl);
+  padding: var(--space-md);
   box-shadow: none;
   animation: rise 150ms var(--ease-out) both;
+}
+
+.plan-panel .plan-panel:not([data-pad]),
+.plan-panel .plan-box[data-surface="panel"]:not([data-pad]),
+.plan-box[data-surface="panel"] .plan-panel:not([data-pad]),
+.plan-box[data-surface="panel"] .plan-box[data-surface="panel"]:not([data-pad]) {
+  padding: var(--space-sm);
 }
 
 .plan-popover {
@@ -448,7 +455,7 @@ a.plan-step-label:hover {
 
 .plan-document > :is(.plan-entry, .block, .plan-panel, .vlp-workflow, .vlp-stack, .vlp-row, .vlp-box, .vlp-chart),
 .plan-document > div:has(> .plan-entry) {
-  margin-top: var(--space-xl);
+  margin-top: var(--space-md);
 }
 
 .plan-document > :first-child,
@@ -458,22 +465,22 @@ a.plan-step-label:hover {
 
 .plan-rich > :is(.plan-entry, .plan-panel, .vlp-stack, .vlp-row, .vlp-box, .vlp-chart),
 .plan-rich > div:has(> .plan-entry) {
-  margin-top: var(--space-xl);
+  margin-top: var(--space-md);
 }
 
 .plan-rich > :is(.plan-entry, .plan-panel, .vlp-stack, .vlp-row, .vlp-box, .vlp-chart):not(:last-child),
 .plan-rich > div:has(> .plan-entry):not(:last-child) {
-  margin-bottom: var(--space-xl);
+  margin-bottom: var(--space-md);
 }
 
 .vlp-stack,
 .vlp-box {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xl);
+  gap: var(--space-md);
 }
 
-.vlp-row { gap: var(--space-xl); }
+.vlp-row { gap: var(--space-sm); }
 
 .plan-document > :is(h1, h2, h3),
 .plan-rich :is(h1, h2, h3):not(.plan-title) {
@@ -534,7 +541,7 @@ a.plan-step-label:hover {
   margin: 0 0 0.85rem;
   max-width: 100%;
   overflow: auto;
-  padding: 0.9rem 1rem;
+  padding: var(--space-sm) var(--space-md);
   border-radius: 12px;
   background: var(--code-block-bg);
   color: var(--code-block-fg);
