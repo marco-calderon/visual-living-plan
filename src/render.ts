@@ -280,12 +280,12 @@ body {
   background-image: none;
 }
 
-:root[data-layout="narrow"],
-body.layout-narrow { --page-column: ${PAGE_WIDTH_PX.narrow}px; }
 :root[data-layout="default"],
 body.layout-default { --page-column: ${PAGE_WIDTH_PX.default}px; }
 :root[data-layout="wide"],
 body.layout-wide { --page-column: ${PAGE_WIDTH_PX.wide}px; }
+:root[data-layout="full"],
+body.layout-full { --page-column: 100%; }
 .shell {
   --shell-width: min(var(--page-column), calc(100% - 2rem));
   width: var(--shell-width);
@@ -309,7 +309,12 @@ body.has-review-bar .shell {
 .rich,
 .execution-shell,
 .execution-banner,
-.execution-stage {
+.execution-stage,
+#plan-mdx-root,
+#execution-root,
+.plan-document,
+.stack > *,
+.settings-stack > * {
   min-width: 0;
   max-width: 100%;
 }
@@ -1097,6 +1102,7 @@ body.plan-live .block.change-applied {
 .rich-table {
   margin: 0 0 0.85rem;
   max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -1117,6 +1123,12 @@ body.plan-live .block.change-applied {
   color: var(--ink);
   border-bottom: 1px solid var(--line);
 }
+.rich-table :is(th, td),
+.rich-table :is(th, td) * {
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+}
 .rich-table th {
   font-weight: 600;
   background: var(--surface-soft);
@@ -1133,8 +1145,14 @@ body.plan-live .block.change-applied {
   background: var(--code-inline-bg);
   padding: 0.1rem 0.35rem;
   border-radius: 0.35rem;
+  white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+.rich-table :is(th, td) code {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 .code-block code {
   font-size: 0.9em;
@@ -1747,7 +1765,7 @@ function clientScript(
   function applyLayout(pageWidth) {
     currentPageWidth = pageWidths.indexOf(pageWidth) >= 0 ? pageWidth : 'default';
     document.documentElement.dataset.layout = currentPageWidth;
-    document.body.classList.remove('layout-narrow', 'layout-default', 'layout-wide');
+    document.body.classList.remove('layout-narrow', 'layout-default', 'layout-wide', 'layout-full');
     document.body.classList.add('layout-' + currentPageWidth);
     document.querySelectorAll('[data-page-width]').forEach((node) => {
       const id = node.getAttribute('data-page-width');
@@ -2760,7 +2778,7 @@ export function renderPlanPage(options: {
         <section class="block settings-section" data-section>
           <div class="settings-kicker">Layout</div>
           <h3>Page width</h3>
-          <p class="settings-copy">Choose the document column. Narrow, default, and wide apply to Plan, Workflow, and Settings.</p>
+          <p class="settings-copy">Choose the document column. Default, wide, and full apply to Plan, Workflow, and Settings. Full uses the available width.</p>
           <div class="width-choices" role="radiogroup" aria-label="Page width">
             ${widthChoices}
           </div>

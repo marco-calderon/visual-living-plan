@@ -42,17 +42,24 @@ test('accent css changes the swatch and leaves the document palette alone', () =
 
 test('pageWidth defaults to default and reads a legacy fullWidth flag', () => {
   assert.equal(parseThemeConfig({ theme: { accent: '#0369a1' } }).pageWidth, 'default')
-  assert.equal(parseThemeConfig({ theme: { accent: '#0369a1', pageWidth: 'narrow' } }).pageWidth, 'narrow')
+  assert.equal(parseThemeConfig({ theme: { accent: '#0369a1', pageWidth: 'narrow' } }).pageWidth, 'default')
   assert.equal(parseThemeConfig({ theme: { accent: '#0369a1', pageWidth: 'wide' } }).pageWidth, 'wide')
+  assert.equal(parseThemeConfig({ theme: { accent: '#0369a1', pageWidth: 'full' } }).pageWidth, 'full')
   assert.equal(parseThemeConfig({ theme: { accent: '#0369a1', pageWidth: 'nope' } }).pageWidth, 'default')
   assert.equal(parseThemeConfig({ theme: { accent: '#0369a1', fullWidth: true } }).pageWidth, 'wide')
   assert.equal(parseThemeConfig({ theme: { accent: '#0369a1' }, layout: { fullWidth: true } }).pageWidth, 'wide')
   assert.equal(
     parseThemeConfig({ theme: { accent: '#0369a1', pageWidth: 'narrow', fullWidth: true } }).pageWidth,
-    'narrow',
+    'default',
+  )
+  assert.equal(
+    parseThemeConfig({ theme: { accent: '#0369a1', pageWidth: 'full', fullWidth: true } }).pageWidth,
+    'full',
   )
   const payload = themePayload(parseThemeConfig({ theme: { accent: DEFAULT_ACCENT, pageWidth: 'wide' } }), 'cfg')
   assert.equal(payload.pageWidth, 'wide')
+  const full = themePayload(parseThemeConfig({ theme: { accent: DEFAULT_ACCENT, pageWidth: 'full' } }), 'cfg')
+  assert.equal(full.pageWidth, 'full')
 })
 
 test('diffsTheme defaults to pierre and maps Pierre theme names', () => {
@@ -84,10 +91,10 @@ test('saveThemeConfig persists pageWidth beside accent and drops fullWidth', asy
   )
   const saved = await saveThemeConfig(path, {
     accent: '#0369a1',
-    pageWidth: 'narrow',
+    pageWidth: 'full',
     diffsTheme: DEFAULT_DIFFS_THEME,
   })
-  assert.deepEqual(saved, { accent: '#0369a1', pageWidth: 'narrow', diffsTheme: DEFAULT_DIFFS_THEME })
+  assert.deepEqual(saved, { accent: '#0369a1', pageWidth: 'full', diffsTheme: DEFAULT_DIFFS_THEME })
   const onDisk = JSON.parse(await readFile(path, 'utf8')) as {
     theme: { accent: string; pageWidth: string; fullWidth?: boolean; diffsTheme: string }
     layout?: unknown
@@ -95,7 +102,7 @@ test('saveThemeConfig persists pageWidth beside accent and drops fullWidth', asy
     note?: string
   }
   assert.equal(onDisk.theme.accent, '#0369a1')
-  assert.equal(onDisk.theme.pageWidth, 'narrow')
+  assert.equal(onDisk.theme.pageWidth, 'full')
   assert.equal(onDisk.theme.fullWidth, undefined)
   assert.equal(onDisk.theme.diffsTheme, DEFAULT_DIFFS_THEME)
   assert.equal(onDisk.layout, undefined)

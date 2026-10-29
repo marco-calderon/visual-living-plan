@@ -22,24 +22,24 @@ export const DEFAULT_ACCENT = '#0f766e'
 export const DEFAULT_CONFIG_FILENAME = 'live-plan.config.json'
 
 /**
- * Document columns. Default is the 720px prose measure in DESIGN.md.
- * Narrow is a tighter read. Wide is two narrow columns, for a row of two cards.
- * There is no fourth width.
+ * Document columns shared by Plan, Workflow, and Settings.
+ * Default is the 720px prose measure in DESIGN.md. Wide is 1120px.
+ * Full uses the available width, with no pixel cap.
+ * A saved narrow width opens as default.
  */
 export const PAGE_WIDTH_PX = {
-  narrow: 560,
   default: 720,
   wide: 1120,
 } as const
 
-export const PAGE_WIDTHS = ['narrow', 'default', 'wide'] as const
+export const PAGE_WIDTHS = ['default', 'wide', 'full'] as const
 export type PageWidth = (typeof PAGE_WIDTHS)[number]
 export const DEFAULT_PAGE_WIDTH: PageWidth = 'default'
 
 export const PAGE_WIDTH_OPTIONS: ReadonlyArray<{ id: PageWidth; label: string }> = [
-  { id: 'narrow', label: 'Narrow' },
   { id: 'default', label: 'Default' },
   { id: 'wide', label: 'Wide' },
+  { id: 'full', label: 'Full' },
 ]
 
 export function isPageWidth(value: unknown): value is PageWidth {
@@ -125,6 +125,8 @@ function readPageWidth(theme: Record<string, unknown>, layout: Record<string, un
       : layout?.pageWidth !== undefined
         ? layout.pageWidth
         : record.pageWidth
+  // Narrow was removed. Open those configs at the comfortable default.
+  if (explicit === 'narrow') return DEFAULT_PAGE_WIDTH
   if (isPageWidth(explicit)) return explicit
   const fullWidthRaw =
     theme.fullWidth !== undefined
@@ -133,6 +135,7 @@ function readPageWidth(theme: Record<string, unknown>, layout: Record<string, un
         ? layout.fullWidth
         : record.fullWidth
   if (fullWidthRaw === undefined) return DEFAULT_PAGE_WIDTH
+  // The boolean predates the full option. It still opens as wide.
   return parseFullWidth(fullWidthRaw) ? 'wide' : DEFAULT_PAGE_WIDTH
 }
 
