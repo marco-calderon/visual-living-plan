@@ -38,7 +38,17 @@ test('sample plan works on a desktop viewport', async ({ page }) => {
   })
 
   await test.step('choice, form, questions, and approval', async () => {
-    await page.getByRole('button', { name: /Fail open/ }).click()
+    const open = page.getByRole('radio', { name: /Fail open/ })
+    await open.click()
+    await expect(open).toBeChecked()
+    await expect(page.getByText('Selected: Fail open')).toBeVisible()
+    await expect.poll(async () => {
+      const payload = await page.request.get('/api/plan')
+      const body = (await payload.json()) as { responses?: Record<string, { optionId?: string }> }
+      return body.responses?.['fail-mode']?.optionId
+    }).toBe('open')
+    await page.reload()
+    await expect(page.getByRole('radio', { name: /Fail open/ })).toBeChecked()
     await expect(page.getByText('Selected: Fail open')).toBeVisible()
 
     const limits = page.locator('form[data-form-id="limits"]')
@@ -116,7 +126,7 @@ test('sample plan works on a desktop viewport', async ({ page }) => {
     await expect(message).toBeVisible()
     await message.fill('Call out the fail-open choice in the runbook')
     await page.getByRole('button', { name: 'Send', exact: true }).click()
-    await expect(page.getByText('Call out the fail-open choice in the runbook')).toBeVisible()
+    await expect(page.getByRole('paragraph').filter({ hasText: 'Call out the fail-open choice in the runbook' })).toBeVisible()
     await page.getByRole('button', { name: 'Turn comments off' }).click()
   })
 

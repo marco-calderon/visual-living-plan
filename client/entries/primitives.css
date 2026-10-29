@@ -585,36 +585,143 @@ a.plan-step-label:hover {
 .plan-callout[data-kind="warning"] .plan-callout-label { color: var(--danger); }
 .plan-callout[data-kind="decision"] .plan-callout-label { color: var(--accent-2); }
 
-.plan-choice-option {
+.plan-choice-group {
+  display: grid;
   width: 100%;
-  text-align: left;
+  gap: var(--space-xs);
+}
+
+.plan-choice-card {
+  display: flex;
+  width: 100%;
+  margin: 0;
+  padding: 10px;
   border: 1px solid var(--line);
+  border-radius: 12px;
   background: var(--control-solid);
   color: var(--ink);
-  border-radius: 9999px;
-  padding: 11px 24px;
   cursor: pointer;
   font: inherit;
+  text-align: left;
+  user-select: none;
 }
 
-.plan-choice-option:hover:not(:disabled) {
-  border-color: var(--ink);
+.plan-choice-card-body {
+  display: flex;
+  width: 100%;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--space-xs);
 }
 
-.plan-choice-option.is-selected {
-  border-color: var(--accent);
-  background: var(--accent-soft);
+.plan-choice-copy {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  min-width: 0;
 }
 
-.plan-choice-option:disabled { opacity: 0.72; cursor: default; }
-.plan-choice-label { display: block; font-weight: 600; }
+.plan-choice-card:hover:not(:has(.plan-radio[data-checked])):not(:has([data-disabled])) {
+  background: color-mix(in srgb, var(--ink) 4%, var(--canvas));
+}
+
+.plan-choice-card:has(.plan-radio[data-checked]) {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+  background: color-mix(in srgb, var(--primary) 5%, var(--canvas));
+}
+
+:root[data-theme="dark"] .plan-choice-card:has(.plan-radio[data-checked]) {
+  border-color: color-mix(in srgb, var(--primary) 20%, transparent);
+  background: color-mix(in srgb, var(--primary) 10%, var(--canvas));
+}
+
+.plan-choice-card:has(.plan-radio:focus-visible) {
+  border-color: var(--focus);
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.plan-choice-group[data-disabled] .plan-choice-card {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.plan-radio {
+  position: relative;
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  padding: 0;
+  border: 1px solid var(--steel);
+  border-radius: 999px;
+  background: var(--canvas);
+  color: var(--on-primary);
+  cursor: pointer;
+}
+
+.plan-radio[data-checked] {
+  border-color: var(--primary);
+  background: var(--primary);
+}
+
+.plan-radio[data-disabled] { cursor: default; }
+
+.plan-radio:focus-visible { outline: none; }
+
+.plan-radio-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--on-primary);
+  transform-origin: center;
+  transition:
+    opacity 200ms var(--ease-out),
+    transform 200ms var(--ease-out);
+}
+
+.plan-radio-indicator[data-starting-style],
+.plan-radio-indicator[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.25);
+}
+
+.plan-ui .plan-choice-card input[type="radio"] {
+  position: absolute;
+  width: 1px;
+  min-width: 0;
+  height: 1px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  clip-path: inset(50%);
+  overflow: hidden;
+}
+
+.plan-choice-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
 .plan-choice-desc {
   display: block;
-  margin-top: 0.25rem;
+  margin: 0;
   color: var(--muted);
-  font-size: 0.92rem;
-  line-height: 1.4;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
 }
+
+.plan-choice-desc :is(p) { margin: 0; }
 
 .plan-field { display: block; min-width: 0; }
 .plan-field > .plan-vstack > span,
@@ -926,13 +1033,11 @@ a.plan-step-label:hover {
 }
 
 .plan-btn,
-.plan-choice-option,
 .plan-workflow-step {
   transition: transform 160ms var(--ease-out), background-color 150ms ease, border-color 150ms ease;
 }
 .plan-btn:hover:not(:disabled) { background: var(--surface); }
 .plan-btn:active:not(:disabled),
-.plan-choice-option:active:not(:disabled),
 .plan-workflow-step:active {
   transform: scale(0.97);
 }
@@ -1012,7 +1117,7 @@ a.plan-step-label:hover {
   color: #fbbf24;
 }
 
-.plan-ui :is(.plan-choice-option, .plan-btn, .plan-workflow-step):focus-visible {
+.plan-ui :is(.plan-btn, .plan-workflow-step):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -1168,13 +1273,11 @@ a.plan-step-label:hover {
   .plan-panel,
   .plan-box[data-surface="panel"],
   .rf-progress-icon { animation: none; }
-  .plan-choice-option,
   .plan-btn,
   .plan-workflow-step {
     transition: background-color 150ms ease, border-color 150ms ease;
   }
   .plan-btn:active,
-  .plan-choice-option:active,
   .plan-workflow-step:active { transform: none; }
   .plan-select-popup,
   .plan-select-popup[data-starting-style],
@@ -1191,7 +1294,10 @@ a.plan-step-label:hover {
   .plan-stepper-button:active { transform: none; }
   .plan-checkbox-indicator,
   .plan-checkbox-indicator[data-starting-style],
-  .plan-checkbox-indicator[data-ending-style] {
+  .plan-checkbox-indicator[data-ending-style],
+  .plan-radio-indicator,
+  .plan-radio-indicator[data-starting-style],
+  .plan-radio-indicator[data-ending-style] {
     transform: none;
     transition: opacity 150ms var(--ease-out);
   }

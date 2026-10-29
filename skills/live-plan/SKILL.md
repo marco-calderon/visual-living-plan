@@ -116,7 +116,7 @@ Each structured block is an MDX component. The component name is the type. Give 
 
 - `<phase>` — step in the timeline. `status`: `pending` \| `active` \| `blocked` \| `done` \| `failed`. One `active` phase at a time.
 - `<callout>` — `kind`: `note` \| `tip` \| `risk` \| `decision` \| `warning`.
-- `<choice>` with `<option>` children — human picks one option. Response: `{ kind, id, optionId, label }`.
+- `<choice>` with `<option>` children — human picks one option. The page shows each option as a radio choice card (label, description, and a radio). Choosing one posts the response, and a refresh restores that option. Multi-select stays a `checkbox` field. Response: `{ kind, id, optionId, label }`.
 - `<form>` with `<field>` children — type `text` \| `number` \| `textarea` \| `select` \| `checkbox` \| `stepper`. A `checkbox` field with `options` saves an array of the checked option strings. One box with no `options` saves `"true"` or `"false"`. A `stepper` saves a number. A form whose fields are only checkboxes and steppers posts on each toggle or step and has no Submit button. A form with a text, number, textarea, or select field keeps Submit; after submit, Edit unlocks it and submitting again replaces the stored values. Response: `{ kind, id, values }`. The `<checklist>` block is not this field.
 - `<questions>` with `<item>` children — one free-text item per question. Response: `{ kind, id, answers }`. Answer keys are item indexes `"0"`, `"1"`.
 - `<approve>` — yes/no plus optional note. Response: `{ kind, id, approved, note? }`.
