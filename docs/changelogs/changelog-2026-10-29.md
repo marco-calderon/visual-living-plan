@@ -213,6 +213,24 @@ Single-select choice cards use the same corner radius as other plan cards, in li
 
 No registry restart needed beyond the usual version check.
 
+## 1.5.4
+
+**PR:** [#79](https://github.com/marco-calderon/visual-living-plan/pull/79)
+
+**Bump:** patch
+
+### Summary
+
+A Done when checklist shows a filled check for a finished line and an empty ring for a line still to do. The line text stays.
+
+### Improvements
+
+- Done and to-do are icons, in light and dark. A filled disk with a check is done. An empty ring is not done. The words DONE and TODO are no longer shown beside the line.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
+
 ## 1.5.5
 
 **PR:** [#80](https://github.com/marco-calderon/visual-living-plan/pull/80)
