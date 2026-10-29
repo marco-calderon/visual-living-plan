@@ -1,3 +1,4 @@
+import { buildPlanToc, stampPlanHeadingIds } from '../planToc'
 import { workflowStepHash } from '../planRefNavigation'
 import { activeStepSpinnerHtml, stepNumberFor } from '../planStepHeading'
 import { buildMdxOutline, legacyPlanSyntaxError } from './outline'
@@ -51,7 +52,8 @@ export function renderPlanStaticHtml(source: string): string {
       return staticBlock(block, ordinal)
     })
     .join('\n')
-  return `<article class="plan-document plan-ui" data-plan-rendered>${html}</article>`
+  const article = `<article class="plan-document plan-ui" data-plan-rendered>${html}</article>`
+  return stampPlanHeadingIds(article, buildPlanToc(source))
 }
 
 function stripFrontmatter(source: string): string {

@@ -272,3 +272,22 @@ The plan page no longer lists snapshots. The description card shows the current 
 
 No registry restart needed beyond the usual version check.
 
+## 1.5.7
+
+**PR:** [#82](https://github.com/marco-calderon/visual-living-plan/pull/82)
+
+**Bump:** patch
+
+### Summary
+
+The plan has a table of contents on the left. It lists the plan’s sections and the Workflow page, and it stays put while the page scrolls. Default, Wide, and Full still size only the plan column.
+
+### New features
+
+- On a wide window the contents sit in the gutter beside the column. On a small window they are hidden, and a floating button opens them as a sidebar. Neither the list nor the button changes the column width.
+- A section link scrolls to that part of the plan. A Workflow link opens the Workflow page, and a workflow step link opens that step. Each of those is a Back/Forward step, the same history as the other plan jumps. Light and dark use the document colors.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
+
