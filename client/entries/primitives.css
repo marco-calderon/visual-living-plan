@@ -319,8 +319,7 @@
 }
 
 .plan-kicker,
-.plan-phase-status,
-.plan-check {
+.plan-phase-status {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: 0.72rem;
@@ -1143,12 +1142,68 @@ a.plan-step-label:hover {
 }
 
 .plan-check {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
   color: var(--muted);
-  min-width: 2.4rem;
+}
+
+.plan-hstack > .plan-check {
+  flex: none;
+  min-width: 16px;
+}
+
+.plan-check svg {
+  display: block;
+}
+
+/* Filled disk plus a check, versus an empty ring, so the state is not color alone. */
+.plan-check[data-state="done"] {
+  color: var(--on-primary);
+}
+
+.plan-check[data-state="done"] circle {
+  fill: var(--ok);
+  stroke: var(--ok);
+}
+
+.plan-check[data-state="todo"] circle {
+  fill: none;
+  stroke: currentColor;
+}
+
+.plan-check-name {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.plan-check-text {
+  min-width: 0;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.plan-check-text :is(p) {
+  display: inline;
+  margin: 0;
 }
 
 .plan-check-item.is-done { opacity: 0.72; }
-.plan-check-item.is-done .plan-check { color: var(--ok); }
 
 .plan-note {
   margin: 0;
