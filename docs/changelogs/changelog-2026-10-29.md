@@ -137,3 +137,24 @@ Pipe tables in a plan render as tables again. Cell text still renders as markdow
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.5.0
+
+**PR:** [#74](https://github.com/marco-calderon/visual-living-plan/pull/74)
+
+**Bump:** minor
+
+### Summary
+
+A plan can include a data table that searches, sorts, and filters its rows on the page. Pagination shows when that table has 100 or more rows.
+
+### New features
+
+- `<DataTable>` searches the loaded rows, sorts every column, and filters one state column with a select. Pagination appears at 100 rows, ten per page, and stays off below that.
+- A cell can hold a chip, a pill, a list, the checkbox control, a checkbox field, and other plan components.
+- `<Chip>` and `<Pill>` are plan primitives. They render in a phase or a callout, and inside a data table cell.
+- The table code loads only on a plan that contains a data table.
+
+### Notes
+
+No registry restart needed beyond the usual version check.

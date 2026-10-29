@@ -7,6 +7,7 @@ import { planSourceToMdx } from '../src/planMdx/source.ts'
 import type { InteractionResponse } from '../src/types.ts'
 import { planComponents } from './planComponents.tsx'
 import { compilePlanMdx } from './mdx/compilePlanMdx.ts'
+import { planHasDataTable } from './mdx/dataTable/detect.ts'
 import { MarkdownTable } from './mdx/MarkdownTable.tsx'
 import { Approve } from './entries/Approve.tsx'
 import { Callout } from './entries/Callout.tsx'
@@ -142,7 +143,9 @@ function PlanMdxApp() {
     const root = document.getElementById('plan-mdx-root')
     root?.classList.add('plan-mdx-pending')
     compileMdx(mdx).then(
-      (Content) => {
+      async (Content) => {
+        if (cancelled) return
+        const tableModule = planHasDataTable(mdx) ? await import('./mdx/dataTable/register.tsx') : null
         if (cancelled) return
         const components = {
           ...planComponents,
@@ -218,7 +221,15 @@ function PlanMdxApp() {
           },
           checklist: (props: { className?: string }) => <Checklist {...props} className={blockClass(props.className)} />,
         }
-        setContent(<Content components={{ ...planComponents, ...components }} />)
+        setContent(
+          <Content
+            components={{
+              ...planComponents,
+              ...components,
+              ...(tableModule?.dataTableComponents ?? {}),
+            }}
+          />,
+        )
         setError(null)
       },
       (caught: unknown) => {

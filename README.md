@@ -125,9 +125,11 @@ See `examples/rate-limit.plan.md`, `examples/form-controls.plan.md`, and `skills
 - `<workflow>` — required execution path. The body is a pipe table: `id | label | ref | detail`, then `--`, then `from -> to`. A `workflow` fence may wrap that table. `ref` is the plan block id a click jumps to. The Workflow tab draws this block before the run, and the live run follows it
 - mermaid — a figure in the plan text. Use a fence whose language is `mermaid`, in the plan markdown or inside a phase, callout, or approve component. `<Mermaid>` draws the same figure
 - table — a pipe table in the plan markdown or a block body. The row under the header is `| --- |`. Use `:---`, `---:`, or `:---:` in that separator to align a column left, right, or center. A blank line ends the table
+- `<DataTable>` — search, sort, and an optional state filter. Pagination appears at 100 rows. Cells can hold chips, pills, lists, checkboxes, and other plan components. See `examples/data-table.plan.md`
 - code — a highlighted source block with line numbers, starting at 1. Add `start=40` after the language to number the snippet from another line. Use any fence language other than `mermaid` (`ts`, `python`, `bash`, and so on), in the plan markdown or inside a phase, callout, or approve component. A fence with no language still renders as code
 - diff — a unified diff rendered as hunks. Use a `diff` or `patch` fence, or add `diff` after the language (`ts diff`). Include `---` / `+++` file headers and `@@` hunk ranges; those ranges are the line numbers. A hunk without file headers still renders
 - `<BarChart>` and `<LineChart>` — a chart. One `label, value` row per line
+- `<Chip>` and `<Pill tone="success|warning|danger|neutral">` — short labels. They are not plan entries
 - `<Stack>`, `<Row>`, `<Box>`, `<HStack>`, `<VStack>`, `<ResponsiveStack>` — layout only. They are not plan entries
 
 ## Execution canvas adapters
