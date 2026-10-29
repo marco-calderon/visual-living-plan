@@ -16,11 +16,13 @@ import { renderPlanPage } from './render'
 import {
   configPathBesidePlan,
   isKnownDiffsTheme,
+  isPageWidth,
   loadThemeConfig,
   normalizeAccent,
   normalizeDiffsTheme,
   saveThemeConfig,
   themePayload,
+  type PageWidth,
   type ThemeConfig,
 } from './theme'
 import { planToExpectedGraph, withPlannedWorkflow } from './workflow'
@@ -431,7 +433,7 @@ export async function openPlanSession(options: {
     const next = await loadThemeConfig(themeConfigPath)
     if (
       next.accent === theme.accent &&
-      next.fullWidth === theme.fullWidth &&
+      next.pageWidth === theme.pageWidth &&
       next.diffsTheme === theme.diffsTheme
     ) {
       return
@@ -643,14 +645,16 @@ export async function openPlanSession(options: {
     touch()
     const payload = jsonBody(body, true) as {
       accent?: string
+      pageWidth?: string
       fullWidth?: boolean
       diffsTheme?: string
     }
     const hasAccent = payload.accent !== undefined
+    const hasPageWidth = payload.pageWidth !== undefined
     const hasFullWidth = payload.fullWidth !== undefined
     const hasDiffsTheme = payload.diffsTheme !== undefined
-    if (!hasAccent && !hasFullWidth && !hasDiffsTheme) {
-      throw new HttpError(400, 'Provide accent, fullWidth, and/or diffsTheme.')
+    if (!hasAccent && !hasPageWidth && !hasFullWidth && !hasDiffsTheme) {
+      throw new HttpError(400, 'Provide accent, pageWidth, and/or diffsTheme.')
     }
     let accent = theme.accent
     if (hasAccent) {
@@ -658,7 +662,15 @@ export async function openPlanSession(options: {
       if (!normalized) throw new HttpError(400, 'Invalid accent color. Use a hex value like #0f766e.')
       accent = normalized
     }
-    const fullWidth = hasFullWidth ? Boolean(payload.fullWidth) : theme.fullWidth
+    let pageWidth: PageWidth = theme.pageWidth
+    if (hasPageWidth) {
+      if (!isPageWidth(payload.pageWidth)) {
+        throw new HttpError(400, 'Page width must be narrow, default, or wide.')
+      }
+      pageWidth = payload.pageWidth
+    } else if (hasFullWidth) {
+      pageWidth = payload.fullWidth ? 'wide' : 'default'
+    }
     let diffsTheme = theme.diffsTheme
     if (hasDiffsTheme) {
       if (!isKnownDiffsTheme(payload.diffsTheme)) {
@@ -666,7 +678,7 @@ export async function openPlanSession(options: {
       }
       diffsTheme = normalizeDiffsTheme(payload.diffsTheme)
     }
-    const view = await applyTheme({ accent, fullWidth, diffsTheme }, true)
+    const view = await applyTheme({ accent, pageWidth, diffsTheme }, true)
     return { ok: true, theme: view }
   }
 

@@ -392,7 +392,7 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
     console.log(`Living Plan (watch): ${hosted.url}`)
     console.log(`Plan file: ${planPath}`)
     console.log(`Service: ${registry.url}`)
-    console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent, full width).')
+    console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent, page width).')
     await openBrowser(hosted.url)
     if (hasFlag(args, '--detach')) {
       console.log(`Events: live-plan events --url ${hosted.url}`)
@@ -413,7 +413,7 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
   console.log(`Living Plan (watch): ${server.url}`)
   console.log(`Plan file: ${planPath}`)
   console.log(`Theme config: ${server.getState().theme.configPath}`)
-  console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent, full width).')
+  console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent, page width).')
   await openBrowser(server.url)
   console.log('Listening for the next submission. This command exits when one arrives.')
   const code = await listenForSubmissions(server.url)

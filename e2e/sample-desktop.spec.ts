@@ -69,20 +69,27 @@ test('sample plan works on a desktop viewport', async ({ page }) => {
     await expect(page.locator('#plan-design')).toBeVisible()
   })
 
-  await test.step('settings accent and full width save', async () => {
+  await test.step('settings accent and page width save', async () => {
     await page.getByRole('tab', { name: 'Settings' }).click()
     await page.getByRole('button', { name: 'Sky accent' }).click()
     await expect(page.locator('#theme-accent-hex')).toHaveText('#0369a1')
     await expect(page.locator('html')).toHaveAttribute('data-accent', '#0369a1')
     await expect(page.getByRole('status')).toHaveText('Accent saved')
 
-    await expect(page.locator('html')).toHaveAttribute('data-layout', 'centered')
-    await page.getByLabel('Full width').check()
-    await expect(page.locator('html')).toHaveAttribute('data-layout', 'full')
-    await expect(page.getByRole('status')).toHaveText('Full width on')
-    await page.getByLabel('Full width').uncheck()
-    await expect(page.locator('html')).toHaveAttribute('data-layout', 'centered')
-    await expect(page.getByRole('status')).toHaveText('Centered layout')
+    await expect(page.locator('html')).toHaveAttribute('data-layout', 'default')
+    await expect(page.locator('.shell')).toHaveCSS('width', '720px')
+    await page.getByRole('radio', { name: 'Wide' }).click()
+    await expect(page.locator('html')).toHaveAttribute('data-layout', 'wide')
+    await expect(page.locator('.shell')).toHaveCSS('width', '1120px')
+    await expect(page.getByRole('status')).toHaveText('Wide width')
+    await page.getByRole('radio', { name: 'Narrow' }).click()
+    await expect(page.locator('html')).toHaveAttribute('data-layout', 'narrow')
+    await expect(page.locator('.shell')).toHaveCSS('width', '560px')
+    await expect(page.getByRole('status')).toHaveText('Narrow width')
+    await page.getByRole('radio', { name: 'Default' }).click()
+    await expect(page.locator('html')).toHaveAttribute('data-layout', 'default')
+    await expect(page.locator('.shell')).toHaveCSS('width', '720px')
+    await expect(page.getByRole('status')).toHaveText('Default width')
   })
 
   await test.step('settings pierre diff theme accordion', async () => {

@@ -106,14 +106,26 @@ test('the logo opens a card; the title sits on the solid bar', () => {
   assert.match(bar, /data-review-chip[^>]*hidden/)
   assert.doesNotMatch(bar, />Mode |Agent <strong|Iteration <strong|Pending <strong|Workflow <strong/)
 
-  assert.match(html, /data-layout="centered"/)
-  assert.match(html, /id="layout-full-width"/)
+  assert.match(html, /data-layout="default"/)
+  assert.match(html, /data-page-width="narrow"/)
+  assert.match(html, /data-page-width="default"/)
+  assert.match(html, /data-page-width="wide"/)
+  assert.match(html, /aria-checked="true">Default</)
   assert.match(html, /overflow-x:\s*clip/)
-  assert.match(html, /--shell-width:\s*min\(720px/)
+  assert.match(html, /--page-column:\s*720px/)
+  assert.match(html, /--page-column:\s*560px/)
+  assert.match(html, /--page-column:\s*1120px/)
+  assert.match(html, /--shell-width:\s*min\(var\(--page-column\)/)
+  assert.match(html, /class="layout-default"/)
 
-  const full = page(themePayload({ ...defaultThemeConfig(), fullWidth: true }, 'live-plan.config.json'))
-  assert.match(full, /data-layout="full"/)
-  assert.match(full, /class="[^"]*layout-full/)
+  const wide = page(themePayload({ ...defaultThemeConfig(), pageWidth: 'wide' }, 'live-plan.config.json'))
+  assert.match(wide, /data-layout="wide"/)
+  assert.match(wide, /class="layout-wide"/)
+  assert.match(wide, /data-page-width="wide"[^>]*aria-checked="true"/)
+
+  const narrow = page(themePayload({ ...defaultThemeConfig(), pageWidth: 'narrow' }, 'live-plan.config.json'))
+  assert.match(narrow, /data-layout="narrow"/)
+  assert.match(narrow, /class="layout-narrow"/)
 })
 
 test('pending, review, and changed sections use icons and the logo badge', () => {
