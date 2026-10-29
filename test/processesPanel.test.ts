@@ -16,7 +16,7 @@ const directories = [
 function browserContainerFolderName(): (directory: string) => string {
   const script = processesPanelScript()
   const start = script.indexOf('function containerFolderName(directory)')
-  const end = script.indexOf('function motionReduced')
+  const end = script.indexOf('function cancelClose')
   assert.ok(start >= 0 && end > start)
   return new Function(`${script.slice(start, end)}\nreturn containerFolderName;`)() as (
     directory: string,
@@ -67,9 +67,13 @@ test('running plans dropdown matches the card design', () => {
   assert.doesNotMatch(script, /record\.planPath/)
   assert.doesNotMatch(script, /Launched from/)
 
-  assert.match(styles, /processes-panel-in 280ms cubic-bezier\(0\.22, 1, 0\.36, 1\) both/)
-  assert.match(styles, /processes-panel-out 240ms ease both/)
-  assert.match(styles, /translate3d\(0, -12px, 0\) scale\(0\.96\)/)
+  assert.match(styles, /transform-origin: top right/)
+  assert.match(styles, /opacity 200ms var\(--ease-out, cubic-bezier\(0\.23, 1, 0\.32, 1\)\)/)
+  assert.match(styles, /transform 200ms var\(--ease-out, cubic-bezier\(0\.23, 1, 0\.32, 1\)\)/)
+  assert.match(styles, /\.processes-panel\[data-open\]\s*\{[^}]*scale\(1\)/)
+  assert.match(styles, /\.processes-panel\[data-closed\]\s*\{[^}]*scale\(0\.95\)/)
+  assert.match(script, /addEventListener\('transitionend', closeListener\)/)
+  assert.match(script, /setTimeout\(finishClose, 280\)/)
   assert.match(styles, /\.process-mode\[data-mode="review"\]/)
   assert.match(styles, /\.process-mode\[data-mode="comment"\]/)
   assert.match(styles, /\.process-pill\.is-pending/)

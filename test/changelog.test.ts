@@ -152,9 +152,11 @@ test('the repo changelog is classified and Settings renders it above Appearance'
   assert.equal(release.classified, true)
   assert.equal(release.bugs.length, 0)
   assert.equal(release.versions[0], '1.2.0')
-  assert.equal(release.versions.at(-1), '1.2.0')
+  assert.equal(release.versions.at(-1), '1.2.1')
   assert.ok(release.features.some((line) => line.version === '1.2.0' && line.text.includes('Narrow')))
   assert.ok(release.features.some((line) => line.version === '1.2.0' && line.text.includes('theme.pageWidth')))
+  assert.ok(release.improvements.some((line) => line.version === '1.2.1' && line.text.includes('logo card')))
+  assert.ok(release.improvements.some((line) => line.version === '1.2.1' && line.text.includes('Spinners')))
 
   const plan = parsePlan('---\ntitle: Sample\n---\n\n# Scope\n\nKeep it.\n', 'sample.plan.md')
   const html = renderPlanPage({
@@ -175,4 +177,6 @@ test('the repo changelog is classified and Settings renders it above Appearance'
   assert.match(html, /data-kind="features"/)
   assert.match(html, /Narrow/)
   assert.match(html, /theme\.pageWidth/)
+  assert.match(html, /data-kind="bugs"[^>]*data-empty="true"/)
+  assert.match(html, /logo card/)
 })

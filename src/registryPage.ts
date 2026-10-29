@@ -27,6 +27,8 @@ export function renderRegistryPage(): string {
       --primary: #09090b;
       --on-primary: #ffffff;
       --shadow: none;
+      --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+      --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -83,22 +85,28 @@ export function renderRegistryPage(): string {
       color: var(--on-primary);
       font-weight: 600;
       font-size: 0.88rem;
+      transition: transform 160ms var(--ease-out);
+    }
+    a.btn:active { transform: scale(0.97); }
+    @media (prefers-reduced-motion: reduce) {
+      a.btn { transition: none; }
+      a.btn:active { transform: none; }
     }
     @media (prefers-reduced-motion: no-preference) {
       @keyframes enter {
-        from { opacity: 0; transform: translateY(16px); }
+        from { opacity: 0; transform: translateY(8px); }
         to { opacity: 1; transform: none; }
       }
       .kicker, h1, .lede, .actions, .status, #list {
-        animation: enter 0.7s cubic-bezier(0.16, 0.84, 0.24, 1) both;
+        animation: enter 200ms var(--ease-out) both;
       }
-      .kicker { animation-delay: 0.02s; }
-      h1 { animation-delay: 0.08s; }
-      .lede { animation-delay: 0.14s; }
-      .actions { animation-delay: 0.22s; }
-      .status { animation-delay: 0.3s; }
-      #list { animation-delay: 0.38s; }
-      article.enter { animation: enter 0.55s cubic-bezier(0.16, 0.84, 0.24, 1) both; }
+      .kicker { animation-delay: 0ms; }
+      h1 { animation-delay: 40ms; }
+      .lede { animation-delay: 80ms; }
+      .actions { animation-delay: 120ms; }
+      .status { animation-delay: 160ms; }
+      #list { animation-delay: 200ms; }
+      article.enter { animation: enter 200ms var(--ease-out) both; }
     }
   </style>
 </head>
@@ -192,7 +200,7 @@ export function renderRegistryPage(): string {
           }
           if (!revealed) {
             card.classList.add('enter');
-            card.style.animationDelay = Math.min(list.children.length, 8) * 50 + 'ms';
+            card.style.animationDelay = Math.min(list.children.length, 8) * 40 + 'ms';
           }
           list.append(card);
         }
@@ -230,9 +238,9 @@ export function renderRegistryPage(): string {
         const leaving = main.animate(
           [
             { opacity: 1, transform: 'translateY(0px)' },
-            { opacity: 0, transform: 'translateY(24px)' },
+            { opacity: 0, transform: 'translateY(8px)' },
           ],
-          { duration: 460, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' },
+          { duration: 200, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'forwards' },
         );
         leaving.finished.then(() => {
           window.location.assign(url.href);

@@ -33,6 +33,8 @@ export function renderDashboardPage(): string {
       --warn: #9a3412;
       --warn-soft: #ffedd5;
       --shadow: none;
+      --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+      --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -202,9 +204,17 @@ export function renderDashboardPage(): string {
       margin-bottom: 0.3rem;
     }
     .meter span { display: block; height: 100%; background: var(--accent); }
+    button.seg, button.filter, button.refresh {
+      transition: transform 160ms var(--ease-out), background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+    }
+    button.seg:active, button.filter:active, button.refresh:active { transform: scale(0.97); }
+    @media (prefers-reduced-motion: reduce) {
+      button.seg, button.filter, button.refresh { transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease; }
+      button.seg:active, button.filter:active, button.refresh:active { transform: none; }
+    }
     @media (prefers-reduced-motion: no-preference) {
       @keyframes enter {
-        from { opacity: 0; transform: translateY(16px); }
+        from { opacity: 0; transform: translateY(8px); }
         to { opacity: 1; transform: none; }
       }
       @keyframes row-in {
@@ -212,20 +222,16 @@ export function renderDashboardPage(): string {
         to { opacity: 1; }
       }
       .top, .toolbar, .stats, .status, .filters, .table-wrap {
-        animation: enter 0.7s cubic-bezier(0.16, 0.84, 0.24, 1) both;
+        animation: enter 200ms var(--ease-out) both;
       }
-      .top { animation-delay: 0.02s; }
-      .toolbar { animation-delay: 0.08s; }
-      .stats { animation-delay: 0.16s; }
-      .status { animation-delay: 0.24s; }
-      .filters { animation-delay: 0.32s; }
-      .table-wrap { animation-delay: 0.4s; }
-      .stat.enter { animation: enter 0.55s cubic-bezier(0.16, 0.84, 0.24, 1) both; }
-      tbody tr.enter { animation: row-in 0.5s ease both; }
-      button.seg, button.filter {
-        transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
-      }
-      .meter span { transition: width 0.55s ease; }
+      .top { animation-delay: 0ms; }
+      .toolbar { animation-delay: 40ms; }
+      .stats { animation-delay: 80ms; }
+      .status { animation-delay: 120ms; }
+      .filters { animation-delay: 160ms; }
+      .table-wrap { animation-delay: 200ms; }
+      .stat.enter { animation: enter 200ms var(--ease-out) both; }
+      tbody tr.enter { animation: row-in 150ms var(--ease-out) both; }
     }
     .num { font-variant-numeric: tabular-nums; }
     a.action {
@@ -383,7 +389,7 @@ export function renderDashboardPage(): string {
         const cards = stats.querySelectorAll('.stat');
         for (let index = 0; index < cards.length; index += 1) {
           cards[index].classList.add('enter');
-          cards[index].style.animationDelay = (index * 45) + 'ms';
+          cards[index].style.animationDelay = Math.min(index, 6) * 40 + 'ms';
         }
       }
 
@@ -398,17 +404,12 @@ export function renderDashboardPage(): string {
         return cell;
       }
 
-      function completionCell(record, animate) {
+      function completionCell(record) {
         const cell = document.createElement('td');
         const meter = text('div', 'meter');
         const bar = document.createElement('span');
         const ratio = Math.max(0, Math.min(100, Number(record.completionRatio) || 0));
-        bar.style.width = animate ? '0%' : ratio + '%';
-        if (animate) {
-          requestAnimationFrame(() => {
-            bar.style.width = ratio + '%';
-          });
-        }
+        bar.style.width = ratio + '%';
         meter.append(bar);
         cell.append(meter);
         const state = completionLabel[record.completionState] || 'Idle';
@@ -456,7 +457,7 @@ export function renderDashboardPage(): string {
           statusCell.append(text('span', 'sub', record.pendingCount + ' pending'));
         }
         row.append(statusCell);
-        row.append(completionCell(record, animate));
+        row.append(completionCell(record));
         row.append(folderCell(record));
         row.append(text('td', 'num', String(record.filesModified ?? 0)));
         row.append(text('td', 'num', formatWhen(record.startedAt)));
@@ -474,14 +475,16 @@ export function renderDashboardPage(): string {
         return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       }
 
+      const easeOut = 'cubic-bezier(0.23, 1, 0.32, 1)';
+
       function slideFrames(kind, shift, phase) {
         if (kind === 'filter') {
           return phase === 'out'
-            ? [{ opacity: 1, transform: 'translateY(0px)' }, { opacity: 0, transform: 'translateY(14px)' }]
-            : [{ opacity: 0, transform: 'translateY(18px)' }, { opacity: 1, transform: 'translateY(0px)' }];
+            ? [{ opacity: 1 }, { opacity: 0 }]
+            : [{ opacity: 0 }, { opacity: 1 }];
         }
-        const outX = shift === 'back' ? '32px' : '-32px';
-        const inX = shift === 'back' ? '-40px' : '40px';
+        const outX = shift === 'back' ? '8px' : '-8px';
+        const inX = shift === 'back' ? '-8px' : '8px';
         return phase === 'out'
           ? [{ opacity: 1, transform: 'translateX(0px)' }, { opacity: 0, transform: 'translateX(' + outX + ')' }]
           : [{ opacity: 0, transform: 'translateX(' + inX + ')' }, { opacity: 1, transform: 'translateX(0px)' }];
@@ -520,7 +523,7 @@ export function renderDashboardPage(): string {
           const row = renderRow(shown[index], meters);
           if (reveal) {
             row.classList.add('enter');
-            row.style.animationDelay = Math.min(index, 12) * 40 + 'ms';
+            row.style.animationDelay = Math.min(index, 8) * 30 + 'ms';
           }
           rows.append(row);
         }
@@ -536,8 +539,8 @@ export function renderDashboardPage(): string {
           node.style.opacity = '';
         }
         const outgoing = nodes.map((node) => node.animate(slideFrames(kind, shift, 'out'), {
-          duration: 280,
-          easing: 'ease',
+          duration: 160,
+          easing: easeOut,
           fill: 'forwards',
         }));
         await Promise.all(outgoing.map((animation) => animation.finished));
@@ -548,8 +551,8 @@ export function renderDashboardPage(): string {
         if (generation !== paintGeneration) return;
         nodes.forEach((node) => {
           const animation = node.animate(slideFrames(kind, shift, 'in'), {
-            duration: 620,
-            easing: 'cubic-bezier(0.16, 0.84, 0.24, 1)',
+            duration: 180,
+            easing: easeOut,
             fill: 'both',
           });
           node.style.opacity = '';
@@ -597,9 +600,9 @@ export function renderDashboardPage(): string {
         const leaving = main.animate(
           [
             { opacity: 1, transform: 'translateY(0px)' },
-            { opacity: 0, transform: 'translateY(24px)' },
+            { opacity: 0, transform: 'translateY(8px)' },
           ],
-          { duration: 460, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' },
+          { duration: 200, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'forwards' },
         );
         leaving.finished.then(() => {
           window.location.assign(url.href);

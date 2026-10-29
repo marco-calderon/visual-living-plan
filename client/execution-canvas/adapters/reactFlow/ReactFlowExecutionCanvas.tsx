@@ -236,7 +236,7 @@ function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: Execu
         void fitView({
           nodes: [{ id: node.id }],
           padding: 0.42,
-          duration: reduce ? 0 : 220,
+          duration: reduce ? 0 : 200,
           minZoom: 0.2,
           maxZoom: 1.15,
         })
@@ -249,6 +249,7 @@ function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: Execu
   const fit = useCallback(() => {
     const host = hostRef.current
     if (!host || host.clientWidth < 40 || host.clientHeight < 40) return
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const pending = pendingWorkflowFocus()
     if (pending) {
       if (focusStep(pending)) return
@@ -262,7 +263,7 @@ function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: Execu
       }
       return
     }
-    void fitView({ padding: 0.28, duration: 220, minZoom: 0.2, maxZoom: 1.15 })
+    void fitView({ padding: 0.28, duration: reduce ? 0 : 200, minZoom: 0.2, maxZoom: 1.15 })
   }, [fitView, focusStep])
 
   useEffect(() => {

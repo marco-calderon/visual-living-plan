@@ -125,8 +125,14 @@
   cursor: pointer;
 }
 
-.rf-step.is-linked:hover {
-  border-color: var(--accent);
+.rf-step.is-linked {
+  transition: border-color 150ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .rf-step.is-linked:hover {
+    border-color: var(--accent);
+  }
 }
 
 .react-flow__node.workflow-focus .rf-step {

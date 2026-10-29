@@ -17,3 +17,26 @@ Settings offers three document widths — Narrow, Default, and Wide — and Plan
 ### Notes
 
 No registry restart needed.
+
+## 1.2.1
+
+**PR:** [#68](https://github.com/marco-calderon/visual-living-plan/pull/68)
+
+**Bump:** patch
+
+### Summary
+
+Plan pages, the dashboard, and the registry use short, interruptible motion. The document layout, light and dark themes, and the three page widths stay.
+
+### Improvements
+
+- The logo card and the Plans popup scale up from their buttons and reverse if you close them while they are still opening. Comment popovers scale from the comment button.
+- The dashboard and the registry fade in with a small rise. Changing the dashboard period is a short move. Filtering fades the rows in place.
+- Buttons press in slightly. Plan sections fade in. The review bar rises a short distance. Dragging a plan highlight follows the pointer.
+- Framing a workflow step takes 200ms and is skipped when reduced motion is on.
+- The live indicator and the active phase pulse with opacity. Spinners still spin the same way.
+- Reduced motion keeps the fades and drops the slides and scales.
+
+### Notes
+
+No registry restart needed beyond the usual version check. Narrow is 560px, default is 720px, and wide is 1120px.

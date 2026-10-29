@@ -1,3 +1,5 @@
+import { useEffect } from 'react'
+
 export type CommentReplyView = {
   id: string
   text: string
@@ -11,6 +13,11 @@ export type CommentReplyProps = {
 
 export function CommentReply({ reply, onSettled }: CommentReplyProps) {
   const fresh = reply.fresh === true
+  useEffect(() => {
+    if (!fresh) return
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    onSettled?.(reply.id)
+  }, [fresh, onSettled, reply.id])
   return (
     <p
       className={fresh ? 'plan-comment-reply reply-applied' : 'plan-comment-reply'}
