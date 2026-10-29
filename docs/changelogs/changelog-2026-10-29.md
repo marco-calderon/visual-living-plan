@@ -213,3 +213,25 @@ Single-select choice cards use the same corner radius as other plan cards, in li
 
 No registry restart needed beyond the usual version check.
 
+## 1.5.5
+
+**PR:** (link once the pull request is open)
+
+**Bump:** patch
+
+### Summary
+
+Settings offers Default, Wide, and Full for the document column. Cards, prose, and code stay inside that column. A table scrolls sideways when its columns do not fit.
+
+### Bugs fixed
+
+- At the default width, a table header, prose, and code chips stay in the column. The table scrolls sideways instead of clipping, and cell text stays the same size.
+
+### Improvements
+
+- Page width is Default (720px), Wide (1120px), and Full. Full uses the available width. Narrow is gone; a saved narrow width opens as default. A saved full-width flag still opens as wide. Plan, Workflow, and Settings share the column.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
+
