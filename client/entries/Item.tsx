@@ -1,3 +1,4 @@
+import { Circle, CircleCheck } from 'lucide-react'
 import { useContext, type ReactNode } from 'react'
 import { ItemContext } from './entryContext'
 import { HStack } from './HStack'
@@ -12,6 +13,20 @@ export type ItemProps = {
   className?: string
 }
 
+type ChecklistMarkProps = {
+  done: boolean
+}
+
+function ChecklistMark({ done }: ChecklistMarkProps) {
+  const Icon = done ? CircleCheck : Circle
+  return (
+    <span className="plan-check" data-state={done ? 'done' : 'todo'}>
+      <Icon size={16} strokeWidth={2.25} aria-hidden="true" />
+      <span className="plan-check-name">{done ? 'Done' : 'To do'}</span>
+    </span>
+  )
+}
+
 export function Item({ children, done, index, className }: ItemProps) {
   const item = useContext(ItemContext)
   const position = index ?? 0
@@ -21,8 +36,8 @@ export function Item({ children, done, index, className }: ItemProps) {
     return (
       <li className={cx('plan-check-item', complete && 'is-done', className)} data-index={position}>
         <HStack gap="sm" align="center">
-          <span className="plan-check">{complete ? 'done' : 'todo'}</span>
-          <span>{children}</span>
+          <ChecklistMark done={complete} />
+          <span className="plan-check-text">{children}</span>
         </HStack>
       </li>
     )
