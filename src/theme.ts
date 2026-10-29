@@ -21,10 +21,35 @@ export {
 export const DEFAULT_ACCENT = '#0f766e'
 export const DEFAULT_CONFIG_FILENAME = 'live-plan.config.json'
 
+/**
+ * Document columns. Default is the 720px prose measure in DESIGN.md.
+ * Narrow is a tighter read. Wide is two narrow columns, for a row of two cards.
+ * There is no fourth width.
+ */
+export const PAGE_WIDTH_PX = {
+  narrow: 560,
+  default: 720,
+  wide: 1120,
+} as const
+
+export const PAGE_WIDTHS = ['narrow', 'default', 'wide'] as const
+export type PageWidth = (typeof PAGE_WIDTHS)[number]
+export const DEFAULT_PAGE_WIDTH: PageWidth = 'default'
+
+export const PAGE_WIDTH_OPTIONS: ReadonlyArray<{ id: PageWidth; label: string }> = [
+  { id: 'narrow', label: 'Narrow' },
+  { id: 'default', label: 'Default' },
+  { id: 'wide', label: 'Wide' },
+]
+
+export function isPageWidth(value: unknown): value is PageWidth {
+  return typeof value === 'string' && (PAGE_WIDTHS as readonly string[]).includes(value)
+}
+
 export type ThemeConfig = {
   accent: string
-  /** When true, the plan page uses the full viewport width instead of the centered column. */
-  fullWidth: boolean
+  /** Document column shared by Plan, Workflow, and Settings. */
+  pageWidth: PageWidth
   /** Pierre @pierre/diffs theme family (light/dark pair). */
   diffsTheme: string
 }
@@ -58,7 +83,7 @@ const PRESETS = [
 export const ACCENT_PRESETS = PRESETS
 
 export function defaultThemeConfig(): ThemeConfig {
-  return { accent: DEFAULT_ACCENT, fullWidth: false, diffsTheme: DEFAULT_DIFFS_THEME }
+  return { accent: DEFAULT_ACCENT, pageWidth: DEFAULT_PAGE_WIDTH, diffsTheme: DEFAULT_DIFFS_THEME }
 }
 
 export function configPathBesidePlan(planPath: string, filename = DEFAULT_CONFIG_FILENAME): string {
@@ -93,6 +118,24 @@ function parseFullWidth(value: unknown): boolean {
   return value === true || value === 'true' || value === 1 || value === '1'
 }
 
+function readPageWidth(theme: Record<string, unknown>, layout: Record<string, unknown> | undefined, record: Record<string, unknown>): PageWidth {
+  const explicit =
+    theme.pageWidth !== undefined
+      ? theme.pageWidth
+      : layout?.pageWidth !== undefined
+        ? layout.pageWidth
+        : record.pageWidth
+  if (isPageWidth(explicit)) return explicit
+  const fullWidthRaw =
+    theme.fullWidth !== undefined
+      ? theme.fullWidth
+      : layout?.fullWidth !== undefined
+        ? layout.fullWidth
+        : record.fullWidth
+  if (fullWidthRaw === undefined) return DEFAULT_PAGE_WIDTH
+  return parseFullWidth(fullWidthRaw) ? 'wide' : DEFAULT_PAGE_WIDTH
+}
+
 export function parseThemeConfig(raw: unknown): ThemeConfig {
   const defaults = defaultThemeConfig()
   if (!raw || typeof raw !== 'object') return defaults
@@ -106,12 +149,6 @@ export function parseThemeConfig(raw: unknown): ThemeConfig {
     record.layout && typeof record.layout === 'object'
       ? (record.layout as Record<string, unknown>)
       : undefined
-  const fullWidthRaw =
-    theme.fullWidth !== undefined
-      ? theme.fullWidth
-      : layout?.fullWidth !== undefined
-        ? layout.fullWidth
-        : record.fullWidth
   const diffsThemeRaw =
     typeof theme.diffsTheme === 'string'
       ? theme.diffsTheme
@@ -120,7 +157,7 @@ export function parseThemeConfig(raw: unknown): ThemeConfig {
         : undefined
   return {
     accent: accent ?? defaults.accent,
-    fullWidth: fullWidthRaw === undefined ? defaults.fullWidth : parseFullWidth(fullWidthRaw),
+    pageWidth: readPageWidth(theme, layout, record),
     diffsTheme: normalizeDiffsTheme(diffsThemeRaw),
   }
 }
@@ -143,7 +180,7 @@ export async function saveThemeConfig(path: string, config: ThemeConfig): Promis
     throw new Error(`Invalid accent color: ${config.accent}`)
   }
   const diffsTheme = normalizeDiffsTheme(config.diffsTheme)
-  const next: ThemeConfig = { accent, fullWidth: Boolean(config.fullWidth), diffsTheme }
+  const next: ThemeConfig = { accent, pageWidth: isPageWidth(config.pageWidth) ? config.pageWidth : DEFAULT_PAGE_WIDTH, diffsTheme }
   await mkdir(dirname(absolute), { recursive: true })
   let existing: Record<string, unknown> = {}
   try {
@@ -160,24 +197,27 @@ export async function saveThemeConfig(path: string, config: ThemeConfig): Promis
       : {}
   const themeRest = { ...previousTheme }
   delete themeRest.fullWidth
+  delete themeRest.pageWidth
   delete themeRest.diffsTheme
   const payload: Record<string, unknown> = {
     ...existing,
     theme: {
       ...themeRest,
       accent: next.accent,
-      fullWidth: next.fullWidth,
+      pageWidth: next.pageWidth,
       diffsTheme: next.diffsTheme,
     },
   }
-  // Prefer theme.fullWidth; drop a top-level layout.fullWidth twin if present.
+  // Prefer theme.pageWidth; drop a legacy fullWidth or layout twin if present.
   if (payload.layout && typeof payload.layout === 'object') {
     const layout = { ...(payload.layout as Record<string, unknown>) }
     delete layout.fullWidth
+    delete layout.pageWidth
     if (Object.keys(layout).length === 0) delete payload.layout
     else payload.layout = layout
   }
   delete payload.fullWidth
+  delete payload.pageWidth
   delete payload.diffsTheme
   await writeFile(absolute, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
   return next
@@ -367,7 +407,7 @@ export function themePayload(config: ThemeConfig, configPath: string) {
   const diffs = diffsThemePreset(diffsTheme)
   return {
     accent: config.accent,
-    fullWidth: Boolean(config.fullWidth),
+    pageWidth: isPageWidth(config.pageWidth) ? config.pageWidth : DEFAULT_PAGE_WIDTH,
     diffsTheme,
     diffsThemePair: { light: diffs.light, dark: diffs.dark },
     configPath,

@@ -6,7 +6,7 @@ import type { PlanMode } from './processRecord'
 import { clientLogScript } from './clientLog'
 import { faviconLink } from './favicon'
 import { PROCESSES_PANEL_STYLES, processesPanelMarkup, processesPanelScript } from './processesPanel'
-import { accentCssCustomProperties } from './theme'
+import { accentCssCustomProperties, PAGE_WIDTH_OPTIONS, PAGE_WIDTH_PX, type PageWidth } from './theme'
 import {
   DEFAULT_DIFFS_THEME,
   diffsThemePreset,
@@ -25,7 +25,7 @@ import { changelogSectionHtml, type ChangelogRelease } from './changelog'
 
 export type RenderTheme = {
   accent: string
-  fullWidth?: boolean
+  pageWidth?: PageWidth
   diffsTheme?: string
   diffsThemes?: DiffsThemePreset[]
   configPath: string
@@ -189,6 +189,7 @@ const STYLES = `
   --handle-border: #ffffff;
   --minimap-idle: #a1a1aa;
   --titlebar-offset: 3.75rem;
+  --page-column: ${PAGE_WIDTH_PX.default}px;
 }
 
 :root[data-theme="dark"] {
@@ -276,8 +277,14 @@ body {
   background-image: none;
 }
 
+:root[data-layout="narrow"],
+body.layout-narrow { --page-column: ${PAGE_WIDTH_PX.narrow}px; }
+:root[data-layout="default"],
+body.layout-default { --page-column: ${PAGE_WIDTH_PX.default}px; }
+:root[data-layout="wide"],
+body.layout-wide { --page-column: ${PAGE_WIDTH_PX.wide}px; }
 .shell {
-  --shell-width: min(720px, calc(100% - 2rem));
+  --shell-width: min(var(--page-column), calc(100% - 2rem));
   width: var(--shell-width);
   max-width: 100%;
   min-width: 0;
@@ -286,10 +293,6 @@ body {
   position: relative;
   z-index: 1;
   overflow-x: clip;
-}
-:root[data-layout="full"] .shell,
-body.layout-full .shell {
-  --shell-width: calc(100% - 2rem);
 }
 body.has-review-bar .shell {
   padding-bottom: 14rem;
@@ -717,44 +720,41 @@ body.has-review-bar .shell {
   padding: 0.1rem 0.35rem;
   border-radius: 6px;
 }
-.settings-toggle {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.85rem;
+.width-choices {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
   margin: 0 0 0.85rem;
-  padding: 0.85rem 1rem;
+  padding: 0.18rem;
   border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--control-solid);
+  border-radius: 999px;
+  background: var(--tabs-bg);
+}
+.width-choice {
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 0.45rem 1.05rem;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
   cursor: pointer;
+}
+.width-choice[aria-checked="true"] {
+  background: var(--tab-active-bg);
+  color: var(--tab-active-fg);
+}
+.width-choice:hover {
   color: var(--ink);
 }
-.settings-toggle:hover {
-  border-color: var(--accent-hover-border);
+.width-choice[aria-checked="true"]:hover {
+  color: var(--tab-active-fg);
 }
-.settings-toggle:focus-within {
+.width-choice:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-}
-.settings-toggle input {
-  margin: 0.2rem 0 0;
-  width: 1.1rem;
-  height: 1.1rem;
-  flex: 0 0 auto;
-  accent-color: var(--accent);
-}
-.settings-toggle-copy {
-  display: grid;
-  gap: 0.25rem;
-  min-width: 0;
-}
-.settings-toggle-copy strong {
-  font-weight: 600;
-}
-.settings-toggle-copy span {
-  color: var(--muted);
-  font-size: 0.92rem;
-  line-height: 1.45;
 }
 
 .settings-accordion {
@@ -1688,15 +1688,20 @@ function clientScript(
     return style;
   }
 
-  let currentFullWidth = ${JSON.stringify(Boolean(theme.fullWidth))};
+  const pageWidths = ${JSON.stringify(PAGE_WIDTH_OPTIONS.map((option) => option.id))};
+  const pageWidthLabels = ${JSON.stringify(Object.fromEntries(PAGE_WIDTH_OPTIONS.map((option) => [option.id, option.label])))};
+  let currentPageWidth = ${JSON.stringify(theme.pageWidth || 'default')};
   let currentDiffsTheme = ${JSON.stringify(theme.diffsTheme || DEFAULT_DIFFS_THEME)};
 
-  function applyLayout(fullWidth) {
-    currentFullWidth = Boolean(fullWidth);
-    document.documentElement.dataset.layout = currentFullWidth ? 'full' : 'centered';
-    document.body.classList.toggle('layout-full', currentFullWidth);
-    const toggle = document.getElementById('layout-full-width');
-    if (toggle && 'checked' in toggle) toggle.checked = currentFullWidth;
+  function applyLayout(pageWidth) {
+    currentPageWidth = pageWidths.indexOf(pageWidth) >= 0 ? pageWidth : 'default';
+    document.documentElement.dataset.layout = currentPageWidth;
+    document.body.classList.remove('layout-narrow', 'layout-default', 'layout-wide');
+    document.body.classList.add('layout-' + currentPageWidth);
+    document.querySelectorAll('[data-page-width]').forEach((node) => {
+      const id = node.getAttribute('data-page-width');
+      node.setAttribute('aria-checked', id === currentPageWidth ? 'true' : 'false');
+    });
   }
 
   function applyDiffsTheme(diffsTheme, label) {
@@ -1729,7 +1734,7 @@ function clientScript(
       const customHex = document.getElementById('theme-accent-custom-hex');
       if (customHex) customHex.textContent = payload.accent;
     }
-    if (payload.fullWidth !== undefined) applyLayout(payload.fullWidth);
+    if (payload.pageWidth !== undefined) applyLayout(payload.pageWidth);
     if (payload.diffsTheme !== undefined) {
       const selected = document.querySelector('[data-diffs-theme="' + payload.diffsTheme + '"]');
       const label = selected ? selected.getAttribute('data-diffs-theme-label') : payload.diffsTheme;
@@ -1760,7 +1765,7 @@ function clientScript(
 
   applyTheme(${JSON.stringify({
     accent: theme.accent,
-    fullWidth: Boolean(theme.fullWidth),
+    pageWidth: theme.pageWidth || 'default',
     diffsTheme: theme.diffsTheme || DEFAULT_DIFFS_THEME,
     css: accentCssCustomProperties(theme.accent),
   })});
@@ -1796,22 +1801,21 @@ function clientScript(
     });
   }
 
-  const fullWidthToggle = document.getElementById('layout-full-width');
-  if (fullWidthToggle) {
-    fullWidthToggle.addEventListener('change', async () => {
-      if (!('checked' in fullWidthToggle)) return;
-      const next = Boolean(fullWidthToggle.checked);
-      const previous = currentFullWidth;
+  document.querySelectorAll('[data-page-width]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const next = button.getAttribute('data-page-width');
+      if (!next || next === currentPageWidth) return;
+      const previous = currentPageWidth;
       applyLayout(next);
       try {
-        await putTheme({ fullWidth: next });
-        showToast(next ? 'Full width on' : 'Centered layout');
+        await putTheme({ pageWidth: next });
+        showToast((pageWidthLabels[next] || 'Page') + ' width');
       } catch (error) {
         applyLayout(previous);
         showToast(error instanceof Error ? error.message : 'Layout update failed');
       }
     });
-  }
+  });
 
   document.querySelectorAll('[data-accordion]').forEach((accordion) => {
     const trigger = accordion.querySelector('[data-accordion-trigger]');
@@ -2582,7 +2586,11 @@ export function renderPlanPage(options: {
     })
     .join('')
 
-  const layoutMode = theme.fullWidth ? 'full' : 'centered'
+  const layoutMode: PageWidth = theme.pageWidth || 'default'
+  const widthChoices = PAGE_WIDTH_OPTIONS.map((option) => {
+    const selected = option.id === layoutMode
+    return `<button type="button" class="width-choice" role="radio" data-page-width="${option.id}" aria-checked="${selected ? 'true' : 'false'}">${escapeHtml(option.label)}</button>`
+  }).join('')
   const diffsThemeId = theme.diffsTheme || DEFAULT_DIFFS_THEME
   const diffsPresets = theme.diffsThemes?.length
     ? theme.diffsThemes
@@ -2606,7 +2614,7 @@ export function renderPlanPage(options: {
   ${accentStyleTag(theme.accent)}
   ${planMdxHref ? '<style>.plan-mdx-pending{display:none}</style><noscript><style>.plan-mdx-pending{display:block}</style></noscript>' : ''}
 </head>
-<body class="${showReviewBar ? 'has-review-bar' : ''}${theme.fullWidth ? ' layout-full' : ''}" data-plan-mode="${escapeHtml(mode)}">
+<body class="${showReviewBar ? 'has-review-bar ' : ''}layout-${layoutMode}" data-plan-mode="${escapeHtml(mode)}">
   <header class="titlebar">
     <div class="plan-details" data-plan-details>
       <button type="button" class="logo-btn" data-plan-details-toggle aria-expanded="false" aria-controls="plan-card" aria-label="${pendingCount > 0 ? `Plan details, ${pendingCount} pending` : 'Plan details'}">
@@ -2677,14 +2685,10 @@ export function renderPlanPage(options: {
         <section class="block settings-section" data-section>
           <div class="settings-kicker">Layout</div>
           <h3>Page width</h3>
-          <p class="settings-copy">Use the centered column by default, or stretch the plan content across the viewport.</p>
-          <label class="settings-toggle" for="layout-full-width">
-            <input id="layout-full-width" type="checkbox"${theme.fullWidth ? ' checked' : ''} />
-            <span class="settings-toggle-copy">
-              <strong>Full width</strong>
-              <span>Remove the centered column margins and let Plan, Workflow, and Settings use the available width.</span>
-            </span>
-          </label>
+          <p class="settings-copy">Choose the document column. Narrow, default, and wide apply to Plan, Workflow, and Settings.</p>
+          <div class="width-choices" role="radiogroup" aria-label="Page width">
+            ${widthChoices}
+          </div>
           <p class="settings-meta">Saved to <code>${escapeHtml(configName)}</code> with the accent settings.</p>
         </section>
         <section class="block settings-section" data-section>
