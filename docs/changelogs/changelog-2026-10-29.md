@@ -39,4 +39,4 @@ Plan pages, the dashboard, and the registry use short, interruptible motion. The
 
 ### Notes
 
-No registry restart needed beyond the usual version check. Narrow is 560px, default is 720px, and wide is 1120px.
+No registry restart needed beyond the usual version check. Version 1.2.0 is the three page widths: narrow 560px, default 720px, and wide 1120px.
