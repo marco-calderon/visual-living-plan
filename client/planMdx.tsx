@@ -1,4 +1,4 @@
-import { compile, run } from '@mdx-js/mdx'
+import { run } from '@mdx-js/mdx'
 import { Children, isValidElement, useEffect, useState, type ComponentType, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import * as runtime from 'react/jsx-runtime'
@@ -6,8 +6,8 @@ import type { PlanSnapshotRecord } from '../src/planSnapshots.ts'
 import { planSourceToMdx } from '../src/planMdx/source.ts'
 import type { InteractionResponse } from '../src/types.ts'
 import { planComponents } from './planComponents.tsx'
-import { recmaPlanComponents } from './mdx/recmaPlanComponents.ts'
-import { remarkMermaid } from './mdx/remarkMermaid.ts'
+import { compilePlanMdx } from './mdx/compilePlanMdx.ts'
+import { MarkdownTable } from './mdx/MarkdownTable.tsx'
 import { Approve } from './entries/Approve.tsx'
 import { Callout } from './entries/Callout.tsx'
 import { Checklist } from './entries/Checklist.tsx'
@@ -63,16 +63,7 @@ function readBoot(): Boot {
 function compileMdx(source: string): Promise<PlanModule> {
   const cached = compiled.get(source)
   if (cached) return cached
-  const pending = compile(source, {
-    jsx: false,
-    jsxImportSource: 'react',
-    jsxRuntime: 'automatic',
-    outputFormat: 'function-body',
-    format: 'mdx',
-    development: false,
-    remarkPlugins: [remarkMermaid],
-    recmaPlugins: [recmaPlanComponents],
-  }).then(async (file) => {
+  const pending = compilePlanMdx(source).then(async (file) => {
     const loaded = await run(String(file), { ...runtime })
     return loaded.default as PlanModule
   })
@@ -156,6 +147,7 @@ function PlanMdxApp() {
         const components = {
           ...planComponents,
           pre: PlanPre,
+          table: MarkdownTable,
           phase: (props: { className?: string }) => <Phase {...props} className={blockClass(props.className)} />,
           callout: (props: { className?: string }) => <Callout {...props} className={blockClass(props.className)} />,
           choice: (props: { className?: string; id: string }) => {

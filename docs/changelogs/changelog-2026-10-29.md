@@ -119,3 +119,21 @@ Checkbox fields use the animated check control. A form of checkboxes or steppers
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.4.1
+
+**PR:** (link once known)
+
+**Bump:** patch
+
+### Summary
+
+Pipe tables in a plan render as tables again. Cell text still renders as markdown.
+
+### Bugs fixed
+
+- A pipe table in the plan, a phase, or a callout is a table again. Inline code, bold, and links inside a cell still render. Column alignment from the separator row is unchanged.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
