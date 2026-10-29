@@ -311,7 +311,7 @@ No registry restart needed beyond the usual version check.
 
 ## 1.5.9
 
-**PR:** (link once known)
+**PR:** [#84](https://github.com/marco-calderon/visual-living-plan/pull/84)
 
 **Bump:** patch
 
