@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
+import { cx } from './styles'
 
-type ChipProps = {
+export type ChipProps = {
   children?: ReactNode
   className?: string
 }
 
 export function Chip({ children, className }: ChipProps) {
-  return <span className={className ? `plan-chip ${className}` : 'plan-chip'}>{children}</span>
+  return <span className={cx('plan-chip', className)}>{children}</span>
 }

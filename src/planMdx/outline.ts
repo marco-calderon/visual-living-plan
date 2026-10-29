@@ -47,7 +47,9 @@ const EMBED_NAMES = new Set([
   'Row',
   'Cell',
   'Chip',
+  'chip',
   'Pill',
+  'pill',
   'Checkbox',
 ])
 

@@ -124,7 +124,7 @@ A plan is optional YAML frontmatter, then markdown, plus MDX components. Every i
 | `checklist` | Definition of done. Each `<item done="true">` is a row. This is not a checkbox field | No (you update `done`) |
 | `workflow` | Required. The execution path. The Workflow tab draws it before the run, and the live run follows it. Node `ref` is the plan block a click jumps to. Nodes and edges are a pipe table inside the component, optionally in a `workflow` fence | No |
 
-`Box`, `HStack`, `VStack`, `Stack`, `Row`, and `ResponsiveStack` arrange children. `<Mermaid>`, `<BarChart>`, and `<LineChart>` draw figures. A mermaid fence does the same as `<Mermaid>`. `<DataTable>` is a sortable table with local search. One `filter` column gets a state select. Pagination appears at 100 rows. Cells can hold chips, pills, lists, checkboxes, and other plan components.
+`Box`, `HStack`, `VStack`, `Stack`, `Row`, and `ResponsiveStack` arrange children. `<Chip>` and `<Pill>` are short labels (`tone` is `success`, `warning`, `danger`, or `neutral`). `<Mermaid>`, `<BarChart>`, and `<LineChart>` draw figures. A mermaid fence does the same as `<Mermaid>`. `<DataTable>` is a sortable table with local search. One `filter` column gets a state select. Pagination appears at 100 rows. Cells can hold chips, pills, lists, checkboxes, and other plan components.
 
 Frontmatter fields the parser reads: `title`, `summary`, `agent`, `mode` (`watch` or `review`). A leading `#` heading is the title when frontmatter has none.
 
@@ -139,6 +139,7 @@ Authoring rules:
 - Prose is connective. Status, risks, and decisions belong in `phase` and `callout` components.
 - Phase and callout bodies are markdown: headings, lists, pipe tables, fenced code, `**bold**`, `*italic*`, and `` `code` ``.
 - A pipe table renders as a table. The row under the header is a separator such as `| --- |`. `:---`, `---:`, and `:---:` align that column left, right, and center. A blank line ends the table.
+- `<Chip>` and `<Pill tone="success">` are labels. `tone` is `success`, `warning`, `danger`, or `neutral`. They work in a phase, a callout, or a table cell.
 - A data table is `<DataTable>` with `<Column>`, `<Row>`, and `<Cell>`. Search filters the loaded rows. Every column header sorts. One column with `filter` gets a state select. Pagination shows at 100 rows and stays hidden below that. `value` on a cell is the sort and filter key. Cells can contain `<Chip>`, `<Pill>`, a list, `<Checkbox>`, a checkbox `<field>`, and other plan components.
 - Show source the human should read with a language fence (`ts`, `python`, `bash`). It is highlighted and numbered from 1. Add `start=40` after the language when the snippet is a slice of a larger file. Put that fence in the plan markdown or inside a `phase`, `callout`, or `approve` component.
 - Show a change with a `diff` or `patch` fence, not the whole file. Write `---` / `+++` file headers and a `@@ -oldStart,oldCount +newStart,newCount @@` hunk. A `-` line counts only as old, a `+` line only as new, and a leading space counts as both. Those counts must match. A hunk without file headers still renders; `ts diff` highlights that hunk as TypeScript. `start=` does not apply to a diff.

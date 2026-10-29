@@ -1,9 +1,7 @@
 import { Checkbox } from '../../ui/checkbox.tsx'
 import { Cell } from './Cell.tsx'
-import { Chip } from './Chip.tsx'
 import { Column } from './Column.tsx'
 import { DataTable } from './DataTable.tsx'
-import { Pill } from './Pill.tsx'
 import { Row } from './Row.tsx'
 import './dataTable.css'
 
@@ -13,7 +11,5 @@ export const dataTableComponents = {
   Column,
   Row,
   Cell,
-  Chip,
-  Pill,
   Checkbox,
 }

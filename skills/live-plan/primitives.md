@@ -232,6 +232,13 @@ These components only arrange their children. They are not plan entries, and the
 - `<Stack gap={16}>` and `<Row gap={16}>` — vertical and horizontal stacks. `gap` is a pixel number.
 - `<ResponsiveStack>` — a row that wraps on a narrow window.
 
+## Labels
+
+`<Chip>` and `<Pill>` are short labels. They are not plan entries, and they do not need an `id`. Use them in prose, a phase, a callout, or a data table cell.
+
+- `<Chip>gateway</Chip>` — a compact label.
+- `<Pill tone="success">succeeded</Pill>` — `tone` is `success`, `warning`, `danger`, or `neutral`. Omit `tone` for neutral.
+
 ## Figures
 
 `<Mermaid>` takes the diagram as its children, the same source a `mermaid` fence uses.
@@ -255,7 +262,7 @@ One column may set `filter`. That column gets a select of its values, plus All. 
 
 `value` on `<Cell>` is the sort key and, on the filter column, the select value. Search also matches the visible text, a checkbox's checked state, and a checkbox field's label. Omit `value` to sort and filter by that visible text.
 
-A cell's children can be text, `<Chip>`, `<Pill tone="success">` (`success`, `warning`, `danger`, or `neutral`), a markdown list, `<Checkbox checked />`, a `<field type="checkbox">`, or any other plan component.
+A cell's children can be text, a `<Chip>`, a `<Pill>`, a markdown list, `<Checkbox checked />`, a `<field type="checkbox">`, or any other plan component. Chip and pill are the label primitives above.
 
 ```mdx
 <DataTable label="Operations">

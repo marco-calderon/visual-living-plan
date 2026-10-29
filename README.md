@@ -129,6 +129,7 @@ See `examples/rate-limit.plan.md`, `examples/form-controls.plan.md`, and `skills
 - code — a highlighted source block with line numbers, starting at 1. Add `start=40` after the language to number the snippet from another line. Use any fence language other than `mermaid` (`ts`, `python`, `bash`, and so on), in the plan markdown or inside a phase, callout, or approve component. A fence with no language still renders as code
 - diff — a unified diff rendered as hunks. Use a `diff` or `patch` fence, or add `diff` after the language (`ts diff`). Include `---` / `+++` file headers and `@@` hunk ranges; those ranges are the line numbers. A hunk without file headers still renders
 - `<BarChart>` and `<LineChart>` — a chart. One `label, value` row per line
+- `<Chip>` and `<Pill tone="success|warning|danger|neutral">` — short labels. They are not plan entries
 - `<Stack>`, `<Row>`, `<Box>`, `<HStack>`, `<VStack>`, `<ResponsiveStack>` — layout only. They are not plan entries
 
 ## Execution canvas adapters

@@ -13,9 +13,10 @@ import {
 } from '../client/mdx/dataTable/model.tsx'
 import { Cell } from '../client/mdx/dataTable/Cell.tsx'
 import { Checkbox } from '../client/ui/checkbox.tsx'
-import { Chip } from '../client/mdx/dataTable/Chip.tsx'
+import { Chip } from '../client/entries/Chip.tsx'
+import { components } from '../client/entries/index.ts'
 import { Column } from '../client/mdx/dataTable/Column.tsx'
-import { Pill } from '../client/mdx/dataTable/Pill.tsx'
+import { Pill } from '../client/entries/Pill.tsx'
 import { Row } from '../client/mdx/dataTable/Row.tsx'
 import { parsePlan } from '../src/parse.ts'
 
@@ -35,6 +36,16 @@ test('the table implementation is a dynamic import, not part of the plan compone
   assert.doesNotMatch(planMdx, /^import\s+.*dataTable\/register/m)
   assert.doesNotMatch(planMdx, /@tanstack\/react-table/)
   assert.doesNotMatch(planComponents, /dataTable|@tanstack\/react-table/)
+  assert.match(planComponents, /\.\.\.uiComponents/)
+  assert.equal(components.Chip, Chip)
+  assert.equal(components.Pill, Pill)
+  const register = readFileSync(new URL('../client/mdx/dataTable/register.tsx', import.meta.url), 'utf8')
+  const tableCss = readFileSync(new URL('../client/mdx/dataTable/dataTable.css', import.meta.url), 'utf8')
+  const primitives = readFileSync(new URL('../client/entries/primitives.css', import.meta.url), 'utf8')
+  assert.doesNotMatch(register, /Chip|Pill/)
+  assert.doesNotMatch(tableCss, /\.plan-chip|\.plan-pill/)
+  assert.match(primitives, /\.plan-chip/)
+  assert.match(primitives, /\.plan-pill/)
 })
 
 test('cell values keep a sort key and the visible text for search', () => {

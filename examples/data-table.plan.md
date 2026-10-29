@@ -12,6 +12,8 @@ The owners table stays on one page. The operations table has 120 rows, so it pag
 <phase id="owners" title="Owners" status="done">
 Six rows. Search and the state select are here. There is no pagination control.
 
+<Chip>gateway</Chip> <Pill tone="success">succeeded</Pill>
+
 <DataTable label="Owners">
 <Column id="name" header="Name" />
 <Column id="state" header="State" filter />

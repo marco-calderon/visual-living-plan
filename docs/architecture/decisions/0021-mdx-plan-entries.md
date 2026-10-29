@@ -12,7 +12,7 @@
 
 Agents author the MDX components the page renders. The plan parser reads those components for the session model: interactions, workflow, and progress. `{% tags %}` and top-level entry fences (` ```phase ` and the same fence for the other entry types) are rejected. They are not rewritten.
 
-A workflow graph may keep a structured pipe-table body inside `<workflow>`. That table may sit in a ` ```workflow ` fence. The fence is the graph body, not an entry of its own. Mermaid, code, and diff stay markdown fences. `<Mermaid>`, `<BarChart>`, `<LineChart>`, and the layout components (`Box`, `HStack`, `VStack`, `Stack`, `Row`, `ResponsiveStack`) are part of the same MDX map.
+A workflow graph may keep a structured pipe-table body inside `<workflow>`. That table may sit in a ` ```workflow ` fence. The fence is the graph body, not an entry of its own. Mermaid, code, and diff stay markdown fences. `<Mermaid>`, `<BarChart>`, `<LineChart>`, `<Chip>`, `<Pill>`, and the layout components (`Box`, `HStack`, `VStack`, `Stack`, `Row`, `ResponsiveStack`) are part of the same MDX map.
 
 `wait` JSON for choice, form, questions, and approve is unchanged.
 

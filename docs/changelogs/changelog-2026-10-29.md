@@ -152,6 +152,7 @@ A plan can include a data table that searches, sorts, and filters its rows on th
 
 - `<DataTable>` searches the loaded rows, sorts every column, and filters one state column with a select. Pagination appears at 100 rows, ten per page, and stays off below that.
 - A cell can hold a chip, a pill, a list, the checkbox control, a checkbox field, and other plan components.
+- `<Chip>` and `<Pill>` are plan primitives. They render in a phase or a callout, and inside a data table cell.
 - The table code loads only on a plan that contains a data table.
 
 ### Notes
