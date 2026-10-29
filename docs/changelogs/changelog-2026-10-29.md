@@ -79,3 +79,21 @@ Forms can ask for several checkboxes. Checked values are saved with the plan ses
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.3.1
+
+**PR:** [#72](https://github.com/marco-calderon/visual-living-plan/pull/72)
+
+**Bump:** patch
+
+### Summary
+
+Open questions show the number and the question on the same line. The answer field stays underneath.
+
+### Bugs fixed
+
+- In a questions block, the number (1., 2.) and the question text render on one line in light and dark. A question written as a paragraph no longer drops below its number.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
