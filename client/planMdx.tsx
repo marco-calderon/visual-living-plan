@@ -2,6 +2,7 @@ import { run } from '@mdx-js/mdx'
 import { Children, isValidElement, useEffect, useState, type ComponentType, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import * as runtime from 'react/jsx-runtime'
+import { fileVersionName, fileVersionSeq, fileVersionText } from '../src/fileVersion.ts'
 import type { PlanSnapshotRecord } from '../src/planSnapshots.ts'
 import { planSourceToMdx } from '../src/planMdx/source.ts'
 import type { InteractionResponse } from '../src/types.ts'
@@ -251,20 +252,20 @@ function PlanMdxApp() {
     window.dispatchEvent(new CustomEvent('living-plan-document', { detail: { root } }))
   })
 
-  async function restore(snapshotId: string) {
-    const result = await fetch(apiPath('/api/plan-mdx/restore'), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ snapshotId }),
+  useEffect(() => {
+    const seq = fileVersionSeq(boot.snapshots, boot.headSnapshotId)
+    const name = fileVersionName(seq)
+    const text = fileVersionText(seq)
+    document.querySelectorAll('[data-file-version]').forEach((node) => {
+      node.setAttribute('aria-label', name)
+      node.setAttribute('title', name)
+      const value = node.querySelector('[data-file-version-value]')
+      if (value) value.textContent = text
     })
-    if (!result.ok) return
-    const payload = (await result.json()) as Boot
-    if (typeof payload.source === 'string') setBoot(payload)
-  }
+  }, [boot.snapshots, boot.headSnapshotId])
 
   return (
     <>
-      <SnapshotRail snapshots={boot.snapshots} headId={boot.headSnapshotId} onRestore={(id) => void restore(id)} />
       {error ? (
         <p className="host-error" role="alert" data-plan-error="">
           {error}
@@ -278,33 +279,6 @@ function PlanMdxApp() {
         <p data-plan-rendering="">Rendering plan…</p>
       )}
     </>
-  )
-}
-
-function SnapshotRail({
-  snapshots,
-  headId,
-  onRestore,
-}: {
-  snapshots: PlanSnapshotRecord[]
-  headId: string | null
-  onRestore: (snapshotId: string) => void
-}) {
-  if (snapshots.length === 0) return null
-  return (
-    <section className="plan-snapshots" data-plan-grab-ignore="" aria-label="Plan snapshots">
-      <h2>Snapshots</h2>
-      <ol>
-        {snapshots.map((snapshot) => (
-          <li key={snapshot.id}>
-            <button type="button" disabled={snapshot.id === headId} onClick={() => onRestore(snapshot.id)}>
-              {snapshot.seq}. {snapshot.reason}
-              {snapshot.restoredFromId ? ' (restored)' : ''}
-            </button>
-          </li>
-        ))}
-      </ol>
-    </section>
   )
 }
 
