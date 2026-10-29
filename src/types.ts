@@ -52,10 +52,12 @@ export type ChoiceOption = {
   description?: string
 }
 
+export type FormValue = string | number | string[]
+
 export type FormField = {
   name: string
   label: string
-  type: 'text' | 'number' | 'textarea' | 'select'
+  type: 'text' | 'number' | 'textarea' | 'select' | 'checkbox'
   required?: boolean
   default?: string | number
   options?: string[]
@@ -96,7 +98,7 @@ export type PlanDocument = {
 export type InteractionResponse =
   | { kind: 'choice'; id: string; optionId: string; label: string }
   | { kind: 'approve'; id: string; approved: boolean; note?: string }
-  | { kind: 'form'; id: string; values: Record<string, string | number> }
+  | { kind: 'form'; id: string; values: Record<string, FormValue> }
   | { kind: 'questions'; id: string; answers: Record<string, string> }
 
 export type ReviewDecision = 'approve' | 'deny' | 'iterate'

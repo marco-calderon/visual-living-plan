@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { copyFile, mkdtemp, rm } from 'node:fs/promises'
+import { copyFile, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test } from 'node:test'
@@ -123,6 +123,94 @@ test('a restarted service restores the submitted response', async () => {
       responses: Record<string, { optionId?: string }>
     }
     assert.equal(plan.responses['fail-mode']?.optionId, 'open')
+  } finally {
+    await second.close()
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
+test('a checkbox form is pushed to the agent and restored after a restart', async () => {
+  const home = await tempHome()
+  const planFile = join(home, 'checks.plan.md')
+  await writeFile(
+    planFile,
+    `---
+title: Checkbox fields
+---
+<workflow id="flow" title="Flow">
+\`\`\`workflow
+access | Choose access | access
+--
+access -> access
+\`\`\`
+</workflow>
+<callout id="note" kind="note" title="Access">
+<form id="access" prompt="Which access should this key have?">
+<VStack>
+<field name="scopes" label="Scopes" type="checkbox" options="read, write, admin" />
+</VStack>
+</form>
+</callout>
+<checklist id="done-when" title="Done when">
+<item done="true">File authored</item>
+</checklist>
+`,
+  )
+  const first = await startRegistryServer({ home, port: 0, token: 'test-token-value' })
+  let hostedId = ''
+  try {
+    const hosted = await registerHostedPlan(first.url, first.token, {
+      planPath: planFile,
+      mode: 'watch',
+    })
+    hostedId = hosted.id
+    const seen: Array<{ event: string; data: unknown }> = []
+    const controller = new AbortController()
+    const reading = readAgentEvents(
+      hosted.url,
+      hosted.token,
+      (event) => {
+        seen.push(event)
+        if (event.event === 'interaction') controller.abort()
+      },
+      controller.signal,
+    )
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 50))
+    const posted = await fetch(new URL('api/interactions/access', hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        kind: 'form',
+        id: 'access',
+        values: { scopes: ['read', 'write'] },
+      }),
+    })
+    assert.equal(posted.status, 200)
+    await Promise.race([
+      reading.catch((error: unknown) => {
+        if (error instanceof Error && error.name === 'AbortError') return
+        throw error
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timed out waiting for checkbox interaction')), 2_000)),
+    ])
+    const interaction = seen.find((event) => event.event === 'interaction')
+    const data = interaction?.data as { kind?: string; values?: { scopes?: string[] } }
+    assert.equal(data?.kind, 'form')
+    assert.deepEqual(data?.values?.scopes, ['read', 'write'])
+
+    const page = await (await fetch(hosted.url)).text()
+    assert.match(page, /"scopes":\["read","write"\]/)
+  } finally {
+    await first.close()
+  }
+
+  const second = await startRegistryServer({ home, port: 0, token: 'test-token-value' })
+  try {
+    const plan = (await (await fetch(new URL(`/plans/${hostedId}/api/plan`, second.url))).json()) as {
+      responses: Record<string, { kind?: string; values?: { scopes?: string[] } }>
+    }
+    assert.equal(plan.responses.access?.kind, 'form')
+    assert.deepEqual(plan.responses.access?.values?.scopes, ['read', 'write'])
   } finally {
     await second.close()
     await rm(home, { recursive: true, force: true })

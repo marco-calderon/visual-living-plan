@@ -2,7 +2,9 @@ export type PhaseStatus = 'pending' | 'active' | 'blocked' | 'done' | 'failed'
 
 export type CalloutKind = 'note' | 'tip' | 'risk' | 'decision' | 'warning'
 
-export type FieldType = 'text' | 'number' | 'textarea' | 'select'
+export type FieldType = 'text' | 'number' | 'textarea' | 'select' | 'checkbox'
+
+export type FormValue = string | number | string[]
 
 export type ChoiceOptionSpec = {
   id: string
@@ -58,7 +60,7 @@ export type ApproveResponse = {
 export type FormResponse = {
   kind: 'form'
   id: string
-  values: Record<string, string | number>
+  values: Record<string, FormValue>
 }
 
 export type QuestionsResponse = {
@@ -69,7 +71,7 @@ export type QuestionsResponse = {
 
 const PHASE_STATUSES: readonly PhaseStatus[] = ['pending', 'active', 'blocked', 'done', 'failed']
 const CALLOUT_KINDS: readonly CalloutKind[] = ['note', 'tip', 'risk', 'decision', 'warning']
-const FIELD_TYPES: readonly FieldType[] = ['text', 'number', 'textarea', 'select']
+const FIELD_TYPES: readonly FieldType[] = ['text', 'number', 'textarea', 'select', 'checkbox']
 
 export function phaseStatus(value: string | undefined): PhaseStatus {
   const status = value?.trim().toLowerCase()

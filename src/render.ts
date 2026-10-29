@@ -1399,6 +1399,14 @@ input:focus, textarea:focus, select:focus {
   outline: 2px solid var(--focus);
   border-color: var(--focus);
 }
+input[type="checkbox"] {
+  width: 1.05rem;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  min-height: 1.05rem;
+  padding: 0;
+  accent-color: var(--accent);
+}
 textarea { min-height: 88px; resize: vertical; }
 
 .button-row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
@@ -2216,6 +2224,7 @@ function clientScript(
   });
 
   document.addEventListener('submit', async (event) => {
+    if (event.defaultPrevented) return;
     const form = event.target;
     if (!(form instanceof HTMLFormElement) || interactionsLocked) return;
     const formId = form.getAttribute('data-form-id');
@@ -2223,12 +2232,31 @@ function clientScript(
     if (!formId && !questionsId) return;
     event.preventDefault();
     if (formId) {
-      const data = new FormData(form);
       const values = {};
-      data.forEach((value, key) => {
-        values[key] = typeof value === 'string' && value.trim() !== '' && !Number.isNaN(Number(value)) && form.querySelector('[name="' + key + '"][type="number"]')
-          ? Number(value)
-          : value;
+      const checkboxNames = new Set();
+      for (const element of form.elements) {
+        if (!(element instanceof HTMLInputElement) && !(element instanceof HTMLTextAreaElement) && !(element instanceof HTMLSelectElement)) continue;
+        const isButton = element instanceof HTMLInputElement && (element.type === 'submit' || element.type === 'button');
+        if (!element.name || isButton) continue;
+        if (element instanceof HTMLInputElement && element.type === 'checkbox') {
+          checkboxNames.add(element.name);
+          continue;
+        }
+        if (element instanceof HTMLInputElement && element.type === 'number') {
+          if (element.value === '') continue;
+          values[element.name] = Number(element.value);
+          continue;
+        }
+        values[element.name] = element.value;
+      }
+      checkboxNames.forEach((name) => {
+        const boxes = [];
+        for (const element of form.elements) {
+          if (element instanceof HTMLInputElement && element.type === 'checkbox' && element.name === name) boxes.push(element);
+        }
+        const checked = boxes.filter((box) => box.checked).map((box) => box.value);
+        const single = boxes.length === 1 && boxes[0].value === 'true';
+        values[name] = single ? (checked.length ? 'true' : 'false') : checked;
       });
       await postJson(apiBase + '/api/interactions/' + encodeURIComponent(formId), {
         kind: 'form',

@@ -1,7 +1,7 @@
 import { workflowStepHash } from '../planRefNavigation'
 import { activeStepSpinnerHtml, stepNumberFor } from '../planStepHeading'
 import { buildMdxOutline, legacyPlanSyntaxError } from './outline'
-import type { PlanBlock } from '../types'
+import type { FormField, PlanBlock } from '../types'
 
 const ENTRY_FENCES = new Set([
   'phase',
@@ -94,7 +94,7 @@ function staticBlock(block: PlanBlock, phaseOrdinal = 1): string {
     return `<section class="block plan-entry plan-choice" id="plan-${escapeHtml(block.id)}" data-entry="choice" data-entry-id="${escapeHtml(block.id)}"><h3 class="plan-title">${escapeHtml(block.prompt)}</h3>${buttons}<p class="plan-state" data-state-for="${escapeHtml(block.id)}">Waiting for a selection</p></section>`
   }
   if (block.type === 'form') {
-    const fields = block.fields.map((field) => `<input name="${escapeHtml(field.name)}" />`).join('')
+    const fields = block.fields.map((field) => staticField(field)).join('')
     return `<section class="block plan-entry plan-form" id="plan-${escapeHtml(block.id)}" data-entry="form"><h3 class="plan-title">${escapeHtml(block.prompt)}</h3><form data-form-id="${escapeHtml(block.id)}">${fields}<p class="plan-state" data-state-for="${escapeHtml(block.id)}">Waiting for form values</p></form></section>`
   }
   if (block.type === 'questions') {
@@ -106,6 +106,26 @@ function staticBlock(block: PlanBlock, phaseOrdinal = 1): string {
   }
   const title = block.title ? `<h3 class="plan-title">${escapeHtml(block.title)}</h3>` : ''
   return `<section class="block plan-entry plan-checklist" data-entry="checklist">${title}</section>`
+}
+
+function staticField(field: FormField): string {
+  const name = escapeHtml(field.name)
+  if (field.type === 'checkbox') {
+    const options = field.options ?? []
+    if (options.length === 0) {
+      return `<label class="plan-checkbox"><input type="checkbox" name="${name}" value="true" />${escapeHtml(field.label)}</label>`
+    }
+    const boxes = options
+      .map(
+        (option) =>
+          `<label class="plan-checkbox"><input type="checkbox" name="${name}" value="${escapeHtml(option)}" />${escapeHtml(option)}</label>`,
+      )
+      .join('')
+    return `<div class="plan-field" data-field="${name}" data-field-type="checkbox"><span>${escapeHtml(field.label)}</span><div class="plan-checkbox-group">${boxes}</div></div>`
+  }
+  if (field.type === 'textarea') return `<textarea name="${name}"></textarea>`
+  if (field.type === 'number') return `<input type="number" name="${name}" />`
+  return `<input name="${name}" />`
 }
 
 function escapeHtml(value: string): string {

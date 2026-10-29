@@ -120,8 +120,8 @@ See `examples/rate-limit.plan.md` and `skills/live-plan/primitives.md`. A plan i
 
 - `<phase>` — status timeline
 - `<callout>` — note / tip / risk / decision / warning. A callout can contain another component, such as a choice
-- `<choice>` / `<form>` / `<questions>` / `<approve>` — human interactions. Options, fields, and question items are nested components
-- `<checklist>` — definition of done
+- `<choice>` / `<form>` / `<questions>` / `<approve>` — human interactions. Options, fields, and question items are nested components. A form field is `text`, `number`, `textarea`, `select`, or `checkbox`.
+- `<checklist>` — definition of done. Those done flags stay in the plan file.
 - `<workflow>` — required execution path. The body is a pipe table: `id | label | ref | detail`, then `--`, then `from -> to`. A `workflow` fence may wrap that table. `ref` is the plan block id a click jumps to. The Workflow tab draws this block before the run, and the live run follows it
 - mermaid — a figure in the plan text. Use a fence whose language is `mermaid`, in the plan markdown or inside a phase, callout, or approve component. `<Mermaid>` draws the same figure
 - table — a pipe table in the plan markdown or a block body. The row under the header is `| --- |`. Use `:---`, `---:`, or `:---:` in that separator to align a column left, right, or center. A blank line ends the table
