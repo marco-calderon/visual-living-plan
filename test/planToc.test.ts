@@ -5,7 +5,7 @@ import { chromium, type Page } from '@playwright/test'
 import { createIdleExecutionState } from '../src/execution.ts'
 import { parsePlan } from '../src/parse.ts'
 import { renderPlanStaticHtml } from '../src/planMdx/source.ts'
-import { buildPlanToc, planTocHeadingIds } from '../src/planToc.ts'
+import { buildPlanToc, planTocHeadingIds, renderTocItemsHtml } from '../src/planToc.ts'
 import { renderPlanPage } from '../src/render.ts'
 import { defaultThemeConfig, themePayload } from '../src/theme.ts'
 
@@ -90,12 +90,83 @@ test('the sample plan outlines phases and workflow steps', () => {
   const sample = readFileSync(new URL('../examples/rate-limit.plan.md', import.meta.url), 'utf8')
   const items = buildPlanToc(sample)
   assert.equal(items[0]?.label, 'Rate limiting rollout')
+  assert.equal(items[0]?.icon, 'heading')
   assert.ok(items.some((item) => item.kind === 'section' && item.target === 'implement'))
   assert.ok(items.some((item) => item.kind === 'section' && item.target === 'done-when' && item.label === 'Done when'))
   const workflowAt = items.findIndex((item) => item.kind === 'workflow')
   assert.equal(items[workflowAt]?.label, 'Workflow')
+  assert.equal(items[workflowAt]?.icon, 'workflow')
   assert.ok(items.slice(workflowAt + 1).some((item) => item.kind === 'workflow-step' && item.target === 'fail-mode'))
   assert.ok(items.slice(0, workflowAt).every((item) => item.kind === 'section'))
+})
+
+test('contents icons follow the entry type, and steps follow phase progress', () => {
+  const sample = readFileSync(new URL('../examples/rate-limit.plan.md', import.meta.url), 'utf8')
+  const items = buildPlanToc(sample)
+  const icon = (target: string, kind?: string) =>
+    items.find((item) => item.target === target && (kind ? item.kind === kind : item.kind === 'section'))?.icon
+  assert.equal(icon('design'), 'phase-done')
+  assert.equal(icon('implement'), 'phase-active')
+  assert.equal(icon('observe'), 'phase-pending')
+  assert.equal(icon('redis-dependency'), 'callout-risk')
+  assert.equal(icon('fail-mode'), 'choice')
+  assert.equal(icon('limits'), 'form')
+  assert.equal(icon('rollout-notes'), 'questions')
+  assert.equal(icon('proceed-implement'), 'approve')
+  assert.equal(icon('done-when'), 'checklist')
+  assert.equal(icon('design', 'workflow-step'), 'phase-done')
+  assert.equal(icon('implement', 'workflow-step'), 'phase-active')
+  assert.equal(icon('fail-mode', 'workflow-step'), 'choice')
+  assert.equal(icon('done-when', 'workflow-step'), 'checklist')
+  assert.equal(items.find((item) => item.target === 'implement' && item.kind === 'section')?.tracksProgress, true)
+  assert.equal(items.find((item) => item.target === 'fail-mode' && item.kind === 'workflow-step')?.tracksProgress, undefined)
+
+  const html = renderTocItemsHtml(items)
+  const implement = html.match(/<a [^>]*data-toc-target="implement"[^>]*>/)?.[0] ?? ''
+  assert.match(implement, /data-toc-icon="phase-active"/)
+  assert.match(implement, /data-toc-step/)
+  assert.match(html, /data-icon="phase-done"/)
+  assert.match(html, /data-icon="phase-pending"/)
+  assert.match(html, /data-icon="phase-blocked"/)
+  assert.match(html, /data-icon="phase-failed"/)
+  const choice = html.match(/<a [^>]*data-toc-target="fail-mode"[^>]*>/)?.[0] ?? ''
+  assert.match(choice, /data-toc-icon="choice"/)
+  assert.doesNotMatch(choice, /data-toc-step/)
+})
+
+test('contents icons cover callout kinds and the other phase statuses', () => {
+  const source = `---
+title: Icons
+---
+
+# Custom gate
+
+<callout id="note" kind="note" title="A note">Note.</callout>
+<callout id="tip" kind="tip" title="A tip">Tip.</callout>
+<callout id="warn" kind="warning" title="A warning">Warning.</callout>
+<callout id="decide" kind="decision" title="Fail open stays the default">Decision.</callout>
+<phase id="blocked" title="Blocked step" status="blocked">Blocked.</phase>
+<phase id="failed" title="Failed step" status="failed">Failed.</phase>
+
+<workflow id="rollout" title="Expected execution">
+note | A note | note
+blocked | Blocked step | blocked
+--
+note -> blocked
+</workflow>
+`
+  const items = buildPlanToc(source)
+  const icon = (target: string) => items.find((item) => item.kind === 'section' && item.target === target)?.icon
+  assert.equal(items.find((item) => item.label === 'Custom gate')?.icon, 'heading')
+  assert.equal(icon('note'), 'callout-note')
+  assert.equal(icon('tip'), 'callout-tip')
+  assert.equal(icon('warn'), 'callout-warning')
+  assert.equal(icon('decide'), 'callout-decision')
+  assert.equal(icon('blocked'), 'phase-blocked')
+  assert.equal(icon('failed'), 'phase-failed')
+  assert.equal(items.find((item) => item.kind === 'workflow-step' && item.target === 'note')?.icon, 'callout-note')
+  assert.equal(items.find((item) => item.kind === 'workflow-step' && item.target === 'blocked')?.icon, 'phase-blocked')
+  assert.equal(items.find((item) => item.kind === 'workflow-step' && item.target === 'blocked')?.tracksProgress, true)
 })
 
 async function openPlan(width: number, height = 800): Promise<{ page: Page; close: () => Promise<void> }> {

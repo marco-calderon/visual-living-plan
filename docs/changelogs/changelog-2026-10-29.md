@@ -309,3 +309,22 @@ Settings can turn wrapping on or off for text in code blocks. The choice is save
 
 No registry restart needed beyond the usual version check.
 
+## 1.5.9
+
+**PR:** [#84](https://github.com/marco-calderon/visual-living-plan/pull/84)
+
+**Bump:** patch
+
+### Summary
+
+The table of contents marks each row with the kind of plan entry it points at. A step’s mark follows that step’s progress.
+
+### Improvements
+
+- Phases show an open circle, a progress ring, a check, a pause, or an x for pending, active, done, blocked, and failed. The same mark is used on the workflow step that points at that phase, and it updates when the phase or the live run changes.
+- Choices, forms, questions, approvals, checklists, callouts, and Workflow use their own colored marks in light and dark. Headings stay unmarked.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
+
