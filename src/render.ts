@@ -805,7 +805,7 @@ body.has-review-bar .shell {
   color: var(--muted);
   transition: transform 0.4s ease;
 }
-.settings-accordion[data-open="true"] .settings-accordion-chevron {
+.settings-accordion[data-open]:not([data-open="false"]) .settings-accordion-chevron {
   transform: rotate(180deg);
 }
 .settings-accordion-panel {
@@ -813,7 +813,8 @@ body.has-review-bar .shell {
   grid-template-rows: 0fr;
   transition: grid-template-rows 0.4s ease;
 }
-.settings-accordion[data-open="true"] .settings-accordion-panel {
+.settings-accordion-panel[hidden] { display: grid !important; }
+.settings-accordion[data-open]:not([data-open="false"]) .settings-accordion-panel {
   grid-template-rows: 1fr;
 }
 .settings-accordion-panel-inner {
@@ -824,7 +825,7 @@ body.has-review-bar .shell {
   padding: 0 1rem 1rem;
   border-top: 1px solid transparent;
 }
-.settings-accordion[data-open="true"] .settings-accordion-body {
+.settings-accordion[data-open]:not([data-open="false"]) .settings-accordion-body {
   border-top-color: var(--line);
   padding-top: 0.9rem;
 }
@@ -1564,12 +1565,18 @@ function clientScript(
   let currentAccent = ${JSON.stringify(theme.accent)};
   const toast = document.getElementById('toast');
   function showToast(message) {
+    if (typeof window.showPlanToast === 'function') {
+      window.showPlanToast(message);
+      return;
+    }
     if (!toast) return;
     toast.textContent = message;
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 1600);
   }
 
+  setTimeout(() => {
+    if (document.documentElement.dataset.planChrome === 'react') return;
   const planDetails = document.querySelector('[data-plan-details]');
   const planDetailsBtn = document.querySelector('[data-plan-details-toggle]');
   const planCard = document.querySelector('[data-plan-card]');
@@ -1631,6 +1638,7 @@ function clientScript(
       setPlanDetails(false);
     });
   }
+  }, 0);
 
   function syncPending(text) {
     const count = Math.max(0, Number(text) || 0);
@@ -1649,8 +1657,9 @@ function clientScript(
       badge.hidden = count <= 0;
       badge.textContent = String(count);
     }
-    if (planDetailsBtn) {
-      planDetailsBtn.setAttribute('aria-label', count > 0 ? 'Plan details, ' + count + ' pending' : 'Plan details');
+    const detailsBtn = document.querySelector('[data-plan-details-toggle]');
+    if (detailsBtn) {
+      detailsBtn.setAttribute('aria-label', count > 0 ? 'Plan details, ' + count + ' pending' : 'Plan details');
     }
   }
 
@@ -1813,6 +1822,8 @@ function clientScript(
     });
   }
 
+  setTimeout(() => {
+    if (document.documentElement.dataset.planChrome === 'react') return;
   document.querySelectorAll('[data-accordion]').forEach((accordion) => {
     const trigger = accordion.querySelector('[data-accordion-trigger]');
     const panel = accordion.querySelector('[data-accordion-panel]');
@@ -1830,23 +1841,25 @@ function clientScript(
       setOpen(accordion.getAttribute('data-open') !== 'true');
     });
   });
+  }, 0);
 
-  document.querySelectorAll('[data-diffs-theme]').forEach((button) => {
-    button.addEventListener('click', async () => {
-      const next = button.getAttribute('data-diffs-theme');
-      const label = button.getAttribute('data-diffs-theme-label') || next;
-      if (!next || next === currentDiffsTheme) return;
-      const previous = currentDiffsTheme;
-      const previousLabel = document.getElementById('diffs-theme-current')?.textContent || previous;
-      applyDiffsTheme(next, label);
-      try {
-        await putTheme({ diffsTheme: next });
-        showToast('Diff theme saved');
-      } catch (error) {
-        applyDiffsTheme(previous, previousLabel);
-        showToast(error instanceof Error ? error.message : 'Diff theme update failed');
-      }
-    });
+  document.addEventListener('click', async (event) => {
+    const target = event.target;
+    const button = target instanceof Element ? target.closest('[data-diffs-theme]') : null;
+    if (!(button instanceof HTMLElement)) return;
+    const next = button.getAttribute('data-diffs-theme');
+    const label = button.getAttribute('data-diffs-theme-label') || next;
+    if (!next || next === currentDiffsTheme) return;
+    const previous = currentDiffsTheme;
+    const previousLabel = document.getElementById('diffs-theme-current')?.textContent || previous;
+    applyDiffsTheme(next, label);
+    try {
+      await putTheme({ diffsTheme: next });
+      showToast('Diff theme saved');
+    } catch (error) {
+      applyDiffsTheme(previous, previousLabel);
+      showToast(error instanceof Error ? error.message : 'Diff theme update failed');
+    }
   });
 
   function activateTab(target) {

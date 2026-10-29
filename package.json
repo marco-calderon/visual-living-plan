@@ -1,6 +1,6 @@
 {
   "name": "visual-living-plan",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Agent-authored living plans with human interaction, live updates, and a swappable execution canvas",
   "type": "module",
   "bin": {
@@ -56,6 +56,7 @@
     "lucide-react": "^1.58.0",
     "nanoid": "^6.0.2",
     "react": "^19.3.0",
+    "sonner": "^2.0.8",
     "winston": "^3.19.0",
     "winston-daily-rotate-file": "^5.0.0",
     "yaml": "^2.8.1"

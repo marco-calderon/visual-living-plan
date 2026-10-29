@@ -336,6 +336,8 @@ export function processesPanelMarkup(selfId?: string): string {
 export function processesPanelScript(): string {
   return `
 (() => {
+  setTimeout(() => {
+  if (document.documentElement.dataset.planChrome === 'react') return;
   const root = document.querySelector('[data-processes-root]');
   if (!root) return;
   const toggle = root.querySelector('[data-processes-toggle]');
@@ -423,6 +425,7 @@ export function processesPanelScript(): string {
   });
 
   function safeUrl(value) {
+    if (!value) return '';
     try {
       const url = new URL(value, window.location.href);
       if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
@@ -607,6 +610,7 @@ export function processesPanelScript(): string {
 
   refresh();
   setInterval(refresh, 4000);
+  }, 0);
 })();
 `
 }

@@ -1,4 +1,5 @@
 import { useContext, useId, type ReactNode } from 'react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select.tsx'
 import { FormContext } from './entryContext'
 import { markEntry } from './planEntry'
 import { cx } from './styles'
@@ -51,13 +52,23 @@ export function Field({
     )
   } else if (kind === 'select') {
     control = (
-      <select id={inputId} name={name} required={required} disabled={disabled} {...valueProps}>
-        {(options ?? []).map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
+      <Select
+        name={name}
+        required={required}
+        disabled={disabled}
+        defaultValue={initial !== '' ? initial : undefined}
+      >
+        <SelectTrigger id={inputId}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {(options ?? []).map((option) => (
+            <SelectItem key={option} value={option}>
+              {option}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     )
   } else {
     control = (
