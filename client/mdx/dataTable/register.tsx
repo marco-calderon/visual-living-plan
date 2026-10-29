@@ -1,5 +1,5 @@
+import { Checkbox } from '../../ui/checkbox.tsx'
 import { Cell } from './Cell.tsx'
-import { Checkbox } from './Checkbox.tsx'
 import { Chip } from './Chip.tsx'
 import { Column } from './Column.tsx'
 import { DataTable } from './DataTable.tsx'

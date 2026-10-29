@@ -147,7 +147,7 @@ Each structured block is an MDX component. The component name is the type. Give 
 </DataTable>
 ```
 
-`value` is the sort key and the state-filter key. The visible text is searched too. A cell can hold a `<Chip>`, a `<Pill tone="success|warning|danger|neutral">`, a markdown list, `<Checkbox checked />` (the same check control a form field uses), a `<field type="checkbox">`, or any other plan component. See [primitives.md](primitives.md).
+`value` is the sort key and the state-filter key. The visible text is searched too. A cell can hold a `<Chip>`, a `<Pill tone="success|warning|danger|neutral">`, a markdown list, `<Checkbox checked />` (the existing form checkbox control), a `<field type="checkbox">`, or any other plan component. See [primitives.md](primitives.md).
 
 Use the same node id as the plan block id so a click jumps to that section. A self-loop (`from` and `to` are the same id) is drawn as an arc. To close a loop with another card, set sides on the return edge (`from -> to @ bottom>bottom`). Live graph nodes use `id`, `label`, optional `detail`, `status` (`pending` \| `active` \| `blocked` \| `done` \| `failed`), and optional `x` / `y`. Edges are `{ from, to }` plus optional `label`, `fromSide`, and `toSide`.
 

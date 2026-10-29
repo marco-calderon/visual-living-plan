@@ -1,5 +1,6 @@
 import { Children, isValidElement, type ReactNode } from 'react'
 import { entryKindOf } from '../../entries/planEntry.ts'
+import { Checkbox } from '../../ui/checkbox.tsx'
 import { collectText } from '../textChildren.ts'
 
 export const DATA_TABLE_PAGE_SIZE = 10
@@ -125,7 +126,7 @@ function controlSearch(children: ReactNode): string {
   const visit = (node: ReactNode) => {
     Children.forEach(node, (child) => {
       if (!isValidElement(child)) return
-      if (partKind(child.type) === 'checkbox') {
+      if (child.type === Checkbox) {
         const props = child.props as { checked?: boolean | string; defaultChecked?: boolean | string }
         const checked = flag(props.checked) ?? flag(props.defaultChecked) ?? false
         parts.push(checked ? 'checked' : 'unchecked')

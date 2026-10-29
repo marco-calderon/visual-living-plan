@@ -278,7 +278,7 @@ A cell's children can be text, `<Chip>`, `<Pill tone="success">` (`success`, `wa
 </DataTable>
 ```
 
-`label` is the accessible name. `placeholder` changes the search field (default `Search`). `<Column header>` is the header label. `<Checkbox checked />` is the same check control a checkbox field uses. It does not submit a form unless it sits inside `<form>`.
+`label` is the accessible name. `placeholder` changes the search field (default `Search`). `<Column header>` is the header label. `<Checkbox checked />` renders the existing form checkbox control. It does not submit a form unless it sits inside `<form>`. A `<field type="checkbox">` in a cell is that same field.
 
 ## code
 

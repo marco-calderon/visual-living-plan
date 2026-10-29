@@ -12,7 +12,7 @@ import {
   showsPagination,
 } from '../client/mdx/dataTable/model.tsx'
 import { Cell } from '../client/mdx/dataTable/Cell.tsx'
-import { Checkbox } from '../client/mdx/dataTable/Checkbox.tsx'
+import { Checkbox } from '../client/ui/checkbox.tsx'
 import { Chip } from '../client/mdx/dataTable/Chip.tsx'
 import { Column } from '../client/mdx/dataTable/Column.tsx'
 import { Pill } from '../client/mdx/dataTable/Pill.tsx'
