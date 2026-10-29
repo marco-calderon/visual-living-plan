@@ -10,6 +10,7 @@ export function PopoverTrigger(props: PopoverPrimitive.Trigger.Props) {
 }
 
 type PopoverContentProps = PopoverPrimitive.Popup.Props &
+  Pick<PopoverPrimitive.Portal.Props, 'keepMounted'> &
   Pick<
     PopoverPrimitive.Positioner.Props,
     | 'align'
@@ -19,6 +20,7 @@ type PopoverContentProps = PopoverPrimitive.Popup.Props &
     | 'anchor'
     | 'collisionAvoidance'
     | 'collisionPadding'
+    | 'positionMethod'
   >
 
 export function PopoverContent({
@@ -29,11 +31,13 @@ export function PopoverContent({
   anchor,
   collisionAvoidance,
   collisionPadding,
+  positionMethod,
+  keepMounted,
   className,
   ...props
 }: PopoverContentProps) {
   return (
-    <PopoverPrimitive.Portal>
+    <PopoverPrimitive.Portal keepMounted={keepMounted}>
       <PopoverPrimitive.Positioner
         data-plan-grab-ignore=""
         className="plan-popover-positioner"
@@ -44,6 +48,7 @@ export function PopoverContent({
         anchor={anchor}
         collisionAvoidance={collisionAvoidance}
         collisionPadding={collisionPadding}
+        positionMethod={positionMethod}
       >
         <PopoverPrimitive.Popup
           data-slot="popover-content"

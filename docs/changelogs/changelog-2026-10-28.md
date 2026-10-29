@@ -179,3 +179,23 @@ A plan step shows its number in a square beside the title, colored for that step
 ### Notes
 
 No registry restart needed. The title bar, dashboard, comments, and approve / decline / message stay. Agents working in this repo also have the Emil Kowalski skills under `.agents/skills`. That install does not change the plan page.
+
+## 1.1.1
+
+**PR:** [#69](https://github.com/marco-calderon/visual-living-plan/pull/69)
+
+**Bump:** patch
+
+### Summary
+
+Plan popups, the form dropdown, the settings disclosure, and save notices use the same overlay components as the comment popover.
+
+### Improvements
+
+- The Plans list and the plan-details card open as popovers anchored to their buttons. Escape and a click outside still close them.
+- A form select opens a list of options instead of the browser's native menu. The submitted value is unchanged.
+- The diff-theme section opens and closes as a collapsible disclosure. Accent, width, and diff-theme saves show a toast at the top left.
+
+### Notes
+
+No registry restart needed.

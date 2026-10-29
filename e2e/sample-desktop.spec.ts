@@ -43,7 +43,8 @@ test('sample plan works on a desktop viewport', async ({ page }) => {
 
     const limits = page.locator('form[data-form-id="limits"]')
     await limits.locator('input[name="max_rps"]').fill('80')
-    await limits.locator('select[name="rollout"]').selectOption('25')
+    await limits.getByRole('combobox', { name: /Initial rollout percentage/ }).click()
+    await page.getByRole('option', { name: '25', exact: true }).click()
     await limits.getByRole('button', { name: 'Submit' }).click()
     await expect(page.locator('[data-state-for="limits"]')).toHaveText('Submitted')
 
@@ -74,29 +75,29 @@ test('sample plan works on a desktop viewport', async ({ page }) => {
     await page.getByRole('button', { name: 'Sky accent' }).click()
     await expect(page.locator('#theme-accent-hex')).toHaveText('#0369a1')
     await expect(page.locator('html')).toHaveAttribute('data-accent', '#0369a1')
-    await expect(page.getByRole('status')).toHaveText('Accent saved')
+    await expect(page.locator('[data-sonner-toast]')).toHaveText('Accent saved')
 
     await expect(page.locator('html')).toHaveAttribute('data-layout', 'centered')
     await page.getByLabel('Full width').check()
     await expect(page.locator('html')).toHaveAttribute('data-layout', 'full')
-    await expect(page.getByRole('status')).toHaveText('Full width on')
+    await expect(page.locator('[data-sonner-toast]')).toHaveText('Full width on')
     await page.getByLabel('Full width').uncheck()
     await expect(page.locator('html')).toHaveAttribute('data-layout', 'centered')
-    await expect(page.getByRole('status')).toHaveText('Centered layout')
+    await expect(page.locator('[data-sonner-toast]')).toHaveText('Centered layout')
   })
 
   await test.step('settings pierre diff theme accordion', async () => {
     await page.getByRole('tab', { name: 'Settings' }).click()
     const toggle = page.locator('#diffs-theme-toggle')
     await expect(page.locator('#diffs-theme-current')).toHaveText('Pierre')
-    await expect(page.locator('[data-accordion]')).toHaveAttribute('data-open', 'false')
+    await expect(page.locator('[data-accordion]')).not.toHaveAttribute('data-open')
     await toggle.click()
-    await expect(page.locator('[data-accordion]')).toHaveAttribute('data-open', 'true')
+    await expect(page.locator('[data-accordion]')).toHaveAttribute('data-open', '')
     await expect(toggle).toHaveAttribute('aria-expanded', 'true')
     await page.getByRole('button', { name: 'Soft theme' }).click()
     await expect(page.locator('html')).toHaveAttribute('data-diffs-theme', 'soft')
     await expect(page.locator('#diffs-theme-current')).toHaveText('Soft')
-    await expect(page.getByRole('status')).toHaveText('Diff theme saved')
+    await expect(page.locator('[data-sonner-toast]')).toHaveText('Diff theme saved')
   })
 
   await test.step('comment on a plan part', async () => {

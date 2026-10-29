@@ -635,6 +635,71 @@ a.plan-step-label:hover {
   border-color: var(--focus);
 }
 
+.plan-select-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 40px;
+  padding: 0.55rem 0.8rem;
+  background: var(--canvas);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.plan-select-trigger:focus-visible {
+  outline: 2px solid var(--focus);
+  border-color: var(--focus);
+}
+.plan-select-trigger:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.plan-select-icon {
+  display: inline-flex;
+  color: var(--muted);
+}
+.plan-select-positioner { z-index: 80; }
+.plan-select-popup {
+  box-sizing: border-box;
+  min-width: var(--anchor-width);
+  max-height: min(16rem, var(--available-height));
+  overflow: auto;
+  padding: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-strong);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  transform-origin: var(--transform-origin);
+}
+.plan-select-popup[data-open] {
+  animation: processes-panel-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.plan-select-popup[data-closed] {
+  animation: processes-panel-out 150ms ease both;
+}
+.plan-select-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  cursor: default;
+  outline: none;
+}
+.plan-select-item[data-highlighted] { background: var(--accent-soft); }
+.plan-select-item[data-selected] { font-weight: 600; }
+.plan-select-indicator {
+  display: inline-flex;
+  color: var(--accent);
+}
+
 .plan-ui textarea { min-height: 88px; resize: vertical; }
 
 .plan-btn {
@@ -840,6 +905,7 @@ a.plan-step-label:hover {
   .plan-panel,
   .plan-box[data-surface="panel"],
   .plan-popover,
+  .plan-select-popup,
   .rf-progress-icon { animation: none; }
   .plan-choice-option,
   .plan-btn { transition: none; }
