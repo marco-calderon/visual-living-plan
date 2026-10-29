@@ -97,3 +97,25 @@ Open questions show the number and the question on the same line. The answer fie
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.4.0
+
+**PR:** (link once known)
+
+**Bump:** minor
+
+### Summary
+
+Checkbox fields use the animated check control. A form of checkboxes or steppers saves as you change it. A text form keeps Submit on the right, then Edit, and submitting again replaces the saved answer.
+
+### New features
+
+- A checkbox uses the animated check control in light and dark. A group still saves the checked options as an array. One box still saves `"true"` or `"false"`.
+- A form made only of checkbox and stepper fields posts on each toggle or step. There is no separate Submit button. The same interaction is replaced in the session and restored after a refresh.
+- A stepper field is a number with decrease and increase buttons.
+- A checkbox list can sit in a row of cards, including inside a callout or stack. The card title is the prompt, with a checked count. See `examples/form-controls.plan.md`.
+- A text form keeps Submit on the right. After submit, Edit unlocks the fields and submitting again replaces the stored response.
+
+### Notes
+
+No registry restart needed beyond the usual version check.

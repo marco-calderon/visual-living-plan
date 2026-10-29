@@ -13,6 +13,10 @@ export const ChoiceContext = createContext<ChoiceContextValue | null>(null)
 export type FormContextValue = {
   disabled: boolean
   values?: Record<string, FormValue>
+  prompt: string
+  titleId?: string
+  immediate: boolean
+  commit: (overrides?: Record<string, FormValue>) => void
 }
 
 export const FormContext = createContext<FormContextValue | null>(null)

@@ -145,3 +145,42 @@ access -> access
   assert.match(html, /type="checkbox"[^>]*name="agree"[^>]*value="true"/)
   assert.doesNotMatch(html, /data-entry="checklist"[^]*type="checkbox"/)
 })
+
+test('a stepper and a checkbox list inside a row stay form interactions', () => {
+  const source = `<Row>
+<form id="prod-switch" prompt="Prod switch">
+<field name="windows" label="Prod switch" type="checkbox" options="Window 1, Window 2" />
+</form>
+<form id="copies" prompt="Copies">
+<field name="copies" label="Copies" type="stepper" default="2" min="1" max="8" step="1" />
+</form>
+</Row>
+<form id="note" prompt="Note">
+<field name="note" label="Note" type="text" />
+<field name="flags" label="Flags" type="checkbox" options="a, b" />
+</form>
+<workflow id="forms" title="Forms">
+\`\`\`workflow
+prod-switch | Prod switch | prod-switch
+--
+prod-switch -> prod-switch
+\`\`\`
+</workflow>
+`
+  const plan = parsePlan(source)
+  assert.deepEqual(plan.interactionIds, ['prod-switch', 'copies', 'note'])
+  const copies = plan.entries?.find((entry) => entry.id === 'copies')
+  assert.equal(copies?.type, 'form')
+  const blocks = plan.blocks.filter((block) => block.type === 'form')
+  const stepper = blocks.find((block) => block.type === 'form' && block.id === 'copies')
+  assert.ok(stepper && stepper.type === 'form')
+  assert.equal(stepper.fields[0]?.type, 'stepper')
+  assert.equal(stepper.fields[0]?.default, 2)
+  assert.equal(stepper.fields[0]?.min, 1)
+  assert.equal(stepper.fields[0]?.max, 8)
+  assert.equal(stepper.fields[0]?.step, 1)
+  const html = renderPlanStaticHtml(source)
+  assert.match(html, /data-field-type="stepper"/)
+  assert.match(html, /aria-label="Increase"/)
+  assert.match(html, /type="checkbox"[^>]*name="windows"/)
+})

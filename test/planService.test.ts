@@ -217,6 +217,56 @@ access -> access
   }
 })
 
+test('submitting a form again replaces the stored response', async () => {
+  const home = await tempHome()
+  const planFile = join(home, 'resubmit.plan.md')
+  await writeFile(
+    planFile,
+    `---
+title: Resubmit
+---
+<form id="note" prompt="Rollout note">
+<field name="note" label="Note" type="text" />
+</form>
+<workflow id="flow" title="Flow">
+\`\`\`workflow
+note | Note | note
+--
+note -> note
+\`\`\`
+</workflow>
+`,
+  )
+  const server = await startRegistryServer({ home, port: 0, token: 'test-token-value' })
+  try {
+    const hosted = await registerHostedPlan(server.url, server.token, {
+      planPath: planFile,
+      mode: 'watch',
+    })
+    const first = await fetch(new URL('api/interactions/note', hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'form', id: 'note', values: { note: 'first' } }),
+    })
+    assert.equal(first.status, 200)
+    const second = await fetch(new URL('api/interactions/note', hosted.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'form', id: 'note', values: { note: 'replaced', copies: 3 } }),
+    })
+    assert.equal(second.status, 200)
+    const plan = (await (await fetch(new URL('api/plan', hosted.url))).json()) as {
+      responses: Record<string, { values?: { note?: string; copies?: number } }>
+    }
+    assert.equal(plan.responses.note?.values?.note, 'replaced')
+    assert.equal(plan.responses.note?.values?.copies, 3)
+    assert.equal(JSON.stringify(plan.responses.note?.values).includes('first'), false)
+  } finally {
+    await server.close()
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
 test('a private server still serves one plan and its agent stream', async () => {
   const server = await startLivingPlanServer({
     planPath,

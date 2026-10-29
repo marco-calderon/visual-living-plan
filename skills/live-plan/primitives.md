@@ -74,15 +74,21 @@ Give every option an `id`. The option body is the description.
 
 ## form
 
-Each `<field>` has `name`, `label`, and `type`: `text` | `number` | `textarea` | `select` | `checkbox`. Anything else becomes `text`.
+Each `<field>` has `name`, `label`, and `type`: `text` | `number` | `textarea` | `select` | `checkbox` | `stepper`. Anything else becomes `text`.
 
-`select` needs `options`, a comma-separated string. `checkbox` uses the same `options` string and renders one box per option. The saved value is an array of the checked option strings, in option order. A checkbox field with no `options` is one box; the saved value is `"true"` or `"false"`. `default` for a checkbox group is a comma-separated list of options that start checked. On a single checkbox, `default="true"` starts checked. `default` on any other field is a string. On a number field it is stored as a number. `placeholder` is optional. `required="true"` or a bare `required` marks the field required. A required checkbox group needs at least one box checked.
+`select` needs `options`, a comma-separated string. `checkbox` uses the same `options` string and renders one box per option. The saved value is an array of the checked option strings, in option order. A checkbox field with no `options` is one box; the saved value is `"true"` or `"false"`. `default` for a checkbox group is a comma-separated list of options that start checked. On a single checkbox, `default="true"` starts checked. `default` on any other field is a string. On a number or stepper field it is stored as a number. `placeholder` is optional. `required="true"` or a bare `required` marks the field required. A required checkbox group on a form that uses Submit needs at least one box checked.
 
-This is not `<checklist>`. Checklist rows are `done` flags in the plan file. A person does not submit them. A checkbox field is a form interaction, saved like text, number, textarea, and select.
+`stepper` is a number with decrease and increase buttons. Optional `min`, `max`, and `step` are numbers. `default` is the starting number. The saved value is a number.
 
-`wait` prints values keyed by `name`. `number` fields come back as numbers. A `checkbox` group comes back as an array of strings. A single checkbox comes back as `"true"` or `"false"`. Other types come back as strings.
+A form whose fields are only `checkbox` and `stepper` saves immediately. Checking a box, or pressing decrease or increase, posts to that form's interaction and replaces the stored values. That form has no Submit button. On a checkbox list, the prompt is the card title. When the field `label` matches the prompt, the title is shown once, with the checked count on the right (`2/6`).
 
-A form can sit inside another plan component, such as a callout or a phase. A field can sit inside a layout component, such as `<VStack>`, inside that form. The response is still the form interaction.
+A form that includes `text`, `number`, `textarea`, or `select` keeps Submit on the right. After it is submitted, Submit is replaced by Edit. Edit unlocks the fields, including checkbox groups, and submitting again replaces the stored response.
+
+This is not `<checklist>`. Checklist rows are `done` flags in the plan file. A person does not submit them. A checkbox field is a form interaction, saved like text, number, textarea, select, and stepper.
+
+`wait` prints values keyed by `name`. `number` and `stepper` fields come back as numbers. A `checkbox` group comes back as an array of strings. A single checkbox comes back as `"true"` or `"false"`. Other types come back as strings. A later submit for the same id replaces `values`.
+
+A form can sit inside another plan component, such as a callout, a phase, `<Stack>`, or `<Row>`. A field can sit inside a layout component, such as `<VStack>`, inside that form. The response is still the form interaction.
 
 ```json
 {
@@ -98,6 +104,27 @@ A form can sit inside another plan component, such as a callout or a phase. A fi
 <field name="window_s" label="Window seconds" type="number" required="true" default="60" />
 <field name="rollout" label="Initial rollout percentage" type="select" required="true" default="5" options="1, 5, 25, 100" />
 <field name="channels" label="Alert channels" type="checkbox" options="email, slack, pager" default="email, slack" />
+</form>
+```
+
+A checkbox list in a row of cards. Each card posts on its own as boxes are checked. There is no Submit button:
+
+```mdx
+<Row>
+<form id="prod-switch" prompt="Prod switch">
+<field name="windows" label="Prod switch" type="checkbox" options="Window 1: budgets live, Window 2: pause the copy" />
+</form>
+<form id="watch" prompt="Watch">
+<field name="checks" label="Watch" type="checkbox" options="Day 1: sample budgets, No unexplained FAILED operation" />
+</form>
+</Row>
+```
+
+A stepper posts when the number changes:
+
+```mdx
+<form id="copies" prompt="Copies">
+<field name="copies" label="Copies" type="stepper" default="2" min="1" max="8" step="1" />
 </form>
 ```
 

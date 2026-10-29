@@ -124,6 +124,9 @@ function staticField(field: FormField): string {
     return `<div class="plan-field" data-field="${name}" data-field-type="checkbox"><span>${escapeHtml(field.label)}</span><div class="plan-checkbox-group">${boxes}</div></div>`
   }
   if (field.type === 'textarea') return `<textarea name="${name}"></textarea>`
+  if (field.type === 'stepper') {
+    return `<div class="plan-field plan-stepper" data-field="${name}" data-field-type="stepper"><span>${escapeHtml(field.label)}</span><button type="button" aria-label="Decrease"></button><input type="number" name="${name}" /><button type="button" aria-label="Increase"></button></div>`
+  }
   if (field.type === 'number') return `<input type="number" name="${name}" />`
   return `<input name="${name}" />`
 }
