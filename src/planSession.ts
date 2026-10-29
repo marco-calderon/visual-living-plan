@@ -434,7 +434,8 @@ export async function openPlanSession(options: {
     if (
       next.accent === theme.accent &&
       next.pageWidth === theme.pageWidth &&
-      next.diffsTheme === theme.diffsTheme
+      next.diffsTheme === theme.diffsTheme &&
+      next.wrapCode === theme.wrapCode
     ) {
       return
     }
@@ -648,13 +649,15 @@ export async function openPlanSession(options: {
       pageWidth?: string
       fullWidth?: boolean
       diffsTheme?: string
+      wrapCode?: boolean
     }
     const hasAccent = payload.accent !== undefined
     const hasPageWidth = payload.pageWidth !== undefined
     const hasFullWidth = payload.fullWidth !== undefined
     const hasDiffsTheme = payload.diffsTheme !== undefined
-    if (!hasAccent && !hasPageWidth && !hasFullWidth && !hasDiffsTheme) {
-      throw new HttpError(400, 'Provide accent, pageWidth, and/or diffsTheme.')
+    const hasWrapCode = payload.wrapCode !== undefined
+    if (!hasAccent && !hasPageWidth && !hasFullWidth && !hasDiffsTheme && !hasWrapCode) {
+      throw new HttpError(400, 'Provide accent, pageWidth, diffsTheme, and/or wrapCode.')
     }
     let accent = theme.accent
     if (hasAccent) {
@@ -678,7 +681,14 @@ export async function openPlanSession(options: {
       }
       diffsTheme = normalizeDiffsTheme(payload.diffsTheme)
     }
-    const view = await applyTheme({ accent, pageWidth, diffsTheme }, true)
+    let wrapCode = theme.wrapCode
+    if (hasWrapCode) {
+      if (typeof payload.wrapCode !== 'boolean') {
+        throw new HttpError(400, 'wrapCode must be true or false.')
+      }
+      wrapCode = payload.wrapCode
+    }
+    const view = await applyTheme({ accent, pageWidth, diffsTheme, wrapCode }, true)
     return { ok: true, theme: view }
   }
 

@@ -93,8 +93,9 @@ test('saveThemeConfig persists pageWidth beside accent and drops fullWidth', asy
     accent: '#0369a1',
     pageWidth: 'full',
     diffsTheme: DEFAULT_DIFFS_THEME,
+    wrapCode: false,
   })
-  assert.deepEqual(saved, { accent: '#0369a1', pageWidth: 'full', diffsTheme: DEFAULT_DIFFS_THEME })
+  assert.deepEqual(saved, { accent: '#0369a1', pageWidth: 'full', diffsTheme: DEFAULT_DIFFS_THEME, wrapCode: false })
   const onDisk = JSON.parse(await readFile(path, 'utf8')) as {
     theme: { accent: string; pageWidth: string; fullWidth?: boolean; diffsTheme: string }
     layout?: unknown
@@ -118,12 +119,51 @@ test('saveThemeConfig persists diffsTheme beside accent', async () => {
     accent: '#0f766e',
     pageWidth: 'default',
     diffsTheme: 'soft',
+    wrapCode: false,
   })
-  assert.deepEqual(saved, { accent: '#0f766e', pageWidth: 'default', diffsTheme: 'soft' })
+  assert.deepEqual(saved, { accent: '#0f766e', pageWidth: 'default', diffsTheme: 'soft', wrapCode: false })
   const onDisk = JSON.parse(await readFile(path, 'utf8')) as {
-    theme: { accent: string; pageWidth: string; diffsTheme: string }
+    theme: { accent: string; pageWidth: string; diffsTheme: string; wrapCode: boolean }
     note?: string
   }
   assert.equal(onDisk.theme.diffsTheme, 'soft')
+  assert.equal(onDisk.theme.wrapCode, false)
   assert.equal(onDisk.note, 'keep')
+})
+
+test('wrapCode defaults off and persists beside the other theme settings', () => {
+  assert.equal(parseThemeConfig({ theme: { accent: '#0369a1' } }).wrapCode, false)
+  assert.equal(parseThemeConfig({ theme: { accent: '#0369a1', wrapCode: true } }).wrapCode, true)
+  assert.equal(parseThemeConfig({ theme: { accent: '#0369a1', wrapCode: 'true' } }).wrapCode, true)
+  assert.equal(parseThemeConfig({ theme: { accent: '#0369a1', wrapCode: false } }).wrapCode, false)
+  assert.equal(parseThemeConfig({ theme: { accent: '#0369a1', wrapCode: 'nope' } }).wrapCode, false)
+  assert.equal(parseThemeConfig({ wrapCode: true, theme: { accent: '#0369a1' } }).wrapCode, true)
+  const payload = themePayload(
+    parseThemeConfig({ theme: { accent: DEFAULT_ACCENT, wrapCode: true } }),
+    'cfg',
+  )
+  assert.equal(payload.wrapCode, true)
+})
+
+test('saveThemeConfig persists wrapCode and drops a top-level twin', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'live-plan-wrap-code-'))
+  const path = join(dir, 'live-plan.config.json')
+  await writeFile(
+    path,
+    `${JSON.stringify({ wrapCode: false, theme: { accent: '#0f766e', note: 'keep' } }, null, 2)}\n`,
+  )
+  const saved = await saveThemeConfig(path, {
+    accent: '#0f766e',
+    pageWidth: 'default',
+    diffsTheme: DEFAULT_DIFFS_THEME,
+    wrapCode: true,
+  })
+  assert.equal(saved.wrapCode, true)
+  const onDisk = JSON.parse(await readFile(path, 'utf8')) as {
+    wrapCode?: boolean
+    theme: { accent: string; wrapCode: boolean; note?: string }
+  }
+  assert.equal(onDisk.wrapCode, undefined)
+  assert.equal(onDisk.theme.wrapCode, true)
+  assert.equal(onDisk.theme.note, 'keep')
 })

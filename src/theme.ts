@@ -52,6 +52,8 @@ export type ThemeConfig = {
   pageWidth: PageWidth
   /** Pierre @pierre/diffs theme family (light/dark pair). */
   diffsTheme: string
+  /** Wrap long lines inside code blocks. Off keeps horizontal scrolling. */
+  wrapCode: boolean
 }
 
 export type ThemeAccentVars = {
@@ -83,7 +85,12 @@ const PRESETS = [
 export const ACCENT_PRESETS = PRESETS
 
 export function defaultThemeConfig(): ThemeConfig {
-  return { accent: DEFAULT_ACCENT, pageWidth: DEFAULT_PAGE_WIDTH, diffsTheme: DEFAULT_DIFFS_THEME }
+  return {
+    accent: DEFAULT_ACCENT,
+    pageWidth: DEFAULT_PAGE_WIDTH,
+    diffsTheme: DEFAULT_DIFFS_THEME,
+    wrapCode: false,
+  }
 }
 
 export function configPathBesidePlan(planPath: string, filename = DEFAULT_CONFIG_FILENAME): string {
@@ -112,6 +119,10 @@ export function normalizeAccent(raw: string | undefined | null): string | null {
     }
   }
   return null
+}
+
+export function readWrapCode(value: unknown): boolean {
+  return value === true || value === 'true' || value === 1 || value === '1'
 }
 
 function parseFullWidth(value: unknown): boolean {
@@ -158,10 +169,12 @@ export function parseThemeConfig(raw: unknown): ThemeConfig {
       : typeof record.diffsTheme === 'string'
         ? record.diffsTheme
         : undefined
+  const wrapCodeRaw = theme.wrapCode !== undefined ? theme.wrapCode : record.wrapCode
   return {
     accent: accent ?? defaults.accent,
     pageWidth: readPageWidth(theme, layout, record),
     diffsTheme: normalizeDiffsTheme(diffsThemeRaw),
+    wrapCode: readWrapCode(wrapCodeRaw),
   }
 }
 
@@ -183,7 +196,12 @@ export async function saveThemeConfig(path: string, config: ThemeConfig): Promis
     throw new Error(`Invalid accent color: ${config.accent}`)
   }
   const diffsTheme = normalizeDiffsTheme(config.diffsTheme)
-  const next: ThemeConfig = { accent, pageWidth: isPageWidth(config.pageWidth) ? config.pageWidth : DEFAULT_PAGE_WIDTH, diffsTheme }
+  const next: ThemeConfig = {
+    accent,
+    pageWidth: isPageWidth(config.pageWidth) ? config.pageWidth : DEFAULT_PAGE_WIDTH,
+    diffsTheme,
+    wrapCode: readWrapCode(config.wrapCode),
+  }
   await mkdir(dirname(absolute), { recursive: true })
   let existing: Record<string, unknown> = {}
   try {
@@ -202,6 +220,7 @@ export async function saveThemeConfig(path: string, config: ThemeConfig): Promis
   delete themeRest.fullWidth
   delete themeRest.pageWidth
   delete themeRest.diffsTheme
+  delete themeRest.wrapCode
   const payload: Record<string, unknown> = {
     ...existing,
     theme: {
@@ -209,6 +228,7 @@ export async function saveThemeConfig(path: string, config: ThemeConfig): Promis
       accent: next.accent,
       pageWidth: next.pageWidth,
       diffsTheme: next.diffsTheme,
+      wrapCode: next.wrapCode,
     },
   }
   // Prefer theme.pageWidth; drop a legacy fullWidth or layout twin if present.
@@ -222,6 +242,7 @@ export async function saveThemeConfig(path: string, config: ThemeConfig): Promis
   delete payload.fullWidth
   delete payload.pageWidth
   delete payload.diffsTheme
+  delete payload.wrapCode
   await writeFile(absolute, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
   return next
 }
@@ -412,6 +433,7 @@ export function themePayload(config: ThemeConfig, configPath: string) {
     accent: config.accent,
     pageWidth: isPageWidth(config.pageWidth) ? config.pageWidth : DEFAULT_PAGE_WIDTH,
     diffsTheme,
+    wrapCode: readWrapCode(config.wrapCode),
     diffsThemePair: { light: diffs.light, dark: diffs.dark },
     configPath,
     presets: PRESETS.map((preset) => ({ ...preset })),
