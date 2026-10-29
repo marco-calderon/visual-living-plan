@@ -57,11 +57,14 @@ export type FormValue = string | number | string[]
 export type FormField = {
   name: string
   label: string
-  type: 'text' | 'number' | 'textarea' | 'select' | 'checkbox'
+  type: 'text' | 'number' | 'textarea' | 'select' | 'checkbox' | 'stepper'
   required?: boolean
   default?: string | number
   options?: string[]
   placeholder?: string
+  min?: number
+  max?: number
+  step?: number
 }
 
 export type ChecklistItem = {

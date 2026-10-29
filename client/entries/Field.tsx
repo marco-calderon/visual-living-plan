@@ -1,5 +1,7 @@
 import { useContext, useId, type ReactNode } from 'react'
+import { Checkbox } from '../ui/checkbox.tsx'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select.tsx'
+import { Stepper } from '../ui/stepper.tsx'
 import { FormContext } from './entryContext'
 import { markEntry } from './planEntry'
 import { cx } from './styles'
@@ -14,6 +16,9 @@ export type FieldProps = {
   default?: string | number
   options?: string[]
   placeholder?: string
+  min?: number
+  max?: number
+  step?: number
   children?: ReactNode
   className?: string
 }
@@ -26,6 +31,9 @@ export function Field({
   default: defaultValue,
   options,
   placeholder,
+  min,
+  max,
+  step,
   children,
   className,
 }: FieldProps) {
@@ -39,24 +47,29 @@ export function Field({
   const labelText = `${label}${required ? ' *' : ''}`
   const choices = options ?? []
 
+  function commitChange(overrides?: Record<string, FormValue>) {
+    form?.commit(overrides)
+  }
+
   if (kind === 'checkbox') {
     const selected = checkedOptions(choices, submitted, defaultValue)
     if (choices.length === 0) {
       return (
         <label className={cx('plan-field', 'plan-checkbox', className)} data-field={name} data-field-type="checkbox">
-          <input
-            type="checkbox"
+          <Checkbox
             name={name}
             value="true"
             defaultChecked={selected.has('true')}
             required={required}
             disabled={disabled}
+            onCheckedChange={() => commitChange()}
           />
           <span>{labelText}</span>
           {children}
         </label>
       )
     }
+    const titledByForm = Boolean(form?.immediate && form.prompt.trim() === label.trim())
     return (
       <div
         className={cx('plan-field', className)}
@@ -65,16 +78,20 @@ export function Field({
         data-checkbox-required={required ? 'true' : undefined}
       >
         <VStack gap="xs">
-          <span id={inputId}>{labelText}</span>
-          <div className="plan-checkbox-group" role="group" aria-labelledby={inputId}>
+          {titledByForm ? null : <span id={inputId}>{labelText}</span>}
+          <div
+            className="plan-checkbox-group"
+            role="group"
+            aria-labelledby={titledByForm ? form?.titleId : inputId}
+          >
             {choices.map((option) => (
               <label key={option} className="plan-checkbox">
-                <input
-                  type="checkbox"
+                <Checkbox
                   name={name}
                   value={option}
                   defaultChecked={selected.has(option)}
                   disabled={disabled}
+                  onCheckedChange={() => commitChange()}
                 />
                 <span>{option}</span>
               </label>
@@ -82,6 +99,26 @@ export function Field({
           </div>
           {children}
         </VStack>
+      </div>
+    )
+  }
+
+  if (kind === 'stepper') {
+    const starting = numericValue(submitted, defaultValue) ?? min ?? 0
+    return (
+      <div className={cx('plan-field', 'plan-stepper', className)} data-field={name} data-field-type="stepper">
+        <label htmlFor={inputId}>{labelText}</label>
+        <Stepper
+          name={name}
+          inputId={inputId}
+          defaultValue={starting}
+          min={min}
+          max={max}
+          step={step}
+          required={required}
+          disabled={disabled}
+          onCommit={(value) => commitChange(value == null ? undefined : { [name]: value })}
+        />
       </div>
     )
   }
@@ -149,6 +186,20 @@ function scalarValue(submitted: FormValue | undefined, fallback: string | number
   if (typeof submitted === 'string' || typeof submitted === 'number') return String(submitted)
   if (fallback !== undefined) return String(fallback)
   return ''
+}
+
+function numericValue(submitted: FormValue | undefined, fallback: string | number | undefined): number | undefined {
+  if (typeof submitted === 'number' && Number.isFinite(submitted)) return submitted
+  if (typeof submitted === 'string' && submitted.trim() !== '') {
+    const numeric = Number(submitted)
+    if (Number.isFinite(numeric)) return numeric
+  }
+  if (typeof fallback === 'number' && Number.isFinite(fallback)) return fallback
+  if (typeof fallback === 'string' && fallback.trim() !== '') {
+    const numeric = Number(fallback)
+    if (Number.isFinite(numeric)) return numeric
+  }
+  return undefined
 }
 
 function checkedOptions(

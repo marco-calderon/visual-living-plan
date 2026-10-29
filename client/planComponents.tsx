@@ -16,11 +16,23 @@ type MdxFieldProps = {
   default?: string | number
   options?: string[] | string
   placeholder?: string
+  min?: number | string
+  max?: number | string
+  step?: number | string
   children?: ReactNode
   className?: string
 }
 
-function MdxField({ options, required, ...props }: MdxFieldProps) {
+function numericProp(value: number | string | undefined): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() !== '') {
+    const numeric = Number(value)
+    if (Number.isFinite(numeric)) return numeric
+  }
+  return undefined
+}
+
+function MdxField({ options, required, min, max, step, ...props }: MdxFieldProps) {
   const list = Array.isArray(options)
     ? options
     : typeof options === 'string'
@@ -30,7 +42,19 @@ function MdxField({ options, required, ...props }: MdxFieldProps) {
           .filter(Boolean)
       : undefined
   const isRequired = required === true || required === 'true' || required === ''
-  return <UiField {...props} options={list} required={isRequired} />
+  const minimum = numericProp(min)
+  const maximum = numericProp(max)
+  const stride = numericProp(step)
+  return (
+    <UiField
+      {...props}
+      options={list}
+      required={isRequired}
+      min={minimum}
+      max={maximum}
+      step={stride}
+    />
+  )
 }
 
 type MdxItemProps = {

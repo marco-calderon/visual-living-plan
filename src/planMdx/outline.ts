@@ -339,7 +339,7 @@ function fieldsOf(node: ElementNode): FormField[] {
     const type = fieldType(str(child.attrs.type))
     const required = child.attrs.required === true || child.attrs.required === 'true' || child.attrs.required === ''
     let fallback = child.attrs.default
-    if (type === 'number' && (typeof fallback === 'string' || typeof fallback === 'number')) {
+    if ((type === 'number' || type === 'stepper') && (typeof fallback === 'string' || typeof fallback === 'number')) {
       const numeric = typeof fallback === 'number' ? fallback : Number(fallback)
       if (fallback !== '' && Number.isFinite(numeric)) fallback = numeric
     }
@@ -351,6 +351,9 @@ function fieldsOf(node: ElementNode): FormField[] {
             .filter(Boolean)
         : undefined
     const placeholder = str(child.attrs.placeholder)
+    const min = numericAttr(child.attrs.min)
+    const max = numericAttr(child.attrs.max)
+    const step = numericAttr(child.attrs.step)
     fields.push({
       name,
       label,
@@ -359,6 +362,9 @@ function fieldsOf(node: ElementNode): FormField[] {
       ...(fallback !== undefined && fallback !== '' ? { default: fallback as string | number } : {}),
       ...(options && options.length > 0 ? { options } : {}),
       ...(placeholder ? { placeholder } : {}),
+      ...(min !== undefined ? { min } : {}),
+      ...(max !== undefined ? { max } : {}),
+      ...(step !== undefined ? { step } : {}),
     })
   })
   return fields
@@ -536,11 +542,21 @@ function fieldType(value: string): FormField['type'] {
     value === 'textarea' ||
     value === 'select' ||
     value === 'checkbox' ||
+    value === 'stepper' ||
     value === 'text'
   ) {
     return value
   }
   return 'text'
+}
+
+function numericAttr(value: string | number | boolean | undefined): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() !== '') {
+    const numeric = Number(value)
+    if (Number.isFinite(numeric)) return numeric
+  }
+  return undefined
 }
 
 function str(value: string | number | boolean | undefined): string {

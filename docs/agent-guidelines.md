@@ -118,7 +118,7 @@ A plan is optional YAML frontmatter, then markdown, plus MDX components. Every i
 | `phase` | Timeline step. `status`: `pending`, `active`, `blocked`, `done`, `failed` | No |
 | `callout` | Highlight. `kind`: `note`, `tip`, `risk`, `decision`, `warning` | No |
 | `choice` | Mutually exclusive options. Each option is an `<option>` | One option |
-| `form` | Named `<field>` elements (`text`, `number`, `textarea`, `select`, `checkbox`) | Field values. A `checkbox` with `options` saves the checked strings as an array |
+| `form` | Named `<field>` elements (`text`, `number`, `textarea`, `select`, `checkbox`, `stepper`) | Field values. A `checkbox` with `options` saves the checked strings as an array. A `stepper` saves a number. Checkbox and stepper forms post on each change. Text forms use Submit, then Edit to replace the saved values |
 | `questions` | Open questions, one `<item>` per question | One answer per item |
 | `approve` | Yes/no gate with an optional note | `approved` plus optional note |
 | `checklist` | Definition of done. Each `<item done="true">` is a row. This is not a checkbox field | No (you update `done`) |

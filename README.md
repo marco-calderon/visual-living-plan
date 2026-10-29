@@ -116,11 +116,11 @@ Visual builders optimize for humans drawing graphs. Living Plan optimizes for **
 
 ## Plan vocabulary
 
-See `examples/rate-limit.plan.md` and `skills/live-plan/primitives.md`. A plan is MDX components.
+See `examples/rate-limit.plan.md`, `examples/form-controls.plan.md`, and `skills/live-plan/primitives.md`. A plan is MDX components.
 
 - `<phase>` — status timeline
 - `<callout>` — note / tip / risk / decision / warning. A callout can contain another component, such as a choice
-- `<choice>` / `<form>` / `<questions>` / `<approve>` — human interactions. Options, fields, and question items are nested components. A form field is `text`, `number`, `textarea`, `select`, or `checkbox`.
+- `<choice>` / `<form>` / `<questions>` / `<approve>` — human interactions. Options, fields, and question items are nested components. A form field is `text`, `number`, `textarea`, `select`, `checkbox`, or `stepper`. Checkbox and stepper forms save on each change. Text forms use Submit, then Edit.
 - `<checklist>` — definition of done. Those done flags stay in the plan file.
 - `<workflow>` — required execution path. The body is a pipe table: `id | label | ref | detail`, then `--`, then `from -> to`. A `workflow` fence may wrap that table. `ref` is the plan block id a click jumps to. The Workflow tab draws this block before the run, and the live run follows it
 - mermaid — a figure in the plan text. Use a fence whose language is `mermaid`, in the plan markdown or inside a phase, callout, or approve component. `<Mermaid>` draws the same figure
