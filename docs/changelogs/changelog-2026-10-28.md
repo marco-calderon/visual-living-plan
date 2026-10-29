@@ -182,6 +182,8 @@ No registry restart needed. The title bar, dashboard, comments, and approve / de
 
 ## 1.1.1
 
+**PR:** [#69](https://github.com/marco-calderon/visual-living-plan/pull/69)
+
 **Bump:** patch
 
 ### Summary
