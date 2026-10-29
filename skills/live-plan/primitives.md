@@ -74,17 +74,21 @@ Give every option an `id`. The option body is the description.
 
 ## form
 
-Each `<field>` has `name`, `label`, and `type`: `text` | `number` | `textarea` | `select`. Anything else becomes `text`.
+Each `<field>` has `name`, `label`, and `type`: `text` | `number` | `textarea` | `select` | `checkbox`. Anything else becomes `text`.
 
-`select` needs `options`, a comma-separated string. `default` is a string. On a number field it is stored as a number. `placeholder` is optional. `required="true"` or a bare `required` marks the field required.
+`select` needs `options`, a comma-separated string. `checkbox` uses the same `options` string and renders one box per option. The saved value is an array of the checked option strings, in option order. A checkbox field with no `options` is one box; the saved value is `"true"` or `"false"`. `default` for a checkbox group is a comma-separated list of options that start checked. On a single checkbox, `default="true"` starts checked. `default` on any other field is a string. On a number field it is stored as a number. `placeholder` is optional. `required="true"` or a bare `required` marks the field required. A required checkbox group needs at least one box checked.
 
-`wait` prints values keyed by `name`. `number` fields come back as numbers; other types come back as strings.
+This is not `<checklist>`. Checklist rows are `done` flags in the plan file. A person does not submit them. A checkbox field is a form interaction, saved like text, number, textarea, and select.
+
+`wait` prints values keyed by `name`. `number` fields come back as numbers. A `checkbox` group comes back as an array of strings. A single checkbox comes back as `"true"` or `"false"`. Other types come back as strings.
+
+A form can sit inside another plan component, such as a callout or a phase. A field can sit inside a layout component, such as `<VStack>`, inside that form. The response is still the form interaction.
 
 ```json
 {
   "kind": "form",
   "id": "limits",
-  "values": { "max_rps": 120, "window_s": 60, "rollout": "5" }
+  "values": { "max_rps": 120, "window_s": 60, "rollout": "5", "channels": ["email", "slack"] }
 }
 ```
 
@@ -93,7 +97,20 @@ Each `<field>` has `name`, `label`, and `type`: `text` | `number` | `textarea` |
 <field name="max_rps" label="Max requests per window" type="number" required="true" default="120" />
 <field name="window_s" label="Window seconds" type="number" required="true" default="60" />
 <field name="rollout" label="Initial rollout percentage" type="select" required="true" default="5" options="1, 5, 25, 100" />
+<field name="channels" label="Alert channels" type="checkbox" options="email, slack, pager" default="email, slack" />
 </form>
+```
+
+The same field composed inside a callout:
+
+```mdx
+<callout id="access" kind="note" title="Access">
+<form id="scopes" prompt="Which scopes should this key have?">
+<VStack>
+<field name="scopes" label="Scopes" type="checkbox" required="true" options="read, write, admin" />
+</VStack>
+</form>
+</callout>
 ```
 
 `name` is the key in `values`. Do not rename it after the form is on screen.

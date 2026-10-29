@@ -531,7 +531,15 @@ function parseExpr(value: string): string | number | boolean {
 }
 
 function fieldType(value: string): FormField['type'] {
-  if (value === 'number' || value === 'textarea' || value === 'select' || value === 'text') return value
+  if (
+    value === 'number' ||
+    value === 'textarea' ||
+    value === 'select' ||
+    value === 'checkbox' ||
+    value === 'text'
+  ) {
+    return value
+  }
   return 'text'
 }
 

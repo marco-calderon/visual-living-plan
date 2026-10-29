@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { parsePlan } from '../src/parse.ts'
+import { renderPlanStaticHtml } from '../src/planMdx/source.ts'
 import { measurePlan } from '../src/planProgress.ts'
 import { workflowRequirementError } from '../src/workflow.ts'
 
@@ -89,4 +90,58 @@ The limiter is active at the gateway.
   assert.equal(plan.blocks[0]?.type, 'callout')
   assert.deepEqual(plan.interactionIds, ['fail-mode'])
   assert.equal(plan.entries?.some((entry) => entry.type === 'choice'), true)
+})
+
+test('a checkbox field stays a form interaction inside layout and a checklist stays file-authored', () => {
+  const source = `<form id="access" prompt="Which access should this key have?">
+<field name="direct" label="Direct" type="checkbox" options="read, write" />
+<VStack>
+<field name="scopes" label="Scopes" type="checkbox" required="true" options="read, write, admin" default="read, write" />
+<field name="agree" label="Remember this key" type="checkbox" default="true" />
+</VStack>
+</form>
+<callout id="note" kind="note" title="Access">
+<form id="scopes" prompt="Scopes inside a callout">
+<VStack>
+<field name="scopes" label="Scopes" type="checkbox" options="read, write, admin" />
+</VStack>
+</form>
+</callout>
+<checklist id="done-when" title="Done when">
+<item done="true">File authored</item>
+<item done="false">Still open</item>
+</checklist>
+<workflow id="flow" title="Flow">
+\`\`\`workflow
+access | Choose access | access
+--
+access -> access
+\`\`\`
+</workflow>
+`
+  const plan = parsePlan(source)
+  const form = plan.blocks.find((block) => block.type === 'form')
+  assert.ok(form && form.type === 'form')
+  assert.equal(form.fields.find((field) => field.name === 'direct')?.type, 'checkbox')
+  const scopes = form.fields.find((field) => field.name === 'scopes')
+  assert.equal(scopes?.type, 'checkbox')
+  assert.equal(scopes?.required, true)
+  assert.equal(scopes?.default, 'read, write')
+  assert.deepEqual(scopes?.options, ['read', 'write', 'admin'])
+  assert.equal(form.fields.find((field) => field.name === 'agree')?.type, 'checkbox')
+  assert.equal(form.fields.find((field) => field.name === 'agree')?.options, undefined)
+
+  const checklist = plan.blocks.find((block) => block.type === 'checklist')
+  assert.ok(checklist && checklist.type === 'checklist')
+  assert.deepEqual(
+    checklist.items.map((item) => item.done),
+    [true, false],
+  )
+  assert.deepEqual(plan.interactionIds, ['access', 'scopes'])
+  assert.equal(plan.interactionIds.includes('done-when'), false)
+
+  const html = renderPlanStaticHtml(source)
+  assert.match(html, /type="checkbox"[^>]*name="scopes"[^>]*value="admin"/)
+  assert.match(html, /type="checkbox"[^>]*name="agree"[^>]*value="true"/)
+  assert.doesNotMatch(html, /data-entry="checklist"[^]*type="checkbox"/)
 })

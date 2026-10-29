@@ -1,4 +1,5 @@
 import { createContext } from 'react'
+import type { FormValue } from './types'
 
 export type ChoiceContextValue = {
   choiceId: string
@@ -11,7 +12,7 @@ export const ChoiceContext = createContext<ChoiceContextValue | null>(null)
 
 export type FormContextValue = {
   disabled: boolean
-  values?: Record<string, string | number>
+  values?: Record<string, FormValue>
 }
 
 export const FormContext = createContext<FormContextValue | null>(null)

@@ -60,3 +60,22 @@ Plan popups, the form dropdown, the settings disclosure, and save notices use th
 ### Notes
 
 No registry restart needed.
+
+## 1.3.0
+
+**PR:** [#71](https://github.com/marco-calderon/visual-living-plan/pull/71)
+
+**Bump:** minor
+
+### Summary
+
+Forms can ask for several checkboxes. Checked values are saved with the plan session and come back after a refresh or a service restart.
+
+### New features
+
+- A `checkbox` field renders one box per option. Submitting the form stores the checked options as an array of strings. A field with no options is one box, saved as `"true"` or `"false"`.
+- The field works inside a form and inside layout or other plan components that compose that form. The checklist block is unchanged: its done flags stay in the plan file.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
