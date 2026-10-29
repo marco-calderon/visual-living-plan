@@ -21,6 +21,7 @@ import type {
   ReviewResult,
   SectionDiff,
 } from './types'
+import { buildPlanToc, renderPlanTocHtml } from './planToc'
 import { planToExpectedGraph, withPlannedWorkflow } from './workflow'
 import { changelogSectionHtml, type ChangelogRelease } from './changelog'
 
@@ -279,6 +280,9 @@ body {
   line-height: 1.5;
   background-color: var(--canvas);
   background-image: none;
+  --shell-width: min(var(--page-column), calc(100% - 2rem));
+  --toc-width: 220px;
+  --toc-gap: 20px;
 }
 
 :root[data-layout="default"],
@@ -288,7 +292,6 @@ body.layout-wide { --page-column: ${PAGE_WIDTH_PX.wide}px; }
 :root[data-layout="full"],
 body.layout-full { --page-column: 100%; }
 .shell {
-  --shell-width: min(var(--page-column), calc(100% - 2rem));
   width: var(--shell-width);
   max-width: 100%;
   min-width: 0;
@@ -300,6 +303,127 @@ body.layout-full { --page-column: 100%; }
 }
 body.has-review-bar .shell {
   padding-bottom: 14rem;
+}
+/* Contents sit in the gutter beside the column. The column width stays --shell-width. */
+.plan-toc {
+  --toc-dock: 0;
+  position: fixed;
+  z-index: 7;
+  top: var(--titlebar-offset);
+  bottom: 0;
+  left: 0;
+  width: min(18rem, calc(100vw - 3rem));
+  margin: 0;
+  padding: var(--space-md) var(--space-sm) var(--space-xl);
+  background: var(--canvas);
+  border-right: 1px solid var(--hairline);
+  box-shadow: var(--shadow-modal);
+  overflow: auto;
+  transform: translateX(-105%);
+  transition: transform 200ms var(--ease-drawer);
+}
+.plan-toc[data-open="true"] { transform: none; }
+.plan-toc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.plan-toc a {
+  display: block;
+  padding: 0.35rem 0.6rem;
+  border-radius: 8px;
+  color: var(--steel);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.4;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.plan-toc a[data-depth="1"] { padding-left: 1.15rem; }
+.plan-toc a[data-depth="2"] { padding-left: 1.7rem; }
+.plan-toc a:hover { color: var(--ink); }
+.plan-toc a[aria-current="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 500;
+}
+.plan-toc a:focus-visible,
+.plan-toc:focus-visible,
+.plan-toc-toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.plan-toc-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: default;
+}
+.plan-toc-backdrop[hidden] { display: none !important; }
+.plan-toc-toggle {
+  position: fixed;
+  z-index: 8;
+  left: 1rem;
+  bottom: 1rem;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: var(--canvas);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+.plan-toc-toggle svg { width: 18px; height: 18px; display: block; }
+body.has-review-bar .plan-toc-toggle { bottom: 5.5rem; }
+:is(h1, h2, h3).plan-ref-focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+/* Default 720px column: dock when the left gutter fits 220px + 20px gap + 12px inset.
+   (viewport - 720) / 2 >= 252 → 1224px. Wide 1120px needs 1624px. Full never docks. */
+@media (min-width: 1224px) {
+  body.layout-default .plan-toc {
+    --toc-dock: 1;
+    top: calc(var(--titlebar-offset) + var(--space-md));
+    bottom: var(--space-md);
+    left: calc((100% - var(--shell-width)) / 2 - var(--toc-width) - var(--toc-gap));
+    width: var(--toc-width);
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    transform: none;
+    z-index: 4;
+  }
+  body.layout-default .plan-toc-toggle,
+  body.layout-default .plan-toc-backdrop { display: none !important; }
+}
+@media (min-width: 1624px) {
+  body.layout-wide .plan-toc {
+    --toc-dock: 1;
+    top: calc(var(--titlebar-offset) + var(--space-md));
+    bottom: var(--space-md);
+    left: calc((100% - var(--shell-width)) / 2 - var(--toc-width) - var(--toc-gap));
+    width: var(--toc-width);
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    transform: none;
+    z-index: 4;
+  }
+  body.layout-wide .plan-toc-toggle,
+  body.layout-wide .plan-toc-backdrop { display: none !important; }
 }
 .stack,
 .tab-panel,
@@ -1610,6 +1734,7 @@ textarea { min-height: 88px; resize: vertical; }
     transform: none;
     transition: opacity 150ms var(--ease-out);
   }
+  .plan-toc { transition: none; }
   :is(.btn, .logo-btn, .tab-btn, .choice-option, .workflow-step, .theme-swatch, .diffs-theme-option, .settings-accordion-trigger, .mermaid-control, .processes-toggle) {
     transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
   }
@@ -1798,6 +1923,7 @@ function clientScript(
       const id = node.getAttribute('data-page-width');
       node.setAttribute('aria-checked', id === currentPageWidth ? 'true' : 'false');
     });
+    syncTocDock();
   }
 
   function applyDiffsTheme(diffsTheme, label) {
@@ -1965,6 +2091,7 @@ function clientScript(
     if (target === 'workflow') {
       requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
     }
+    updateTocCurrent();
   }
 
   document.querySelectorAll('[data-tab-target]').forEach((button) => {
@@ -2076,6 +2203,7 @@ function clientScript(
     activateTab('plan');
     highlightPlanTarget(section);
     scrollToPlanTarget(section, instant);
+    updateTocCurrent();
   }
 
   function pinScroll(x, y) {
@@ -2114,6 +2242,85 @@ function clientScript(
     activateTab('workflow');
     window.livingPlanPendingWorkflowFocus = canonical;
     window.dispatchEvent(new CustomEvent('living-plan-focus-workflow', { detail: { ref: canonical } }));
+    updateTocCurrent();
+  }
+
+  function focusWorkflowPage(options) {
+    const recordHistory = !options || options.recordHistory !== false;
+    if (recordHistory) {
+      const next = new URL(window.location.href);
+      next.hash = '#workflow';
+      const sameEntry = history.state && history.state.livingPlanPage === 'workflow' && location.hash === next.hash;
+      if (sameEntry || jumpDepth > 0) return;
+      jumpDepth += 1;
+      snapshotView();
+      history.pushState({ livingPlanPage: 'workflow' }, '', next);
+      jumpDepth -= 1;
+    }
+    highlightPlanTarget(null);
+    window.livingPlanPendingWorkflowFocus = null;
+    activateTab('workflow');
+  }
+
+  function tocIsDocked() {
+    const nav = document.getElementById('plan-toc');
+    if (!nav) return false;
+    return getComputedStyle(nav).getPropertyValue('--toc-dock').trim() === '1';
+  }
+
+  function setTocOpen(open) {
+    const nav = document.getElementById('plan-toc');
+    const toggle = document.querySelector('[data-toc-toggle]');
+    const backdrop = document.getElementById('plan-toc-backdrop');
+    if (!nav) return;
+    const docked = tocIsDocked();
+    const shown = docked || open;
+    nav.dataset.open = open && !docked ? 'true' : 'false';
+    if (shown) {
+      nav.removeAttribute('inert');
+      nav.removeAttribute('aria-hidden');
+    } else {
+      nav.setAttribute('inert', '');
+      nav.setAttribute('aria-hidden', 'true');
+    }
+    if (toggle) toggle.setAttribute('aria-expanded', open && !docked ? 'true' : 'false');
+    if (backdrop) backdrop.hidden = docked || !open;
+    if (open && !docked) nav.focus();
+    else if (!open && !docked && toggle instanceof HTMLElement && nav.contains(document.activeElement)) toggle.focus();
+  }
+
+  function syncTocDock() {
+    const nav = document.getElementById('plan-toc');
+    if (!nav) return;
+    if (tocIsDocked()) nav.dataset.open = 'false';
+    setTocOpen(nav.dataset.open === 'true');
+  }
+
+  function updateTocCurrent() {
+    const links = [...document.querySelectorAll('#plan-toc a[data-toc]')];
+    if (links.length === 0) return;
+    const tab = currentView().tab;
+    let current = null;
+    if (tab === 'workflow') {
+      const ref = window.livingPlanPendingWorkflowFocus || '';
+      current = links.find((link) => link.getAttribute('data-toc') === 'workflow-step' && link.getAttribute('data-toc-target') === ref)
+        || links.find((link) => link.getAttribute('data-toc') === 'workflow')
+        || null;
+    } else if (tab === 'plan') {
+      const line = window.scrollY + 96;
+      for (const link of links) {
+        if (link.getAttribute('data-toc') !== 'section') continue;
+        const section = findPlanTarget(link.getAttribute('data-toc-target') || '');
+        if (!section) continue;
+        const top = section.getBoundingClientRect().top + window.scrollY;
+        if (top <= line) current = link;
+      }
+      if (!current) current = links.find((link) => link.getAttribute('data-toc') === 'section') || null;
+    }
+    links.forEach((link) => {
+      if (link === current) link.setAttribute('aria-current', 'true');
+      else link.removeAttribute('aria-current');
+    });
   }
 
   function tokenFromAnchor(link) {
@@ -2132,6 +2339,17 @@ function clientScript(
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const target = event.target;
     if (!(target instanceof Element)) return;
+    const tocLink = target.closest('#plan-toc a[data-toc]');
+    if (tocLink) {
+      const kind = tocLink.getAttribute('data-toc');
+      const ref = tocLink.getAttribute('data-toc-target') || '';
+      event.preventDefault();
+      setTocOpen(false);
+      if (kind === 'workflow') focusWorkflowPage();
+      else if (kind === 'workflow-step' && ref) focusWorkflowStep(ref);
+      else if (ref) focusPlanRef(ref);
+      return;
+    }
     const workflowJump = target.closest('[data-workflow-jump]');
     if (workflowJump) {
       if (document.documentElement.dataset.comments === 'on') return;
@@ -2171,12 +2389,17 @@ function clientScript(
       focusPlanRef(state.livingPlanJump, { recordHistory: false, instant: true });
       return;
     }
+    if (state.livingPlanPage === 'workflow' && !(state.livingPlanView && state.livingPlanView.captured)) {
+      focusWorkflowPage({ recordHistory: false });
+      return;
+    }
     if (state.livingPlanView && state.livingPlanView.captured) {
       restoreView(state.livingPlanView);
       if (state.livingPlanView.tab === 'workflow' && state.livingPlanWorkflow) {
         window.livingPlanPendingWorkflowFocus = state.livingPlanWorkflow;
         window.dispatchEvent(new CustomEvent('living-plan-focus-workflow', { detail: { ref: state.livingPlanWorkflow } }));
       }
+      updateTocCurrent();
       return;
     }
     if (state.livingPlanWorkflow) {
@@ -2186,6 +2409,10 @@ function clientScript(
     const workflowRef = workflowRefFromHash(location.hash);
     if (workflowRef) {
       focusWorkflowStep(workflowRef, { recordHistory: false });
+      return;
+    }
+    if (location.hash === '#workflow') {
+      focusWorkflowPage({ recordHistory: false });
       return;
     }
     if (location.hash && findPlanTarget(location.hash)) {
@@ -2210,9 +2437,35 @@ function clientScript(
   const openingWorkflowRef = workflowRefFromHash(location.hash);
   if (openingWorkflowRef) {
     focusWorkflowStep(openingWorkflowRef, { recordHistory: false });
+  } else if (location.hash === '#workflow') {
+    focusWorkflowPage({ recordHistory: false });
   } else if (!interactionsLocked && location.hash && findPlanTarget(location.hash)) {
     focusPlanRef(location.hash, { recordHistory: false, instant: true });
   }
+
+  document.querySelector('[data-toc-toggle]')?.addEventListener('click', () => {
+    const nav = document.getElementById('plan-toc');
+    setTocOpen(nav?.dataset.open !== 'true');
+  });
+  document.getElementById('plan-toc-backdrop')?.addEventListener('click', () => setTocOpen(false));
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    const nav = document.getElementById('plan-toc');
+    if (!nav || nav.dataset.open !== 'true' || tocIsDocked()) return;
+    setTocOpen(false);
+  });
+  window.addEventListener('living-plan-toc', () => updateTocCurrent());
+  let tocScrollTick = 0;
+  window.addEventListener('scroll', () => {
+    if (tocScrollTick) return;
+    tocScrollTick = requestAnimationFrame(() => {
+      tocScrollTick = 0;
+      updateTocCurrent();
+    });
+  }, { passive: true });
+  window.addEventListener('resize', () => syncTocDock());
+  syncTocDock();
+  updateTocCurrent();
 
   async function postJson(url, body) {
     const response = await fetch(url, {
@@ -2466,6 +2719,12 @@ function clientScript(
       const stack = document.querySelector('main.stack');
       document.body.classList.add('plan-live');
       if (nextStack && stack) patchStack(stack, nextStack);
+      const nextToc = parsed.querySelector('#plan-toc-list');
+      const tocList = document.querySelector('#plan-toc-list');
+      if (nextToc && tocList) {
+        tocList.innerHTML = nextToc.innerHTML;
+        window.dispatchEvent(new Event('living-plan-toc'));
+      }
       const nextTitle = parsed.querySelector('h1.brand');
       const title = document.querySelector('h1.brand');
       if (nextTitle && title) title.textContent = nextTitle.textContent || '';
@@ -2658,6 +2917,7 @@ export function renderPlanPage(options: {
     .map((href) => `<link rel="stylesheet" href="${escapeHtml(href)}" />`)
     .join('\n')
   const staticPlan = renderPlanStaticHtml(plan.source)
+  const tocHtml = renderPlanTocHtml(buildPlanToc(plan.source))
   const body = `<div id="plan-mdx-root" data-plan-mdx class="${planMdxHref ? 'plan-mdx-pending' : ''}">${staticPlan}</div>`
 
   const changed = diffs.filter((diff) => diff.status !== 'unchanged').length
@@ -2767,6 +3027,7 @@ export function renderPlanPage(options: {
       ${processesPanelMarkup(selfId)}
     </div>
   </header>
+  ${tocHtml}
   <div class="shell">
     <section class="tab-panel${locked ? ' plan-locked' : ''}" data-tab-panel="plan" role="tabpanel">
       ${

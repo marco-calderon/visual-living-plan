@@ -1,10 +1,11 @@
 import { run } from '@mdx-js/mdx'
-import { Children, isValidElement, useEffect, useState, type ComponentType, type ReactNode } from 'react'
+import { Children, createContext, isValidElement, useContext, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import * as runtime from 'react/jsx-runtime'
 import { fileVersionName, fileVersionSeq, fileVersionText } from '../src/fileVersion.ts'
 import type { PlanSnapshotRecord } from '../src/planSnapshots.ts'
 import { planSourceToMdx } from '../src/planMdx/source.ts'
+import { buildPlanToc, renderTocItemsHtml } from '../src/planToc.ts'
 import type { InteractionResponse } from '../src/types.ts'
 import { planComponents } from './planComponents.tsx'
 import { compilePlanMdx } from './mdx/compilePlanMdx.ts'
@@ -89,6 +90,34 @@ function blockClass(className?: string): string {
   return [className, 'block'].filter(Boolean).join(' ')
 }
 
+type TocCursor = { n: number; ids: string[] }
+
+const TocHeadingCursor = createContext<{ current: TocCursor } | null>(null)
+
+function PlanMarkdownHeading({ level, children }: { level: 1 | 2 | 3; children?: ReactNode }) {
+  const cursor = useContext(TocHeadingCursor)
+  let id: string | undefined
+  if (cursor) {
+    id = cursor.current.ids[cursor.current.n]
+    cursor.current.n += 1
+  }
+  if (level === 1) return <h1 id={id}>{children}</h1>
+  if (level === 2) return <h2 id={id}>{children}</h2>
+  return <h3 id={id}>{children}</h3>
+}
+
+function PlanH1(props: { children?: ReactNode }) {
+  return <PlanMarkdownHeading level={1} {...props} />
+}
+
+function PlanH2(props: { children?: ReactNode }) {
+  return <PlanMarkdownHeading level={2} {...props} />
+}
+
+function PlanH3(props: { children?: ReactNode }) {
+  return <PlanMarkdownHeading level={3} {...props} />
+}
+
 function PlanPre({ children }: { children?: ReactNode }) {
   const child = Children.toArray(children).find((node) => isValidElement<{ className?: string; children?: ReactNode }>(node))
   const className = child && isValidElement<{ className?: string }>(child) ? (child.props.className ?? '') : ''
@@ -108,6 +137,16 @@ function PlanMdxApp() {
   const mdx = planSourceToMdx(boot.source)
   const responses = boot.responses
   const locked = boot.locked
+  const headingIds = useMemo(() => {
+    try {
+      return buildPlanToc(boot.source).flatMap((item) => (item.headingId ? [item.headingId] : []))
+    } catch {
+      return []
+    }
+  }, [boot.source])
+  const tocCursor = useRef<TocCursor>({ n: 0, ids: [] })
+  tocCursor.current.n = 0
+  tocCursor.current.ids = headingIds
 
   useEffect(() => {
     const apply = (next: Partial<Boot>) => setBoot((current) => ({ ...current, ...next }))
@@ -227,6 +266,9 @@ function PlanMdxApp() {
             components={{
               ...planComponents,
               ...components,
+              h1: PlanH1,
+              h2: PlanH2,
+              h3: PlanH3,
               ...(tableModule?.dataTableComponents ?? {}),
             }}
           />,
@@ -264,8 +306,19 @@ function PlanMdxApp() {
     })
   }, [boot.snapshots, boot.headSnapshotId])
 
+  useEffect(() => {
+    const list = document.getElementById('plan-toc-list')
+    if (!list) return
+    try {
+      list.innerHTML = renderTocItemsHtml(buildPlanToc(boot.source))
+      window.dispatchEvent(new Event('living-plan-toc'))
+    } catch {
+      // Keep the server-rendered list when the source cannot be outlined.
+    }
+  }, [boot.source])
+
   return (
-    <>
+    <TocHeadingCursor.Provider value={tocCursor}>
       {error ? (
         <p className="host-error" role="alert" data-plan-error="">
           {error}
@@ -278,7 +331,7 @@ function PlanMdxApp() {
       ) : error ? null : (
         <p data-plan-rendering="">Rendering plan…</p>
       )}
-    </>
+    </TocHeadingCursor.Provider>
   )
 }
 
