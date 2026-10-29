@@ -140,6 +140,15 @@ const STYLES = `
   --accent-2: var(--brand-coral);
   --danger: #d45656;
   --ok: #166534;
+  --toc-done: #22c55e;
+  --toc-progress: #3b82f6;
+  --toc-idle: #a1a1aa;
+  --toc-risk: #f43f5e;
+  --toc-warn: #fb923c;
+  --toc-decision: #f0a090;
+  --toc-info: #3b82f6;
+  --toc-tip: #7c3aed;
+  --toc-muted: #71717a;
   --on-accent: var(--on-primary);
   --shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
   --shadow-modal: 0 12px 16px -4px rgba(36, 36, 36, 0.08);
@@ -224,6 +233,15 @@ const STYLES = `
   --accent-2: #fdba74;
   --danger: #fca5a5;
   --ok: #86efac;
+  --toc-done: #4ade80;
+  --toc-progress: #60a5fa;
+  --toc-idle: #71717a;
+  --toc-risk: #fb7185;
+  --toc-warn: #fdba74;
+  --toc-decision: #f0b8a8;
+  --toc-info: #93c5fd;
+  --toc-tip: #c4b5fd;
+  --toc-muted: #a1a1aa;
   --on-accent: #0c0c0e;
   --shadow: 0 4px 6px rgba(0, 0, 0, 0.28);
   --shadow-modal: 0 12px 16px -4px rgba(0, 0, 0, 0.45);
@@ -332,16 +350,48 @@ body.has-review-bar .shell {
   gap: 2px;
 }
 .plan-toc a {
-  display: block;
-  padding: 0.35rem 0.6rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  padding: 0.35rem 0.45rem;
   border-radius: 8px;
   color: var(--steel);
   font-size: 14px;
   font-weight: 400;
   line-height: 1.4;
   text-decoration: none;
-  overflow-wrap: anywhere;
 }
+.plan-toc-icon {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin-top: 0.15rem;
+  color: var(--toc-muted);
+}
+.plan-toc-icon svg { width: 16px; height: 16px; display: block; }
+.plan-toc-icon > [data-icon] { display: none; }
+.plan-toc a[data-toc-icon="phase-pending"] .plan-toc-icon > [data-icon="phase-pending"],
+.plan-toc a[data-toc-icon="phase-active"] .plan-toc-icon > [data-icon="phase-active"],
+.plan-toc a[data-toc-icon="phase-done"] .plan-toc-icon > [data-icon="phase-done"],
+.plan-toc a[data-toc-icon="phase-blocked"] .plan-toc-icon > [data-icon="phase-blocked"],
+.plan-toc a[data-toc-icon="phase-failed"] .plan-toc-icon > [data-icon="phase-failed"] { display: block; }
+.plan-toc a[data-toc-icon="phase-pending"] .plan-toc-icon { color: var(--toc-idle); }
+.plan-toc a[data-toc-icon="phase-active"] .plan-toc-icon { color: var(--toc-progress); }
+.plan-toc a[data-toc-icon="choice"] .plan-toc-icon,
+.plan-toc a[data-toc-icon="form"] .plan-toc-icon,
+.plan-toc a[data-toc-icon="questions"] .plan-toc-icon { color: var(--toc-info); }
+.plan-toc a[data-toc-icon="phase-done"] .plan-toc-icon,
+.plan-toc a[data-toc-icon="approve"] .plan-toc-icon { color: var(--toc-done); }
+.plan-toc a[data-toc-icon="phase-blocked"] .plan-toc-icon,
+.plan-toc a[data-toc-icon="callout-warning"] .plan-toc-icon { color: var(--toc-warn); }
+.plan-toc a[data-toc-icon="phase-failed"] .plan-toc-icon,
+.plan-toc a[data-toc-icon="callout-risk"] .plan-toc-icon { color: var(--toc-risk); }
+.plan-toc a[data-toc-icon="callout-decision"] .plan-toc-icon { color: var(--toc-decision); }
+.plan-toc a[data-toc-icon="callout-note"] .plan-toc-icon,
+.plan-toc a[data-toc-icon="checklist"] .plan-toc-icon,
+.plan-toc a[data-toc-icon="workflow"] .plan-toc-icon { color: var(--toc-muted); }
+.plan-toc a[data-toc-icon="callout-tip"] .plan-toc-icon { color: var(--toc-tip); }
+.plan-toc-label { min-width: 0; flex: 1; overflow-wrap: anywhere; }
 .plan-toc a[data-depth="1"] { padding-left: 1.15rem; }
 .plan-toc a[data-depth="2"] { padding-left: 1.7rem; }
 .plan-toc a:hover { color: var(--ink); }
@@ -2590,7 +2640,61 @@ function clientScript(
     if (!nav || nav.dataset.open !== 'true' || tocIsDocked()) return;
     setTocOpen(false);
   });
-  window.addEventListener('living-plan-toc', () => updateTocCurrent());
+  const tocStepStatuses = { pending: true, active: true, done: true, blocked: true, failed: true };
+  let tocExecution = null;
+  function readTocExecution() {
+    const node = document.getElementById('living-plan-bootstrap');
+    if (!node || !node.textContent) return null;
+    try { return JSON.parse(node.textContent); } catch { return null; }
+  }
+  function tocProgressNodes(state) {
+    const planned = state && state.planned && Array.isArray(state.planned.nodes) ? state.planned.nodes : [];
+    const live = state && state.graph && Array.isArray(state.graph.nodes) ? state.graph.nodes : [];
+    const liveById = new Map(live.map((node) => [node.id, node]));
+    const seen = new Set();
+    const nodes = [];
+    for (const node of planned) {
+      seen.add(node.id);
+      const overlay = liveById.get(node.id);
+      if (!overlay) {
+        nodes.push(node);
+        continue;
+      }
+      nodes.push({
+        id: node.id,
+        status: overlay.status || node.status,
+        planRef: overlay.planRef || node.planRef,
+      });
+    }
+    for (const node of live) {
+      if (!seen.has(node.id)) nodes.push(node);
+    }
+    return nodes;
+  }
+  function applyTocStepProgress(state) {
+    if (!state) return;
+    const links = document.querySelectorAll('#plan-toc a[data-toc-step]');
+    if (!links.length) return;
+    const byTarget = new Map();
+    for (const node of tocProgressNodes(state)) {
+      const status = node && node.status;
+      if (!status || !tocStepStatuses[status]) continue;
+      if (node.id) byTarget.set(node.id, status);
+      if (node.planRef) byTarget.set(node.planRef, status);
+    }
+    links.forEach((link) => {
+      const status = byTarget.get(link.getAttribute('data-toc-target') || '');
+      if (!status) return;
+      const icon = 'phase-' + status;
+      if (link.getAttribute('data-toc-icon') !== icon) link.setAttribute('data-toc-icon', icon);
+    });
+  }
+  tocExecution = readTocExecution();
+  applyTocStepProgress(tocExecution);
+  window.addEventListener('living-plan-toc', () => {
+    updateTocCurrent();
+    applyTocStepProgress(tocExecution);
+  });
   let tocScrollTick = 0;
   window.addEventListener('scroll', () => {
     if (tocScrollTick) return;
@@ -2855,6 +2959,10 @@ function clientScript(
       const stack = document.querySelector('main.stack');
       document.body.classList.add('plan-live');
       if (nextStack && stack) patchStack(stack, nextStack);
+      const nextBoot = parsed.querySelector('#living-plan-bootstrap');
+      if (nextBoot && nextBoot.textContent) {
+        try { tocExecution = JSON.parse(nextBoot.textContent); } catch {}
+      }
       const nextToc = parsed.querySelector('#plan-toc-list');
       const tocList = document.querySelector('#plan-toc-list');
       if (nextToc && tocList) {
@@ -2914,6 +3022,8 @@ function clientScript(
   source.addEventListener('execution', (event) => {
     try {
       const payload = JSON.parse(event.data);
+      tocExecution = payload;
+      applyTocStepProgress(payload);
       if (Boolean(payload.active) !== interactionsLocked) {
         window.location.reload();
       }
