@@ -30,6 +30,7 @@ export type RenderTheme = {
   pageWidth?: PageWidth
   diffsTheme?: string
   diffsThemes?: DiffsThemePreset[]
+  wrapCode?: boolean
   configPath: string
   presets: Array<{ id: string; label: string; accent: string }>
 }
@@ -899,6 +900,97 @@ body.has-review-bar .plan-toc-toggle { bottom: 5.5rem; }
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+.code-wrap-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 0 1.15rem;
+}
+.code-wrap-copy {
+  min-width: 0;
+}
+.code-wrap-copy h3 {
+  margin: 0;
+}
+.code-wrap-copy .settings-copy {
+  margin: 0.35rem 0 0;
+}
+.code-wrap-control {
+  display: inline-flex;
+  flex: none;
+}
+.plan-switch {
+  --switch-track: #e4e4e7;
+  --switch-thumb: var(--canvas);
+  position: relative;
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  width: 32px;
+  height: 18.4px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--switch-track);
+  color: inherit;
+  cursor: pointer;
+  appearance: none;
+  transition: background-color 150ms ease;
+}
+.plan-switch[data-size="sm"] {
+  width: 24px;
+  height: 14px;
+}
+:root[data-theme="dark"] .plan-switch {
+  --switch-track: #3f3f46;
+  --switch-thumb: var(--ink);
+}
+:root .plan-switch[data-checked],
+:root .plan-switch[aria-checked="true"],
+:root[data-theme="dark"] .plan-switch[data-checked],
+:root[data-theme="dark"] .plan-switch[aria-checked="true"] {
+  --switch-track: var(--primary);
+}
+:root[data-theme="dark"] .plan-switch[data-checked],
+:root[data-theme="dark"] .plan-switch[aria-checked="true"] {
+  --switch-thumb: var(--on-primary);
+}
+.plan-switch[data-disabled],
+.plan-switch[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.plan-switch:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.plan-switch::after {
+  content: "";
+  position: absolute;
+  inset: -8px -12px;
+}
+.plan-switch-thumb {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--switch-thumb);
+  pointer-events: none;
+  transform: translateX(0);
+  transition: transform 150ms var(--ease-out);
+}
+.plan-switch[data-size="sm"] .plan-switch-thumb {
+  width: 12px;
+  height: 12px;
+}
+.plan-switch[data-checked] .plan-switch-thumb,
+.plan-switch[aria-checked="true"] .plan-switch-thumb,
+.plan-switch-thumb[data-checked] {
+  transform: translateX(calc(100% - 2px));
+}
 
 .settings-accordion {
   border: 1px solid var(--line);
@@ -1302,6 +1394,14 @@ body.plan-live .block.change-applied {
   display: block;
   max-width: 100%;
   overflow-x: auto;
+}
+html[data-wrap-code="true"] .code-block:not(.mermaid):not(.mermaid-fallback) {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+html[data-wrap-code="true"] .plan-code {
+  overflow-x: hidden;
 }
 .rich > .code-host:last-child,
 .rich > .code-block:last-child {
@@ -1741,6 +1841,10 @@ textarea { min-height: 88px; resize: vertical; }
   :is(.btn, .logo-btn, .tab-btn, .choice-option, .workflow-step, .theme-swatch, .diffs-theme-option, .settings-accordion-trigger, .mermaid-control, .processes-toggle):active {
     transform: none;
   }
+  .plan-switch,
+  .plan-switch-thumb {
+    transition: none;
+  }
 }
 `
 
@@ -1926,6 +2030,19 @@ function clientScript(
     syncTocDock();
   }
 
+  function applyWrapCode(wrapCode) {
+    const on = wrapCode === true || wrapCode === 'true';
+    document.documentElement.dataset.wrapCode = on ? 'true' : 'false';
+    if (document.documentElement.dataset.codeWrapControl === 'react') return;
+    const control = document.querySelector('[data-code-wrap]');
+    if (!control) return;
+    control.setAttribute('aria-checked', on ? 'true' : 'false');
+    const thumb = control.querySelector('.plan-switch-thumb');
+    if (!thumb) return;
+    if (on) thumb.setAttribute('data-checked', '');
+    else thumb.removeAttribute('data-checked');
+  }
+
   function applyDiffsTheme(diffsTheme, label) {
     currentDiffsTheme = diffsTheme || ${JSON.stringify(DEFAULT_DIFFS_THEME)};
     document.documentElement.dataset.diffsTheme = currentDiffsTheme;
@@ -1962,6 +2079,7 @@ function clientScript(
       const label = selected ? selected.getAttribute('data-diffs-theme-label') : payload.diffsTheme;
       applyDiffsTheme(payload.diffsTheme, label);
     }
+    if (payload.wrapCode !== undefined) applyWrapCode(payload.wrapCode);
     window.dispatchEvent(new CustomEvent('living-plan-theme', { detail: payload }));
   }
 
@@ -1989,6 +2107,7 @@ function clientScript(
     accent: theme.accent,
     pageWidth: theme.pageWidth || 'default',
     diffsTheme: theme.diffsTheme || DEFAULT_DIFFS_THEME,
+    wrapCode: theme.wrapCode === true,
     css: accentCssCustomProperties(theme.accent),
   })});
 
@@ -2022,6 +2141,23 @@ function clientScript(
       }
     });
   }
+
+  document.addEventListener('click', async (event) => {
+    const target = event.target;
+    const button = target instanceof Element ? target.closest('[data-code-wrap]') : null;
+    if (!(button instanceof HTMLElement)) return;
+    if (document.documentElement.dataset.codeWrapControl === 'react') return;
+    const next = document.documentElement.dataset.wrapCode !== 'true';
+    const previous = !next;
+    applyWrapCode(next);
+    try {
+      await putTheme({ wrapCode: next });
+      showToast(next ? 'Code wraps' : 'Code scrolls');
+    } catch (error) {
+      applyWrapCode(previous);
+      showToast(error instanceof Error ? error.message : 'Could not save code wrap');
+    }
+  });
 
   document.querySelectorAll('[data-page-width]').forEach((button) => {
     button.addEventListener('click', async () => {
@@ -2980,8 +3116,9 @@ export function renderPlanPage(options: {
     : [diffsThemePreset(diffsThemeId)]
   const currentDiffs = diffsThemePreset(diffsThemeId)
   const diffsOptions = diffsThemeOptionsMarkup(diffsPresets, currentDiffs.id)
+  const wrapCode = theme.wrapCode === true
   return `<!doctype html>
-<html lang="en" data-accent="${escapeHtml(theme.accent)}" data-layout="${layoutMode}" data-diffs-theme="${escapeHtml(currentDiffs.id)}">
+<html lang="en" data-accent="${escapeHtml(theme.accent)}" data-layout="${layoutMode}" data-diffs-theme="${escapeHtml(currentDiffs.id)}" data-wrap-code="${wrapCode ? 'true' : 'false'}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -3077,6 +3214,24 @@ export function renderPlanPage(options: {
         </section>
         <section class="block settings-section" data-section>
           <div class="settings-kicker">Code &amp; diffs</div>
+          <div class="code-wrap-setting">
+            <div class="code-wrap-copy">
+              <h3 id="code-wrap-label">Wrap text in code</h3>
+              <p class="settings-copy">Long lines wrap inside code blocks, in light and dark. Turn this off to scroll sideways.</p>
+            </div>
+            <button
+              type="button"
+              class="plan-switch"
+              data-size="default"
+              data-code-wrap
+              role="switch"
+              aria-checked="${wrapCode ? 'true' : 'false'}"
+              aria-labelledby="code-wrap-label"
+            >
+              <span class="plan-switch-thumb"${wrapCode ? ' data-checked=""' : ''}></span>
+            </button>
+          </div>
+          <p class="settings-meta">Saved to <code>${escapeHtml(configName)}</code> as <code>theme.wrapCode</code>.</p>
           <h3>Pierre theme</h3>
           <p class="settings-copy">Choose the Pierre syntax theme used for code blocks and diffs. Light and dark samples follow the page color mode.</p>
           <div class="settings-accordion" data-accordion data-open="false">

@@ -291,3 +291,21 @@ The plan has a table of contents on the left. It lists the plan’s sections and
 
 No registry restart needed beyond the usual version check.
 
+## 1.5.8
+
+**PR:** [#83](https://github.com/marco-calderon/visual-living-plan/pull/83)
+
+**Bump:** patch
+
+### Summary
+
+Settings can turn wrapping on or off for text in code blocks. The choice is saved with the accent, page width, and diff theme.
+
+### New features
+
+- A switch in Settings wraps long lines inside code blocks, in light and dark. Off, those lines scroll sideways. The value is stored as `theme.wrapCode`.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
+

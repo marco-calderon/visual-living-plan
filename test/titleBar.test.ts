@@ -144,6 +144,22 @@ test('the logo opens a card; the title sits on the solid bar', () => {
   assert.match(full, /data-page-width="full"[^>]*aria-checked="true"/)
 })
 
+test('settings can turn code wrapping on', () => {
+  const off = page()
+  assert.match(off, /data-wrap-code="false"/)
+  assert.match(off, /id="code-wrap-label">Wrap text in code</)
+  assert.match(off, /data-code-wrap[\s\S]*?aria-checked="false"/)
+  assert.match(off, /theme\.wrapCode/)
+  assert.match(off, /html\[data-wrap-code="true"\] \.code-block:not\(\.mermaid\):not\(\.mermaid-fallback\)/)
+  assert.match(off, /:root\[data-theme="dark"\] \.plan-switch/)
+  assert.match(off, /function applyWrapCode/)
+
+  const on = page(themePayload({ ...defaultThemeConfig(), wrapCode: true }, 'live-plan.config.json'))
+  assert.match(on, /data-wrap-code="true"/)
+  assert.match(on, /data-code-wrap[\s\S]*?aria-checked="true"/)
+  assert.match(on, /plan-switch-thumb" data-checked=""/)
+})
+
 test('pending, review, and changed sections use icons and the logo badge', () => {
   const html = page(undefined, {
     mode: 'review',

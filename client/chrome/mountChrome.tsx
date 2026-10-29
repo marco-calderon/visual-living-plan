@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { toast, Toaster } from 'sonner'
+import { CodeWrapSwitch } from './CodeWrapSwitch.tsx'
 import { PlanDetails } from './PlanDetails.tsx'
 import { PlansMenu } from './PlansMenu.tsx'
 import { SettingsAccordion } from './SettingsAccordion.tsx'
@@ -58,6 +59,17 @@ function mountAccordions() {
   })
 }
 
+function mountCodeWrap() {
+  const host = document.querySelector('[data-code-wrap]')
+  if (!(host instanceof HTMLElement)) return
+  const checked = document.documentElement.dataset.wrapCode === 'true'
+  const slot = document.createElement('span')
+  slot.className = 'code-wrap-control'
+  host.replaceWith(slot)
+  document.documentElement.dataset.codeWrapControl = 'react'
+  createRoot(slot).render(<CodeWrapSwitch initialChecked={checked} />)
+}
+
 function mountToaster() {
   if (document.getElementById('plan-toaster-root')) return
   const legacy = document.getElementById('toast')
@@ -83,4 +95,5 @@ document.documentElement.dataset.planChrome = 'react'
 mountPlans()
 mountPlanDetails()
 mountAccordions()
+mountCodeWrap()
 mountToaster()

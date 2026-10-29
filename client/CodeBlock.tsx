@@ -27,17 +27,39 @@ function useDiffsThemePair(): DiffsThemePair {
   return pair
 }
 
-const appearanceBase = {
-  themeType: 'system' as const,
-  preferredHighlighter: 'shiki-js' as const,
-  overflow: 'scroll' as const,
-  unsafeCSS: `
+function readWrapCode(): boolean {
+  return document.documentElement.dataset.wrapCode === 'true'
+}
+
+function useWrapCode(): boolean {
+  const [wrap, setWrap] = useState(readWrapCode)
+
+  useEffect(() => {
+    const sync = (event?: Event) => {
+      const detail = (event as CustomEvent<{ wrapCode?: boolean }> | undefined)?.detail
+      const next = typeof detail?.wrapCode === 'boolean' ? detail.wrapCode : readWrapCode()
+      setWrap((previous) => (previous === next ? previous : next))
+    }
+    window.addEventListener('living-plan-theme', sync)
+    return () => window.removeEventListener('living-plan-theme', sync)
+  }, [])
+
+  return wrap
+}
+
+function appearance(wrap: boolean) {
+  return {
+    themeType: 'system' as const,
+    preferredHighlighter: 'shiki-js' as const,
+    overflow: wrap ? ('wrap' as const) : ('scroll' as const),
+    unsafeCSS: `
     :host {
       --diffs-font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       --diffs-font-size: 13.5px;
       --diffs-line-height: 22px;
     }
   `,
+  }
 }
 
 export type CodeBlockProps = {
@@ -76,6 +98,7 @@ function renumber(node: HTMLElement, start: number): void {
 export function CodeBlock({ code, language, startingLineNumber, diff = false }: CodeBlockProps) {
   const named = language.trim()
   const theme = useDiffsThemePair()
+  const wrap = useWrapCode()
   const file = useMemo<FileContents>(
     () => ({
       name: named ? `snippet.${named}` : 'snippet',
@@ -87,7 +110,7 @@ export function CodeBlock({ code, language, startingLineNumber, diff = false }: 
   const patch = useMemo(() => patchText(code, named), [code, named])
   const fileOptions = useMemo(
     () => ({
-      ...appearanceBase,
+      ...appearance(wrap),
       theme,
       disableFileHeader: true,
       onPostRender:
@@ -97,18 +120,18 @@ export function CodeBlock({ code, language, startingLineNumber, diff = false }: 
             }
           : undefined,
     }),
-    [startingLineNumber, theme],
+    [startingLineNumber, theme, wrap],
   )
   const diffOptions = useMemo(
     () => ({
-      ...appearanceBase,
+      ...appearance(wrap),
       theme,
       disableFileHeader: false,
       diffStyle: 'unified' as const,
       diffIndicators: 'bars' as const,
       hunkSeparators: 'line-info' as const,
     }),
-    [theme],
+    [theme, wrap],
   )
 
   if (diff) {
