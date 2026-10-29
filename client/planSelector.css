@@ -516,3 +516,54 @@ body.plan-grab-armed .mermaid-diagram.is-maximized .mermaid-control {
     transform: none;
   }
 }
+
+.plan-chrome-contents { display: contents; }
+
+.plan-popover-positioner .plan-popover.plan-card,
+.plan-popover-positioner .plan-popover.processes-panel {
+  position: relative;
+  top: auto;
+  right: auto;
+  left: auto;
+  margin-top: 0;
+}
+
+.plan-popover.plan-card,
+.plan-popover.processes-panel {
+  width: min(29rem, calc(100vw - 2rem));
+  max-width: min(29rem, calc(100vw - 2rem));
+  max-height: min(70vh, 640px);
+  overflow: auto;
+}
+
+.plan-popover.processes-panel {
+  width: min(380px, calc(100vw - 2rem));
+  max-width: min(380px, calc(100vw - 2rem));
+  padding: 0.85rem;
+}
+
+.plan-popover.plan-card {
+  padding: 1rem 1.1rem 0.95rem;
+}
+
+[data-sonner-toaster] {
+  --normal-bg: var(--toast-bg);
+  --normal-text: var(--toast-fg);
+  --normal-border: transparent;
+  font-family: var(--font-body);
+}
+
+[data-sonner-toaster][data-sonner-theme='light'],
+[data-sonner-toaster][data-sonner-theme='dark'] {
+  --normal-bg: var(--toast-bg);
+  --normal-text: var(--toast-fg);
+  --normal-border: transparent;
+}
+
+[data-sonner-toast] {
+  background: var(--toast-bg) !important;
+  color: var(--toast-fg) !important;
+  border-color: transparent !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}

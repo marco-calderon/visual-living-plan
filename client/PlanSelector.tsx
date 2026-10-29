@@ -1,3 +1,4 @@
+import './chrome/mountChrome.tsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { replyArrival, replySurface } from '../src/commentReply.ts'
