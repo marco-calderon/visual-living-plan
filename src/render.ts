@@ -3259,7 +3259,7 @@ export function renderPlanPage(options: {
   const diffsOptions = diffsThemeOptionsMarkup(diffsPresets, currentDiffs.id)
   const wrapCode = theme.wrapCode === true
   return `<!doctype html>
-<html lang="en" data-accent="${escapeHtml(theme.accent)}" data-layout="${layoutMode}" data-diffs-theme="${escapeHtml(currentDiffs.id)}" data-wrap-code="${wrapCode ? 'true' : 'false'}">
+<html lang="en" data-plan-host="local" data-accent="${escapeHtml(theme.accent)}" data-layout="${layoutMode}" data-diffs-theme="${escapeHtml(currentDiffs.id)}" data-wrap-code="${wrapCode ? 'true' : 'false'}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -3319,13 +3319,18 @@ export function renderPlanPage(options: {
     </section>
     <section class="tab-panel" data-tab-panel="workflow" role="tabpanel" hidden>
       <script id="living-plan-bootstrap" type="application/json">${bootstrap}</script>
-      <script>window.__LIVE_PLAN_BASE__ = ${JSON.stringify(basePath)};</script>
+      <script>window.__LIVE_PLAN_BASE__ = ${JSON.stringify(basePath)}; window.__LIVE_PLAN_HOST__ = "local";</script>
       <div id="execution-root">${executionFallback}</div>
       ${assetJs}
     </section>
     <section class="tab-panel" data-tab-panel="settings" role="tabpanel" hidden>
       <main class="settings-stack">
         ${options.changelog ? changelogSectionHtml(options.changelog) : ''}
+        <section class="block settings-section" data-host-panel="local" data-plan-host="local">
+          <div class="settings-kicker">This machine</div>
+          <h3>Local plan</h3>
+          <p class="settings-copy">This plan is on loopback. Appearance stays in the theme file on this machine. An account is not required.</p>
+        </section>
         <section class="block settings-section" data-section>
           <div class="settings-kicker">Appearance</div>
           <h3>Accent color</h3>

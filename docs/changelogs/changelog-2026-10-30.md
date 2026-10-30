@@ -191,3 +191,22 @@ The live-plan skill tells an author that loopback stays the default host, and th
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.6.6
+
+**PR:** [#97](https://github.com/marco-calderon/visual-living-plan/pull/97)
+
+**Bump:** patch
+
+### Summary
+
+A signed-in cloud account has a dashboard. Appearance settings are stored on the host, and a hosted plan page is different from a loopback plan page.
+
+### New features
+
+- `/`, `/review`, and `/dashboard` on the cloud host show the account, its tier, open hosted plans, and appearance settings. Saving writes those settings to D1 for that account.
+- A hosted plan page shows an account settings panel for the owner, and a hosted-plan note for everyone else. A loopback plan keeps the local theme file and does not ask for an account.
+
+### Notes
+
+Redeploy the Worker from `cloud/` and apply D1 migrations so the `user_settings` table exists. No registry restart needed beyond the usual version check.

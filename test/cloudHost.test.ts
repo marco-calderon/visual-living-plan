@@ -7,7 +7,9 @@ import { test } from 'node:test'
 import { Database } from 'bun:sqlite'
 import { fileURLToPath } from 'node:url'
 import { allows, planCapReached } from '../cloud/src/access.ts'
-import { renderHomePage } from '../cloud/src/loginPage.ts'
+import { defaultAccountSettings, mergeAccountSettings, readAccountSettings, saveAccountSettings } from '../cloud/src/accountSettings.ts'
+import { renderDashboard } from '../cloud/src/dashboardPage.ts'
+import { renderCloudPage } from '../cloud/src/page.ts'
 import {
   ackEvents,
   initPlan,
@@ -25,12 +27,110 @@ import { localServiceUrl, rewriteToBindUrl } from '../src/registryClient.ts'
 const entry = fileURLToPath(new URL('../src/cli.ts', import.meta.url))
 
 test('the page after sign-in points back at the terminal', () => {
-  const page = renderHomePage('person@example.com')
+  const page = renderDashboard({
+    email: 'person@example.com',
+    name: 'Person',
+    tier: 'free',
+    settings: defaultAccountSettings(),
+    plans: [{ id: 'plan1234', title: 'Demo', mode: 'watch' }],
+  })
   assert.match(page, /Signed in as person@example.com/)
-  assert.match(page, /live-plan serve/)
+  assert.match(page, /live-plan serve path\/to\/work\.plan\.md --cloud/)
+  assert.match(page, /data-host-panel="cloud"/)
+  assert.match(page, /Save on this host/)
+  assert.match(page, /\/plans\/plan1234\//)
+  assert.doesNotMatch(page, /data-host-panel="local"/)
   assert.match(page, /--canvas:\s*#ffffff/)
   assert.doesNotMatch(page, /#f7f6f3/)
 })
+
+test('a hosted plan and a loopback plan show different panels', () => {
+  const settings = { accent: '#1d4ed8', pageWidth: 'wide' as const, diffsTheme: 'soft', wrapCode: true }
+  const assets = { planMdxHref: null, planMdxCss: [], selectorHref: null, selectorCss: [] }
+  const hosted = renderCloudPage({
+    basePath: '/plans/abc',
+    title: 'Demo',
+    source: '# Demo',
+    mode: 'watch',
+    responses: {},
+    comments: [],
+    review: null,
+    accent: settings.accent,
+    pageWidth: settings.pageWidth,
+    diffsTheme: settings.diffsTheme,
+    wrapCode: settings.wrapCode,
+    owner: true,
+    email: 'person@example.com',
+    settings,
+    assets,
+  })
+  assert.match(hosted, /data-host-panel="cloud"/)
+  assert.match(hosted, /data-layout="wide"/)
+  assert.match(hosted, /__LIVE_PLAN_HOST__ = "cloud"/)
+  assert.doesNotMatch(hosted, /data-host-panel="local"/)
+  const viewer = renderCloudPage({ ...hostedInput(settings, assets), owner: false, email: '' })
+  assert.match(viewer, /does not use this account/)
+  assert.doesNotMatch(viewer, /data-account-settings/)
+})
+
+function hostedInput(
+  settings: { accent: string; pageWidth: 'default' | 'wide' | 'full'; diffsTheme: string; wrapCode: boolean },
+  assets: { planMdxHref: null; planMdxCss: string[]; selectorHref: null; selectorCss: string[] },
+) {
+  return {
+    basePath: '/plans/abc',
+    title: 'Demo',
+    source: '# Demo',
+    mode: 'watch',
+    responses: {},
+    comments: [],
+    review: null,
+    accent: settings.accent,
+    pageWidth: settings.pageWidth,
+    diffsTheme: settings.diffsTheme,
+    wrapCode: settings.wrapCode,
+    owner: true,
+    email: 'person@example.com',
+    settings,
+    assets,
+  }
+}
+
+test('account settings stay on the hosted database', async () => {
+  const db = new Database(':memory:')
+  const saved = await saveAccountSettings(d1Of(db), 'user-1', { accent: '#b45309', pageWidth: 'full', wrapCode: true, diffsTheme: 'nope' })
+  assert.equal(saved.accent, '#b45309')
+  assert.equal(saved.pageWidth, 'full')
+  assert.equal(saved.wrapCode, true)
+  assert.equal(saved.diffsTheme, 'pierre')
+  const again = await readAccountSettings(d1Of(db), 'user-1')
+  assert.deepEqual(again, saved)
+  const kept = mergeAccountSettings(again, { accent: 'not-a-color' })
+  assert.equal(kept.accent, '#b45309')
+})
+
+function d1Of(db: Database): D1Database {
+  return {
+    prepare(sql: string) {
+      const run = (...values: unknown[]) => {
+        const statement = db.query(sql)
+        return {
+          async first<T>() {
+            return (statement.get(...(values as never[])) as T | null) ?? null
+          },
+          async run() {
+            statement.run(...(values as never[]))
+            return { success: true }
+          },
+          async all<T>() {
+            return { results: statement.all(...(values as never[])) as T[] }
+          },
+        }
+      }
+      return { ...run(), bind: (...values: unknown[]) => run(...values) }
+    },
+  } as unknown as D1Database
+}
 
 function sqlOf(db: Database): PlanSql {
   return {

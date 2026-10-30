@@ -218,3 +218,12 @@ test('the description card shows the file version and not a snapshot list', () =
   assert.doesNotMatch(html, /<h2>Snapshots<\/h2>/)
   assert.doesNotMatch(html, /plan-snapshots/)
 })
+
+test('a loopback plan explains that an account is not required', () => {
+  const html = page()
+  assert.match(html, /data-plan-host="local"/)
+  assert.match(html, /data-host-panel="local"/)
+  assert.match(html, /An account is not required/)
+  assert.match(html, /__LIVE_PLAN_HOST__ = "local"/)
+  assert.doesNotMatch(html, /data-host-panel="cloud"/)
+})

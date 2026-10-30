@@ -68,6 +68,6 @@ export function createAuth(env: AuthEnv, baseURL: string) {
 }
 
 export type AuthSession = {
-  user: { id: string; email: string; tier?: Tier | string }
+  user: { id: string; email: string; name?: string; tier?: Tier | string }
   session: { token: string }
 }

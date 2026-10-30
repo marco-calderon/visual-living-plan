@@ -1,3 +1,6 @@
+import { cloudHostPanel, accountSettingsScript } from './dashboardPage'
+import type { AccountSettings } from './accountSettings'
+
 export type CloudPageAssets = {
   planMdxHref: string | null
   planMdxCss: string[]
@@ -23,6 +26,12 @@ export function renderCloudPage(input: {
   comments: unknown
   review: unknown
   accent: string
+  pageWidth: 'default' | 'wide' | 'full'
+  diffsTheme: string
+  wrapCode: boolean
+  owner: boolean
+  email: string
+  settings: AccountSettings
   assets: CloudPageAssets
 }): string {
   const boot = jsonScript({
@@ -43,7 +52,7 @@ export function renderCloudPage(input: {
     ? `<script type="module" src="${escapeHtml(input.assets.selectorHref)}"></script>`
     : ''
   return `<!doctype html>
-<html lang="en">
+<html lang="en" data-plan-host="cloud" data-layout="${escapeHtml(input.pageWidth)}" data-diffs-theme="${escapeHtml(input.diffsTheme)}" data-wrap-code="${input.wrapCode ? 'true' : 'false'}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -65,11 +74,26 @@ export function renderCloudPage(input: {
       font-family: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
     }
     main { max-width: 720px; margin: 0 auto; padding: 40px 20px 96px; }
+    html[data-layout="wide"] main { max-width: 1120px; }
+    html[data-layout="full"] main { max-width: none; }
     .plan-mdx-pending { display: none; }
+    .host-panel { margin: 0 0 24px; padding: 16px; border: 1px solid #e4e4e7; border-radius: 16px; background: #f4f4f5; }
+    .host-panel .kicker { margin: 0 0 8px; letter-spacing: 0.08em; text-transform: uppercase; font-size: 12px; font-weight: 600; color: #1d4ed8; }
+    .host-panel h2 { margin: 0 0 8px; font-size: 20px; }
+    .host-panel p, .host-panel label { font-size: 14px; }
+    .host-panel form { display: grid; gap: 12px; margin: 12px 0; }
+    .host-panel select, .host-panel input[type="color"] { height: 40px; }
+    .host-panel button { height: 40px; border: 0; border-radius: 9999px; padding: 0 24px; background: #09090b; color: #fff; font-weight: 600; }
+    .host-panel a { color: #1d4ed8; font-weight: 600; }
+    @media (prefers-color-scheme: dark) {
+      .host-panel { background: #18181b; border-color: #27272a; }
+      .host-panel button { background: #fafafa; color: #0c0c0e; }
+    }
   </style>
 </head>
-<body data-plan-mode="${escapeHtml(input.mode)}" data-accent="${escapeHtml(input.accent)}">
+<body data-plan-mode="${escapeHtml(input.mode)}" data-plan-host="cloud" data-accent="${escapeHtml(input.accent)}">
   <main>
+    ${cloudHostPanel({ owner: input.owner, email: input.email, settings: input.settings })}
     <section data-tab-panel="plan">
       <div id="plan-mdx-root" class="plan-mdx-pending"></div>
     </section>
@@ -77,7 +101,8 @@ export function renderCloudPage(input: {
   <script type="application/json" id="living-plan-mdx">${boot}</script>
   <script type="application/json" id="living-plan-comments">${jsonScript(input.comments ?? [])}</script>
   <script type="application/json" id="living-plan-review">${jsonScript(input.review ?? null)}</script>
-  <script>window.__LIVE_PLAN_BASE__ = ${JSON.stringify(input.basePath)}; window.__LIVE_PLAN_TRANSPORT__ = "websocket";</script>
+  <script>window.__LIVE_PLAN_BASE__ = ${JSON.stringify(input.basePath)}; window.__LIVE_PLAN_TRANSPORT__ = "websocket"; window.__LIVE_PLAN_HOST__ = "cloud";</script>
+  ${input.owner ? accountSettingsScript() : ''}
   ${planMdx}
   ${selector}
 </body>

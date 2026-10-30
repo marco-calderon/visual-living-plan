@@ -1,10 +1,10 @@
-import { PLAN_CAPS, normalizeTier, planCapReached } from './access'
+import { PLAN_CAPS, allows, normalizeTier, planCapReached } from './access'
+import { defaultAccountSettings, readAccountSettings, saveAccountSettings } from './accountSettings'
 import { createAuth, type AuthSession } from './auth'
-import { renderHomePage, renderLoginPage } from './loginPage'
+import { renderDashboard } from './dashboardPage'
+import { renderLoginPage } from './loginPage'
 import { PlanObject } from './planObject'
 import { renderCloudPage, type CloudPageAssets } from './page'
-import { allows } from './access'
-
 export { PlanObject }
 
 export interface Env {
@@ -35,7 +35,9 @@ export default {
       if (url.pathname === '/api/auth/cli-session') return cliSession(request, auth, url)
       return auth.handler(request)
     }
-    if (url.pathname === '/' || url.pathname === '/review') return signedInHome(request, auth)
+    if (url.pathname === '/api/account' && request.method === 'GET') return accountRead(request, env, auth)
+    if (url.pathname === '/api/account/settings' && request.method === 'PUT') return accountSave(request, env, auth)
+    if (url.pathname === '/' || url.pathname === '/review' || url.pathname === '/dashboard') return accountDashboard(request, env, auth)
     if (url.pathname === '/login') {
       const cli = url.searchParams.get('cli') ?? ''
       if (cli && !isLoopback(cli)) return text(400, 'The sign-in callback must be on this machine.')
@@ -60,10 +62,53 @@ export default {
   },
 }
 
-async function signedInHome(request: Request, auth: ReturnType<typeof createAuth>): Promise<Response> {
+async function accountDashboard(request: Request, env: Env, auth: ReturnType<typeof createAuth>): Promise<Response> {
   const session = await readSession(auth, request)
   if (!session) return Response.redirect(new URL('/login', request.url).toString(), 302)
-  return html(renderHomePage(session.user.email))
+  const settings = await readAccountSettings(env.DB, session.user.id)
+  const plans = await listOpenPlans(env, session.user.id)
+  return html(
+    renderDashboard({
+      email: session.user.email,
+      name: session.user.name || session.user.email,
+      tier: normalizeTier(session.user.tier),
+      settings,
+      plans,
+    }),
+  )
+}
+
+async function accountRead(request: Request, env: Env, auth: ReturnType<typeof createAuth>): Promise<Response> {
+  const session = await readSession(auth, request)
+  if (!session) return text(401, 'Sign in required')
+  const settings = await readAccountSettings(env.DB, session.user.id)
+  return Response.json({
+    user: {
+      id: session.user.id,
+      email: session.user.email,
+      name: session.user.name || session.user.email,
+      tier: normalizeTier(session.user.tier),
+    },
+    settings,
+    plans: await listOpenPlans(env, session.user.id),
+  })
+}
+
+async function accountSave(request: Request, env: Env, auth: ReturnType<typeof createAuth>): Promise<Response> {
+  const session = await readSession(auth, request)
+  if (!session) return text(401, 'Sign in required')
+  const patch = await request.json().catch(() => null)
+  const settings = await saveAccountSettings(env.DB, session.user.id, patch)
+  return Response.json({ settings })
+}
+
+async function listOpenPlans(env: Env, userId: string): Promise<Array<{ id: string; title: string; mode: string }>> {
+  const listed = await env.DB.prepare(
+    'SELECT id, title, mode FROM plans WHERE user_id = ? AND closed_at IS NULL ORDER BY created_at DESC',
+  )
+    .bind(userId)
+    .all<{ id: string; title: string; mode: string }>()
+  return listed.results ?? []
 }
 
 async function cliSession(request: Request, auth: ReturnType<typeof createAuth>, url: URL): Promise<Response> {
@@ -177,6 +222,7 @@ async function forwardPlan(
       theme: { accent?: string } | null
     }
     const assets = await loadAssets(env, request)
+    const settings = account && session ? await readAccountSettings(env.DB, session.user.id) : defaultAccountSettings()
     return html(
       renderCloudPage({
         basePath: `/plans/${planId}`,
@@ -186,7 +232,13 @@ async function forwardPlan(
         responses: view.responses,
         comments: view.comments,
         review: view.review,
-        accent: view.theme?.accent || '#0f766e',
+        accent: account ? settings.accent : view.theme?.accent || '#0f766e',
+        pageWidth: account ? settings.pageWidth : 'default',
+        diffsTheme: account ? settings.diffsTheme : 'pierre',
+        wrapCode: account ? settings.wrapCode : false,
+        owner: account,
+        email: session?.user.email ?? '',
+        settings,
         assets,
       }),
     )
