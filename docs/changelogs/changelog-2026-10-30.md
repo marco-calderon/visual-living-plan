@@ -79,7 +79,7 @@ No registry restart needed beyond the usual version check.
 
 ## 1.5.15
 
-**PR:**
+**PR:** [#91](https://github.com/marco-calderon/visual-living-plan/pull/91)
 
 **Bump:** patch
 
