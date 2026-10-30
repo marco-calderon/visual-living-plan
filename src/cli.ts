@@ -44,6 +44,18 @@ import {
 import { isPidAlive } from './pid'
 import { DEFAULT_REGISTRY_HOST, DEFAULT_REGISTRY_PORT } from './registryConstants'
 import { formatServiceLogLines, isLogDay, listLogs, recordLog, type LogLevel } from './serviceLog'
+import { closeCloudPlan } from './cloudClient'
+import {
+  cloudFlagConflict,
+  prepareCloudPlan,
+  requireCloudAccount,
+  runCloudWatch,
+  signInToCloud,
+  spawnCloudWatch,
+  stopCloudWatch,
+  syncCloudUrl,
+} from './cloudCommand'
+import { cloudCredential, planRecordForUrl, readCloudFile, writeCloudFile } from './cloudStore'
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -99,6 +111,7 @@ Modes:
   addressing  Mark one comment as being reviewed. The page shows Addressing or Working.
   address     Mark one comment answered. The page shows Addressed, or the outcome on a minibar message.
   execution   Start/push/stop the live workflow canvas (locks plan forms while active).
+  account     Sign in to the hosted service. \`account login --url https://host\`.
   theme       Read or write the accent color in live-plan.config.json (or via a running server).
   check       Print plan summary. Exits 1 when the required workflow block is missing.
   processes   List plans hosted by the service. \`ps\` is the same command.
@@ -124,6 +137,8 @@ The machine service keeps running after serve, events, wait, review, dashboard, 
 The printed URL uses that address. On loopback it is http://127.0.0.1:${DEFAULT_REGISTRY_PORT}/plans/<id>/. --host other than loopback is the address a cloud agent shares.
 LAN publishing is off on a fresh install. \`lan on\` listens on all interfaces, advertises living-plan.local, and prints a LAN URL for other devices. \`serve\` and \`review\` still print the loopback plan URL. The CLI dials 127.0.0.1 and does not resolve *.local.
 --token authorizes the agent event stream. Omitted, the local service token is used.
+--cloud hosts the plan on the signed-in service. It does not start the local registry, and it does not fall back to loopback.
+account login stores the session in ~/.config/living-plan/cloud.json. LIVE_PLAN_CLOUD_URL sets the host when --url is omitted.
 `)
 }
 
@@ -182,9 +197,14 @@ async function readJsonFile<T>(path: string): Promise<T> {
   return JSON.parse(await readFile(resolve(path), 'utf8')) as T
 }
 
-async function resolveAgentToken(args: string[]): Promise<string | undefined> {
+async function resolveAgentToken(args: string[], planUrl?: string): Promise<string | undefined> {
   const explicit = getFlag(args, '--token')
   if (explicit) return explicit
+  if (planUrl) {
+    const credential = cloudCredential(await readCloudFile(), planUrl)
+    if (credential?.kind === 'plan') return credential.token
+    if (credential?.kind === 'account') return undefined
+  }
   const lock = await readRegistryLock(defaultRegistryHome())
   return lock?.token
 }
@@ -276,13 +296,25 @@ async function followPlan(url: string, token: string): Promise<number> {
   return listenForSubmissions(url, token)
 }
 
+async function cloudRequestHeaders(url: string, args: string[]): Promise<Record<string, string>> {
+  const credential = cloudCredential(await readCloudFile(), url)
+  if (!credential) return {}
+  const token = await resolveAgentToken(args, url)
+  if (!token) throw new Error('No plan token for that hosted URL. Pass --token, or serve the plan from this machine.')
+  return { authorization: `Bearer ${token}` }
+}
+
 async function putExecution(url: string, body: ExecutionState): Promise<ExecutionState> {
   const planId = planIdFromPlanUrl(url) ?? undefined
   let response: Response
   try {
+    const headers = {
+      'content-type': 'application/json',
+      ...(await cloudRequestHeaders(url, process.argv.slice(2))),
+    }
     response = await fetch(planApiUrl(url, '/api/execution'), {
       method: 'PUT',
-      headers: { 'content-type': 'application/json' },
+      headers,
       body: JSON.stringify(body),
     })
   } catch (error) {
@@ -377,7 +409,50 @@ async function openRegistry(args: string[]): Promise<RegistryLock | null> {
   }
 }
 
+async function cmdCloudServe(file: string, args: string[], mode: 'watch' | 'review'): Promise<number> {
+  const conflict = cloudFlagConflict(true, hasFlag(args, '--no-registry'))
+  if (conflict) {
+    console.error(conflict)
+    return 1
+  }
+  try {
+    const record = await prepareCloudPlan({ planPath: resolve(file), mode })
+    console.log(`Living Plan (${mode}): ${record.url}`)
+    console.log(`Plan file: ${resolve(file)}`)
+    console.log('Hosted plan. The local registry was not started.')
+    await openBrowser(record.url)
+    if (mode === 'watch' && hasFlag(args, '--detach')) {
+      const pid = spawnCloudWatch(fileURLToPath(import.meta.url), record)
+      const stored = await readCloudFile()
+      const current = stored.plans[record.id]
+      if (current) {
+        stored.plans[record.id] = { ...current, watchPid: pid }
+        await writeCloudFile(stored)
+      }
+      console.log(`Events: live-plan events --url ${record.url}`)
+      return 0
+    }
+    const stop = await syncCloudUrl(record.url)
+    try {
+      if (mode === 'review') {
+        const timeoutMs = parseTimeout(getFlag(args, '--timeout'), 4 * 60 * 60 * 1000)
+        const held = await readReviewEvent(record.url, record.token, timeoutMs)
+        await writeReviewOutput(args, held.review)
+        await acknowledgeSubmissions(record.url, record.token, held.eventIds)
+        return reviewExitCode(held.review.decision)
+      }
+      return await followPlan(record.url, record.token)
+    } finally {
+      stop()
+    }
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error)
+    return 1
+  }
+}
+
 async function cmdServe(file: string, args: string[]): Promise<number> {
+  if (hasFlag(args, '--cloud')) return cmdCloudServe(file, args, 'watch')
   await ensureClientBuild()
   const planPath = resolve(file)
   const configPath = getFlag(args, '--config')
@@ -581,6 +656,7 @@ async function privateReview(file: string, args: string[]): Promise<number> {
 
 async function cmdReview(file: string, args: string[]): Promise<number> {
   if (process.env.LIVE_PLAN_REVIEW_HOLD === '1') return holdPrivateReview(file, args)
+  if (hasFlag(args, '--cloud')) return cmdCloudServe(file, args, 'review')
   await ensureClientBuild()
   const iteration = Number(getFlag(args, '--iteration') ?? 1)
   const timeoutMs = parseTimeout(getFlag(args, '--timeout'), 4 * 60 * 60 * 1000)
@@ -622,7 +698,8 @@ async function cmdWait(id: string, args: string[]): Promise<number> {
   }
   const url = await localServiceUrl(published)
   const timeoutMs = parseTimeout(getFlag(args, '--timeout'), 4 * 60 * 60 * 1000)
-  const token = await resolveAgentToken(args)
+  const token = await resolveAgentToken(args, url)
+  const stop = await syncCloudUrl(url)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   let printed = false
@@ -662,6 +739,7 @@ async function cmdWait(id: string, args: string[]): Promise<number> {
     if (!printed && !isAbortError(error)) throw error
   } finally {
     clearTimeout(timer)
+    stop()
   }
   if (!printed) {
     console.error(`Timed out waiting for interaction: ${id}`)
@@ -678,9 +756,14 @@ async function cmdEvents(args: string[]): Promise<number> {
     return 1
   }
   const url = await localServiceUrl(published)
-  const token = await resolveAgentToken(args)
+  const token = await resolveAgentToken(args, url)
   console.error('Listening for the next submission.')
-  return listenForSubmissions(url, token, true)
+  const stop = await syncCloudUrl(url)
+  try {
+    return await listenForSubmissions(url, token, true)
+  } finally {
+    stop()
+  }
 }
 
 async function cmdWatch(args: string[]): Promise<number> {
@@ -690,10 +773,14 @@ async function cmdWatch(args: string[]): Promise<number> {
     return 1
   }
   const url = await localServiceUrl(published)
-  const token = await resolveAgentToken(args)
+  const token = await resolveAgentToken(args, url)
+  const headers = {
+    'content-type': 'application/json',
+    ...(await cloudRequestHeaders(url, args)),
+  }
   const response = await fetch(planApiUrl(url, '/api/mode'), {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers,
     body: JSON.stringify({ mode: 'watch' }),
   })
   if (!response.ok) {
@@ -701,7 +788,12 @@ async function cmdWatch(args: string[]): Promise<number> {
     return 1
   }
   console.error('Watching plan execution. This command stays running. Stop it when execution is finished.')
-  return listenForSubmissions(url, token, false)
+  const stop = await syncCloudUrl(url)
+  try {
+    return await listenForSubmissions(url, token, false)
+  } finally {
+    stop()
+  }
 }
 
 async function cmdMode(args: string[]): Promise<number> {
@@ -716,9 +808,13 @@ async function cmdMode(args: string[]): Promise<number> {
     return 1
   }
   const url = await localServiceUrl(published)
+  const headers = {
+    'content-type': 'application/json',
+    ...(await cloudRequestHeaders(url, args)),
+  }
   const response = await fetch(planApiUrl(url, '/api/mode'), {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers,
     body: JSON.stringify({ mode }),
   })
   if (!response.ok) {
@@ -731,9 +827,13 @@ async function cmdMode(args: string[]): Promise<number> {
 
 async function postPlan(published: string, apiPath: string, body?: unknown): Promise<number> {
   const url = await localServiceUrl(published)
+  const headers: Record<string, string> = {
+    ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+    ...(await cloudRequestHeaders(url, process.argv.slice(2))),
+  }
   const response = await fetch(planApiUrl(url, apiPath), {
     method: 'POST',
-    headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+    headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   if (!response.ok) {
@@ -797,12 +897,27 @@ async function cmdClose(args: string[]): Promise<number> {
     console.error('live-plan close requires --url <plan-url>')
     return 1
   }
+  const stored = await readCloudFile()
+  const hosted = planRecordForUrl(stored, url)
+  if (hosted || cloudCredential(stored, url)) {
+    if (!hosted) {
+      console.error('No plan token for that hosted URL. Pass --token, or serve the plan from this machine.')
+      return 1
+    }
+    const token = (await resolveAgentToken(args, url)) ?? hosted.token
+    await closeCloudPlan(hosted.url, token)
+    stopCloudWatch(hosted.watchPid)
+    delete stored.plans[hosted.id]
+    await writeCloudFile(stored)
+    console.log(`Closed ${url}`)
+    return 0
+  }
   const id = planIdFromPlanUrl(url)
   if (!id) {
     console.error('That URL is not a plan hosted by the service.')
     return 1
   }
-  const token = await resolveAgentToken(args)
+  const token = await resolveAgentToken(args, url)
   if (!token) {
     console.error('No service token found. Pass --token.')
     return 1
@@ -1212,6 +1327,38 @@ async function main(): Promise<number> {
     if (action === 'status') return lanStatus()
     console.error('Usage: live-plan lan <on|off|status>')
     return 1
+  }
+
+  if (command === 'account') {
+    const action = args[1]
+    if (action !== 'login') {
+      console.error('Usage: live-plan account login --url https://host')
+      return 1
+    }
+    const base = getFlag(args, '--url') ?? process.env.LIVE_PLAN_CLOUD_URL
+    if (!base) {
+      console.error('Pass --url https://host or set LIVE_PLAN_CLOUD_URL.')
+      return 1
+    }
+    try {
+      await signInToCloud(base, openBrowser)
+      const account = await requireCloudAccount()
+      console.log(`Signed in to ${account.baseUrl}`)
+      return 0
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : error)
+      return 1
+    }
+  }
+
+  if (command === 'cloud-watch') {
+    const watchUrl = getFlag(args, '--url')
+    if (!watchUrl) {
+      console.error('cloud-watch requires --url')
+      return 1
+    }
+    await runCloudWatch(watchUrl)
+    return 0
   }
 
   if (command === 'theme') {

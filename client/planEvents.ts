@@ -1,7 +1,10 @@
 type PlanEventsWindow = Window & {
   __LIVE_PLAN_BASE__?: string
+  __LIVE_PLAN_TRANSPORT__?: 'sse' | 'websocket'
   /** Shared plan-page EventSource (owned by the inline page script when present). */
   __livingPlanEvents?: EventSource
+  __livingPlanSocket?: WebSocket
+  __livingPlanHub?: EventTarget
   __livingPlanEventsReleaseBound?: boolean
 }
 
@@ -23,8 +26,39 @@ function bindRelease(win: PlanEventsWindow, source: EventSource): void {
   window.addEventListener('beforeunload', release)
 }
 
-function ensurePlanEvents(): EventSource {
+function ensureSocket(): EventTarget {
   const win = window as PlanEventsWindow
+  if (win.__livingPlanHub && win.__livingPlanSocket && win.__livingPlanSocket.readyState !== WebSocket.CLOSED) {
+    return win.__livingPlanHub
+  }
+  const hub = new EventTarget()
+  const http = new URL(apiPath('/api/events'), window.location.href)
+  http.protocol = http.protocol === 'https:' ? 'wss:' : 'ws:'
+  const socket = new WebSocket(http.toString())
+  socket.addEventListener('message', (message) => {
+    try {
+      const parsed = JSON.parse(String(message.data)) as { event?: string; data?: unknown }
+      if (!parsed.event) return
+      const data = typeof parsed.data === 'string' ? parsed.data : JSON.stringify(parsed.data ?? null)
+      hub.dispatchEvent(new MessageEvent(parsed.event, { data }))
+    } catch {
+      // Ignore a frame that is not a plan event.
+    }
+  })
+  const release = () => {
+    if (win.__livingPlanSocket !== socket) return
+    socket.close()
+  }
+  window.addEventListener('pagehide', release)
+  window.addEventListener('beforeunload', release)
+  win.__livingPlanHub = hub
+  win.__livingPlanSocket = socket
+  return hub
+}
+
+function ensurePlanEvents(): EventTarget {
+  const win = window as PlanEventsWindow
+  if (win.__LIVE_PLAN_TRANSPORT__ === 'websocket') return ensureSocket()
   const existing = win.__livingPlanEvents
   if (existing && existing.readyState !== EventSource.CLOSED) {
     bindRelease(win, existing)
