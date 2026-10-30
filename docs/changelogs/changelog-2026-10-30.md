@@ -116,7 +116,7 @@ No registry restart needed beyond the usual version check. Deploying the Worker 
 
 ## 1.6.2
 
-**PR:** (link once known)
+**PR:** [#94](https://github.com/marco-calderon/visual-living-plan/pull/94)
 
 **Bump:** patch
 
