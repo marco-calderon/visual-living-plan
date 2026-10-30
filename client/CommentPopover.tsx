@@ -5,7 +5,7 @@ import { CommentProgress } from './CommentProgress.tsx'
 import { CommentReply } from './CommentReply.tsx'
 import type { PlanPartElement } from './planParts.ts'
 import { Bubble, BubbleContent } from './ui/Bubble.tsx'
-import { isSendShortcut } from './ui/Kbd.tsx'
+import { isSendShortcut, SendShortcut } from './ui/Kbd.tsx'
 import { Message, MessageContent, MessageFooter } from './ui/Message.tsx'
 import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle } from './ui/Popover.tsx'
 import { Textarea } from './ui/Textarea.tsx'
@@ -146,9 +146,12 @@ export function CommentPopover({
             onKeyDown={onDraftKeyDown}
           />
           {error ? <p className="plan-comment-error">{error}</p> : null}
-          <button type="submit" className="btn primary" disabled={sending || draft.trim().length === 0}>
-            {sending ? 'Sending' : 'Send message'}
-          </button>
+          <div className="plan-comment-submit">
+            <SendShortcut />
+            <button type="submit" className="btn primary" disabled={sending || draft.trim().length === 0}>
+              {sending ? 'Sending' : 'Send message'}
+            </button>
+          </div>
         </form>
       </PopoverContent>
     </Popover>
