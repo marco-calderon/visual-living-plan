@@ -8,7 +8,9 @@ import { Database } from 'bun:sqlite'
 import { fileURLToPath } from 'node:url'
 import { allows, planCapReached } from '../cloud/src/access.ts'
 import { defaultAccountSettings, mergeAccountSettings, readAccountSettings, saveAccountSettings } from '../cloud/src/accountSettings.ts'
-import { renderDashboard } from '../cloud/src/dashboardPage.ts'
+import { cloudAccountRoute, renderAccountPage, renderPlansDashboard, renderSettingsPage } from '../cloud/src/dashboardPage.ts'
+import { hostedDashboard } from '../cloud/src/hostedDashboard.ts'
+import { PLAN_VERSION_LIMIT, publishPlanVersion, readPlanVersion } from '../cloud/src/planVersions.ts'
 import { renderCloudPage } from '../cloud/src/page.ts'
 import {
   ackEvents,
@@ -20,28 +22,48 @@ import {
   type PlanSql,
 } from '../cloud/src/planRoom.ts'
 import { uploadSource } from '../src/cloudClient.ts'
+import { renderDashboardPage } from '../src/dashboardPage.ts'
 import { cloudIdInSource, sourceWithCloudId } from '../src/cloudFrontmatter.ts'
 import { readRegistryLock, type RegistryLock } from '../src/registryLock.ts'
 import { localServiceUrl, rewriteToBindUrl } from '../src/registryClient.ts'
 
 const entry = fileURLToPath(new URL('../src/cli.ts', import.meta.url))
 
-test('the page after sign-in points back at the terminal', () => {
-  const page = renderDashboard({
-    email: 'person@example.com',
-    name: 'Person',
-    tier: 'free',
-    settings: defaultAccountSettings(),
-    plans: [{ id: 'plan1234', title: 'Demo', mode: 'watch' }],
-  })
-  assert.match(page, /Signed in as person@example.com/)
-  assert.match(page, /live-plan serve path\/to\/work\.plan\.md --cloud/)
-  assert.match(page, /data-host-panel="cloud"/)
-  assert.match(page, /Save on this host/)
-  assert.match(page, /\/plans\/plan1234\//)
-  assert.doesNotMatch(page, /data-host-panel="local"/)
-  assert.match(page, /--canvas:\s*#ffffff/)
-  assert.doesNotMatch(page, /#f7f6f3/)
+test('signed-in cloud pages split the dashboard, account, and settings', () => {
+  const account = renderAccountPage({ email: 'person@example.com', name: 'Person', tier: 'free' })
+  assert.match(account, /<h1>Account<\/h1>/)
+  assert.match(account, /Signed in as person@example.com/)
+  assert.match(account, /live-plan serve path\/to\/work\.plan\.md --cloud/)
+  assert.match(account, /data-host-panel="cloud"/)
+  assert.doesNotMatch(account, /Save on this host/)
+  assert.doesNotMatch(account, /data-host-panel="local"/)
+  assert.match(account, /--canvas:\s*#ffffff/)
+  assert.doesNotMatch(account, /#f7f6f3/)
+
+  const settings = renderSettingsPage(defaultAccountSettings())
+  assert.match(settings, /<h1>Settings<\/h1>/)
+  assert.match(settings, /Save on this host/)
+  assert.doesNotMatch(settings, /<h1>Account<\/h1>/)
+
+  const dashboard = renderPlansDashboard()
+  assert.match(dashboard, /<h1>Control dashboard<\/h1>/)
+  assert.match(dashboard, /data-period="day"/)
+  assert.match(dashboard, /data-filter="running"/)
+  assert.match(dashboard, /data-filter="executed"/)
+  assert.match(dashboard, /data-filter="interrupted"/)
+  assert.match(dashboard, /\/api\/account\/dashboard/)
+  assert.match(dashboard, /data-plan-host="cloud"/)
+  assert.match(dashboard, /href="\/account"/)
+  assert.match(dashboard, /href="\/settings"/)
+  assert.doesNotMatch(dashboard, /Save on this host/)
+
+  assert.equal(cloudAccountRoute('/dashboard'), 'dashboard')
+  assert.equal(cloudAccountRoute('/dashboard/'), 'dashboard')
+  assert.equal(cloudAccountRoute('/account'), 'account')
+  assert.equal(cloudAccountRoute('/settings/'), 'settings')
+  assert.equal(cloudAccountRoute('/review'), 'redirect')
+  assert.equal(cloudAccountRoute('/'), 'redirect')
+  assert.equal(cloudAccountRoute('/plans/plan1234/'), null)
 })
 
 test('a hosted plan and a loopback plan show different panels', () => {
@@ -67,6 +89,8 @@ test('a hosted plan and a loopback plan show different panels', () => {
   assert.match(hosted, /data-host-panel="cloud"/)
   assert.match(hosted, /data-layout="wide"/)
   assert.match(hosted, /__LIVE_PLAN_HOST__ = "cloud"/)
+  assert.match(hosted, /href="\/settings"/)
+  assert.doesNotMatch(hosted, /data-account-settings/)
   assert.doesNotMatch(hosted, /data-host-panel="local"/)
   const viewer = renderCloudPage({ ...hostedInput(settings, assets), owner: false, email: '' })
   assert.match(viewer, /does not use this account/)
@@ -95,6 +119,82 @@ function hostedInput(
     assets,
   }
 }
+
+test('a published cloud plan keeps the latest 10 documents', async () => {
+  const db = new Database(':memory:')
+  db.exec(await readFile(new URL('../cloud/migrations/0003_plan_versions.sql', import.meta.url), 'utf8'))
+  const store = d1Of(db)
+  for (let n = 1; n <= PLAN_VERSION_LIMIT + 1; n += 1) {
+    const saved = await publishPlanVersion(store, {
+      planId: 'plan1234',
+      userId: 'user-1',
+      title: 'Demo',
+      source: `# v${n}\n`,
+      now: n,
+    })
+    assert.equal(saved.stored, true)
+    assert.equal(saved.seq, n)
+  }
+  const same = await publishPlanVersion(store, {
+    planId: 'plan1234',
+    userId: 'user-1',
+    title: 'Demo',
+    source: `# v${PLAN_VERSION_LIMIT + 1}\n`,
+  })
+  assert.equal(same.stored, false)
+  assert.equal(same.seq, PLAN_VERSION_LIMIT + 1)
+  const renamed = await publishPlanVersion(store, {
+    planId: 'plan1234',
+    userId: 'user-1',
+    title: 'Renamed',
+    source: `# v${PLAN_VERSION_LIMIT + 1}\n`,
+    now: 20,
+  })
+  assert.equal(renamed.stored, true)
+  assert.equal(renamed.seq, PLAN_VERSION_LIMIT + 2)
+  assert.equal(await readPlanVersion(store, 'plan1234', 1), null)
+  assert.equal(await readPlanVersion(store, 'plan1234', 2), null)
+  const kept = await readPlanVersion(store, 'plan1234', 3)
+  assert.equal(kept?.source, '# v3\n')
+  const latest = await readPlanVersion(store, 'plan1234', 'latest')
+  assert.equal(latest?.seq, PLAN_VERSION_LIMIT + 2)
+  assert.equal(latest?.title, 'Renamed')
+  const count = db.query('SELECT COUNT(*) AS n FROM plan_versions').get() as { n: number }
+  assert.equal(count.n, PLAN_VERSION_LIMIT)
+})
+
+test('the hosted dashboard lists a stored plan the way the local dashboard does', () => {
+  const now = Date.UTC(2026, 9, 30, 18, 0, 0)
+  const payload = hostedDashboard(
+    [
+      {
+        id: 'plan1234',
+        title: 'Demo',
+        mode: 'watch',
+        closed_at: null,
+        created_at: now - 60_000,
+        version_seq: 3,
+        version_title: 'Demo',
+        version_at: now - 1000,
+      },
+    ],
+    'day',
+    'https://plans.example',
+    now,
+  )
+  assert.equal(payload.summary.running, 1)
+  assert.equal(payload.summary.executed, 0)
+  assert.equal(payload.plans[0]?.status, 'running')
+  assert.equal(payload.plans[0]?.executionStep, 'version 3')
+  assert.equal(payload.plans[0]?.directory, '/plans/plan1234/')
+  const plan = payload.plans[0] as { fileUrl?: string; historyUrl?: string }
+  assert.equal(plan.fileUrl, '/plans/plan1234/document')
+  assert.equal(plan.historyUrl, '/plans/plan1234/history')
+  const local = renderDashboardPage()
+  assert.match(local, /registry's plans folder/)
+  assert.match(local, /const apiPath = "\/api\/dashboard"/)
+  assert.doesNotMatch(local, /api\/account\/dashboard/)
+})
 
 test('account settings stay on the hosted database', async () => {
   const db = new Database(':memory:')

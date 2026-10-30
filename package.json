@@ -1,6 +1,6 @@
 {
   "name": "visual-living-plan",
-  "version": "1.6.6",
+  "version": "1.6.7",
   "description": "Agent-authored living plans with human interaction, live updates, and a swappable execution canvas",
   "type": "module",
   "bin": {

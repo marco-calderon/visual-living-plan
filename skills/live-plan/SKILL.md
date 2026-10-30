@@ -44,7 +44,7 @@ live-plan serve path/to/work.plan.md --cloud
 live-plan review path/to/work.plan.md --cloud
 ```
 
-`bunx visual-living-plan` is the same program when `live-plan` is not installed. `account login` opens a browser and stores the session in `~/.config/living-plan/cloud.json`. `LIVE_PLAN_CLOUD_URL` supplies the host when `--url` is omitted. `serve --cloud` and `review --cloud` print an https URL, write `cloudId` into the plan frontmatter, and keep the plan bearer in `cloud.json`. They do not start the local registry, and they do not fall back to loopback. Do not combine `--cloud` with `--no-registry`. Use that https URL with `events`, `wait`, `watch`, `mode`, `execution`, `addressing`, `reply`, `address`, and `close`. `dashboard`, `tui`, `logs`, and `lan` stay on this machine.
+`bunx visual-living-plan` is the same program when `live-plan` is not installed. `account login` opens a browser and stores the session in `~/.config/living-plan/cloud.json`. `LIVE_PLAN_CLOUD_URL` supplies the host when `--url` is omitted. `serve --cloud` and `review --cloud` print an https URL, write `cloudId` into the plan frontmatter, and keep the plan bearer in `cloud.json`. They do not start the local registry, and they do not fall back to loopback. Do not combine `--cloud` with `--no-registry`. Use that https URL with `events`, `wait`, `watch`, `mode`, `execution`, `addressing`, `reply`, `address`, and `close`. `dashboard`, `tui`, `logs`, and `lan` stay on this machine. Each upload from `serve --cloud`, `review --cloud`, or the file watcher publishes that plan document on the host. The host keeps the latest 10 versions and drops the oldest when an 11th is published. Loopback publish stays on this machine.
 
 ## When to use
 

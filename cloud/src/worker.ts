@@ -1,7 +1,15 @@
 import { PLAN_CAPS, allows, normalizeTier, planCapReached } from './access'
 import { defaultAccountSettings, readAccountSettings, saveAccountSettings } from './accountSettings'
 import { createAuth, type AuthSession } from './auth'
-import { renderDashboard } from './dashboardPage'
+import {
+  cloudAccountRoute,
+  renderAccountPage,
+  renderPlansDashboard,
+  renderSettingsPage,
+  renderVersionHistory,
+} from './dashboardPage'
+import { hostedDashboard, type HostedPlanRow } from './hostedDashboard'
+import { listPlanVersions, publishPlanVersion, readPlanVersion } from './planVersions'
 import { renderLoginPage } from './loginPage'
 import { PlanObject } from './planObject'
 import { renderCloudPage, type CloudPageAssets } from './page'
@@ -37,7 +45,16 @@ export default {
     }
     if (url.pathname === '/api/account' && request.method === 'GET') return accountRead(request, env, auth)
     if (url.pathname === '/api/account/settings' && request.method === 'PUT') return accountSave(request, env, auth)
-    if (url.pathname === '/' || url.pathname === '/review' || url.pathname === '/dashboard') return accountDashboard(request, env, auth)
+    if (url.pathname === '/api/account/dashboard' && request.method === 'GET') return accountDashboardApi(request, env, auth, origin)
+    const surface = cloudAccountRoute(url.pathname)
+    if (surface === 'redirect') return Response.redirect(new URL('/dashboard', request.url).toString(), 302)
+    if (surface === 'dashboard') return signedInHtml(request, env, auth, () => renderPlansDashboard())
+    if (surface === 'account') return signedInHtml(request, env, auth, (session) => renderAccountPage({
+      email: session.user.email,
+      name: session.user.name || session.user.email,
+      tier: normalizeTier(session.user.tier),
+    }))
+    if (surface === 'settings') return signedInHtml(request, env, auth, async (session) => renderSettingsPage(await readAccountSettings(env.DB, session.user.id)))
     if (url.pathname === '/login') {
       const cli = url.searchParams.get('cli') ?? ''
       if (cli && !isLoopback(cli)) return text(400, 'The sign-in callback must be on this machine.')
@@ -58,24 +75,47 @@ export default {
     const rest = planMatch[2] ?? '/'
     if (rest === '/share' && request.method === 'GET') return sharePlan(request, env, auth, origin, planId)
     if (rest.startsWith('/view/')) return acceptViewer(request, env, planId, rest.slice('/view/'.length))
+    if (rest === '/document' && request.method === 'GET') return planDocument(request, env, auth, planId, 'latest')
+    if (rest === '/history' && request.method === 'GET') return planHistory(request, env, auth, planId)
+    const versionMatch = /^\/versions\/(\d+)$/.exec(rest)
+    if (versionMatch && request.method === 'GET') return planDocument(request, env, auth, planId, Number(versionMatch[1]))
     return forwardPlan(request, env, auth, planId, rest)
   },
 }
 
-async function accountDashboard(request: Request, env: Env, auth: ReturnType<typeof createAuth>): Promise<Response> {
+async function signedInHtml(
+  request: Request,
+  env: Env,
+  auth: ReturnType<typeof createAuth>,
+  render: (session: AuthSession) => string | Promise<string>,
+): Promise<Response> {
   const session = await readSession(auth, request)
   if (!session) return Response.redirect(new URL('/login', request.url).toString(), 302)
-  const settings = await readAccountSettings(env.DB, session.user.id)
-  const plans = await listOpenPlans(env, session.user.id)
-  return html(
-    renderDashboard({
-      email: session.user.email,
-      name: session.user.name || session.user.email,
-      tier: normalizeTier(session.user.tier),
-      settings,
-      plans,
-    }),
+  return html(await render(session))
+}
+
+async function accountDashboardApi(
+  request: Request,
+  env: Env,
+  auth: ReturnType<typeof createAuth>,
+  origin: string,
+): Promise<Response> {
+  const session = await readSession(auth, request)
+  if (!session) return text(401, 'Sign in required')
+  const period = new URL(request.url).searchParams.get('period')
+  const selected = period === 'week' || period === 'month' ? period : 'day'
+  const listed = await env.DB.prepare(
+    `SELECT p.id, p.title, p.mode, p.closed_at, p.created_at,
+            v.seq AS version_seq, v.title AS version_title, v.created_at AS version_at
+     FROM plans p
+     LEFT JOIN plan_versions v ON v.plan_id = p.id
+       AND v.seq = (SELECT MAX(seq) FROM plan_versions WHERE plan_id = p.id)
+     WHERE p.user_id = ?
+     ORDER BY p.created_at DESC`,
   )
+    .bind(session.user.id)
+    .all<HostedPlanRow>()
+  return Response.json(hostedDashboard(listed.results ?? [], selected, origin))
 }
 
 async function accountRead(request: Request, env: Env, auth: ReturnType<typeof createAuth>): Promise<Response> {
@@ -167,6 +207,12 @@ async function registerPlan(request: Request, env: Env, auth: ReturnType<typeof 
   )
   if (!init.ok) return text(init.status, await init.text())
   const payload = (await init.json()) as { revision?: number }
+  await publishPlanVersion(env.DB, {
+    planId: cloudId,
+    userId: session.user.id,
+    title,
+    source: body.markdown ?? '',
+  })
   return Response.json({
     plan: { id: cloudId, url: `${origin}/plans/${cloudId}/`, token, mode },
     revision: payload.revision ?? 0,
@@ -250,7 +296,72 @@ async function forwardPlan(
     await env.DB.prepare('UPDATE plans SET closed_at = ? WHERE id = ?').bind(Date.now(), planId).run()
     return Response.json({ ok: true })
   }
+  if (request.method === 'PUT' && (rest === '/source' || rest === '/source/')) {
+    return publishSource(request, env, planId, actor)
+  }
   return planFetch(env, planId, request, rest || '/', actor)
+}
+
+async function publishSource(request: Request, env: Env, planId: string, actor: string): Promise<Response> {
+  const raw = await request.text()
+  let body: { markdown?: unknown; title?: unknown }
+  try {
+    body = JSON.parse(raw) as { markdown?: unknown; title?: unknown }
+  } catch {
+    return text(400, 'Missing plan')
+  }
+  const forwarded = await planFetch(
+    env,
+    planId,
+    new Request(request.url, { method: 'PUT', headers: request.headers, body: raw }),
+    '/source',
+    actor,
+  )
+  if (!forwarded.ok || typeof body.markdown !== 'string') return forwarded
+  const row = await env.DB.prepare('SELECT user_id, title FROM plans WHERE id = ?')
+    .bind(planId)
+    .first<{ user_id: string; title: string | null }>()
+  if (!row) return forwarded
+  const title = (typeof body.title === 'string' && body.title.trim() ? body.title : row.title || 'Living plan').slice(0, 200)
+  await publishPlanVersion(env.DB, { planId, userId: row.user_id, title, source: body.markdown })
+  if (typeof body.title === 'string' && body.title.trim()) {
+    await env.DB.prepare('UPDATE plans SET title = ? WHERE id = ?').bind(title, planId).run()
+  }
+  return forwarded
+}
+
+async function planOwner(request: Request, env: Env, auth: ReturnType<typeof createAuth>, planId: string): Promise<boolean> {
+  const session = await readSession(auth, request)
+  if (!session) return false
+  const row = await env.DB.prepare('SELECT user_id FROM plans WHERE id = ?').bind(planId).first<{ user_id: string }>()
+  return Boolean(row && row.user_id === session.user.id)
+}
+
+async function planDocument(
+  request: Request,
+  env: Env,
+  auth: ReturnType<typeof createAuth>,
+  planId: string,
+  seq: number | 'latest',
+): Promise<Response> {
+  if (!(await planOwner(request, env, auth, planId))) return text(401, 'Sign in required')
+  const version = await readPlanVersion(env.DB, planId, seq)
+  if (!version) return text(404, 'This plan has no saved version.')
+  const filename = `${version.title.replace(/[^\w.-]+/g, '-').replace(/^-|-$/g, '') || 'plan'}.v${version.seq}.plan.md`
+  return new Response(version.source, {
+    headers: {
+      'content-type': 'text/markdown; charset=utf-8',
+      'content-disposition': `inline; filename="${filename}"`,
+      'cache-control': 'no-store',
+    },
+  })
+}
+
+async function planHistory(request: Request, env: Env, auth: ReturnType<typeof createAuth>, planId: string): Promise<Response> {
+  if (!(await planOwner(request, env, auth, planId))) return text(401, 'Sign in required')
+  const versions = await listPlanVersions(env.DB, planId)
+  const title = versions[0]?.title ?? 'Living plan'
+  return html(renderVersionHistory({ title, planId, versions }))
 }
 
 async function planFetch(env: Env, planId: string, request: Request, path: string, actor: string): Promise<Response> {

@@ -41,11 +41,13 @@ npx wrangler secret put GITHUB_CLIENT_SECRET
 
 Leave Cloudflare Access off this hostname. Access can gate a separate staging hostname for your team. It is not the product login.
 
-Run `npx wrangler d1 migrations apply living-plan --remote` again after you update the Worker. Account settings use the `user_settings` table.
+Run `npx wrangler d1 migrations apply living-plan --remote` again after you update the Worker. Account settings use the `user_settings` table. Published plan documents use the `plan_versions` table.
 
-## Account dashboard
+## Signed-in pages
 
-A signed-in visit to `/`, `/review`, or `/dashboard` shows the account, its tier, and appearance settings. Those settings are stored in D1 for that account. A hosted plan page uses them for the owning account and shows a hosted-plan panel. A loopback plan keeps writing the theme file beside the plan and does not ask for an account.
+`/dashboard` is the plans dashboard: the same period, status, and table layout as the local control dashboard, for this account's hosted plans. `/account` shows the name, email, and tier. `/settings` saves appearance in D1. `/` and `/review` redirect to `/dashboard`. A hosted plan page uses the account's appearance and shows a hosted-plan panel. A loopback plan keeps writing the theme file beside that plan and does not ask for an account.
+
+When an agent publishes a plan (`serve --cloud`, `review --cloud`, or a later file upload), the host stores that markdown. It keeps the latest 10 versions and drops the oldest on the 11th. The dashboard links to the current plan file and the version list. Loopback publish is unchanged.
 
 ## Use it
 

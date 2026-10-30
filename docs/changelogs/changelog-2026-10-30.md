@@ -210,3 +210,22 @@ A signed-in cloud account has a dashboard. Appearance settings are stored on the
 ### Notes
 
 Redeploy the Worker from `cloud/` and apply D1 migrations so the `user_settings` table exists. No registry restart needed beyond the usual version check.
+
+## 1.6.7
+
+**PR:** (link once known)
+
+**Bump:** patch
+
+### Summary
+
+The cloud host splits the plans dashboard, account, and settings into separate pages, and stores each published plan document.
+
+### New features
+
+- `/dashboard` on the cloud host is the plans dashboard: today, this week, and this month, status filters, and the same plan table as the local control dashboard. `/account` shows the signed-in name, email, and tier. `/settings` saves appearance on this host. `/` and `/review` redirect to `/dashboard`.
+- Publishing a plan with `serve --cloud` or `review --cloud` stores that document on the host. The host keeps the latest 10 versions and drops the oldest when an 11th is published. The dashboard links to the stored plan file. Loopback publish is unchanged.
+
+### Notes
+
+Redeploy the Worker from `cloud/` and apply D1 migrations so the `plan_versions` table exists. No registry restart needed beyond the usual version check.
