@@ -156,7 +156,7 @@ No registry restart needed beyond the usual version check.
 
 ## 1.6.4
 
-**PR:** link once known
+**PR:** [#95](https://github.com/marco-calderon/visual-living-plan/pull/95)
 
 **Bump:** patch
 
