@@ -153,3 +153,22 @@ Search and sort on a data table stay off until a column turns them on. The searc
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.6.4
+
+**PR:** [#95](https://github.com/marco-calderon/visual-living-plan/pull/95)
+
+**Bump:** patch
+
+### Summary
+
+The hosted sign-in page, the page after sign-in, and the hosted plan shell use the document design system.
+
+### Improvements
+
+- Sign-in and signed-in pages use the canvas, surface card, hairline, ink, and pill buttons from the design system, including dark mode.
+- The hosted plan page uses the same white canvas and DM Sans stack as the local plan page.
+
+### Notes
+
+Redeploy the Worker from `cloud/` for these pages to show on the host. No registry restart needed beyond the usual version check.
