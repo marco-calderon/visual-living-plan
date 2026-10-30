@@ -1,3 +1,35 @@
+/** Shown after sign-in, including at /review. Browsers may still follow the old permanent redirect from / to /review. */
+export function renderHomePage(email: string): string {
+  const who = email ? `Signed in as ${escapeHtml(email)}.` : 'Signed in.'
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Signed in · Living Plan</title>
+  <style>
+    body { margin: 0; font-family: "DM Sans", Inter, sans-serif; background: #f7f6f3; color: #1c1917; }
+    main { max-width: 28rem; margin: 4rem auto; padding: 0 1.25rem; }
+    h1 { font-size: 1.4rem; }
+    p { color: #57534e; line-height: 1.5; }
+    code { color: #1c1917; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Signed in</h1>
+    <p>${who}</p>
+    <p>If a terminal is waiting on account login, close this window and return to it.</p>
+    <p>Host a plan from that machine with <code>live-plan serve path/to/work.plan.md --cloud</code>. The command prints the plan URL.</p>
+  </main>
+</body>
+</html>`
+}
+
+function escapeHtml(value: string): string {
+  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;')
+}
+
 export function renderLoginPage(options: { google: boolean; github: boolean; cli: string }): string {
   const cli = JSON.stringify(options.cli)
   const providers = [
