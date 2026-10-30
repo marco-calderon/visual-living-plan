@@ -221,6 +221,10 @@ Redeploy the Worker from `cloud/` and apply D1 migrations so the `user_settings`
 
 The cloud host splits the plans dashboard, account, and settings into separate pages, and stores each published plan document.
 
+### Bugs fixed
+
+- `serve --cloud` after a successful account login no longer stops with “Sign in required”. The host accepts that login’s session token, and the browser opens a link that can show the plan.
+
 ### New features
 
 - `/dashboard` on the cloud host is the plans dashboard: today, this week, and this month, status filters, and the same plan table as the local control dashboard. `/account` shows the signed-in name, email, and tier. `/settings` saves appearance on this host. `/` and `/review` redirect to `/dashboard`.

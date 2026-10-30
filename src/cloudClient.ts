@@ -130,6 +130,23 @@ export async function uploadJson(planUrl: string, token: string, path: string, b
   if (!response.ok) throw new Error(await errorText(response))
 }
 
+/** Browser URL that sets the viewer cookie, so the opened plan is not asked to sign in again. */
+export async function hostedViewUrl(planUrl: string, accountToken: string): Promise<string | null> {
+  try {
+    const response = await fetch(planApiUrl(planUrl, 'share'), {
+      headers: { authorization: `Bearer ${accountToken}` },
+    })
+    if (!response.ok) return null
+    const payload = (await response.json()) as { url?: string }
+    if (!payload.url) return null
+    const target = new URL(payload.url)
+    if (target.origin !== new URL(planUrl).origin) return null
+    return target.toString()
+  } catch {
+    return null
+  }
+}
+
 export async function closeCloudPlan(planUrl: string, token: string): Promise<void> {
   const response = await fetch(planApiUrl(planUrl, ''), {
     method: 'DELETE',

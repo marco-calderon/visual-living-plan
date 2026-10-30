@@ -150,7 +150,7 @@ test('the repo changelog is classified and Settings renders it above Appearance'
   assert.ok(release)
   assert.equal(release.fileName, 'changelog-2026-10-30.md')
   assert.equal(release.classified, true)
-  assert.equal(release.bugs.length, 3)
+  assert.equal(release.bugs.length, 4)
   assert.equal(release.features.length, 8)
   assert.equal(release.versions[0], '1.5.11')
   assert.equal(release.versions.at(-1), '1.6.7')
@@ -168,6 +168,7 @@ test('the repo changelog is classified and Settings renders it above Appearance'
   assert.ok(release.features.some((line) => line.version === '1.6.6' && line.text.includes('appearance settings')))
   assert.ok(release.features.some((line) => line.version === '1.6.7' && line.text.includes('plans dashboard')))
   assert.ok(release.features.some((line) => line.version === '1.6.7' && line.text.includes('latest 10 versions')))
+  assert.ok(release.bugs.some((line) => line.version === '1.6.7' && line.text.includes('Sign in required')))
 
   const plan = parsePlan('---\ntitle: Sample\n---\n\n# Scope\n\nKeep it.\n', 'sample.plan.md')
   const html = renderPlanPage({

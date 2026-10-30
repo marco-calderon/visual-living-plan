@@ -150,9 +150,14 @@ export function renderLoginPage(options: { google: boolean; github: boolean; cli
   <script>
     const cli = ${cli}
     const error = document.querySelector('.error')
+    function safePath(value) {
+      if (!value || value.charAt(0) !== '/' || value.charAt(1) === '/' || value.indexOf('://') !== -1) return ''
+      return value
+    }
+    const next = safePath(new URLSearchParams(location.search).get('next'))
     async function finish() {
-      if (!cli) { location.href = '/'; return }
-      location.href = '/api/auth/cli-session?redirect=' + encodeURIComponent(cli)
+      if (cli) { location.href = '/api/auth/cli-session?redirect=' + encodeURIComponent(cli); return }
+      location.href = next || '/dashboard'
     }
     document.querySelectorAll('[data-provider]').forEach((button) => {
       button.addEventListener('click', async () => {
@@ -160,7 +165,7 @@ export function renderLoginPage(options: { google: boolean; github: boolean; cli
           method: 'POST',
           credentials: 'include',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ provider: button.dataset.provider, callbackURL: cli ? '/api/auth/cli-session?redirect=' + encodeURIComponent(cli) : '/' }),
+          body: JSON.stringify({ provider: button.dataset.provider, callbackURL: cli ? '/api/auth/cli-session?redirect=' + encodeURIComponent(cli) : (next || '/dashboard') }),
         })
         const payload = await response.json().catch(() => null)
         if (payload && payload.url) location.href = payload.url

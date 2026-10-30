@@ -1,6 +1,6 @@
 import { PLAN_CAPS, allows, normalizeTier, planCapReached } from './access'
 import { defaultAccountSettings, readAccountSettings, saveAccountSettings } from './accountSettings'
-import { createAuth, type AuthSession } from './auth'
+import { createAuth, sessionFromToken, type AuthSession } from './auth'
 import {
   cloudAccountRoute,
   renderAccountPage,
@@ -40,7 +40,7 @@ export default {
     const auth = createAuth(env, origin)
 
     if (url.pathname.startsWith('/api/auth/')) {
-      if (url.pathname === '/api/auth/cli-session') return cliSession(request, auth, url)
+      if (url.pathname === '/api/auth/cli-session') return cliSession(request, env, auth, url)
       return auth.handler(request)
     }
     if (url.pathname === '/api/account' && request.method === 'GET') return accountRead(request, env, auth)
@@ -89,7 +89,7 @@ async function signedInHtml(
   auth: ReturnType<typeof createAuth>,
   render: (session: AuthSession) => string | Promise<string>,
 ): Promise<Response> {
-  const session = await readSession(auth, request)
+  const session = await readSession(auth, request, env.DB)
   if (!session) return Response.redirect(new URL('/login', request.url).toString(), 302)
   return html(await render(session))
 }
@@ -100,7 +100,7 @@ async function accountDashboardApi(
   auth: ReturnType<typeof createAuth>,
   origin: string,
 ): Promise<Response> {
-  const session = await readSession(auth, request)
+  const session = await readSession(auth, request, env.DB)
   if (!session) return text(401, 'Sign in required')
   const period = new URL(request.url).searchParams.get('period')
   const selected = period === 'week' || period === 'month' ? period : 'day'
@@ -119,7 +119,7 @@ async function accountDashboardApi(
 }
 
 async function accountRead(request: Request, env: Env, auth: ReturnType<typeof createAuth>): Promise<Response> {
-  const session = await readSession(auth, request)
+  const session = await readSession(auth, request, env.DB)
   if (!session) return text(401, 'Sign in required')
   const settings = await readAccountSettings(env.DB, session.user.id)
   return Response.json({
@@ -135,7 +135,7 @@ async function accountRead(request: Request, env: Env, auth: ReturnType<typeof c
 }
 
 async function accountSave(request: Request, env: Env, auth: ReturnType<typeof createAuth>): Promise<Response> {
-  const session = await readSession(auth, request)
+  const session = await readSession(auth, request, env.DB)
   if (!session) return text(401, 'Sign in required')
   const patch = await request.json().catch(() => null)
   const settings = await saveAccountSettings(env.DB, session.user.id, patch)
@@ -151,10 +151,10 @@ async function listOpenPlans(env: Env, userId: string): Promise<Array<{ id: stri
   return listed.results ?? []
 }
 
-async function cliSession(request: Request, auth: ReturnType<typeof createAuth>, url: URL): Promise<Response> {
+async function cliSession(request: Request, env: Env, auth: ReturnType<typeof createAuth>, url: URL): Promise<Response> {
   const redirect = url.searchParams.get('redirect') ?? ''
   if (!isLoopback(redirect)) return text(400, 'The sign-in callback must be on this machine.')
-  const session = await readSession(auth, request)
+  const session = await readSession(auth, request, env.DB)
   if (!session) return Response.redirect(new URL(`/login?cli=${encodeURIComponent(redirect)}`, url.origin).toString(), 302)
   const target = new URL(redirect)
   target.searchParams.set('token', session.session.token)
@@ -162,7 +162,7 @@ async function cliSession(request: Request, auth: ReturnType<typeof createAuth>,
 }
 
 async function registerPlan(request: Request, env: Env, auth: ReturnType<typeof createAuth>, origin: string): Promise<Response> {
-  const session = await readSession(auth, request)
+  const session = await readSession(auth, request, env.DB)
   if (!session || !allows('account', 'register')) return text(401, 'Sign in required')
   const body = (await request.json().catch(() => null)) as { cloudId?: string; mode?: string; title?: string; markdown?: string } | null
   if (!body) return text(400, 'Missing plan')
@@ -226,7 +226,7 @@ async function sharePlan(
   origin: string,
   planId: string,
 ): Promise<Response> {
-  const session = await readSession(auth, request)
+  const session = await readSession(auth, request, env.DB)
   const row = await env.DB.prepare('SELECT user_id FROM plans WHERE id = ?').bind(planId).first<{ user_id: string }>()
   if (!session || !row || row.user_id !== session.user.id) return text(401, 'Sign in required')
   const sig = await signPlan(env.BETTER_AUTH_SECRET, planId)
@@ -248,14 +248,14 @@ async function forwardPlan(
   planId: string,
   rest: string,
 ): Promise<Response> {
-  const session = await readSession(auth, request)
+  const session = await readSession(auth, request, env.DB)
   const row = await env.DB.prepare('SELECT user_id FROM plans WHERE id = ?').bind(planId).first<{ user_id: string }>()
   const viewer = await viewerFor(request, env, planId)
   const account = Boolean(session && row && row.user_id === session.user.id)
   const actor = account ? 'account' : viewer ? 'viewer' : ''
   const page = request.method === 'GET' && (rest === '/' || rest === '')
   if (page) {
-    if (!actor) return html(signInRequired(), 401)
+    if (!actor) return html(signInRequired(planId), 401)
     const viewResponse = await planFetch(env, planId, request, '/view', actor)
     if (!viewResponse.ok) return viewResponse
     const view = (await viewResponse.json()) as {
@@ -331,7 +331,7 @@ async function publishSource(request: Request, env: Env, planId: string, actor: 
 }
 
 async function planOwner(request: Request, env: Env, auth: ReturnType<typeof createAuth>, planId: string): Promise<boolean> {
-  const session = await readSession(auth, request)
+  const session = await readSession(auth, request, env.DB)
   if (!session) return false
   const row = await env.DB.prepare('SELECT user_id FROM plans WHERE id = ?').bind(planId).first<{ user_id: string }>()
   return Boolean(row && row.user_id === session.user.id)
@@ -393,10 +393,12 @@ async function loadAssets(env: Env, request: Request): Promise<CloudPageAssets> 
   }
 }
 
-async function readSession(auth: ReturnType<typeof createAuth>, request: Request): Promise<AuthSession | null> {
+async function readSession(auth: ReturnType<typeof createAuth>, request: Request, db: D1Database): Promise<AuthSession | null> {
   const session = await auth.api.getSession({ headers: request.headers })
-  if (!session?.user || !session.session) return null
-  return session as AuthSession
+  if (session?.user && session.session) return session as AuthSession
+  const match = /^Bearer\s+(\S+)$/i.exec(request.headers.get('authorization') ?? '')
+  if (!match?.[1]) return null
+  return sessionFromToken(db, match[1])
 }
 
 async function viewerFor(request: Request, env: Env, planId: string): Promise<boolean> {
@@ -458,8 +460,9 @@ function isLoopback(value: string): boolean {
   }
 }
 
-function signInRequired(): string {
-  return `<!doctype html><meta charset="utf-8" /><title>Sign in · Living Plan</title><p>Sign in to open this plan.</p><p><a href="/login">Sign in</a></p>`
+function signInRequired(planId: string): string {
+  const next = encodeURIComponent(`/plans/${planId}/`)
+  return `<!doctype html><meta charset="utf-8" /><title>Sign in · Living Plan</title><p>Sign in to open this plan.</p><p><a href="/login?next=${next}">Sign in</a></p>`
 }
 
 function text(status: number, message: string): Response {

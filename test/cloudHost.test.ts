@@ -7,6 +7,7 @@ import { test } from 'node:test'
 import { Database } from 'bun:sqlite'
 import { fileURLToPath } from 'node:url'
 import { allows, planCapReached } from '../cloud/src/access.ts'
+import { sessionFromToken } from '../cloud/src/auth.ts'
 import { defaultAccountSettings, mergeAccountSettings, readAccountSettings, saveAccountSettings } from '../cloud/src/accountSettings.ts'
 import { cloudAccountRoute, renderAccountPage, renderPlansDashboard, renderSettingsPage } from '../cloud/src/dashboardPage.ts'
 import { hostedDashboard } from '../cloud/src/hostedDashboard.ts'
@@ -21,7 +22,7 @@ import {
   submitInteraction,
   type PlanSql,
 } from '../cloud/src/planRoom.ts'
-import { uploadSource } from '../src/cloudClient.ts'
+import { hostedViewUrl, uploadSource } from '../src/cloudClient.ts'
 import { renderDashboardPage } from '../src/dashboardPage.ts'
 import { cloudIdInSource, sourceWithCloudId } from '../src/cloudFrontmatter.ts'
 import { readRegistryLock, type RegistryLock } from '../src/registryLock.ts'
@@ -194,6 +195,40 @@ test('the hosted dashboard lists a stored plan the way the local dashboard does'
   assert.match(local, /registry's plans folder/)
   assert.match(local, /const apiPath = "\/api\/dashboard"/)
   assert.doesNotMatch(local, /api\/account\/dashboard/)
+})
+
+test('the account session token from sign-in is accepted without a browser cookie', async () => {
+  const db = new Database(':memory:')
+  db.exec(`
+    CREATE TABLE user (id TEXT PRIMARY KEY, name TEXT, email TEXT, tier TEXT);
+    CREATE TABLE session (id TEXT PRIMARY KEY, token TEXT, userId TEXT, expiresAt TEXT);
+  `)
+  const store = d1Of(db)
+  db.query('INSERT INTO user (id, name, email, tier) VALUES (?, ?, ?, ?)').run('user-1', 'Person', 'person@example.com', 'free')
+  db.query('INSERT INTO session (id, token, userId, expiresAt) VALUES (?, ?, ?, ?)').run('s1', 'session-token', 'user-1', new Date(Date.now() + 60_000).toISOString())
+  const session = await sessionFromToken(store, 'session-token')
+  assert.equal(session?.user.email, 'person@example.com')
+  assert.equal(session?.session.token, 'session-token')
+  db.query('UPDATE session SET expiresAt = ? WHERE token = ?').run(new Date(Date.now() - 1000).toISOString(), 'session-token')
+  assert.equal(await sessionFromToken(store, 'session-token'), null)
+  assert.equal(await sessionFromToken(store, 'plan-token'), null)
+})
+
+test('the opened cloud plan uses the signed view link', async () => {
+  const previous = globalThis.fetch
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input))
+    assert.equal(url.pathname, '/plans/plan1234/share')
+    return Response.json({ url: 'https://plans.example/plans/plan1234/view/sig' })
+  }) as typeof fetch
+  try {
+    assert.equal(
+      await hostedViewUrl('https://plans.example/plans/plan1234/', 'account-token'),
+      'https://plans.example/plans/plan1234/view/sig',
+    )
+  } finally {
+    globalThis.fetch = previous
+  }
 })
 
 test('account settings stay on the hosted database', async () => {
