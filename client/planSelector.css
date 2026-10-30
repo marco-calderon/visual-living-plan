@@ -618,6 +618,10 @@ body.plan-grab-armed .mermaid-diagram.is-maximized .mermaid-control {
   gap: 0.75rem;
 }
 
+.plan-comment-popover .plan-textarea {
+  font: 400 0.75rem/1.4 var(--font-body);
+}
+
 :root[data-theme="dark"] .plan-comment-popover .plan-textarea {
   background: var(--canvas);
   border-color: color-mix(in srgb, var(--ink) 22%, transparent);
