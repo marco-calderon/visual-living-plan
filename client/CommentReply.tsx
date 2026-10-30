@@ -28,7 +28,6 @@ export function CommentReply({ reply, onSettled }: CommentReplyProps) {
         onSettled?.(reply.id)
       }}
     >
-      <span className="plan-comment-reply-label">Agent</span>
       {reply.text}
     </p>
   )

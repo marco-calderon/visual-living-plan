@@ -328,3 +328,22 @@ The table of contents marks each row with the kind of plan entry it points at. A
 
 No registry restart needed beyond the usual version check.
 
+## 1.5.10
+
+**PR:** [#85](https://github.com/marco-calderon/visual-living-plan/pull/85)
+
+**Bump:** patch
+
+### Summary
+
+Comments on a plan part, and messages sent to the agent, are shown as chat threads. The part popup stays compact. The messages tray uses the full chat size.
+
+### Improvements
+
+- The comment popup header sits above a dividing line, and its title and description are 2px smaller. Each comment is a short chat: your note on the right, the agent reply as plain text on the left, and a pending, addressing, or addressed status.
+- The messages tray is a full-size chat. Your notes sit in bubbles, the agent reply is the message text, and the status reads pending, working, implemented, errored, or had issues.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
+
