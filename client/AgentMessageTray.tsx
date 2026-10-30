@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, KeyboardEvent, MouseEvent, PointerEvent } from 'react'
-import { ArrowUp, CircleCheck, CircleX, TriangleAlert } from 'lucide-react'
+import { ArrowUp, Circle, CircleCheck, CircleX, TriangleAlert } from 'lucide-react'
 import { CommentProgress } from './CommentProgress.tsx'
 import { CommentReply, type CommentReplyView } from './CommentReply.tsx'
 import { Bubble, BubbleContent } from './ui/Bubble.tsx'
@@ -62,7 +62,12 @@ function MessageState({ status }: MessageStateProps) {
       </span>
     )
   }
-  return <span className="plan-agent-status is-pending">Pending</span>
+  return (
+    <span className="plan-agent-status is-pending">
+      <Circle aria-hidden="true" size={16} />
+      Pending
+    </span>
+  )
 }
 
 function overMessages(target: EventTarget | null): boolean {

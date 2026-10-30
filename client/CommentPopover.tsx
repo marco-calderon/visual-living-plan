@@ -1,3 +1,4 @@
+import { Circle, CircleCheck } from 'lucide-react'
 import { useState } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import type { PlanComment } from '../src/types.ts'
@@ -32,19 +33,26 @@ type CommentStatusProps = {
 
 function CommentStatus({ comment, onAddress }: CommentStatusProps) {
   if (comment.addressedAt) {
-    return <span className="plan-comment-status is-addressed">Addressed</span>
+    return (
+      <span className="plan-comment-status is-addressed" title="Addressed">
+        <CircleCheck size={14} strokeWidth={2.25} aria-hidden="true" />
+        <span className="plan-comment-status-name">Addressed</span>
+      </span>
+    )
   }
   if (comment.addressingAt) {
     return (
-      <span className="plan-comment-status is-addressing">
+      <span className="plan-comment-status is-addressing" title="Addressing">
         <CommentProgress />
-        Addressing
       </span>
     )
   }
   return (
     <span className="plan-comment-status is-pending">
-      Pending
+      <span className="plan-comment-status-mark" title="Pending">
+        <Circle size={14} strokeWidth={2.25} aria-hidden="true" />
+        <span className="plan-comment-status-name">Pending</span>
+      </span>
       <button type="button" className="plan-comment-address" onClick={onAddress}>
         Mark addressed
       </button>
