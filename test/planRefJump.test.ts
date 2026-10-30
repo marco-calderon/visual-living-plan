@@ -234,8 +234,66 @@ test('Back from a workflow-tab jump returns to that tab', { timeout: 20_000 }, a
     await historyBy(page, 'back')
     await page.waitForFunction(() => {
       const selected = document.querySelector('[data-tab-target="workflow"]')
-      return selected?.getAttribute('aria-selected') === 'true' && location.hash === ''
+      return selected?.getAttribute('aria-selected') === 'true' && location.hash === '#workflow'
     })
+  } finally {
+    await close()
+  }
+})
+
+test('Plan, Workflow, and Settings are Back and Forward steps', { timeout: 20_000 }, async () => {
+  const { page, close } = await openPlan(pageHtml())
+  try {
+    await page.evaluate(() => window.scrollTo(0, 240))
+    const before = await page.evaluate(() => window.scrollY)
+    assert.ok(before > 160, `setup scroll ${before}`)
+
+    await page.getByRole('tab', { name: 'Plan' }).click()
+    await page.waitForURL(/#plan$/)
+    assert.equal(await page.getByRole('tab', { name: 'Plan' }).getAttribute('aria-selected'), 'true')
+
+    await page.getByRole('tab', { name: 'Workflow' }).click()
+    await page.waitForURL(/#workflow$/)
+    assert.equal(await page.getByRole('tab', { name: 'Workflow' }).getAttribute('aria-selected'), 'true')
+    assert.equal(await page.getByRole('tab', { name: 'Plan' }).getAttribute('aria-selected'), 'false')
+
+    await page.getByRole('tab', { name: 'Settings' }).click()
+    await page.waitForURL(/#settings$/)
+    assert.equal(await page.getByRole('tab', { name: 'Settings' }).getAttribute('aria-selected'), 'true')
+    assert.equal(await page.locator('[data-tab-panel="settings"]').getAttribute('hidden'), null)
+
+    await page.getByRole('tab', { name: 'Settings' }).click()
+    assert.equal(new URL(page.url()).hash, '#settings')
+
+    await historyBy(page, 'back')
+    await page.waitForFunction(() => {
+      const workflow = document.querySelector('[data-tab-target="workflow"]')
+      return workflow?.getAttribute('aria-selected') === 'true' && location.hash === '#workflow'
+    })
+
+    await historyBy(page, 'back')
+    await page.waitForFunction((target) => {
+      const plan = document.querySelector('[data-tab-target="plan"]')
+      return plan?.getAttribute('aria-selected') === 'true' && location.hash === '#plan' && Math.abs(window.scrollY - target) < 40
+    }, before)
+
+    await historyBy(page, 'forward')
+    await page.waitForURL(/#workflow$/)
+    assert.equal(await page.getByRole('tab', { name: 'Workflow' }).getAttribute('aria-selected'), 'true')
+
+    await historyBy(page, 'forward')
+    await page.waitForURL(/#settings$/)
+    assert.equal(await page.getByRole('tab', { name: 'Settings' }).getAttribute('aria-selected'), 'true')
+  } finally {
+    await close()
+  }
+})
+
+test('a settings hash opens that tab without an extra history entry', async () => {
+  const { page, close } = await openPlan(pageHtml(), '#settings')
+  try {
+    assert.equal(await page.getByRole('tab', { name: 'Settings' }).getAttribute('aria-selected'), 'true')
+    assert.equal(await page.evaluate(() => history.state), null)
   } finally {
     await close()
   }
