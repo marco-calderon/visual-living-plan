@@ -1,9 +1,9 @@
-const FONT_LINK = `<link rel="preconnect" href="https://fonts.googleapis.com" />
+export const FONT_LINK = `<link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />`
 
 /** Document-family styles from DESIGN.md, shared by the sign-in and signed-in pages. */
-const ACCOUNT_STYLES = `
+export const ACCOUNT_STYLES = `
     :root {
       color-scheme: light;
       --ink: #18181b;

@@ -41,6 +41,12 @@ npx wrangler secret put GITHUB_CLIENT_SECRET
 
 Leave Cloudflare Access off this hostname. Access can gate a separate staging hostname for your team. It is not the product login.
 
+Run `npx wrangler d1 migrations apply living-plan --remote` again after you update the Worker. Account settings use the `user_settings` table.
+
+## Account dashboard
+
+A signed-in visit to `/`, `/review`, or `/dashboard` shows the account, its tier, and appearance settings. Those settings are stored in D1 for that account. A hosted plan page uses them for the owning account and shows a hosted-plan panel. A loopback plan keeps writing the theme file beside the plan and does not ask for an account.
+
 ## Use it
 
 ```bash
