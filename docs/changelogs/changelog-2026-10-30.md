@@ -132,7 +132,7 @@ After you sign in on the hosted service, the browser lands on a signed-in page i
 
 Redeploy the Worker from `cloud/` for this page to show on the host. No registry restart needed beyond the usual version check.
 
-## 1.5.16
+## 1.6.1
 
 **PR:** [#92](https://github.com/marco-calderon/visual-living-plan/pull/92)
 
