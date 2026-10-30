@@ -1,6 +1,6 @@
 import { PLAN_CAPS, normalizeTier, planCapReached } from './access'
 import { createAuth, type AuthSession } from './auth'
-import { renderLoginPage } from './loginPage'
+import { renderHomePage, renderLoginPage } from './loginPage'
 import { PlanObject } from './planObject'
 import { renderCloudPage, type CloudPageAssets } from './page'
 import { allows } from './access'
@@ -35,6 +35,7 @@ export default {
       if (url.pathname === '/api/auth/cli-session') return cliSession(request, auth, url)
       return auth.handler(request)
     }
+    if (url.pathname === '/' || url.pathname === '/review') return signedInHome(request, auth)
     if (url.pathname === '/login') {
       const cli = url.searchParams.get('cli') ?? ''
       if (cli && !isLoopback(cli)) return text(400, 'The sign-in callback must be on this machine.')
@@ -57,6 +58,12 @@ export default {
     if (rest.startsWith('/view/')) return acceptViewer(request, env, planId, rest.slice('/view/'.length))
     return forwardPlan(request, env, auth, planId, rest)
   },
+}
+
+async function signedInHome(request: Request, auth: ReturnType<typeof createAuth>): Promise<Response> {
+  const session = await readSession(auth, request)
+  if (!session) return Response.redirect(new URL('/login', request.url).toString(), 302)
+  return html(renderHomePage(session.user.email))
 }
 
 async function cliSession(request: Request, auth: ReturnType<typeof createAuth>, url: URL): Promise<Response> {

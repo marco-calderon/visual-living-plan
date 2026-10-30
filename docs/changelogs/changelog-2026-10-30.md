@@ -113,3 +113,21 @@ No registry restart needed beyond the usual version check.
 ### Notes
 
 No registry restart needed beyond the usual version check. Deploying the Worker is a separate step, described in `cloud/README.md`.
+
+## 1.6.2
+
+**PR:** [#94](https://github.com/marco-calderon/visual-living-plan/pull/94)
+
+**Bump:** patch
+
+### Summary
+
+After you sign in on the hosted service, the browser lands on a signed-in page instead of a missing `/review` page.
+
+### Bugs fixed
+
+- Signing in sent the browser to `/`, and a saved redirect from the previous site on that hostname continued to `/review`. Both addresses now show that the account is signed in and that the plan URL comes from `serve --cloud`.
+
+### Notes
+
+Redeploy the Worker from `cloud/` for this page to show on the host. No registry restart needed beyond the usual version check.
