@@ -45,15 +45,15 @@
   min-width: 0;
 }
 
-.plan-data-table-count,
-.plan-data-table-page {
+/* Beat `.plan-rich p` (margin-bottom: 0.75rem). That margin lifts these labels in a centered toolbar. */
+.plan-data-table :is(.plan-data-table-count, .plan-data-table-page) {
   margin: 0;
   color: var(--steel);
   font-size: 13px;
   line-height: 1.5;
 }
 
-.plan-data-table-count {
+.plan-data-table .plan-data-table-count {
   margin-left: auto;
 }
 

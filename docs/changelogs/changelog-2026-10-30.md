@@ -140,7 +140,11 @@ Redeploy the Worker from `cloud/` for this page to show on the host. No registry
 
 ### Summary
 
-Search and sort on a data table stay off until a column turns them on. Cells, wrap, the state filter, and sideways scroll are unchanged.
+Search and sort on a data table stay off until a column turns them on. The search field and the row count share one line. Cells, wrap, the state filter, and sideways scroll are unchanged.
+
+### Bugs fixed
+
+- The search field and the row count are centered on the same line.
 
 ### New features
 

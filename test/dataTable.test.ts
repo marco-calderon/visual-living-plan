@@ -142,6 +142,8 @@ test('search and sort stay off until a column turns each one on', () => {
   assert.match(html, /plan-data-table-label">State/)
   assert.doesNotMatch(html, /Sort by State/)
   assert.match(html, /Filter by State/)
+  assert.match(tableCssText(), /\.plan-data-table :is\(\.plan-data-table-count, \.plan-data-table-page\)/)
+  assert.match(tableCssText(), /\.plan-data-table \.plan-data-table-count/)
 })
 
 test('a cell wraps on its own, or inside a percentage of the table', () => {
