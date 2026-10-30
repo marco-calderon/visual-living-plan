@@ -8,7 +8,7 @@ import { Database } from 'bun:sqlite'
 import { fileURLToPath } from 'node:url'
 import { allows, planCapReached } from '../cloud/src/access.ts'
 import { defaultAccountSettings, mergeAccountSettings, readAccountSettings, saveAccountSettings } from '../cloud/src/accountSettings.ts'
-import { renderDashboard } from '../cloud/src/dashboardPage.ts'
+import { cloudAccountRoute, renderDashboard } from '../cloud/src/dashboardPage.ts'
 import { renderCloudPage } from '../cloud/src/page.ts'
 import {
   ackEvents,
@@ -34,7 +34,12 @@ test('the page after sign-in points back at the terminal', () => {
     settings: defaultAccountSettings(),
     plans: [{ id: 'plan1234', title: 'Demo', mode: 'watch' }],
   })
+  assert.match(page, /<h1>Dashboard<\/h1>/)
   assert.match(page, /Signed in as person@example.com/)
+  assert.equal(cloudAccountRoute('/dashboard'), 'show')
+  assert.equal(cloudAccountRoute('/dashboard/'), 'show')
+  assert.equal(cloudAccountRoute('/review'), 'redirect')
+  assert.equal(cloudAccountRoute('/'), 'redirect')
   assert.match(page, /live-plan serve path\/to\/work\.plan\.md --cloud/)
   assert.match(page, /data-host-panel="cloud"/)
   assert.match(page, /Save on this host/)

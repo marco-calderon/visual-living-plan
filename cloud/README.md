@@ -45,7 +45,7 @@ Run `npx wrangler d1 migrations apply living-plan --remote` again after you upda
 
 ## Account dashboard
 
-A signed-in visit to `/`, `/review`, or `/dashboard` shows the account, its tier, and appearance settings. Those settings are stored in D1 for that account. A hosted plan page uses them for the owning account and shows a hosted-plan panel. A loopback plan keeps writing the theme file beside the plan and does not ask for an account.
+A signed-in visit to `/dashboard` shows the account, its tier, and appearance settings. `/` and `/review` redirect there. Those settings are stored in D1 for that account. A hosted plan page uses them for the owning account and shows a hosted-plan panel. A loopback plan keeps writing the theme file beside the plan and does not ask for an account.
 
 ## Use it
 

@@ -1,7 +1,7 @@
 import { PLAN_CAPS, allows, normalizeTier, planCapReached } from './access'
 import { defaultAccountSettings, readAccountSettings, saveAccountSettings } from './accountSettings'
 import { createAuth, type AuthSession } from './auth'
-import { renderDashboard } from './dashboardPage'
+import { cloudAccountRoute, renderDashboard } from './dashboardPage'
 import { renderLoginPage } from './loginPage'
 import { PlanObject } from './planObject'
 import { renderCloudPage, type CloudPageAssets } from './page'
@@ -37,7 +37,9 @@ export default {
     }
     if (url.pathname === '/api/account' && request.method === 'GET') return accountRead(request, env, auth)
     if (url.pathname === '/api/account/settings' && request.method === 'PUT') return accountSave(request, env, auth)
-    if (url.pathname === '/' || url.pathname === '/review' || url.pathname === '/dashboard') return accountDashboard(request, env, auth)
+    const accountRoute = cloudAccountRoute(url.pathname)
+    if (accountRoute === 'redirect') return Response.redirect(new URL('/dashboard', request.url).toString(), 302)
+    if (accountRoute === 'show') return accountDashboard(request, env, auth)
     if (url.pathname === '/login') {
       const cli = url.searchParams.get('cli') ?? ''
       if (cli && !isLoopback(cli)) return text(400, 'The sign-in callback must be on this machine.')

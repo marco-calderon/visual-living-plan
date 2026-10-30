@@ -119,6 +119,14 @@ export function cloudHostPanel(input: { owner: boolean; email: string; settings:
     </section>`
 }
 
+/** `/dashboard` is the account page. `/` and `/review` redirect there, including a saved redirect that still opens `/review`. */
+export function cloudAccountRoute(pathname: string): 'show' | 'redirect' | null {
+  const path = pathname !== '/' ? pathname.replace(/\/+$/, '') : pathname
+  if (path === '/dashboard') return 'show'
+  if (path === '/' || path === '/review') return 'redirect'
+  return null
+}
+
 /** Account dashboard for a signed-in cloud session. */
 export function renderDashboard(input: {
   email: string
@@ -140,7 +148,7 @@ export function renderDashboard(input: {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Account · Living Plan</title>
+  <title>Dashboard · Living Plan</title>
   <link rel="icon" type="image/png" href="/favicon.png" />
   ${FONT_LINK}
   <style>${ACCOUNT_STYLES}${DASHBOARD_STYLES}</style>
@@ -149,7 +157,7 @@ export function renderDashboard(input: {
   <main>
     <p class="kicker">Living Plan</p>
     <section class="card" data-host-panel="cloud">
-      <div class="row"><h1>Account</h1><button class="secondary" type="button" data-sign-out>Sign out</button></div>
+      <div class="row"><h1>Dashboard</h1><button class="secondary" type="button" data-sign-out>Sign out</button></div>
       <p>Signed in as ${escapeHtml(input.email)}.</p>
       <p class="meta">Name <strong>${escapeHtml(input.name || input.email)}</strong></p>
       <p class="meta">Tier <strong>${escapeHtml(input.tier)}</strong></p>

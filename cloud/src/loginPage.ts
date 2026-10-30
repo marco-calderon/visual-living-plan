@@ -151,7 +151,7 @@ export function renderLoginPage(options: { google: boolean; github: boolean; cli
     const cli = ${cli}
     const error = document.querySelector('.error')
     async function finish() {
-      if (!cli) { location.href = '/'; return }
+      if (!cli) { location.href = '/dashboard'; return }
       location.href = '/api/auth/cli-session?redirect=' + encodeURIComponent(cli)
     }
     document.querySelectorAll('[data-provider]').forEach((button) => {
@@ -160,7 +160,7 @@ export function renderLoginPage(options: { google: boolean; github: boolean; cli
           method: 'POST',
           credentials: 'include',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ provider: button.dataset.provider, callbackURL: cli ? '/api/auth/cli-session?redirect=' + encodeURIComponent(cli) : '/' }),
+          body: JSON.stringify({ provider: button.dataset.provider, callbackURL: cli ? '/api/auth/cli-session?redirect=' + encodeURIComponent(cli) : '/dashboard' }),
         })
         const payload = await response.json().catch(() => null)
         if (payload && payload.url) location.href = payload.url

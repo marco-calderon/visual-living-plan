@@ -204,7 +204,7 @@ A signed-in cloud account has a dashboard. Appearance settings are stored on the
 
 ### New features
 
-- `/`, `/review`, and `/dashboard` on the cloud host show the account, its tier, open hosted plans, and appearance settings. Saving writes those settings to D1 for that account.
+- `/dashboard` on the cloud host shows the account, its tier, open hosted plans, and appearance settings. `/` and `/review` redirect there, including when a saved browser redirect still opens `/review`. Saving writes those settings to D1 for that account.
 - A hosted plan page shows an account settings panel for the owner, and a hosted-plan note for everyone else. A loopback plan keeps the local theme file and does not ask for an account.
 
 ### Notes
