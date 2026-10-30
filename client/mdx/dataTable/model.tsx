@@ -1,4 +1,4 @@
-import { Children, isValidElement, type ReactNode } from 'react'
+import { Children, isValidElement, type CSSProperties, type ReactNode } from 'react'
 import { entryKindOf } from '../../entries/planEntry.ts'
 import { Checkbox } from '../../ui/checkbox.tsx'
 import { collectText } from '../textChildren.ts'
@@ -8,10 +8,14 @@ export const DATA_TABLE_PAGINATION_AT = 100
 
 const PART = Symbol.for('visual-living-plan.table-part')
 
+/** `true` wraps in the column. A number is the percentage of the table the cell wraps inside. */
+export type CellWrap = true | number
+
 export type CellModel = {
   value: string
   search: string
   content: ReactNode
+  wrap?: CellWrap
 }
 
 export type RowModel = {
@@ -23,6 +27,10 @@ export type ColumnModel = {
   id: string
   header: string
   filter: boolean
+  /** Some cell in this column wraps, so the column can shrink while other columns stay on one line. */
+  wraps: boolean
+  /** Widest percentage set on a cell in this column. The header wraps inside it. */
+  share?: number
 }
 
 type ColumnProps = {
@@ -34,6 +42,7 @@ type ColumnProps = {
 
 type CellProps = {
   value?: string | number
+  wrap?: boolean | string | number
   children?: ReactNode
 }
 
@@ -74,6 +83,7 @@ export function readDataTable(children: ReactNode): { columns: ColumnModel[]; ro
         id: uniqueId(textOf(props.id) || slug(header), columns),
         header,
         filter: enabled(props.filter),
+        wraps: false,
       })
       return
     }
@@ -97,7 +107,42 @@ export function readDataTable(children: ReactNode): { columns: ColumnModel[]; ro
     if (seenFilter) column.filter = false
     else seenFilter = true
   }
+  for (let index = 0; index < columns.length; index += 1) {
+    const column = columns[index]
+    if (!column) continue
+    let share: number | undefined
+    for (const row of rows) {
+      const wrap = row.cells[index]?.wrap
+      if (wrap == null) continue
+      column.wraps = true
+      if (typeof wrap !== 'number') continue
+      share = share == null ? wrap : Math.max(share, wrap)
+    }
+    if (share != null) column.share = share
+  }
   return { columns, rows }
+}
+
+export function readWrap(value: boolean | string | number | undefined): CellWrap | undefined {
+  if (value == null || value === false || value === 'false') return undefined
+  if (value === true || value === '' || value === 'true') return true
+  const raw = typeof value === 'number' ? String(value) : value.trim()
+  const match = /^(\d+(?:\.\d+)?)%?$/.exec(raw)
+  if (!match) return undefined
+  const percent = Number(match[1])
+  if (!Number.isFinite(percent) || percent <= 0) return undefined
+  return Math.min(percent, 100)
+}
+
+export function cellWrapAttrs(wrap: CellWrap | undefined): {
+  'data-wrap'?: string
+  style?: CSSProperties
+} {
+  if (typeof wrap !== 'number') return wrap === true ? { 'data-wrap': 'true' } : {}
+  return {
+    'data-wrap': `${wrap}%`,
+    style: { '--cell-share': `${wrap}cqw` } as CSSProperties,
+  }
 }
 
 export function filterOptions(rows: readonly RowModel[], index: number): string[] {
@@ -118,7 +163,7 @@ function readCell(props: CellProps): CellModel {
   const explicit = props.value == null ? '' : String(props.value).trim()
   const value = explicit || visible || extra || ''
   const search = joinSearch([explicit, visible, extra])
-  return { value, search, content: props.children ?? null }
+  return { value, search, content: props.children ?? null, wrap: readWrap(props.wrap) }
 }
 
 function controlSearch(children: ReactNode): string {

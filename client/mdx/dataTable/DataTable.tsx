@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { features, type DataTableFeatures } from './features.ts'
 import {
   DATA_TABLE_PAGE_SIZE,
+  cellWrapAttrs,
   filterOptions,
   readDataTable,
   showsPagination,
@@ -49,7 +50,14 @@ export function DataTable({ children, label, placeholder = 'Search' }: DataTable
         columnHelper.accessor((row) => row.cells[index]?.value ?? '', {
           id: column.id,
           header: ({ column: headerColumn }) => <SortHeader label={column.header} column={headerColumn} />,
-          cell: ({ row }) => <div className="plan-data-table-value">{row.original.cells[index]?.content ?? null}</div>,
+          cell: ({ row }) => {
+            const entry = row.original.cells[index]
+            return (
+              <div className="plan-data-table-value" {...cellWrapAttrs(entry?.wrap)}>
+                {entry?.content ?? null}
+              </div>
+            )
+          },
           enableSorting: true,
           enableColumnFilter: column.filter,
           filterFn: column.filter ? filterFn_equalsString : undefined,
@@ -99,6 +107,7 @@ export function DataTable({ children, label, placeholder = 'Search' }: DataTable
       : ALL
   const selectItems = [{ value: ALL, label: 'All' }, ...options.map((option) => ({ value: option, label: option }))]
   const rowsOnPage = table.getRowModel().rows
+  const wraps = model.columns.some((column) => column.wraps)
 
   return (
     <div
@@ -150,16 +159,19 @@ export function DataTable({ children, label, placeholder = 'Search' }: DataTable
         </p>
       </div>
       <div className="plan-data-table-scroll">
-        <table>
+        <table data-has-wrap={wraps ? 'true' : undefined}>
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
+                  const column = model.columns.find((item) => item.id === header.column.id)
                   const sorted = header.column.getIsSorted()
                   return (
                     <th
                       key={header.id}
                       aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : 'none'}
+                      data-fit={wraps && column && !column.wraps ? 'true' : undefined}
+                      {...cellWrapAttrs(column?.share)}
                     >
                       {header.isPlaceholder ? null : <table.FlexRender header={header} />}
                     </th>
@@ -172,11 +184,14 @@ export function DataTable({ children, label, placeholder = 'Search' }: DataTable
             {rowsOnPage.length ? (
               rowsOnPage.map((row) => (
                 <tr key={row.id} data-row={row.id}>
-                  {row.getAllCells().map((cell) => (
-                    <td key={cell.id}>
-                      <table.FlexRender cell={cell} />
-                    </td>
-                  ))}
+                  {row.getAllCells().map((cell) => {
+                    const column = model.columns.find((item) => item.id === cell.column.id)
+                    return (
+                      <td key={cell.id} data-fit={wraps && column && !column.wraps ? 'true' : undefined}>
+                        <table.FlexRender cell={cell} />
+                      </td>
+                    )
+                  })}
                 </tr>
               ))
             ) : (

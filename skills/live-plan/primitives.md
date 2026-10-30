@@ -276,6 +276,8 @@ One column may set `filter`. That column gets a select of its values, plus All. 
 
 `value` on `<Cell>` is the sort key and, on the filter column, the select value. Search also matches the visible text, a checkbox's checked state, and a checkbox field's label. Omit `value` to sort and filter by that visible text.
 
+`wrap` on `<Cell>` lets that cell break onto more than one line. `wrap="40%"` or `wrap={40}` wraps it inside 40% of the table, which is that column's share, and the header wraps inside the same share. A cell without `wrap` stays on one line. The table still scrolls sideways when those columns do not fit.
+
 A cell's children can be text, a `<Chip>`, a `<Pill>`, a markdown list, `<Checkbox checked />`, a `<field type="checkbox">`, or any other plan component. Chip and pill are the label primitives above.
 
 ```mdx
@@ -302,6 +304,11 @@ A cell's children can be text, a `<Chip>`, a `<Pill>`, a markdown list, `<Checkb
 `label` is the accessible name. `placeholder` changes the search field (default `Search`). `<Column header>` is the header label. `<Checkbox checked />` renders the form checkbox control. It does not submit a form unless it sits inside `<form>`. A `<field type="checkbox">` in a cell is that same field. `<Checkbox>`, `<Column>`, `<Row>`, and `<Cell>` are available in a plan that contains `<DataTable>`.
 
 The table body scrolls sideways when the columns are wider than the page column. Search, sort, and the state select apply to the loaded rows. They do not ask the agent for another page of data.
+
+```mdx
+<Cell wrap>The gateway retries while the previous worker holds the lease.</Cell>
+<Cell wrap="40%">Hourly copy stays in this share of the table.</Cell>
+```
 
 ## code
 

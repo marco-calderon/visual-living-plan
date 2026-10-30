@@ -84,7 +84,7 @@ Plan titles use heading-sm or card-title, not hero-display. Body uses body-md.
 ## Layout
 
 - Base unit 4px. Tokens: xxs 4, xs 8, sm 12, md 16, lg 20, xl 24, xxl 32, xxxl 40, section-sm 48, section 64, section-lg 80, hero 96.
-- Documentation cards pad 16px (`space-md`). A card nested inside another card pads 12px (`space-sm`). Entries sit 16px apart. A row gaps 12px (`space-sm`). The page column is 720px by default, 1120px when wide, or the available width when full. Cards and prose use that column. A table scrolls sideways when its columns do not fit.
+- Documentation cards pad 16px (`space-md`). A card nested inside another card pads 12px (`space-sm`). Entries sit 16px apart. A row gaps 12px (`space-sm`). The page column is 720px by default, 1120px when wide, or the available width when full. Cards and prose use that column. A table scrolls sideways when its columns do not fit. A data-table cell can wrap, or wrap inside a percentage of the table. Cells without that stay on one line and still scroll.
 - No blueprint grid. No noise overlay.
 
 ## Elevation
