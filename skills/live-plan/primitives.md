@@ -1,6 +1,6 @@
 # Live Plan primitives
 
-Author each entry as an MDX component. The component name is the entry type (`phase`, `callout`, `choice`, `form`, `questions`, `approve`, `checklist`, `workflow`). Anything outside those components is markdown. A pipe table in that markdown renders as a table. A mermaid fence draws a figure. Any other fence is highlighted source.
+Author each entry as an MDX component. The component name is the entry type (`phase`, `callout`, `choice`, `form`, `questions`, `approve`, `checklist`, `workflow`). Anything outside those components is markdown. A pipe table in that markdown renders as a markdown table: cells stay on one line, and the table scrolls sideways when it is wider than the column. A `<DataTable>` is a separate, sortable table. A mermaid fence draws a figure. Any other fence is highlighted source.
 
 A component can contain another component. A callout can contain a choice.
 
@@ -192,6 +192,8 @@ Phase statuses in this file will update as the work proceeds.
 
 Not an interaction. You flip `done` as you finish. `done` is true only for `done="true"` or `done={true}`.
 
+The page shows that state as an icon. A finished line is a filled circle with a check. A line still to do is an empty ring. The item text stays beside the icon. The words "done" and "todo" are not printed on the row. The human cannot toggle the icon. This is not a `<field type="checkbox">`.
+
 ```mdx
 <checklist title="Done when">
 <item done="false">Middleware behind a flag</item>
@@ -229,7 +231,7 @@ These components only arrange their children. They are not plan entries, and the
 
 - `<Box surface="panel" padding="md">` — `surface` is `plain`, `panel`, `soft`, or `inset`. `padding` is `none`, `sm`, `md`, or `lg`.
 - `<HStack gap="md">` and `<VStack gap="md">` — `gap` is `xs`, `sm`, `md`, or `lg`. Optional `align`, `justify`, and `wrap`.
-- `<Stack gap={16}>` and `<Row gap={16}>` — vertical and horizontal stacks. `gap` is a pixel number.
+- `<Stack gap={16}>` and `<Row gap={16}>` — vertical and horizontal stacks. `gap` is a pixel number. In a plan that contains `<DataTable>`, `<Row>` is a table row, not this stack. Use `<HStack>` there.
 - `<ResponsiveStack>` — a row that wraps on a narrow window.
 
 ## Labels
@@ -253,6 +255,18 @@ These components only arrange their children. They are not plan entries, and the
 ```
 
 A mermaid fence in the plan markdown, or inside a phase, callout, or approve component, draws the same kind of figure. A diagram that cannot be parsed stays as source with a short error under it.
+
+## Markdown table
+
+A pipe table in the plan markdown, or inside a phase, callout, or approve body, renders as a table. It is not `<DataTable>`. It does not sort, search, filter, or page.
+
+The row under the header is a separator such as `| --- |`. `:---`, `---:`, and `:---:` align that column left, right, and center. A blank line ends the table. Cell text stays on one line. When the table is wider than the page column, the table scrolls sideways. Inline code, emphasis, and links inside a cell still render.
+
+```markdown
+| Route | State | Owner |
+| --- | :---: | --- |
+| `GET /health` | succeeded | gateway |
+```
 
 ## Data table
 
@@ -285,7 +299,9 @@ A cell's children can be text, a `<Chip>`, a `<Pill>`, a markdown list, `<Checkb
 </DataTable>
 ```
 
-`label` is the accessible name. `placeholder` changes the search field (default `Search`). `<Column header>` is the header label. `<Checkbox checked />` renders the existing form checkbox control. It does not submit a form unless it sits inside `<form>`. A `<field type="checkbox">` in a cell is that same field.
+`label` is the accessible name. `placeholder` changes the search field (default `Search`). `<Column header>` is the header label. `<Checkbox checked />` renders the form checkbox control. It does not submit a form unless it sits inside `<form>`. A `<field type="checkbox">` in a cell is that same field. `<Checkbox>`, `<Column>`, `<Row>`, and `<Cell>` are available in a plan that contains `<DataTable>`.
+
+The table body scrolls sideways when the columns are wider than the page column. Search, sort, and the state select apply to the loaded rows. They do not ask the agent for another page of data.
 
 ## code
 
@@ -462,3 +478,47 @@ Until `addressingAt` or `addressedAt` is set, a part comment shows Mark addresse
 Node `status`: `pending` | `active` | `blocked` | `done` | `failed`. `detail`, `x`, and `y` are optional. Reuse the plan block id so the live overlay keeps the plan reference. `fromSide` and `toSide` are `top`, `right`, `bottom`, or `left`.
 
 `execution push` keeps the current `step`, `detail`, `graph`, and `scene` when you omit that flag. `execution stop` sets `active` to false and leaves the last graph on screen. Plan interactions stay locked until execution is stopped.
+
+## Page
+
+These are part of the open plan. You do not author them as components. The human sets page width and code wrapping on the Settings tab. Both are saved in `live-plan.config.json` beside the plan:
+
+```json
+{
+  "theme": {
+    "accent": "#0f766e",
+    "pageWidth": "default",
+    "wrapCode": false
+  }
+}
+```
+
+`pageWidth` is `default`, `wide`, or `full`. `wrapCode` is `true` or `false`. `theme get` prints the saved theme. `theme set` changes `accent` only.
+
+### Page width
+
+| `pageWidth` | Column |
+|---|---|
+| `default` | 720px. This is the width a new plan uses. |
+| `wide` | 1120px |
+| `full` | the available width, with no pixel cap |
+
+Plan, Workflow, and Settings share that column. A saved `narrow` opens as `default`. A legacy `fullWidth: true` opens as `wide`. Cards, prose, and code stay inside the column. A markdown table or a `<DataTable>` scrolls sideways when its columns do not fit.
+
+### Contents
+
+The page lists sections and the Workflow page. On a wide enough window the list sits in the gutter to the left of the column and stays there while the page scrolls. It does not change the column width. On a smaller window the list is hidden, and a floating Contents button opens it as a sidebar. Full width keeps that sidebar. Default docks beside the column once the window is at least 1224px wide. Wide docks at 1624px.
+
+A section link scrolls to that part. A Workflow link opens the Workflow tab. A workflow step link opens that step.
+
+A phase is listed from its title. A choice, form, questions block, or approve gate is listed from its prompt. A callout or a checklist is listed only when you set `id`. Markdown headings in the plan, and headings inside a phase, callout, or approve body, are listed too.
+
+Each row has a mark for that entry, in a small rounded square. A phase mark follows `status`: an open circle for pending, a progress ring for active, a check for done, a pause for blocked, and an x for failed. A workflow step that points at a phase uses that phase's mark. It updates when the phase or the live run changes. Choices, forms, questions, approvals, checklists, callouts, and Workflow have their own marks. A heading has no square.
+
+### File version
+
+Hover or click the logo to open the description card. A second click closes it. The card shows the summary, the mode, the agent, and the current file version, such as `v1`. The accessible name is `Version · v1`. The number is the latest saved copy of this plan file. It increases when the hosted file changes. The card does not list older copies and it does not restore one.
+
+### Code wrap
+
+Settings includes Wrap text in code. `wrapCode` starts `false`: long lines in a source fence or a diff scroll sideways. `true` wraps those lines, in light and dark. A mermaid figure does not wrap.

@@ -17,3 +17,22 @@ Contents icons sit in a small rounded square. Each square keeps the color that e
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.5.12
+
+**PR:** (opened with this change)
+
+**Bump:** patch
+
+### Summary
+
+The live-plan skill describes the primitives and page controls a plan author can use now. `npm run skills:install` copies this repo's skills into `~/.agents/skills`.
+
+### Improvements
+
+- The live-plan skill and `skills/live-plan/primitives.md` cover the data table, Chip, Pill, checkbox fields, autosubmit forms, choice cards, markdown tables, checklist state icons, Default / Wide / Full page widths, the file version on the description card, the sticky contents list, and the code-wrap setting.
+- `npm run skills:install` copies `skills/live-plan`, `skills/living-plan`, and `.cursor/skills/version-bump` into `~/.agents/skills`. Running it again replaces those copies and leaves any other skills in that folder in place.
+
+### Notes
+
+No registry restart needed beyond the usual version check.

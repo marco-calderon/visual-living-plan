@@ -14,7 +14,7 @@ live-plan <command> [args]
 
 `bunx visual-living-plan` runs the published package. `live-plan` is the same program once installed. Bun must be on `PATH`. Do not use this repository's `npm run` scripts unless you are developing Live Plan itself.
 
-Copy [`skills/live-plan/`](../skills/live-plan/SKILL.md) into your agent's skills directory (`.cursor/skills/live-plan/` or `.claude/skills/live-plan/`) so the loop and primitives load automatically. Schemas live in [`skills/live-plan/primitives.md`](../skills/live-plan/primitives.md).
+From this repo, `npm run skills:install` copies [`skills/live-plan/`](../skills/live-plan/SKILL.md) and the other project skills into `~/.agents/skills` (your home directory). Run it again to refresh those copies. Schemas live in [`skills/live-plan/primitives.md`](../skills/live-plan/primitives.md). That skill also describes the page the human sees: Default, Wide, and Full widths, the contents list, the file version on the description card, and the code-wrap setting.
 
 Changing this repository: start with [`docs/context.md`](context.md), [`docs/architecture`](architecture/README.md), and the document design in [`DESIGN.md`](../DESIGN.md). Light and dark use that palette. An accent color does not repaint the page, cards, or body text.
 
@@ -121,7 +121,7 @@ A plan is optional YAML frontmatter, then markdown, plus MDX components. Every i
 | `form` | Named `<field>` elements (`text`, `number`, `textarea`, `select`, `checkbox`, `stepper`) | Field values. A `checkbox` with `options` saves the checked strings as an array. A `stepper` saves a number. Checkbox and stepper forms post on each change. Text forms use Submit, then Edit to replace the saved values |
 | `questions` | Open questions, one `<item>` per question | One answer per item |
 | `approve` | Yes/no gate with an optional note | `approved` plus optional note |
-| `checklist` | Definition of done. Each `<item done="true">` is a row. This is not a checkbox field | No (you update `done`) |
+| `checklist` | Definition of done. `<item done="true">` shows a filled check. A line still to do shows an empty ring. This is separate from a checkbox field | No (you update `done`) |
 | `workflow` | Required. The execution path. The Workflow tab draws it before the run, and the live run follows it. Node `ref` is the plan block a click jumps to. Nodes and edges are a pipe table inside the component, optionally in a `workflow` fence | No |
 
 `Box`, `HStack`, `VStack`, `Stack`, `Row`, and `ResponsiveStack` arrange children. `<Chip>` and `<Pill>` are short labels (`tone` is `success`, `warning`, `danger`, or `neutral`). `<Mermaid>`, `<BarChart>`, and `<LineChart>` draw figures. A mermaid fence does the same as `<Mermaid>`. `<DataTable>` is a sortable table with local search. One `filter` column gets a state select. Pagination appears at 100 rows. Cells can hold chips, pills, lists, checkboxes, and other plan components.
@@ -138,7 +138,7 @@ Authoring rules:
 - On every comment, run `addressing`, then `reply`, then `address`. The page shows neither the reviewing state, the answered state, nor the reply text until those commands run.
 - Prose is connective. Status, risks, and decisions belong in `phase` and `callout` components.
 - Phase and callout bodies are markdown: headings, lists, pipe tables, fenced code, `**bold**`, `*italic*`, and `` `code` ``.
-- A pipe table renders as a table. The row under the header is a separator such as `| --- |`. `:---`, `---:`, and `:---:` align that column left, right, and center. A blank line ends the table.
+- A pipe table renders as a markdown table. The row under the header is a separator such as `| --- |`. `:---`, `---:`, and `:---:` align that column left, right, and center. A blank line ends the table. Cell text stays on one line, and the table scrolls sideways when it is wider than the column.
 - `<Chip>` and `<Pill tone="success">` are labels. `tone` is `success`, `warning`, `danger`, or `neutral`. They work in a phase, a callout, or a table cell.
 - A data table is `<DataTable>` with `<Column>`, `<Row>`, and `<Cell>`. Search filters the loaded rows. Every column header sorts. One column with `filter` gets a state select. Pagination shows at 100 rows and stays hidden below that. `value` on a cell is the sort and filter key. Cells can contain `<Chip>`, `<Pill>`, a list, `<Checkbox>`, a checkbox `<field>`, and other plan components.
 - Show source the human should read with a language fence (`ts`, `python`, `bash`). It is highlighted and numbered from 1. Add `start=40` after the language when the snippet is a slice of a larger file. Put that fence in the plan markdown or inside a `phase`, `callout`, or `approve` component.

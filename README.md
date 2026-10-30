@@ -186,7 +186,7 @@ live-plan events --url <printed-plan-url>
 ```
 
 - Guideline: [`docs/agent-guidelines.md`](docs/agent-guidelines.md)
-- Skill (copy into `.cursor/skills/live-plan/` or `.claude/skills/live-plan/`): [`skills/live-plan/SKILL.md`](skills/live-plan/SKILL.md)
+- Skill: from this repo, `npm run skills:install` copies [`skills/live-plan/`](skills/live-plan/SKILL.md) and the other project skills into `~/.agents/skills`. Run it again to refresh those copies. [`skills/live-plan/SKILL.md`](skills/live-plan/SKILL.md)
 - Primitive schemas: [`skills/live-plan/primitives.md`](skills/live-plan/primitives.md)
 
 `npm install -g visual-living-plan` installs the `live-plan` command (`living-plan` and `visual-living-plan` remain aliases). Every plan includes a `workflow` block. That block is the execution path.
