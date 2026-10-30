@@ -8,7 +8,9 @@ description: >-
   diff hunk, a markdown table or data table, a checklist, or the execution
   path before a run and then stream it live. Invoke with `bunx visual-living-plan`
   unless the `live-plan` command is already installed. The CLI runs on Bun.
-  Skip for a one-step change or when the user asked for prose only.
+  Loopback stays the default host. `live-plan account login` and `serve --cloud`
+  use the signed-in cloud host. Skip for a one-step change or when the user
+  asked for prose only.
 ---
 
 # Live Plan
@@ -28,7 +30,21 @@ live-plan <command> [args]
 
 Do not call this repo's `npm run` scripts from a consuming project. Those are for developing Live Plan itself.
 
-`serve` registers the plan on one machine service. Without `--detach` it prints undelivered submissions and exits. The page and the service stay up after it exits. Pass `--detach` to register and return. `events` prints the next undelivered submissions and exits. Each time it exits because of a comment, a denial, an approval, or any other event, start it again so a submission that arrived while it was closed is not left pending. `watch` is the client you keep running after an approval, while the plan is executing. `wait` and `review` block until the human responds or `--timeout` fires.
+`serve` registers the plan on one machine service. Loopback stays the default. Without `--detach` it prints undelivered submissions and exits. The page and the service stay up after it exits. Pass `--detach` to register and return. `events` prints the next undelivered submissions and exits. Each time it exits because of a comment, a denial, an approval, or any other event, start it again so a submission that arrived while it was closed is not left pending. `watch` is the client you keep running after an approval, while the plan is executing. `wait` and `review` block until the human responds or `--timeout` fires.
+
+## Host
+
+Loopback stays the default. `serve` and `review` register the plan on this machine. `--host` defaults to `127.0.0.1`, and the printed URL is `http://127.0.0.1:9477/plans/<id>/`. Omit `--cloud` for that page.
+
+The cloud host is opt-in. Sign in once, then pass `--cloud` on `serve` or `review`:
+
+```bash
+live-plan account login --url https://<host>
+live-plan serve path/to/work.plan.md --cloud
+live-plan review path/to/work.plan.md --cloud
+```
+
+`bunx visual-living-plan` is the same program when `live-plan` is not installed. `account login` opens a browser and stores the session in `~/.config/living-plan/cloud.json`. `LIVE_PLAN_CLOUD_URL` supplies the host when `--url` is omitted. `serve --cloud` and `review --cloud` print an https URL, write `cloudId` into the plan frontmatter, and keep the plan bearer in `cloud.json`. They do not start the local registry, and they do not fall back to loopback. Do not combine `--cloud` with `--no-registry`. Use that https URL with `events`, `wait`, `watch`, `mode`, `execution`, `addressing`, `reply`, `address`, and `close`. `dashboard`, `tui`, `logs`, and `lan` stay on this machine.
 
 ## When to use
 
@@ -44,7 +60,7 @@ Skip when the change is a single obvious step, the user asked for plain prose, o
 
 1. Write the plan: title, short summary, phases, a `<workflow>` component, then only the interactions you need now. The workflow component is required. It is the execution path. The page follows [DESIGN.md](../../DESIGN.md). Schemas are in [primitives.md](primitives.md).
 2. Validate: `bunx visual-living-plan check path/to/work.plan.md`.
-3. `serve --detach` the file so you get the URL back, or `review` when you need a verdict on the whole plan.
+3. `serve --detach` the file so you get the URL back, or `review` when you need a verdict on the whole plan. Both stay on loopback unless you pass `--cloud` after `account login`. See Host.
 4. Start `events --url <printed-url>` in the background. It prints one JSON object per line and exits. Each line is `{ "event", "id", "seq", "data" }`. `event` is `comment`, `interaction`, or `review`. An approve/deny gate is an `interaction` with `approved`. A review verdict is `approve`, `deny`, or `iterate`. If submissions are already waiting on the server, this command prints them and exits immediately.
 5. When `events` exits because of a comment, a denial, an approval, or any other event, read the JSON and handle it. Then start `events` again before you do anything else. That reconnect is how you see a comment or other event that arrived while the previous process was closed. If the new process prints JSON and exits, more was pending: handle it and start `events` again. Repeat until `events` stays running, which means the server has nothing left to deliver. A comment has `id`, `partId`, `kind`, `excerpt`, and `text` on `data`. Answer every comment with the three commands below before you continue. The page does not show a reviewing state, an answered state, or your reply until you do. `reply` alone does not change the status.
 6. On review **deny**, stop the work. Reconnect `events` once anyway so a comment that arrived with the denial is not left pending. On **iterate**, edit the same file, bump `--iteration`, run `review` again, and keep reconnecting `events` whenever it exits. Review exits `0` approve, `1` deny, `2` iterate, `3` timeout. Use `wait <id> --url <printed-url>` only when you cannot continue without that one answer.
@@ -85,8 +101,8 @@ Do this as soon as you read the comment, before a long edit, so the page shows r
 |---|---|
 | `check <file>` | Parse check before showing the plan. Prints title, block types, interaction ids, and workflow nodes. Exits 1 when the workflow block is missing. |
 | `dump <file>` | Full parsed plan as JSON. |
-| `serve <file>` | Register the plan on the machine service and print its URL. Without `--detach`, print undelivered submissions as JSON and exit. `--detach` returns after the URL. The page reloads when the file changes and stays up after this command exits. |
-| `review <file>` | Same page plus Approve / Deny / Iterate. Blocks until a decision, then leaves the plan open. Approve and deny return the session to watch. Iterate leaves it in review. |
+| `serve <file>` | Register the plan on the machine service and print its URL. Loopback stays the default. `--cloud` hosts that plan on the signed-in service instead (see Host). Without `--detach`, print undelivered submissions as JSON and exit. `--detach` returns after the URL. The page reloads when the file changes and stays up after this command exits. |
+| `review <file>` | Same page plus Approve / Deny / Iterate. Loopback stays the default. `--cloud` uses the signed-in host. Blocks until a decision, then leaves the plan open. Approve and deny return the session to watch. Iterate leaves it in review. |
 | `wait <id> --url <url>` | Block on the event stream until that interaction is answered. Prints the response JSON. |
 | `events --url <url>` | Print undelivered interactions, review verdicts, and comments as JSON, then exit. Pending rows already on the server are printed immediately. Start it again every time it exits. |
 | `watch --url <url>` | After an approval, switch the page to watch mode and stay running for the whole execution. Prints later submissions without exiting. Stop it when execution is finished. |
@@ -101,12 +117,12 @@ Do this as soon as you read the comment, before a long edit, so the page shows r
 | `dashboard` | Open the registry dashboard for running and executed plans. |
 | `lan on\|off\|status` | Opt in to LAN publishing. Off until `lan on`. Prints a LAN URL for other devices on the network. Agents keep the loopback URL from `serve`. |
 | `tui` | The registry in the terminal. Starts the plan service if it is down, and leaves it running on quit. `p` lists running plans. `d` is the dashboard (`--period day`, `week`, or `month`). Active plans are listed first. |
-| `account login --url <https://host>` | Sign in to the hosted service. Stores the session in `~/.config/living-plan/cloud.json`. |
+| `account login --url <https://host>` | Sign in before `serve --cloud` or `review --cloud`. Stores the session in `~/.config/living-plan/cloud.json`. `LIVE_PLAN_CLOUD_URL` supplies the host when `--url` is omitted. Loopback stays the default until you pass `--cloud`. |
 | `theme get\|set` | Read or change the accent color. Use `--url` while serving, or `--plan` / `--config` to edit that plan's `live-plan.config.json`. Without those flags, uses `~/.config/living-plan/live-plan.config.json`. |
 
 `--timeout` defaults to 4 hours. Always pass a unit (`30s`, `45m`, `4h`). A bare number is milliseconds. `--port 0` picks a free port. `--host` defaults to `127.0.0.1`. On loopback, the printed URL is `http://127.0.0.1:9477/plans/<id>/`. Set `--host` to a reachable address when a cloud agent must share the URL. `lan on` publishes the service to other devices on the same network and prints a different LAN URL. Do not replace the `serve` URL with that LAN URL, and do not resolve `living-plan.local` from the agent. `--no-open` is only for headless runs. `--detach` on `serve` registers and returns. Omit it to print undelivered submissions and exit. Start `events` again each time that process exits. After an approval, `watch` is the process that stays up until execution is finished. `--graph` is the portable execution payload; `--scene` is optional and adapter-specific. Per-plan accent color lives in `live-plan.config.json` beside the plan (`theme.accent`). Machine-wide theme (no `--plan`) lives under `~/.config/living-plan/`. Humans can also pick the accent on the Settings tab.
 
-`--cloud` on `serve` or `review` hosts that plan on the signed-in service instead of this machine. Run `account login --url https://host` once first (`LIVE_PLAN_CLOUD_URL` can supply the host). The command prints an https URL, writes `cloudId` into the plan frontmatter, and keeps the plan bearer in `cloud.json`. It does not start the local registry. Use that https URL with `events`, `wait`, `watch`, `mode`, `execution`, `addressing`, `reply`, `address`, and `close`. `dashboard`, `tui`, `logs`, and `lan` stay local. Do not pass `--cloud` together with `--no-registry`.
+Loopback stays the default. `--cloud` is the opt-in host described under Host. Without that flag, `serve` and `review` stay on this machine.
 
 ```bash
 bunx visual-living-plan theme set --accent #0369a1 --url <printed-plan-url>
