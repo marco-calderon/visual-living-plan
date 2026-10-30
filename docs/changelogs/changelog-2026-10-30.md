@@ -175,7 +175,7 @@ Redeploy the Worker from `cloud/` for these pages to show on the host. No regist
 
 ## 1.6.5
 
-**PR:** (link once known)
+**PR:** [#96](https://github.com/marco-calderon/visual-living-plan/pull/96)
 
 **Bump:** patch
 
