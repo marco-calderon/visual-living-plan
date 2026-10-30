@@ -554,11 +554,29 @@ body.plan-grab-armed .mermaid-diagram.is-maximized .mermaid-control {
 }
 
 .plan-comment-status {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   font: 500 calc(0.75rem - 2px)/1 var(--font-body);
   color: var(--muted, var(--ink));
+}
+
+.plan-comment-status-mark {
+  display: inline-flex;
+  align-items: center;
+}
+
+.plan-comment-status-name {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 .plan-comment-status.is-addressed { color: var(--ok); }
@@ -582,30 +600,64 @@ body.plan-grab-armed .mermaid-diagram.is-maximized .mermaid-control {
   text-decoration: underline;
 }
 
+.plan-textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  resize: vertical;
+  min-height: 5.5rem;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--canvas);
+  color: var(--ink);
+  padding: 0.8rem 0.9rem;
+  font: 400 1rem/1.5 var(--font-body);
+}
+
+.plan-textarea::placeholder {
+  color: var(--muted);
+}
+
+.plan-textarea:focus,
+:root[data-theme="dark"] .plan-comment-popover .plan-textarea:focus {
+  outline: 2px solid var(--focus);
+  border-color: var(--focus);
+}
+
+.plan-textarea:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .plan-comment-form {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.75rem;
 }
 
-.plan-comment-input {
-  width: 100%;
-  box-sizing: border-box;
-  resize: vertical;
-  min-height: 4.5rem;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--ink);
-  padding: 0.45rem 0.55rem;
-  font: 400 0.85rem/1.4 var(--font-body);
+.plan-comment-popover .plan-textarea {
+  font: 400 0.75rem/1.4 var(--font-body);
 }
 
-.plan-comment-actions {
-  display: flex;
+:root[data-theme="dark"] .plan-comment-popover .plan-textarea {
+  background: var(--canvas);
+  border-color: color-mix(in srgb, var(--ink) 22%, transparent);
+}
+
+.plan-comment-form .btn.primary {
+  display: inline-flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 0.45rem;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.plan-comment-form .btn .plan-kbd {
+  height: 1.15rem;
+  min-width: 1.15rem;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  color: inherit;
 }
 
 .plan-comment-error {
@@ -618,7 +670,7 @@ body.plan-grab-armed .mermaid-diagram.is-maximized .mermaid-control {
 .plan-approve-button,
 .plan-agent-toggle,
 .plan-agent-send,
-.plan-comment-actions button {
+.plan-comment-form .btn {
   transition: transform 160ms var(--ease-out), background-color 150ms ease, border-color 150ms ease;
 }
 
@@ -626,7 +678,7 @@ body.plan-grab-armed .mermaid-diagram.is-maximized .mermaid-control {
 .plan-approve-button:active,
 .plan-agent-toggle:active,
 .plan-agent-send:active:not(:disabled),
-.plan-comment-actions button:active:not(:disabled) {
+.plan-comment-form .btn:active:not(:disabled) {
   transform: scale(0.97);
 }
 
@@ -635,14 +687,14 @@ body.plan-grab-armed .mermaid-diagram.is-maximized .mermaid-control {
   .plan-approve-button,
   .plan-agent-toggle,
   .plan-agent-send,
-  .plan-comment-actions button {
+  .plan-comment-form .btn {
     transition: background-color 150ms ease, border-color 150ms ease;
   }
   .plan-grab-toggle:active,
   .plan-approve-button:active,
   .plan-agent-toggle:active,
   .plan-agent-send:active,
-  .plan-comment-actions button:active {
+  .plan-comment-form .btn:active {
     transform: none;
   }
 }

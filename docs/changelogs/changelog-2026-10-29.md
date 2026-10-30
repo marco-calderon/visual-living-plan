@@ -347,3 +347,23 @@ Comments on a plan part, and messages sent to the agent, are shown as chat threa
 
 No registry restart needed beyond the usual version check.
 
+## 1.5.11
+
+**PR:** [#86](https://github.com/marco-calderon/visual-living-plan/pull/86)
+
+**Bump:** patch
+
+### Summary
+
+The comment popup composer uses a shared textarea and a full-width send button, in the same light and dark document as the rest of the plan.
+
+### Improvements
+
+- The message field is a rounded textarea with a hairline border, canvas fill, and a visible resize handle. Its type size matches the comments in that popup. Placeholder copy reads “Type your message here.”
+- Send is a full-width pill. It is black on a light page and light on a dark page. To the right of the label, a keyboard hint shows that Command+Enter, or Control+Enter, sends. Enter is a return icon.
+- A comment’s state is an icon. Pending is an open circle, addressing is the progress ring, and addressed is a check. Mark addressed stays a text action. A minibar message that is still pending uses the same open circle.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
+

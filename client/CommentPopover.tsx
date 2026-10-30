@@ -1,3 +1,4 @@
+import { Circle, CircleCheck } from 'lucide-react'
 import { useState } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import type { PlanComment } from '../src/types.ts'
@@ -8,6 +9,7 @@ import { Bubble, BubbleContent } from './ui/Bubble.tsx'
 import { isSendShortcut, SendShortcut } from './ui/Kbd.tsx'
 import { Message, MessageContent, MessageFooter } from './ui/Message.tsx'
 import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle } from './ui/Popover.tsx'
+import { Textarea } from './ui/Textarea.tsx'
 
 export type CommentPopoverProps = {
   open: boolean
@@ -31,19 +33,26 @@ type CommentStatusProps = {
 
 function CommentStatus({ comment, onAddress }: CommentStatusProps) {
   if (comment.addressedAt) {
-    return <span className="plan-comment-status is-addressed">Addressed</span>
+    return (
+      <span className="plan-comment-status is-addressed" title="Addressed">
+        <CircleCheck size={14} strokeWidth={2.25} aria-hidden="true" />
+        <span className="plan-comment-status-name">Addressed</span>
+      </span>
+    )
   }
   if (comment.addressingAt) {
     return (
-      <span className="plan-comment-status is-addressing">
+      <span className="plan-comment-status is-addressing" title="Addressing">
         <CommentProgress />
-        Addressing
       </span>
     )
   }
   return (
     <span className="plan-comment-status is-pending">
-      Pending
+      <span className="plan-comment-status-mark" title="Pending">
+        <Circle size={14} strokeWidth={2.25} aria-hidden="true" />
+        <span className="plan-comment-status-name">Pending</span>
+      </span>
       <button type="button" className="plan-comment-address" onClick={onAddress}>
         Mark addressed
       </button>
@@ -135,23 +144,20 @@ export function CommentPopover({
           </div>
         ) : null}
         <form className="plan-comment-form" onSubmit={(event) => void submit(event)}>
-          <textarea
-            className="plan-comment-input"
+          <Textarea
             value={draft}
             rows={3}
-            placeholder="Message for the agent"
-            aria-label="Message for the agent"
+            placeholder="Type your message here."
+            aria-label="Type your message here."
             aria-keyshortcuts="Control+Enter Meta+Enter"
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={onDraftKeyDown}
           />
           {error ? <p className="plan-comment-error">{error}</p> : null}
-          <div className="plan-comment-actions">
+          <button type="submit" className="btn primary" disabled={sending || draft.trim().length === 0}>
+            <span>{sending ? 'Sending' : 'Send message'}</span>
             <SendShortcut />
-            <button type="submit" className="btn primary" disabled={sending || draft.trim().length === 0}>
-              {sending ? 'Sending' : 'Send'}
-            </button>
-          </div>
+          </button>
         </form>
       </PopoverContent>
     </Popover>
