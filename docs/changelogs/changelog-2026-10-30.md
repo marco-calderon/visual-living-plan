@@ -134,7 +134,7 @@ Redeploy the Worker from `cloud/` for this page to show on the host. No registry
 
 ## 1.5.16
 
-**PR:**
+**PR:** [#92](https://github.com/marco-calderon/visual-living-plan/pull/92)
 
 **Bump:** patch
 
