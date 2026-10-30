@@ -94,3 +94,22 @@ A data-table cell can wrap onto more than one line, or wrap inside a percentage 
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.6.0
+
+**PR:** (link once known)
+
+**Bump:** minor
+
+### Summary
+
+`serve` and `review` can host a plan on a signed-in Worker. The local machine service stays the default.
+
+### New features
+
+- `live-plan account login --url https://host` stores an account session in `~/.config/living-plan/cloud.json`. `LIVE_PLAN_CLOUD_URL` supplies the host when `--url` is omitted.
+- `serve --cloud` and `review --cloud` register the plan, write `cloudId` into the frontmatter, and print an https URL. They do not start the local registry. `events`, `wait`, `watch`, `mode`, `execution`, `addressing`, `reply`, `address`, and `close` use that URL. `dashboard`, `tui`, `logs`, and `lan` stay on this machine.
+
+### Notes
+
+No registry restart needed beyond the usual version check. Deploying the Worker is a separate step, described in `cloud/README.md`.

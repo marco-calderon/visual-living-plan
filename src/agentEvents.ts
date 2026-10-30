@@ -1,3 +1,4 @@
+import { cloudCredential, readCloudFile } from './cloudStore'
 import type { PlanSubmissionEvent } from './types'
 
 export type AgentEvent = {
@@ -107,6 +108,48 @@ function parseSseChunk(chunk: string): AgentEvent | null {
   }
 }
 
+function agentSocketUrl(planUrl: string): string {
+  const url = planApiUrl(planUrl, 'api/agent-events')
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+  return url.toString()
+}
+
+async function hostedPlanUrl(planUrl: string): Promise<boolean> {
+  return cloudCredential(await readCloudFile(), planUrl) !== null
+}
+
+/** Read hello and notice frames from the hosted plan socket. */
+async function readAgentSocket(
+  planUrl: string,
+  token: string | undefined,
+  onEvent: (event: AgentEvent) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  const Socket = globalThis.WebSocket
+  if (!Socket) throw new Error('This runtime has no WebSocket. Run live-plan with Bun.')
+  await new Promise<void>((resolveRead, reject) => {
+    const headers = token ? { authorization: `Bearer ${token}` } : undefined
+    const socket = new Socket(agentSocketUrl(planUrl), headers ? ({ headers } as unknown as string[]) : undefined)
+    const finish = (error?: Error) => {
+      signal.removeEventListener('abort', onAbort)
+      if (error) reject(error)
+      else resolveRead()
+    }
+    const onAbort = () => socket.close()
+    signal.addEventListener('abort', onAbort)
+    socket.addEventListener('message', (message) => {
+      try {
+        const parsed = JSON.parse(String(message.data)) as { event?: string; data?: unknown }
+        if (parsed.event) onEvent({ event: parsed.event, data: parsed.data })
+      } catch {
+        // Ignore a frame that is not a plan event.
+      }
+    })
+    socket.addEventListener('close', () => finish())
+    socket.addEventListener('error', () => finish(new Error('Agent socket failed')))
+  })
+}
+
 /** Read the plan service event stream until the signal aborts or the server closes it. */
 export async function readAgentEvents(
   planUrl: string,
@@ -114,6 +157,10 @@ export async function readAgentEvents(
   onEvent: (event: AgentEvent) => void,
   signal: AbortSignal,
 ): Promise<void> {
+  if (await hostedPlanUrl(planUrl)) {
+    await readAgentSocket(planUrl, token, onEvent, signal)
+    return
+  }
   const headers: Record<string, string> = { accept: 'text/event-stream' }
   if (token) headers.authorization = `Bearer ${token}`
   // Bun resets an idle fetch after five minutes. events and watch have to stay open until a person submits or the process is stopped.
