@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .wrangler/
+cloud/wrangler.jsonc
 *.plan.html
 .DS_Store
 .env
