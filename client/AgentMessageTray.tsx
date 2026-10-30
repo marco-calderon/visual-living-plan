@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, KeyboardEvent, MouseEvent, PointerEvent } from 'react'
-import { CircleCheck, CircleX, Send, TriangleAlert } from 'lucide-react'
+import { ArrowUp, CircleCheck, CircleX, TriangleAlert } from 'lucide-react'
 import { CommentProgress } from './CommentProgress.tsx'
 import { CommentReply, type CommentReplyView } from './CommentReply.tsx'
+import { Bubble, BubbleContent } from './ui/Bubble.tsx'
 import { isSendShortcut, SendShortcut } from './ui/Kbd.tsx'
+import { Message, MessageContent, MessageFooter } from './ui/Message.tsx'
 
 export type AgentMessageStatus = 'working' | 'implemented' | 'errored' | 'issues' | 'pending'
 
@@ -29,18 +31,38 @@ type MessageStateProps = {
 
 function MessageState({ status }: MessageStateProps) {
   if (status === 'working') {
-    return <CommentProgress label="Working" />
+    return (
+      <span className="plan-agent-status is-working">
+        <CommentProgress label="Working" />
+        Working
+      </span>
+    )
   }
   if (status === 'implemented') {
-    return <CircleCheck className="plan-agent-state is-implemented" aria-label="Implemented" size={16} />
+    return (
+      <span className="plan-agent-status is-implemented">
+        <CircleCheck aria-hidden="true" size={16} />
+        Implemented
+      </span>
+    )
   }
   if (status === 'errored') {
-    return <CircleX className="plan-agent-state is-errored" aria-label="Errored" size={16} />
+    return (
+      <span className="plan-agent-status is-errored">
+        <CircleX aria-hidden="true" size={16} />
+        Errored
+      </span>
+    )
   }
   if (status === 'issues') {
-    return <TriangleAlert className="plan-agent-state is-issues" aria-label="Had issues" size={16} />
+    return (
+      <span className="plan-agent-status is-issues">
+        <TriangleAlert aria-hidden="true" size={16} />
+        Had issues
+      </span>
+    )
   }
-  return null
+  return <span className="plan-agent-status is-pending">Pending</span>
 }
 
 function overMessages(target: EventTarget | null): boolean {
@@ -148,28 +170,46 @@ export function AgentMessageTray({
         onMouseOut={onMouseOut}
       >
         <div className="plan-agent-panel" role="region" aria-label="Messages sent to the agent" aria-hidden={open ? undefined : true}>
+          <header className="plan-agent-chat-header">
+            <p className="plan-agent-chat-title">Messages</p>
+            <p className="plan-agent-chat-subtitle">Ask the agent to change the plan.</p>
+          </header>
           <div className="plan-agent-messages">
             {messages.length > 0 ? (
-              <ul className="plan-agent-list">
+              <div className="plan-agent-chat">
                 {messages.map((message) => (
-                  <li key={message.id}>
-                    <div className="plan-agent-message">
-                      <p>{message.text}</p>
-                      {(message.replies ?? []).map((reply) => (
-                        <CommentReply key={reply.id} reply={reply} onSettled={onReplySettled} />
-                      ))}
-                    </div>
-                    <MessageState status={message.status} />
-                  </li>
+                  <div key={message.id} className="plan-agent-turn">
+                    <Message align="end">
+                      <MessageContent>
+                        <Bubble variant="muted" align="end">
+                          <BubbleContent>{message.text}</BubbleContent>
+                        </Bubble>
+                        <MessageFooter>
+                          <MessageState status={message.status} />
+                        </MessageFooter>
+                      </MessageContent>
+                    </Message>
+                    {(message.replies ?? []).map((reply) => (
+                      <Message key={reply.id} align="start">
+                        <MessageContent>
+                          <Bubble variant="ghost" align="start">
+                            <BubbleContent>
+                              <CommentReply reply={reply} onSettled={onReplySettled} />
+                            </BubbleContent>
+                          </Bubble>
+                        </MessageContent>
+                      </Message>
+                    ))}
+                  </div>
                 ))}
-              </ul>
+              </div>
             ) : (
               <p className="plan-agent-empty">No messages yet</p>
             )}
           </div>
-          <form className="plan-agent-form" onSubmit={(event) => void submit(event)}>
+          <form className="plan-agent-composer" onSubmit={(event) => void submit(event)}>
             <textarea
-              className="plan-agent-input"
+              className="plan-agent-composer-input"
               rows={2}
               value={draft}
               placeholder="Add a message"
@@ -178,7 +218,7 @@ export function AgentMessageTray({
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={onDraftKeyDown}
             />
-            <div className="plan-agent-submit">
+            <div className="plan-agent-composer-bar">
               <SendShortcut />
               <button
                 type="submit"
@@ -186,7 +226,7 @@ export function AgentMessageTray({
                 aria-label={sending ? 'Sending' : 'Send'}
                 disabled={sending || draft.trim().length === 0}
               >
-                <Send size={16} aria-hidden="true" />
+                <ArrowUp size={16} aria-hidden="true" />
               </button>
             </div>
           </form>
