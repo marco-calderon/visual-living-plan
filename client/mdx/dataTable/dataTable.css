@@ -115,6 +115,14 @@
   background: var(--surface-soft);
 }
 
+.plan-data-table-label {
+  display: block;
+  padding: 10px 16px;
+  color: var(--steel);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
 .plan-data-table-sort {
   display: inline-flex;
   align-items: center;
@@ -177,7 +185,7 @@
   word-break: normal;
 }
 
-.plan-data-table th[data-wrap] .plan-data-table-sort {
+.plan-data-table th[data-wrap] :is(.plan-data-table-sort, .plan-data-table-label) {
   box-sizing: border-box;
   align-items: flex-start;
   width: max-content;
@@ -185,7 +193,7 @@
   white-space: normal;
 }
 
-.plan-data-table th[data-wrap] .plan-data-table-sort span {
+.plan-data-table th[data-wrap] :is(.plan-data-table-sort span, .plan-data-table-label) {
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: normal;

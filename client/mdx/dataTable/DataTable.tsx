@@ -15,6 +15,7 @@ import {
   cellWrapAttrs,
   filterOptions,
   readDataTable,
+  rowMatchesSearch,
   showsPagination,
   type RowModel,
 } from './model.tsx'
@@ -30,14 +31,9 @@ type DataTableProps = {
 
 type SortColumn = Column<DataTableFeatures, RowModel, unknown>
 
-function searchRows(row: { original: RowModel }, _columnId: string, filterValue: unknown): boolean {
-  const query = String(filterValue ?? '').trim().toLowerCase()
-  if (!query) return true
-  return row.original.cells.some((cell) => cell.search.toLowerCase().includes(query))
-}
-
 export function DataTable({ children, label, placeholder = 'Search' }: DataTableProps) {
   const model = useMemo(() => readDataTable(children), [children])
+  const searchIndexes = model.columns.flatMap((column, index) => (column.search ? [index] : []))
   const filterColumn = model.columns.find((column) => column.filter)
   const filterIndex = filterColumn ? model.columns.indexOf(filterColumn) : -1
   const options = useMemo(
@@ -49,7 +45,12 @@ export function DataTable({ children, label, placeholder = 'Search' }: DataTable
       model.columns.map((column, index) =>
         columnHelper.accessor((row) => row.cells[index]?.value ?? '', {
           id: column.id,
-          header: ({ column: headerColumn }) => <SortHeader label={column.header} column={headerColumn} />,
+          header: ({ column: headerColumn }) =>
+            column.sort ? (
+              <SortHeader label={column.header} column={headerColumn} />
+            ) : (
+              <span className="plan-data-table-label">{column.header}</span>
+            ),
           cell: ({ row }) => {
             const entry = row.original.cells[index]
             return (
@@ -58,7 +59,7 @@ export function DataTable({ children, label, placeholder = 'Search' }: DataTable
               </div>
             )
           },
-          enableSorting: true,
+          enableSorting: column.sort,
           enableColumnFilter: column.filter,
           filterFn: column.filter ? filterFn_equalsString : undefined,
           sortingFn: 'alphanumeric',
@@ -76,7 +77,8 @@ export function DataTable({ children, label, placeholder = 'Search' }: DataTable
     data: model.rows,
     columns,
     getRowId: (row) => row.id,
-    globalFilterFn: searchRows,
+    globalFilterFn: (row, _columnId, filterValue) =>
+      rowMatchesSearch(row.original, searchIndexes, String(filterValue ?? '')),
     state: {
       sorting,
       columnFilters,
@@ -119,15 +121,17 @@ export function DataTable({ children, label, placeholder = 'Search' }: DataTable
       data-pagination={paginate ? 'true' : 'false'}
     >
       <div className="plan-data-table-toolbar" data-plan-grab-ignore="">
-        <input
-          className="plan-data-table-search"
-          type="search"
-          placeholder={placeholder}
-          aria-label="Search rows"
-          autoComplete="off"
-          value={globalFilter}
-          onChange={(event) => setGlobalFilter(event.target.value)}
-        />
+        {searchIndexes.length > 0 ? (
+          <input
+            className="plan-data-table-search"
+            type="search"
+            placeholder={placeholder}
+            aria-label="Search rows"
+            autoComplete="off"
+            value={globalFilter}
+            onChange={(event) => setGlobalFilter(event.target.value)}
+          />
+        ) : null}
         {filterColumn ? (
           <div className="plan-data-table-filter">
             <Select
@@ -165,11 +169,13 @@ export function DataTable({ children, label, placeholder = 'Search' }: DataTable
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   const column = model.columns.find((item) => item.id === header.column.id)
-                  const sorted = header.column.getIsSorted()
+                  const sorted = column?.sort ? header.column.getIsSorted() : false
                   return (
                     <th
                       key={header.id}
-                      aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : 'none'}
+                      aria-sort={
+                        column?.sort ? (sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : 'none') : undefined
+                      }
                       data-fit={wraps && column && !column.wraps ? 'true' : undefined}
                       {...cellWrapAttrs(column?.share)}
                     >

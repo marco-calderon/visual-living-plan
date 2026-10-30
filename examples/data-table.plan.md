@@ -10,15 +10,15 @@ mode: watch
 The owners table stays on one page. The operations table has 120 rows, so it pages ten at a time.
 
 <phase id="owners" title="Owners" status="done">
-Six rows. Search and the state select are here. There is no pagination control. Detail wraps when a cell sets `wrap`. A cell without it stays on one line, so a long value still scrolls the table sideways.
+Six rows. Search covers Name and Detail. Name and State sort. State is the select. Notes does neither. There is no pagination control. Detail wraps when a cell sets `wrap`. A cell without it stays on one line, so a long value still scrolls the table sideways.
 
 <Chip>gateway</Chip> <Pill tone="success">succeeded</Pill>
 
 <DataTable label="Owners">
-<Column id="name" header="Name" />
-<Column id="state" header="State" filter />
+<Column id="name" header="Name" search sort />
+<Column id="state" header="State" filter sort />
 <Column id="notes" header="Notes" />
-<Column id="detail" header="Detail" />
+<Column id="detail" header="Detail" search />
 <Row>
 <Cell>Gateway</Cell>
 <Cell value="succeeded"><Pill tone="success">succeeded</Pill></Cell>
@@ -72,10 +72,10 @@ Six rows. Search and the state select are here. There is no pagination control. 
 One hundred and twenty loaded rows. Type in the search, sort any column, or filter State.
 
 <DataTable label="Operations">
-<Column id="route" header="Route" />
-<Column id="state" header="State" filter />
-<Column id="owner" header="Owner" />
-<Column id="checks" header="Checks" />
+<Column id="route" header="Route" search sort />
+<Column id="state" header="State" filter search sort />
+<Column id="owner" header="Owner" search sort />
+<Column id="checks" header="Checks" search sort />
 <Row>
 <Cell>GET /ops/1</Cell>
 <Cell value="pending"><Pill tone="neutral">pending</Pill></Cell>

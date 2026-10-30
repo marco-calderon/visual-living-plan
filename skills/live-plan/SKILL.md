@@ -128,12 +128,12 @@ Each structured block is an MDX component. The component name is the type. Give 
 - `<Box>`, `<HStack>`, `<VStack>`, `<Stack>`, `<Row>`, `<ResponsiveStack>` arrange children. They are not plan entries. In a plan that contains `<DataTable>`, `<Row>` is a table row. Use `<HStack>` for a horizontal arrangement in that plan.
 - `<Chip>` and `<Pill tone="success|warning|danger|neutral">` are short labels. They are not plan entries. Use them in a phase, a callout, or a table cell. Omit `tone` for a neutral pill.
 - `<Mermaid>`, `<BarChart>`, and `<LineChart>` draw figures. A `mermaid` fence, a language fence, and a `diff` fence still render in the markdown.
-- `<DataTable>` is a sortable table. A free-text search filters the loaded rows. One column marked `filter` gets a state select. Pagination appears at 100 rows, ten per page, and stays off below that. A pipe table is still a plain markdown table.
+- `<DataTable>` pages at 100 rows, ten per page, and stays off below that. `search` and `sort` on a `<Column>` are off until you set them. One column marked `filter` gets a state select. A pipe table is still a plain markdown table.
 
 ```mdx
 <DataTable label="Operations">
-<Column id="route" header="Route" />
-<Column id="state" header="State" filter />
+<Column id="route" header="Route" search sort />
+<Column id="state" header="State" filter sort />
 <Column id="owner" header="Owner" />
 <Column id="checks" header="Checks" />
 <Row>
@@ -151,7 +151,7 @@ Each structured block is an MDX component. The component name is the type. Give 
 </DataTable>
 ```
 
-`value` is the sort key and the state-filter key. The visible text is searched too. A cell can hold a `<Chip>`, a `<Pill>`, a markdown list, `<Checkbox checked />`, a `<field type="checkbox">`, or any other plan component. `<Checkbox>` is the same control a form checkbox uses. In a cell it shows a state. It posts a response only when it sits inside `<form>`. `<Cell wrap>` breaks that cell onto more than one line. `<Cell wrap="40%">` wraps it inside 40% of the table. A cell without `wrap` stays on one line, and the table still scrolls sideways when those columns do not fit. `<Checkbox>`, `<Column>`, `<Row>`, and `<Cell>` load with `<DataTable>`. See [primitives.md](primitives.md).
+`search` on a column includes that column in the search field. The field is hidden when no column sets `search`. `sort` on a column adds a header button for that column. `value` is the sort key and the state-filter key. The visible text is searched too, and only in columns marked `search`. A cell can hold a `<Chip>`, a `<Pill>`, a markdown list, `<Checkbox checked />`, a `<field type="checkbox">`, or any other plan component. `<Checkbox>` is the same control a form checkbox uses. In a cell it shows a state. It posts a response only when it sits inside `<form>`. `<Cell wrap>` breaks that cell onto more than one line. `<Cell wrap="40%">` wraps it inside 40% of the table. A cell without `wrap` stays on one line, and the table still scrolls sideways when those columns do not fit. `<Checkbox>`, `<Column>`, `<Row>`, and `<Cell>` load with `<DataTable>`. See [primitives.md](primitives.md).
 
 A pipe table is a different table. It renders as a markdown table. Cells stay on one line, and the table scrolls sideways when it is wider than the column. It does not sort, search, or page. `:---`, `---:`, and `:---:` align a column left, right, and center. Inline code, emphasis, and links inside a cell still render.
 
