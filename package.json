@@ -1,6 +1,6 @@
 {
   "name": "visual-living-plan",
-  "version": "1.5.11",
+  "version": "1.5.12",
   "description": "Agent-authored living plans with human interaction, live updates, and a swappable execution canvas",
   "type": "module",
   "bin": {
@@ -39,6 +39,7 @@
     "processes": "bun src/cli.ts processes",
     "dashboard": "bun src/cli.ts dashboard",
     "tui": "bun src/cli.ts tui",
+    "skills:install": "node scripts/install-skills.mjs",
     "typecheck": "tsc --noEmit",
     "test": "bun test ./test",
     "test:e2e": "bun run build:client && playwright test"

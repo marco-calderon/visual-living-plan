@@ -5,9 +5,9 @@ description: >-
   status and answer choices, forms, questions, and approval gates in a browser.
   Use when work has multiple steps, needs a human decision before continuing,
   needs Approve/Deny/Iterate on a plan, should show highlighted source or a
-  diff hunk in the plan, or should show the execution path before a run and
-  stream it live. Invoke with `bunx visual-living-plan` unless the `live-plan`
-  command is already installed. The CLI runs on Bun.
+  diff hunk, a markdown table or data table, a checklist, or the execution
+  path before a run and then stream it live. Invoke with `bunx visual-living-plan`
+  unless the `live-plan` command is already installed. The CLI runs on Bun.
   Skip for a one-step change or when the user asked for prose only.
 ---
 
@@ -120,9 +120,9 @@ Each structured block is an MDX component. The component name is the type. Give 
 - `<form>` with `<field>` children — type `text` \| `number` \| `textarea` \| `select` \| `checkbox` \| `stepper`. A `checkbox` field with `options` saves an array of the checked option strings. One box with no `options` saves `"true"` or `"false"`. A `stepper` saves a number. A form whose fields are only checkboxes and steppers posts on each toggle or step and has no Submit button. A form with a text, number, textarea, or select field keeps Submit; after submit, Edit unlocks it and submitting again replaces the stored values. Response: `{ kind, id, values }`. The `<checklist>` block is not this field.
 - `<questions>` with `<item>` children — one free-text item per question. Response: `{ kind, id, answers }`. Answer keys are item indexes `"0"`, `"1"`.
 - `<approve>` — yes/no plus optional note. Response: `{ kind, id, approved, note? }`.
-- `<checklist>` — definition of done. You set `done`; the human does not submit it.
+- `<checklist>` — definition of done. You set `done="true"` on an item when that line is finished. The page shows a filled check for a finished line and an empty ring for a line still to do. The line text stays. The human does not toggle it and does not submit it.
 - `<workflow>` — required. This component is the execution path. Its body is a pipe table (`id | label | ref | detail`, then `--`, then `from -> to`). The Workflow tab draws it before the run, and the live run follows it.
-- `<Box>`, `<HStack>`, `<VStack>`, `<Stack>`, `<Row>`, `<ResponsiveStack>` arrange children. They are not plan entries.
+- `<Box>`, `<HStack>`, `<VStack>`, `<Stack>`, `<Row>`, `<ResponsiveStack>` arrange children. They are not plan entries. In a plan that contains `<DataTable>`, `<Row>` is a table row. Use `<HStack>` for a horizontal arrangement in that plan.
 - `<Chip>` and `<Pill tone="success|warning|danger|neutral">` are short labels. They are not plan entries. Use them in a phase, a callout, or a table cell. Omit `tone` for a neutral pill.
 - `<Mermaid>`, `<BarChart>`, and `<LineChart>` draw figures. A `mermaid` fence, a language fence, and a `diff` fence still render in the markdown.
 - `<DataTable>` is a sortable table. A free-text search filters the loaded rows. One column marked `filter` gets a state select. Pagination appears at 100 rows, ten per page, and stays off below that. A pipe table is still a plain markdown table.
@@ -148,11 +148,47 @@ Each structured block is an MDX component. The component name is the type. Give 
 </DataTable>
 ```
 
-`value` is the sort key and the state-filter key. The visible text is searched too. A cell can hold a `<Chip>`, a `<Pill>`, a markdown list, `<Checkbox checked />` (the existing form checkbox control), a `<field type="checkbox">`, or any other plan component. See [primitives.md](primitives.md).
+`value` is the sort key and the state-filter key. The visible text is searched too. A cell can hold a `<Chip>`, a `<Pill>`, a markdown list, `<Checkbox checked />`, a `<field type="checkbox">`, or any other plan component. `<Checkbox>` is the same control a form checkbox uses. In a cell it shows a state. It posts a response only when it sits inside `<form>`. `<Checkbox>`, `<Column>`, `<Row>`, and `<Cell>` load with `<DataTable>`. See [primitives.md](primitives.md).
+
+A pipe table is a different table. It renders as a markdown table. Cells stay on one line, and the table scrolls sideways when it is wider than the column. It does not sort, search, or page. `:---`, `---:`, and `:---:` align a column left, right, and center. Inline code, emphasis, and links inside a cell still render.
 
 Use the same node id as the plan block id so a click jumps to that section. A self-loop (`from` and `to` are the same id) is drawn as an arc. To close a loop with another card, set sides on the return edge (`from -> to @ bottom>bottom`). Live graph nodes use `id`, `label`, optional `detail`, `status` (`pending` \| `active` \| `blocked` \| `done` \| `failed`), and optional `x` / `y`. Edges are `{ from, to }` plus optional `label`, `fromSide`, and `toSide`.
 
 Copy-paste schemas and response examples: [primitives.md](primitives.md).
+
+## Page
+
+You do not author these as components. The human changes page width and code wrapping on the Settings tab. Those choices are saved in `live-plan.config.json` beside the plan, under `theme`. `theme get` prints them. `theme set` changes the accent only.
+
+### Page width
+
+Settings offers Default, Wide, and Full. Plan, Workflow, and Settings share that column.
+
+| `theme.pageWidth` | Column |
+|---|---|
+| `default` | 720px |
+| `wide` | 1120px |
+| `full` | the available width |
+
+A saved `narrow` opens as default. A legacy `fullWidth: true` opens as wide. Cards, prose, and code stay inside the column. A markdown table or a data table scrolls sideways when its columns do not fit.
+
+### Contents
+
+The page lists the plan's sections and the Workflow page. On a wide enough window that list sits in the gutter to the left of the column and stays there while the page scrolls. It does not change the column width. On a smaller window it is hidden, and a floating Contents button opens it as a sidebar. Full width keeps that sidebar: the list does not dock beside a full column. Default docks once the window is at least 1224px wide. Wide docks at 1624px.
+
+A section link scrolls to that part. A Workflow link opens the Workflow tab. A workflow step link opens that step.
+
+A phase is listed from its title. A choice, form, questions block, or approve gate is listed from its prompt. A callout or a checklist is listed only when you set `id`. Markdown headings in the plan, and headings inside a phase, callout, or approve body, are listed too.
+
+Each row carries a mark for the entry, drawn in a small rounded square. A phase mark follows `status`: an open circle for pending, a progress ring for active, a check for done, a pause for blocked, and an x for failed. A workflow step that points at a phase uses that phase's mark, and it updates when the phase or the live run changes. Choices, forms, questions, approvals, checklists, callouts, and Workflow have their own marks. A heading has no square, and its label lines up with the other rows.
+
+### File version
+
+Hover or click the logo to open the description card. Clicking it again closes it. The card shows the summary, the mode, the agent, and the current file version, such as `v1` (read as `Version · v1`). That number is the latest saved copy of this plan file. It goes up when the hosted file changes. The card does not list older copies and it does not restore one. Keep editing the same file.
+
+### Code wrap
+
+Settings has Wrap text in code. Off, which is the start, long lines in a source fence or a diff scroll sideways. On, those lines wrap, in light and dark. A mermaid figure is unchanged. The value is `theme.wrapCode`.
 
 ## Rules
 
@@ -163,7 +199,7 @@ Copy-paste schemas and response examples: [primitives.md](primitives.md).
 - After an approval, keep `watch` running while you update the plan and push workflow graphs. Stop `watch` only after execution is finished.
 - `execution stop` before `wait` or before expecting a review decision.
 - Open the browser for the human. Do not pass `--no-open` unless they cannot use a local browser.
-- Phase and callout bodies support headings, lists, pipe tables, fenced code, bold, italic, and inline code. The row under a table header is `| --- |`. A blank line ends the table.
+- Phase and callout bodies support headings, lists, pipe tables, fenced code, bold, italic, and inline code. The row under a table header is `| --- |`. `:---`, `---:`, and `:---:` align that column. A blank line ends the table. Cell text stays on one line, and the table scrolls sideways when it is wider than the page column.
 - A mermaid fence, or a `<Mermaid>` component, draws a figure in the plan text. Put it in the plan markdown, or inside a phase, callout, or approve component.
 - Include one `<workflow>` component. `check` fails when that component is missing.
 
