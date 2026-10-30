@@ -131,3 +131,25 @@ After you sign in on the hosted service, the browser lands on a signed-in page i
 ### Notes
 
 Redeploy the Worker from `cloud/` for this page to show on the host. No registry restart needed beyond the usual version check.
+
+## 1.6.3
+
+**PR:** [#92](https://github.com/marco-calderon/visual-living-plan/pull/92)
+
+**Bump:** patch
+
+### Summary
+
+Search and sort on a data table stay off until a column turns them on. The search field and the row count share one line. Cells, wrap, the state filter, and sideways scroll are unchanged.
+
+### Bugs fixed
+
+- The search field and the row count are centered on the same line.
+
+### New features
+
+- `<Column search>` includes that column in the search field. The field is hidden when no column sets `search`. `<Column sort>` adds a header button for that column. Other headers stay plain.
+
+### Notes
+
+No registry restart needed beyond the usual version check.

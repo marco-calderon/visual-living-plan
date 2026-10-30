@@ -5,6 +5,8 @@ type ColumnProps = {
   id?: string
   header?: string
   filter?: boolean | string
+  search?: boolean | string
+  sort?: boolean | string
   children?: ReactNode
 }
 

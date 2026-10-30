@@ -1,6 +1,6 @@
 # Live Plan primitives
 
-Author each entry as an MDX component. The component name is the entry type (`phase`, `callout`, `choice`, `form`, `questions`, `approve`, `checklist`, `workflow`). Anything outside those components is markdown. A pipe table in that markdown renders as a markdown table: cells stay on one line, and the table scrolls sideways when it is wider than the column. A `<DataTable>` is a separate, sortable table. A mermaid fence draws a figure. Any other fence is highlighted source.
+Author each entry as an MDX component. The component name is the entry type (`phase`, `callout`, `choice`, `form`, `questions`, `approve`, `checklist`, `workflow`). Anything outside those components is markdown. A pipe table in that markdown renders as a markdown table: cells stay on one line, and the table scrolls sideways when it is wider than the column. A `<DataTable>` is a separate table. A mermaid fence draws a figure. Any other fence is highlighted source.
 
 A component can contain another component. A callout can contain a choice.
 
@@ -270,7 +270,9 @@ The row under the header is a separator such as `| --- |`. `:---`, `---:`, and `
 
 ## Data table
 
-`<DataTable>` is a data table, not a markdown pipe table. A pipe table still renders as a plain table. `<DataTable>` searches the loaded rows as you type, sorts every column from its header, and pages only when the table has 100 or more rows (ten rows per page). Below 100 rows there is no pagination control.
+`<DataTable>` is a data table, not a markdown pipe table. A pipe table still renders as a plain table. `<DataTable>` pages only when the table has 100 or more rows (ten rows per page). Below 100 rows there is no pagination control.
+
+`search` and `sort` are off until a column turns them on. A column with `search` is included in the search field, and the field is hidden when no column sets `search`. A column with `sort` gets a header button that sorts it. Other headers stay plain.
 
 One column may set `filter`. That column gets a select of its values, plus All. If more than one column sets `filter`, the first one is the select.
 
@@ -282,8 +284,8 @@ A cell's children can be text, a `<Chip>`, a `<Pill>`, a markdown list, `<Checkb
 
 ```mdx
 <DataTable label="Operations">
-<Column id="route" header="Route" />
-<Column id="state" header="State" filter />
+<Column id="route" header="Route" search sort />
+<Column id="state" header="State" filter sort />
 <Column id="owner" header="Owner" />
 <Column id="checks" header="Checks" />
 <Row>
@@ -301,7 +303,7 @@ A cell's children can be text, a `<Chip>`, a `<Pill>`, a markdown list, `<Checkb
 </DataTable>
 ```
 
-`label` is the accessible name. `placeholder` changes the search field (default `Search`). `<Column header>` is the header label. `<Checkbox checked />` renders the form checkbox control. It does not submit a form unless it sits inside `<form>`. A `<field type="checkbox">` in a cell is that same field. `<Checkbox>`, `<Column>`, `<Row>`, and `<Cell>` are available in a plan that contains `<DataTable>`.
+`label` is the accessible name. `placeholder` changes the search field (default `Search`) when a column sets `search`. `<Column header>` is the header label. `<Checkbox checked />` renders the form checkbox control. It does not submit a form unless it sits inside `<form>`. A `<field type="checkbox">` in a cell is that same field. `<Checkbox>`, `<Column>`, `<Row>`, and `<Cell>` are available in a plan that contains `<DataTable>`.
 
 The table body scrolls sideways when the columns are wider than the page column. Search, sort, and the state select apply to the loaded rows. They do not ask the agent for another page of data.
 

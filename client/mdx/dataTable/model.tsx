@@ -27,6 +27,10 @@ export type ColumnModel = {
   id: string
   header: string
   filter: boolean
+  /** This column's text is included in the table search field. Off unless the author sets `search`. */
+  search: boolean
+  /** The header sorts this column. Off unless the author sets `sort`. */
+  sort: boolean
   /** Some cell in this column wraps, so the column can shrink while other columns stay on one line. */
   wraps: boolean
   /** Widest percentage set on a cell in this column. The header wraps inside it. */
@@ -37,6 +41,8 @@ type ColumnProps = {
   id?: string
   header?: string
   filter?: boolean | string
+  search?: boolean | string
+  sort?: boolean | string
   children?: ReactNode
 }
 
@@ -83,6 +89,8 @@ export function readDataTable(children: ReactNode): { columns: ColumnModel[]; ro
         id: uniqueId(textOf(props.id) || slug(header), columns),
         header,
         filter: enabled(props.filter),
+        search: enabled(props.search),
+        sort: enabled(props.sort),
         wraps: false,
       })
       return
@@ -143,6 +151,12 @@ export function cellWrapAttrs(wrap: CellWrap | undefined): {
     'data-wrap': `${wrap}%`,
     style: { '--cell-share': `${wrap}cqw` } as CSSProperties,
   }
+}
+
+export function rowMatchesSearch(row: RowModel, indexes: readonly number[], query: string): boolean {
+  const needle = query.trim().toLowerCase()
+  if (!needle || indexes.length === 0) return true
+  return indexes.some((index) => (row.cells[index]?.search ?? '').toLowerCase().includes(needle))
 }
 
 export function filterOptions(rows: readonly RowModel[], index: number): string[] {

@@ -9,6 +9,7 @@ import {
   DATA_TABLE_PAGE_SIZE,
   DATA_TABLE_PAGINATION_AT,
   readDataTable,
+  rowMatchesSearch,
   showsPagination,
 } from '../client/mdx/dataTable/model.tsx'
 import { Cell } from '../client/mdx/dataTable/Cell.tsx'
@@ -70,7 +71,8 @@ test('pagination stays off below 100 rows and pages a larger table', () => {
   assert.doesNotMatch(small, /plan-data-table-pager/)
   assert.equal(countRows(small), 6)
   assert.match(small, /Filter by State/)
-  assert.match(small, /aria-label="Search rows"/)
+  assert.doesNotMatch(small, /aria-label="Search rows"/)
+  assert.doesNotMatch(small, /Sort by /)
   assert.doesNotMatch(small, /data-has-wrap/)
   assert.doesNotMatch(small, /data-wrap=/)
 
@@ -82,6 +84,66 @@ test('pagination stays off below 100 rows and pages a larger table', () => {
   assert.match(large, /Page 1 of /)
   assert.equal(countRows(large), DATA_TABLE_PAGE_SIZE)
   assert.match(large, /data-loaded-rows="100"/)
+})
+
+test('search and sort stay off until a column turns each one on', () => {
+  const plain = readDataTable([
+    createElement(Column, { id: 'name', header: 'Name' }),
+    createElement(Column, { id: 'state', header: 'State', filter: true }),
+    createElement(Row, null, createElement(Cell, null, 'Gateway'), createElement(Cell, null, 'succeeded')),
+  ])
+  assert.equal(plain.columns[0]?.search, false)
+  assert.equal(plain.columns[0]?.sort, false)
+  assert.equal(plain.columns[1]?.filter, true)
+  assert.equal(plain.columns[1]?.search, false)
+
+  const opted = readDataTable([
+    createElement(Column, { id: 'name', header: 'Name', search: true, sort: true }),
+    createElement(Column, { id: 'state', header: 'State', sort: '' }),
+    createElement(Column, { id: 'notes', header: 'Notes', search: 'true' }),
+    createElement(Column, { id: 'quiet', header: 'Quiet', search: false, sort: 'false' }),
+    createElement(
+      Row,
+      null,
+      createElement(Cell, null, 'Gateway'),
+      createElement(Cell, null, 'succeeded'),
+      createElement(Cell, null, 'lease'),
+      createElement(Cell, null, 'hidden'),
+    ),
+  ])
+  assert.deepEqual(
+    opted.columns.map((column) => [column.search, column.sort]),
+    [
+      [true, true],
+      [false, true],
+      [true, false],
+      [false, false],
+    ],
+  )
+  const row = opted.rows[0]
+  assert.ok(row)
+  assert.equal(rowMatchesSearch(row, [0, 2], 'lease'), true)
+  assert.equal(rowMatchesSearch(row, [0, 2], 'hidden'), false)
+  assert.equal(rowMatchesSearch(row, [0, 2], 'succeeded'), false)
+  assert.equal(rowMatchesSearch(row, [], 'Gateway'), true)
+
+  const html = renderToStaticMarkup(
+    createElement(
+      DataTable,
+      { label: 'Search' },
+      createElement(Column, { id: 'name', header: 'Name', search: true, sort: true }),
+      createElement(Column, { id: 'state', header: 'State', filter: true }),
+      createElement(Row, null, createElement(Cell, null, 'Gateway'), createElement(Cell, null, 'succeeded')),
+    ),
+  )
+  assert.match(html, /aria-label="Search rows"/)
+  assert.match(html, /aria-label="Sort by Name"/)
+  assert.match(html, /aria-sort="none"/)
+  assert.match(html, /plan-data-table-label">State/)
+  assert.doesNotMatch(html, /Sort by State/)
+  assert.match(html, /Filter by State/)
+  assert.match(tableCssText(), /\.plan-data-table :is\(\.plan-data-table-count, \.plan-data-table-page\)/)
+  assert.match(tableCssText(), /\.plan-data-table \.plan-data-table-count/)
 })
 
 test('a cell wraps on its own, or inside a percentage of the table', () => {
