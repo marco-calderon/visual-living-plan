@@ -7,6 +7,7 @@ import { test } from 'node:test'
 import { Database } from 'bun:sqlite'
 import { fileURLToPath } from 'node:url'
 import { allows, planCapReached } from '../cloud/src/access.ts'
+import { renderHomePage } from '../cloud/src/loginPage.ts'
 import {
   ackEvents,
   initPlan,
@@ -22,6 +23,12 @@ import { readRegistryLock, type RegistryLock } from '../src/registryLock.ts'
 import { localServiceUrl, rewriteToBindUrl } from '../src/registryClient.ts'
 
 const entry = fileURLToPath(new URL('../src/cli.ts', import.meta.url))
+
+test('the page after sign-in points back at the terminal', () => {
+  const page = renderHomePage('person@example.com')
+  assert.match(page, /Signed in as person@example.com/)
+  assert.match(page, /live-plan serve/)
+})
 
 function sqlOf(db: Database): PlanSql {
   return {
