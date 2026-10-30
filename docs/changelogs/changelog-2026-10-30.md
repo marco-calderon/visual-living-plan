@@ -54,3 +54,25 @@ The Plan, Workflow, and Settings switch is the same height as the Plans button.
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.5.14
+
+**PR:** (link once known)
+
+**Bump:** patch
+
+### Summary
+
+Plan, Workflow, and Settings all sit inside the page switch, and choosing one is a Back and Forward step.
+
+### Bugs fixed
+
+- The settings tab was clipped, and the workflow icon sat outside the page switch. The switch wraps Plan, Workflow, and Settings again, at the same height as the Plans button.
+
+### Improvements
+
+- Choosing Plan, Workflow, or Settings adds a history step. Back and Forward return to the previous tab and scroll position, the same way a plan jump does.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
