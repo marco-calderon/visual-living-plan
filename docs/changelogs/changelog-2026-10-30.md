@@ -76,3 +76,21 @@ Plan, Workflow, and Settings all sit inside the page switch, and choosing one is
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.5.15
+
+**PR:**
+
+**Bump:** patch
+
+### Summary
+
+A data-table cell can wrap onto more than one line, or wrap inside a percentage of the table. Cells without that stay on one line.
+
+### New features
+
+- `<Cell wrap>` breaks that cell onto more than one line. `<Cell wrap="40%">` or `<Cell wrap={40}>` wraps it inside 40% of the table, and the column header wraps inside that share. A cell without `wrap` stays on one line, and the table still scrolls sideways when those columns do not fit.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
