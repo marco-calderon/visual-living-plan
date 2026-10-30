@@ -38,6 +38,8 @@ live-plan processes
 
 `--no-registry` serves that one plan in its own process instead. `--registry-port` changes the service port. `live-plan registry` runs the service in the foreground; `serve` and `review` start it when it is not already up. `live-plan close --url <plan-url>` drops a plan.
 
+`serve --cloud` and `review --cloud` host that plan on a signed-in Worker instead. Sign in once with `live-plan account login --url https://host`. The local service is unchanged when the flag is omitted. Deploy steps are in [cloud/README.md](cloud/README.md).
+
 ### Install the command
 
 This is the same kind of install as [Visual Plan](https://visualplan.dev/)'s `npm i -g vplan`. The package name on the registry is `visual-living-plan`. Publishing runs `prepack`, which compiles `dist/cli.js` into the tarball. `npm i -g` downloads that tarball and links the `live-plan`, `living-plan`, and `visual-living-plan` commands onto your PATH. It does not clone the repo and does not compile anything on your machine.

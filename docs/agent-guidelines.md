@@ -75,6 +75,7 @@ Swap the `bunx visual-living-plan` prefix for `live-plan` when that command is o
 | `dashboard` | Open the registry dashboard of running and executed plans (day, week, and month). | `0` when the registry is up, `1` when it is not |
 | `lan on\|off\|status` | Opt in to publishing the plan service on the local network. Off by default. `on` prints the LAN URL. Agents keep using the loopback URL from `serve`. | `0` including when there is no LAN address or the firewall command fails, `1` when the service cannot rebind |
 | `tui` | The registry in the terminal. Starts the plan service when it is not already running. `p` is the running-plan list. `d` is the dashboard (`--period` is `day` by default, or `week` or `month`). Active plans are listed first. Quitting leaves the service up. | `0` when you quit, `1` when the terminal is not interactive, the arguments are wrong, or the registry cannot start |
+| `account login --url <https://host>` | Sign in to the hosted service and store the account session in `~/.config/living-plan/cloud.json`. `LIVE_PLAN_CLOUD_URL` supplies the host when `--url` is omitted. | `0` signed in, `1` missing host or the callback failed |
 | `theme get\|set` | Read or write the accent color. Prefer `--url` while `serve`/`review` is up; otherwise `--config` / `--plan` writes `live-plan.config.json`. | `0` ok, `1` usage or HTTP error |
 
 Flags:
@@ -87,6 +88,7 @@ Flags:
 - `--no-open` skips launching a browser. Use it only for headless or CI runs. A person should get the page opened.
 - `--detach` on `serve` registers the plan and returns. Omit it to print undelivered submissions and exit. Start `events` again each time that process exits. After an approval, `watch` stays up until execution is finished.
 - `--no-registry` serves this plan in its own process. By default `serve` and `review` use the machine service, so every planner page can list running plans.
+- `--cloud` on `serve` and `review` hosts that plan on the signed-in service. Run `account login` first. It does not start the local registry, and it does not fall back to loopback. It cannot be combined with `--no-registry`. The same `events`, `wait`, `watch`, `mode`, `execution`, `addressing`, `reply`, `address`, and `close` commands work on the printed https URL. `dashboard`, `tui`, `logs`, and `lan` stay on this machine.
 - `--registry-port` sets the service port (default `9477`, loopback only).
 - `--token` authorizes `events`, `wait`, and `close`. When omitted, the CLI reads the local service token.
 - `--graph <file.json>` is the portable execution graph. `--scene <file.json>` is optional adapter-specific extras. Prefer `graph`.
