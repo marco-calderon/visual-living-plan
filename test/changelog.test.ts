@@ -153,8 +153,10 @@ test('the repo changelog is classified and Settings renders it above Appearance'
   assert.equal(release.bugs.length, 0)
   assert.equal(release.features.length, 0)
   assert.equal(release.versions[0], '1.5.11')
-  assert.equal(release.versions.at(-1), '1.5.11')
+  assert.equal(release.versions.at(-1), '1.5.13')
   assert.ok(release.improvements.some((line) => line.version === '1.5.11' && line.text.includes('18px square')))
+  assert.ok(release.improvements.some((line) => line.version === '1.5.12' && line.text.includes('skills:install')))
+  assert.ok(release.improvements.some((line) => line.version === '1.5.13' && line.text.includes('Plans button')))
 
   const plan = parsePlan('---\ntitle: Sample\n---\n\n# Scope\n\nKeep it.\n', 'sample.plan.md')
   const html = renderPlanPage({

@@ -36,3 +36,21 @@ The live-plan skill describes the primitives and page controls a plan author can
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.5.13
+
+**PR:** (link once known)
+
+**Bump:** patch
+
+### Summary
+
+The Plan, Workflow, and Settings switch is the same height as the Plans button.
+
+### Improvements
+
+- The page switch matches the Plans button height in light and dark. The icons stay the same size, and the Plans button is unchanged.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
