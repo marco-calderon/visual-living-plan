@@ -1221,6 +1221,8 @@ body.has-review-bar .plan-toc-toggle { bottom: 5.5rem; }
 .tabs {
   display: inline-flex;
   flex: 0 0 auto;
+  align-self: stretch;
+  align-items: stretch;
   gap: 0.15rem;
   padding: 0.18rem;
   margin: 0;
@@ -1231,8 +1233,10 @@ body.has-review-bar .plan-toc-toggle { bottom: 5.5rem; }
 .tab-btn {
   display: grid;
   place-items: center;
-  width: 1.75rem;
-  height: 1.75rem;
+  width: auto;
+  height: auto;
+  aspect-ratio: 1;
+  align-self: stretch;
   border: 0;
   background: transparent;
   color: var(--muted);
