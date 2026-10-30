@@ -1222,7 +1222,8 @@ body.has-review-bar .plan-toc-toggle { bottom: 5.5rem; }
   display: inline-flex;
   flex: 0 0 auto;
   align-self: stretch;
-  align-items: stretch;
+  align-items: center;
+  width: max-content;
   gap: 0.15rem;
   padding: 0.18rem;
   margin: 0;
@@ -1233,10 +1234,9 @@ body.has-review-bar .plan-toc-toggle { bottom: 5.5rem; }
 .tab-btn {
   display: grid;
   place-items: center;
-  width: auto;
-  height: auto;
-  aspect-ratio: 1;
-  align-self: stretch;
+  flex: none;
+  width: calc(1.5em + 0.54rem);
+  height: calc(1.5em + 0.54rem);
   border: 0;
   background: transparent;
   color: var(--muted);
@@ -2303,7 +2303,9 @@ function clientScript(
 
   document.querySelectorAll('[data-tab-target]').forEach((button) => {
     button.addEventListener('click', () => {
-      activateTab(button.getAttribute('data-tab-target'));
+      const tab = button.getAttribute('data-tab-target');
+      if (tab === 'plan' || tab === 'workflow' || tab === 'settings') focusPageTab(tab);
+      else activateTab(tab);
     });
   });
 
@@ -2312,7 +2314,9 @@ function clientScript(
     if (!(target instanceof Element)) return;
     const tabJump = target.closest('[data-tab-jump]');
     if (!tabJump) return;
-    activateTab(tabJump.getAttribute('data-tab-jump') || 'workflow');
+    const tab = tabJump.getAttribute('data-tab-jump') || 'workflow';
+    if (tab === 'plan' || tab === 'workflow' || tab === 'settings') focusPageTab(tab);
+    else activateTab(tab);
   });
 
   try { history.scrollRestoration = 'manual'; } catch {}
@@ -2452,21 +2456,27 @@ function clientScript(
     updateTocCurrent();
   }
 
-  function focusWorkflowPage(options) {
+  function focusPageTab(tab, options) {
+    const page = tab === 'plan' || tab === 'workflow' || tab === 'settings' ? tab : '';
+    if (!page) return;
     const recordHistory = !options || options.recordHistory !== false;
     if (recordHistory) {
       const next = new URL(window.location.href);
-      next.hash = '#workflow';
-      const sameEntry = history.state && history.state.livingPlanPage === 'workflow' && location.hash === next.hash;
+      next.hash = '#' + page;
+      const sameEntry = history.state && history.state.livingPlanPage === page && location.hash === next.hash;
       if (sameEntry || jumpDepth > 0) return;
       jumpDepth += 1;
       snapshotView();
-      history.pushState({ livingPlanPage: 'workflow' }, '', next);
+      history.pushState({ livingPlanPage: page }, '', next);
       jumpDepth -= 1;
     }
     highlightPlanTarget(null);
     window.livingPlanPendingWorkflowFocus = null;
-    activateTab('workflow');
+    activateTab(page);
+  }
+
+  function focusWorkflowPage(options) {
+    focusPageTab('workflow', options);
   }
 
   function tocIsDocked() {
@@ -2596,8 +2606,8 @@ function clientScript(
       focusPlanRef(state.livingPlanJump, { recordHistory: false, instant: true });
       return;
     }
-    if (state.livingPlanPage === 'workflow' && !(state.livingPlanView && state.livingPlanView.captured)) {
-      focusWorkflowPage({ recordHistory: false });
+    if ((state.livingPlanPage === 'plan' || state.livingPlanPage === 'workflow' || state.livingPlanPage === 'settings') && !(state.livingPlanView && state.livingPlanView.captured)) {
+      focusPageTab(state.livingPlanPage, { recordHistory: false });
       return;
     }
     if (state.livingPlanView && state.livingPlanView.captured) {
@@ -2618,8 +2628,8 @@ function clientScript(
       focusWorkflowStep(workflowRef, { recordHistory: false });
       return;
     }
-    if (location.hash === '#workflow') {
-      focusWorkflowPage({ recordHistory: false });
+    if (location.hash === '#workflow' || location.hash === '#plan' || location.hash === '#settings') {
+      focusPageTab(location.hash.slice(1), { recordHistory: false });
       return;
     }
     if (location.hash && findPlanTarget(location.hash)) {
@@ -2644,8 +2654,8 @@ function clientScript(
   const openingWorkflowRef = workflowRefFromHash(location.hash);
   if (openingWorkflowRef) {
     focusWorkflowStep(openingWorkflowRef, { recordHistory: false });
-  } else if (location.hash === '#workflow') {
-    focusWorkflowPage({ recordHistory: false });
+  } else if (location.hash === '#workflow' || location.hash === '#plan' || location.hash === '#settings') {
+    focusPageTab(location.hash.slice(1), { recordHistory: false });
   } else if (!interactionsLocked && location.hash && findPlanTarget(location.hash)) {
     focusPlanRef(location.hash, { recordHistory: false, instant: true });
   }
