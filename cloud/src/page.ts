@@ -48,10 +48,23 @@ export function renderCloudPage(input: {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${escapeHtml(input.title)} · Living Plan</title>
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   ${css}
   <style>
-    body { margin: 0; font-family: "DM Sans", Inter, sans-serif; background: #f7f6f3; color: #1c1917; }
-    main { max-width: 720px; margin: 0 auto; padding: 2.5rem 1.25rem 6rem; }
+    :root { color-scheme: light; --canvas: #ffffff; --ink: #18181b; }
+    @media (prefers-color-scheme: dark) {
+      :root { color-scheme: dark; --canvas: #0c0c0e; --ink: #fafafa; }
+    }
+    body {
+      margin: 0;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    }
+    main { max-width: 720px; margin: 0 auto; padding: 40px 20px 96px; }
     .plan-mdx-pending { display: none; }
   </style>
 </head>

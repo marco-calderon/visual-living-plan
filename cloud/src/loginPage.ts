@@ -1,3 +1,89 @@
+const FONT_LINK = `<link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />`
+
+/** Document-family styles from DESIGN.md, shared by the sign-in and signed-in pages. */
+const ACCOUNT_STYLES = `
+    :root {
+      color-scheme: light;
+      --ink: #18181b;
+      --charcoal: #27272a;
+      --steel: #71717a;
+      --canvas: #ffffff;
+      --surface: #f4f4f5;
+      --hairline: #e4e4e7;
+      --accent: #1d4ed8;
+      --primary: #09090b;
+      --on-primary: #ffffff;
+      --danger: #d45656;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --ink: #fafafa;
+        --charcoal: #e4e4e7;
+        --steel: #a1a1aa;
+        --canvas: #0c0c0e;
+        --surface: #18181b;
+        --hairline: #27272a;
+        --accent: #93c5fd;
+        --primary: #fafafa;
+        --on-primary: #0c0c0e;
+        --danger: #f0a8a8;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--canvas);
+      color: var(--charcoal);
+      font-family: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+    }
+    main { width: min(24rem, calc(100% - 32px)); margin: 64px auto; }
+    .kicker { margin: 0 0 12px; letter-spacing: 0.08em; text-transform: uppercase; font-size: 12px; font-weight: 600; color: var(--accent); }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 16px;
+      padding: 16px;
+    }
+    h1 { margin: 0 0 8px; color: var(--ink); font-size: 24px; font-weight: 600; line-height: 1.3; }
+    p { margin: 0 0 16px; color: var(--steel); font-size: 14px; line-height: 1.5; }
+    form, .providers { display: grid; gap: 12px; }
+    .providers:empty { display: none; }
+    label { display: grid; gap: 4px; color: var(--ink); font-size: 14px; font-weight: 500; }
+    input {
+      height: 40px;
+      padding: 0 12px;
+      border: 1px solid var(--hairline);
+      border-radius: 8px;
+      background: var(--canvas);
+      color: var(--ink);
+      font: inherit;
+    }
+    input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    button {
+      height: 40px;
+      padding: 11px 24px;
+      border-radius: 9999px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.4;
+      cursor: pointer;
+    }
+    button.primary { border: 0; background: var(--primary); color: var(--on-primary); }
+    button.secondary { border: 1px solid var(--ink); background: transparent; color: var(--ink); }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+      color: var(--ink);
+    }
+    .error { color: var(--danger); min-height: 1.2rem; font-size: 14px; }
+`
+
 /** Shown after sign-in, including at /review. Browsers may still follow the old permanent redirect from / to /review. */
 export function renderHomePage(email: string): string {
   const who = email ? `Signed in as ${escapeHtml(email)}.` : 'Signed in.'
@@ -7,20 +93,19 @@ export function renderHomePage(email: string): string {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Signed in · Living Plan</title>
-  <style>
-    body { margin: 0; font-family: "DM Sans", Inter, sans-serif; background: #f7f6f3; color: #1c1917; }
-    main { max-width: 28rem; margin: 4rem auto; padding: 0 1.25rem; }
-    h1 { font-size: 1.4rem; }
-    p { color: #57534e; line-height: 1.5; }
-    code { color: #1c1917; }
-  </style>
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  ${FONT_LINK}
+  <style>${ACCOUNT_STYLES}</style>
 </head>
 <body>
   <main>
-    <h1>Signed in</h1>
-    <p>${who}</p>
-    <p>If a terminal is waiting on account login, close this window and return to it.</p>
-    <p>Host a plan from that machine with <code>live-plan serve path/to/work.plan.md --cloud</code>. The command prints the plan URL.</p>
+    <p class="kicker">Living Plan</p>
+    <section class="card">
+      <h1>Signed in</h1>
+      <p>${who}</p>
+      <p>If a terminal is waiting on account login, close this window and return to it.</p>
+      <p>Host a plan from that machine with <code>live-plan serve path/to/work.plan.md --cloud</code>. The command prints the plan URL.</p>
+    </section>
   </main>
 </body>
 </html>`
@@ -33,8 +118,8 @@ function escapeHtml(value: string): string {
 export function renderLoginPage(options: { google: boolean; github: boolean; cli: string }): string {
   const cli = JSON.stringify(options.cli)
   const providers = [
-    options.google ? `<button type="button" data-provider="google">Continue with Google</button>` : '',
-    options.github ? `<button type="button" data-provider="github">Continue with GitHub</button>` : '',
+    options.google ? `<button class="secondary" type="button" data-provider="google">Continue with Google</button>` : '',
+    options.github ? `<button class="secondary" type="button" data-provider="github">Continue with GitHub</button>` : '',
   ].join('')
   return `<!doctype html>
 <html lang="en">
@@ -42,31 +127,25 @@ export function renderLoginPage(options: { google: boolean; github: boolean; cli
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Sign in · Living Plan</title>
-  <style>
-    body { margin: 0; font-family: "DM Sans", Inter, sans-serif; background: #f7f6f3; color: #1c1917; }
-    main { max-width: 24rem; margin: 4rem auto; padding: 0 1.25rem; }
-    h1 { font-size: 1.4rem; }
-    form, .providers { display: grid; gap: 0.75rem; }
-    label { display: grid; gap: 0.3rem; font-size: 0.9rem; }
-    input, button { font: inherit; padding: 0.65rem 0.75rem; border-radius: 0.5rem; }
-    input { border: 1px solid #d6d3d1; }
-    button { border: 0; background: #1c1917; color: white; cursor: pointer; }
-    p { color: #57534e; }
-    .error { color: #9f1239; min-height: 1.2rem; }
-  </style>
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  ${FONT_LINK}
+  <style>${ACCOUNT_STYLES}</style>
 </head>
 <body>
   <main>
-    <h1>Sign in</h1>
-    <p>This account hosts plans on this server. The local app on your machine stays separate.</p>
-    <div class="providers">${providers}</div>
-    <form>
-      <label>Email <input name="email" type="email" autocomplete="username" required /></label>
-      <label>Password <input name="password" type="password" autocomplete="current-password" required minlength="8" /></label>
-      <button type="submit">Sign in</button>
-      <button type="button" data-signup>Create an account</button>
-      <div class="error" role="alert"></div>
-    </form>
+    <p class="kicker">Living Plan</p>
+    <section class="card">
+      <h1>Sign in</h1>
+      <p>This account hosts plans on this server. The local app on your machine stays separate.</p>
+      <div class="providers">${providers}</div>
+      <form>
+        <label>Email <input name="email" type="email" autocomplete="username" required /></label>
+        <label>Password <input name="password" type="password" autocomplete="current-password" required minlength="8" /></label>
+        <button class="primary" type="submit">Sign in</button>
+        <button class="secondary" type="button" data-signup>Create an account</button>
+        <div class="error" role="alert"></div>
+      </form>
+    </section>
   </main>
   <script>
     const cli = ${cli}

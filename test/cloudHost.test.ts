@@ -28,6 +28,8 @@ test('the page after sign-in points back at the terminal', () => {
   const page = renderHomePage('person@example.com')
   assert.match(page, /Signed in as person@example.com/)
   assert.match(page, /live-plan serve/)
+  assert.match(page, /--canvas:\s*#ffffff/)
+  assert.doesNotMatch(page, /#f7f6f3/)
 })
 
 function sqlOf(db: Database): PlanSql {
