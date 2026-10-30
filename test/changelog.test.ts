@@ -153,7 +153,7 @@ test('the repo changelog is classified and Settings renders it above Appearance'
   assert.equal(release.bugs.length, 3)
   assert.equal(release.features.length, 4)
   assert.equal(release.versions[0], '1.5.11')
-  assert.equal(release.versions.at(-1), '1.6.3')
+  assert.equal(release.versions.at(-1), '1.6.5')
   assert.ok(release.improvements.some((line) => line.version === '1.5.11' && line.text.includes('18px square')))
   assert.ok(release.improvements.some((line) => line.version === '1.5.12' && line.text.includes('skills:install')))
   assert.ok(release.improvements.some((line) => line.version === '1.5.13' && line.text.includes('Plans button')))
@@ -164,6 +164,7 @@ test('the repo changelog is classified and Settings renders it above Appearance'
   assert.ok(release.bugs.some((line) => line.version === '1.6.2' && line.text.includes('signed in')))
   assert.ok(release.bugs.some((line) => line.version === '1.6.3' && line.text.includes('row count')))
   assert.ok(release.features.some((line) => line.version === '1.6.3' && line.text.includes('Column search')))
+  assert.ok(release.improvements.some((line) => line.version === '1.6.5' && line.text.includes('account login')))
 
   const plan = parsePlan('---\ntitle: Sample\n---\n\n# Scope\n\nKeep it.\n', 'sample.plan.md')
   const html = renderPlanPage({

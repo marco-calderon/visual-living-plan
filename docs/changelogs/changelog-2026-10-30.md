@@ -172,3 +172,22 @@ The hosted sign-in page, the page after sign-in, and the hosted plan shell use t
 ### Notes
 
 Redeploy the Worker from `cloud/` for these pages to show on the host. No registry restart needed beyond the usual version check.
+
+## 1.6.5
+
+**PR:** (link once known)
+
+**Bump:** patch
+
+### Summary
+
+The live-plan skill tells an author that loopback stays the default host, and that `live-plan account login` plus `serve --cloud` is the opt-in cloud host.
+
+### Improvements
+
+- `skills/live-plan` states that `serve` and `review` stay on loopback unless `--cloud` is passed, and shows `live-plan account login --url https://<host>` and `live-plan serve path/to/work.plan.md --cloud`.
+- `skills/living-plan` points at that same default and those commands.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
