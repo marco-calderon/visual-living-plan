@@ -5,9 +5,10 @@ import { CommentProgress } from './CommentProgress.tsx'
 import { CommentReply } from './CommentReply.tsx'
 import type { PlanPartElement } from './planParts.ts'
 import { Bubble, BubbleContent } from './ui/Bubble.tsx'
-import { isSendShortcut, SendShortcut } from './ui/Kbd.tsx'
+import { isSendShortcut } from './ui/Kbd.tsx'
 import { Message, MessageContent, MessageFooter } from './ui/Message.tsx'
 import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle } from './ui/Popover.tsx'
+import { Textarea } from './ui/Textarea.tsx'
 
 export type CommentPopoverProps = {
   open: boolean
@@ -135,23 +136,19 @@ export function CommentPopover({
           </div>
         ) : null}
         <form className="plan-comment-form" onSubmit={(event) => void submit(event)}>
-          <textarea
-            className="plan-comment-input"
+          <Textarea
             value={draft}
             rows={3}
-            placeholder="Message for the agent"
-            aria-label="Message for the agent"
+            placeholder="Type your message here."
+            aria-label="Type your message here."
             aria-keyshortcuts="Control+Enter Meta+Enter"
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={onDraftKeyDown}
           />
           {error ? <p className="plan-comment-error">{error}</p> : null}
-          <div className="plan-comment-actions">
-            <SendShortcut />
-            <button type="submit" className="btn primary" disabled={sending || draft.trim().length === 0}>
-              {sending ? 'Sending' : 'Send'}
-            </button>
-          </div>
+          <button type="submit" className="btn primary" disabled={sending || draft.trim().length === 0}>
+            {sending ? 'Sending' : 'Send message'}
+          </button>
         </form>
       </PopoverContent>
     </Popover>

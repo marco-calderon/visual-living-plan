@@ -347,3 +347,22 @@ Comments on a plan part, and messages sent to the agent, are shown as chat threa
 
 No registry restart needed beyond the usual version check.
 
+## 1.5.11
+
+**PR:** (link once known)
+
+**Bump:** patch
+
+### Summary
+
+The comment popup composer uses a shared textarea and a full-width send button, in the same light and dark document as the rest of the plan.
+
+### Improvements
+
+- The message field is a rounded textarea with a hairline border, canvas fill, and a visible resize handle. Placeholder copy reads “Type your message here.”
+- Send is a full-width pill. It is black on a light page and light on a dark page. Control+Enter or Command+Enter still sends.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
+
