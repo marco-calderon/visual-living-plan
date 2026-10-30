@@ -362,13 +362,30 @@ body.has-review-bar .shell {
   text-decoration: none;
 }
 .plan-toc-icon {
-  flex: 0 0 16px;
-  width: 16px;
-  height: 16px;
-  margin-top: 0.15rem;
+  flex: 0 0 18px;
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, currentColor 40%, transparent);
+  background: color-mix(in srgb, currentColor 14%, transparent);
   color: var(--toc-muted);
 }
-.plan-toc-icon svg { width: 16px; height: 16px; display: block; }
+.plan-toc-icon svg { width: 12px; height: 12px; display: block; }
+.plan-toc a[data-toc-icon="heading"] .plan-toc-icon {
+  border-color: transparent;
+  background: none;
+}
+.plan-toc a[data-toc-icon="phase-pending"] .plan-toc-icon,
+.plan-toc a[data-toc-icon="callout-note"] .plan-toc-icon,
+.plan-toc a[data-toc-icon="checklist"] .plan-toc-icon,
+.plan-toc a[data-toc-icon="workflow"] .plan-toc-icon {
+  border-color: var(--hairline);
+  background: var(--canvas);
+}
 .plan-toc-icon > [data-icon] { display: none; }
 .plan-toc a[data-toc-icon="phase-pending"] .plan-toc-icon > [data-icon="phase-pending"],
 .plan-toc a[data-toc-icon="phase-active"] .plan-toc-icon > [data-icon="phase-active"],
