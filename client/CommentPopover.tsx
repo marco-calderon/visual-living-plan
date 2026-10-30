@@ -146,12 +146,10 @@ export function CommentPopover({
             onKeyDown={onDraftKeyDown}
           />
           {error ? <p className="plan-comment-error">{error}</p> : null}
-          <div className="plan-comment-submit">
+          <button type="submit" className="btn primary" disabled={sending || draft.trim().length === 0}>
+            <span>{sending ? 'Sending' : 'Send message'}</span>
             <SendShortcut />
-            <button type="submit" className="btn primary" disabled={sending || draft.trim().length === 0}>
-              {sending ? 'Sending' : 'Send message'}
-            </button>
-          </div>
+          </button>
         </form>
       </PopoverContent>
     </Popover>

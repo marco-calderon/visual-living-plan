@@ -360,7 +360,7 @@ The comment popup composer uses a shared textarea and a full-width send button, 
 ### Improvements
 
 - The message field is a rounded textarea with a hairline border, canvas fill, and a visible resize handle. Its type size matches the comments in that popup. Placeholder copy reads “Type your message here.”
-- Send is a full-width pill. It is black on a light page and light on a dark page. A keyboard hint above the button shows that Command+Enter, or Control+Enter, sends.
+- Send is a full-width pill. It is black on a light page and light on a dark page. Inside the button, under the label, a keyboard hint shows that Command+Enter, or Control+Enter, sends. Enter is a return icon.
 
 ### Notes
 

@@ -1,3 +1,4 @@
+import { CornerDownLeft } from 'lucide-react'
 import type { ComponentProps, KeyboardEvent } from 'react'
 
 type KbdProps = ComponentProps<'kbd'>
@@ -26,7 +27,9 @@ export function SendShortcut() {
   return (
     <KbdGroup aria-hidden="true">
       <Kbd>{usesCommandKey() ? '⌘' : 'Ctrl'}</Kbd>
-      <Kbd>Enter</Kbd>
+      <Kbd>
+        <CornerDownLeft size={12} strokeWidth={2.25} aria-hidden="true" />
+      </Kbd>
     </KbdGroup>
   )
 }
