@@ -71,6 +71,8 @@ test('pagination stays off below 100 rows and pages a larger table', () => {
   assert.equal(countRows(small), 6)
   assert.match(small, /Filter by State/)
   assert.match(small, /aria-label="Search rows"/)
+  assert.doesNotMatch(small, /data-has-wrap/)
+  assert.doesNotMatch(small, /data-wrap=/)
 
   const large = renderToStaticMarkup(
     createElement(DataTable, { label: 'Operations' }, rows(DATA_TABLE_PAGINATION_AT)),
@@ -80,6 +82,82 @@ test('pagination stays off below 100 rows and pages a larger table', () => {
   assert.match(large, /Page 1 of /)
   assert.equal(countRows(large), DATA_TABLE_PAGE_SIZE)
   assert.match(large, /data-loaded-rows="100"/)
+})
+
+test('a cell wraps on its own, or inside a percentage of the table', () => {
+  const model = readDataTable([
+    createElement(Column, { id: 'name', header: 'Name' }),
+    createElement(Column, { id: 'detail', header: 'Detail' }),
+    createElement(Column, { id: 'share', header: 'Share' }),
+    createElement(
+      Row,
+      null,
+      createElement(Cell, null, 'Gateway'),
+      createElement(Cell, { wrap: true }, 'The gateway retries while the lease is held.'),
+      createElement(Cell, { wrap: '40%' }, 'Hourly copy stays in this share of the table.'),
+    ),
+    createElement(
+      Row,
+      null,
+      createElement(Cell, { wrap: 'nope' }, 'Ignored'),
+      createElement(Cell, { wrap: '' }, 'Saved'),
+      createElement(Cell, { wrap: 28 }, 'Queue copy'),
+    ),
+    createElement(
+      Row,
+      null,
+      createElement(Cell, { wrap: false }, 'Off'),
+      createElement(Cell, { wrap: '0%' }, 'Zero'),
+      createElement(Cell, { wrap: '140%' }, 'Clamped'),
+    ),
+  ])
+  assert.equal(model.columns[0]?.wraps, false)
+  assert.equal(model.columns[0]?.share, undefined)
+  assert.equal(model.columns[1]?.wraps, true)
+  assert.equal(model.columns[1]?.share, undefined)
+  assert.equal(model.columns[2]?.share, 100)
+  assert.equal(model.rows[0]?.cells[0]?.wrap, undefined)
+  assert.equal(model.rows[0]?.cells[1]?.wrap, true)
+  assert.equal(model.rows[0]?.cells[2]?.wrap, 40)
+  assert.equal(model.rows[1]?.cells[0]?.wrap, undefined)
+  assert.equal(model.rows[1]?.cells[1]?.wrap, true)
+  assert.equal(model.rows[1]?.cells[2]?.wrap, 28)
+  assert.equal(model.rows[2]?.cells[1]?.wrap, undefined)
+  assert.equal(model.rows[2]?.cells[2]?.wrap, 100)
+
+  const html = renderToStaticMarkup(
+    createElement(
+      DataTable,
+      { label: 'Wrap' },
+      createElement(Column, { id: 'name', header: 'Name' }),
+      createElement(Column, { id: 'detail', header: 'Detail' }),
+      createElement(Column, { id: 'share', header: 'Share of the table' }),
+      createElement(
+        Row,
+        null,
+        createElement(Cell, null, 'Gateway'),
+        createElement(Cell, { wrap: true }, 'The gateway retries while the lease is held.'),
+        createElement(Cell, { wrap: '40%' }, 'Hourly copy stays in this share of the table.'),
+      ),
+    ),
+  )
+  assert.match(html, /data-has-wrap="true"/)
+  const headers = tags(html, 'th')
+  const cells = tags(html, 'td')
+  assert.match(headers[0] ?? '', /data-fit="true"/)
+  assert.doesNotMatch(headers[0] ?? '', /data-wrap=/)
+  assert.doesNotMatch(headers[1] ?? '', /data-wrap=/)
+  assert.match(headers[2] ?? '', /data-wrap="40%"/)
+  assert.match(headers[2] ?? '', /--cell-share:\s*40cqw/)
+  assert.match(cells[0] ?? '', /data-fit="true"/)
+  assert.doesNotMatch(cells[0] ?? '', /data-wrap=/)
+  assert.match(cells[1] ?? '', /data-wrap="true"/)
+  assert.doesNotMatch(cells[1] ?? '', /--cell-share/)
+  assert.match(cells[2] ?? '', /data-wrap="40%"/)
+  assert.match(cells[2] ?? '', /--cell-share:\s*40cqw/)
+  assert.match(tableCssText(), /overflow-x:\s*auto/)
+  assert.match(tableCssText(), /\.plan-data-table :is\(th, td\) \*[\s\S]*white-space:\s*nowrap/)
+  assert.match(tableCssText(), /\.plan-data-table-value\[data-wrap\]/)
 })
 
 test('a plan with a data table still parses', () => {
@@ -153,4 +231,12 @@ function rows(count: number): ReactNode[] {
 
 function countRows(html: string): number {
   return html.match(/data-row="/g)?.length ?? 0
+}
+
+function tags(html: string, tag: 'th' | 'td'): string[] {
+  return [...html.matchAll(new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?</${tag}>`, 'g'))].map((match) => match[0] ?? '')
+}
+
+function tableCssText(): string {
+  return readFileSync(new URL('../client/mdx/dataTable/dataTable.css', import.meta.url), 'utf8')
 }

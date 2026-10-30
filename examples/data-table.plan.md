@@ -10,7 +10,7 @@ mode: watch
 The owners table stays on one page. The operations table has 120 rows, so it pages ten at a time.
 
 <phase id="owners" title="Owners" status="done">
-Six rows. Search and the state select are here. There is no pagination control.
+Six rows. Search and the state select are here. There is no pagination control. Detail wraps when a cell sets `wrap`. A cell without it stays on one line, so a long value still scrolls the table sideways.
 
 <Chip>gateway</Chip> <Pill tone="success">succeeded</Pill>
 
@@ -18,6 +18,7 @@ Six rows. Search and the state select are here. There is no pagination control.
 <Column id="name" header="Name" />
 <Column id="state" header="State" filter />
 <Column id="notes" header="Notes" />
+<Column id="detail" header="Detail" />
 <Row>
 <Cell>Gateway</Cell>
 <Cell value="succeeded"><Pill tone="success">succeeded</Pill></Cell>
@@ -25,6 +26,7 @@ Six rows. Search and the state select are here. There is no pagination control.
 <Chip>gateway</Chip>
 <Chip>api</Chip>
 </Cell>
+<Cell wrap>The gateway copies the hourly window forward and retries when the previous worker still holds the lease.</Cell>
 </Row>
 <Row>
 <Cell>Limits</Cell>
@@ -35,11 +37,13 @@ Six rows. Search and the state select are here. There is no pagination control.
 <li>Retry after the lease</li>
 </ul>
 </Cell>
+<Cell wrap="40%">Hourly copy stays in this share of the table. The name and state columns keep their width.</Cell>
 </Row>
 <Row>
 <Cell>Flags</Cell>
 <Cell value="failed"><Pill tone="danger">failed</Pill></Cell>
 <Cell value="checked"><Checkbox checked /></Cell>
+<Cell>edge-route-without-wrapping-so-the-table-scrolls-sideways-when-the-column-does-not-fit</Cell>
 </Row>
 <Row>
 <Cell>Budget</Cell>
@@ -47,16 +51,19 @@ Six rows. Search and the state select are here. There is no pagination control.
 <Cell>
 <field name="watch" label="Watch" type="checkbox" default="true" />
 </Cell>
+<Cell wrap>Saved</Cell>
 </Row>
 <Row>
 <Cell>Queue</Cell>
 <Cell value="cancelled"><Pill>cancelled</Pill></Cell>
 <Cell><Chip>queue</Chip></Cell>
+<Cell wrap="32%">Queue copy retries after the lease expires and the next worker takes the window.</Cell>
 </Row>
 <Row>
 <Cell>Edge</Cell>
 <Cell value="succeeded"><Pill tone="success">succeeded</Pill></Cell>
 <Cell value="unchecked"><Checkbox /></Cell>
+<Cell>Edge</Cell>
 </Row>
 </DataTable>
 </phase>

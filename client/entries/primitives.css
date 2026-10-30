@@ -548,6 +548,12 @@ a.plan-step-label:hover {
   word-break: normal;
 }
 
+.plan-data-table-value[data-wrap] :is(.plan-chip, .plan-pill) {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
 .plan-document pre:not(.mermaid),
 .plan-rich pre:not(.mermaid),
 .code-block {
