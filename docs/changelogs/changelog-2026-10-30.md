@@ -213,7 +213,7 @@ Redeploy the Worker from `cloud/` and apply D1 migrations so the `user_settings`
 
 ## 1.6.8
 
-**PR:** (opening)
+**PR:** [#99](https://github.com/marco-calderon/visual-living-plan/pull/99)
 
 **Bump:** patch
 
