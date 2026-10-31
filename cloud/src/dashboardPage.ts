@@ -7,6 +7,8 @@ import {
   settingsDocumentCss,
 } from '../../src/appearanceSettings'
 import { renderDashboardDocument } from '../../src/dashboardDocument'
+import { DIFFS_THEME_PRESETS } from '../../src/diffsTheme'
+import { accountMenuHtml, hostToolbarCss, renderHostToolbar } from '../../src/hostToolbar'
 
 function escapeHtml(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;')
@@ -106,25 +108,40 @@ export function cloudAccountRoute(pathname: string): CloudSurface | null {
   return null
 }
 
-/** Same control dashboard as the local host, plus this account so Settings lives in the toolbar. */
-export function renderPlansDashboard(account: { email: string; name: string; tier: string }): string {
-  const accountHtml = `<section class="account-card" data-account-section data-host-panel="cloud">
-      <div class="account-row">
-        <p class="account-identity">Signed in as ${escapeHtml(account.email)}.</p>
-        <p class="account-meta">Name <strong>${escapeHtml(account.name || account.email)}</strong></p>
-        <p class="account-meta">Tier <strong>${escapeHtml(account.tier)}</strong></p>
-      </div>
-      <p class="account-note">If a terminal is waiting on account login, close this window and return to it. Host a plan from that machine with <code>live-plan serve path/to/work.plan.md --cloud</code>. Each publish stores the plan here. Loopback plans stay separate and do not require this account.</p>
+export type CloudAccountIdentity = { email: string; name: string; tier: string }
+
+function chromeCss(assets?: SettingsPageAssets): string {
+  return (assets?.chromeCss ?? [])
+    .map((href) => `<link rel="stylesheet" href="${escapeHtml(href)}" />`)
+    .join('\n')
+}
+
+function chromeJs(assets?: SettingsPageAssets): string {
+  if (!assets?.chromeHref) return ''
+  return `<script>window.__LIVE_PLAN_THEME_URL__ = "/api/account/settings";</script>\n<script type="module" src="${escapeHtml(assets.chromeHref)}"></script>`
+}
+
+function accountSection(account: CloudAccountIdentity): string {
+  return `<section class="block settings-section" data-account-section data-host-panel="cloud">
+      <div class="settings-kicker">Account</div>
+      <h3>Signed in as ${escapeHtml(account.email)}</h3>
+      <p class="settings-copy">Name <strong>${escapeHtml(account.name || account.email)}</strong></p>
+      <p class="settings-copy">Tier <strong>${escapeHtml(account.tier)}</strong></p>
+      <p class="settings-copy">If a terminal is waiting on account login, close this window and return to it. Host a plan from that machine with <code>live-plan serve path/to/work.plan.md --cloud</code>. Each publish stores the plan here. Loopback plans stay separate and do not require this account.</p>
+      <p class="settings-meta" data-settings-error role="alert"></p>
     </section>`
+}
+
+/** Same control dashboard as the local host. The user menu is the only account control in the toolbar. */
+export function renderPlansDashboard(account: CloudAccountIdentity, assets?: SettingsPageAssets): string {
   return renderDashboardDocument({
     host: 'cloud',
     apiPath: '/api/account/dashboard',
     logoHref: '/dashboard',
     lede: 'Hosted plans for this account. Summaries follow the local day, week, and month. Each published version is stored on this host, and the latest 10 are kept. Loopback plans stay on your machine.',
-    toolbarHtml: '<a class="titlebar-action" href="/account">Account</a><a class="titlebar-action titlebar-action-primary" href="/settings">Settings</a><button type="button" class="titlebar-action" data-sign-out>Sign out</button>',
-    accountHtml,
-    headExtra: '<link rel="icon" type="image/png" href="/favicon.png" />',
-    footScript: SIGN_OUT_SCRIPT,
+    toolbarHtml: accountMenuHtml(account.name || account.email),
+    headExtra: `<link rel="icon" type="image/png" href="/favicon.png" />\n${chromeCss(assets)}`,
+    footScript: `${SIGN_OUT_SCRIPT}${chromeJs(assets)}`,
   })
 }
 
@@ -181,7 +198,11 @@ export function settingsChromeFromManifest(
   return { chromeHref: `/client/${chrome.file}`, chromeCss: css }
 }
 
-export function renderSettingsPage(settings: AccountSettings, assets?: SettingsPageAssets): string {
+export function renderSettingsPage(
+  settings: AccountSettings,
+  account: CloudAccountIdentity,
+  assets?: SettingsPageAssets,
+): string {
   const saved = 'Saved on this host for your account.'
   const appearance = appearanceSettingsHtml({
     accent: settings.accent,
@@ -190,18 +211,13 @@ export function renderSettingsPage(settings: AccountSettings, assets?: SettingsP
     wrapCode: settings.wrapCode,
     presets: ACCENT_CHOICES.map((choice) => ({ label: choice.label, accent: choice.accent })),
     widths: APPEARANCE_WIDTHS,
+    diffsThemes: DIFFS_THEME_PRESETS,
     accentCopy: 'Pick one of eight presets tuned for light and dark mode, or set a custom hex. Changes save on this host for your account.',
     accentNote: saved,
     widthNote: saved,
     wrapNote: saved,
     diffsNote: saved,
   })
-  const chromeCss = (assets?.chromeCss ?? [])
-    .map((href) => `<link rel="stylesheet" href="${escapeHtml(href)}" />`)
-    .join('\n')
-  const chromeJs = assets?.chromeHref
-    ? `<script>window.__LIVE_PLAN_THEME_URL__ = "/api/account/settings";</script>\n<script type="module" src="${escapeHtml(assets.chromeHref)}"></script>`
-    : ''
   return `<!doctype html>
 <html lang="en" data-plan-host="cloud" data-accent="${escapeHtml(settings.accent)}" data-layout="${escapeHtml(settings.pageWidth)}" data-diffs-theme="${escapeHtml(settings.diffsTheme)}" data-wrap-code="${settings.wrapCode ? 'true' : 'false'}">
 <head>
@@ -210,29 +226,27 @@ export function renderSettingsPage(settings: AccountSettings, assets?: SettingsP
   <title>Settings · Living Plan</title>
   <link rel="icon" type="image/png" href="/favicon.png" />
   ${FONT_LINK}
-  ${chromeCss}
+  ${chromeCss(assets)}
   <style>
     ${settingsDocumentCss}
+    ${hostToolbarCss}
     ${appearanceSettingsCss}
   </style>
 </head>
 <body class="layout-${escapeHtml(settings.pageWidth)}">
+  ${renderHostToolbar({
+    title: 'Settings',
+    logoHref: '/dashboard',
+    endHtml: accountMenuHtml(account.name || account.email),
+  })}
   <main class="settings-page">
-    ${accountNav('settings')}
-    <p class="kicker">Living Plan</p>
-    <h1>Settings</h1>
     <div class="settings-stack">
-      <section class="block settings-section" data-host-panel="cloud" data-plan-host="cloud">
-        <div class="settings-kicker">This host</div>
-        <h3>Cloud account</h3>
-        <p class="settings-copy">Saved on this host for your signed-in session. A local plan still uses the theme file beside that plan.</p>
-        <p class="settings-meta" data-settings-error role="alert"></p>
-      </section>
+      ${accountSection(account)}
       ${appearance}
     </div>
   </main>
   ${appearanceSettingsScript('/api/account/settings')}
-  ${chromeJs}
+  ${chromeJs(assets)}
   ${SIGN_OUT_SCRIPT}
 </body>
 </html>`

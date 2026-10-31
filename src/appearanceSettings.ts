@@ -1,4 +1,4 @@
-import { DEFAULT_DIFFS_THEME, diffsThemePreset, type DiffsThemePreset, type DiffsThemeSample } from './diffsTheme'
+import { DEFAULT_DIFFS_THEME, DIFFS_THEME_PRESETS, diffsThemePreset, type DiffsThemePreset, type DiffsThemeSample } from './diffsTheme'
 
 export type AppearancePreset = { label: string; accent: string }
 
@@ -92,7 +92,7 @@ export function appearanceSettingsHtml(input: AppearanceSettingsInput): string {
     })
     .join('')
   const diffsThemeId = input.diffsTheme || DEFAULT_DIFFS_THEME
-  const diffsPresets = input.diffsThemes?.length ? input.diffsThemes : [diffsThemePreset(diffsThemeId)]
+  const diffsPresets = input.diffsThemes?.length ? input.diffsThemes : DIFFS_THEME_PRESETS
   const currentDiffs = diffsThemePreset(diffsThemeId)
   const wrapCode = input.wrapCode === true
   return `<section class="block settings-section" data-section>

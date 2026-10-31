@@ -1,9 +1,9 @@
+import { hostToolbarCss, renderHostToolbar } from './hostToolbar'
+
 export type DashboardDocumentInput = {
   lede?: string
-  /** Extra titlebar controls, after the period, status, and refresh tools. */
+  /** Extra titlebar controls. The cloud host passes the user menu. Local passes Running plans. */
   toolbarHtml?: string
-  /** Cloud dashboard only. The local dashboard leaves this empty. */
-  accountHtml?: string
   /** Logo target. Local opens running plans. The cloud host opens this dashboard. */
   logoHref?: string
   apiPath?: string
@@ -20,7 +20,6 @@ export function renderDashboardDocument(options: DashboardDocumentInput): string
   const input = {
     lede: options.lede ?? defaultLede,
     toolbarHtml: options.toolbarHtml ?? defaultToolbar,
-    accountHtml: options.accountHtml ?? '',
     logoHref: options.logoHref ?? '/',
     apiPath: options.apiPath ?? '/api/dashboard',
     headExtra: options.headExtra,
@@ -90,59 +89,19 @@ export function renderDashboardDocument(options: DashboardDocumentInput): string
       background: var(--canvas);
     }
     main { margin: 0; padding: 24px 32px 64px; }
-    .titlebar {
-      position: sticky;
-      top: 0;
-      z-index: 8;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      min-height: 3.75rem;
-      padding: 8px 16px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--line);
-    }
-    .logo-btn {
-      width: 36px;
-      height: 36px;
-      padding: 0;
-      display: grid;
-      place-items: center;
-      flex: 0 0 auto;
-      border: 0;
-      border-radius: 50%;
-      background: transparent;
-      text-decoration: none;
-    }
-    .logo-btn:focus-visible,
-    .tab-label:focus-visible,
-    .titlebar-action:focus-visible {
+    ${hostToolbarCss}
+    .tab-label:focus-visible {
       outline: 2px solid var(--accent);
       outline-offset: 2px;
     }
-    .titlebar-logo {
-      width: 29px;
-      height: 29px;
-      display: block;
-      border-radius: 50%;
-    }
-    .brand {
-      flex: 0 0 auto;
-      margin: 0;
-      font-weight: 600;
-      font-size: 20px;
-      line-height: 1.4;
-      color: var(--ink);
-      white-space: nowrap;
-    }
-    .chrome-tools {
+    .dash-section { display: grid; gap: 16px; margin: 0 0 24px; }
+    .dash-section:last-child { margin-bottom: 0; }
+    .section-bar {
       display: flex;
-      flex: 1 1 auto;
+      justify-content: space-between;
       align-items: center;
-      justify-content: flex-end;
       gap: 12px;
       flex-wrap: wrap;
-      margin-left: auto;
     }
     .tabs {
       display: inline-flex;
@@ -172,22 +131,6 @@ export function renderDashboardDocument(options: DashboardDocumentInput): string
       background: var(--primary);
       color: var(--on-primary);
     }
-    .titlebar-action {
-      display: inline-flex;
-      align-items: center;
-      height: 36px;
-      padding: 0 16px;
-      border: 1px solid var(--ink);
-      border-radius: 9999px;
-      background: transparent;
-      color: var(--ink);
-      text-decoration: none;
-    }
-    .titlebar-action-primary {
-      background: var(--primary);
-      border-color: var(--primary);
-      color: var(--on-primary);
-    }
     .lede {
       margin: 0 0 8px;
       color: var(--muted);
@@ -199,7 +142,7 @@ export function renderDashboardDocument(options: DashboardDocumentInput): string
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
       gap: 16px;
-      margin: 0 0 16px;
+      margin: 0;
     }
     .stat {
       background: var(--panel);
@@ -276,13 +219,13 @@ export function renderDashboardDocument(options: DashboardDocumentInput): string
       margin-bottom: 0.3rem;
     }
     .meter span { display: block; height: 100%; background: var(--accent); }
-    .tab-label, .titlebar-action {
+    .tab-label {
       transition: transform 160ms var(--ease-out), background-color 150ms ease, color 150ms ease, border-color 150ms ease;
     }
-    .tab-label:active, .titlebar-action:active { transform: scale(0.97); }
+    .tab-label:active { transform: scale(0.97); }
     @media (prefers-reduced-motion: reduce) {
-      .tab-label, .titlebar-action { transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease; }
-      .tab-label:active, .titlebar-action:active { transform: none; }
+      .tab-label { transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease; }
+      .tab-label:active { transform: none; }
     }
     @media (prefers-reduced-motion: no-preference) {
       @keyframes enter {
@@ -293,14 +236,10 @@ export function renderDashboardDocument(options: DashboardDocumentInput): string
         from { opacity: 0; }
         to { opacity: 1; }
       }
-      .lede, .account-card, .stats, .status, .table-wrap {
+      .dash-section {
         animation: enter 200ms var(--ease-out) both;
       }
-      .lede { animation-delay: 0ms; }
-      .account-card { animation-delay: 40ms; }
-      .stats { animation-delay: 80ms; }
-      .status { animation-delay: 120ms; }
-      .table-wrap { animation-delay: 160ms; }
+      .dash-section:nth-child(2) { animation-delay: 80ms; }
       .stat.enter { animation: enter 200ms var(--ease-out) both; }
       tbody tr.enter { animation: row-in 150ms var(--ease-out) both; }
     }
@@ -334,33 +273,31 @@ export function renderDashboardDocument(options: DashboardDocumentInput): string
   </style>
 </head>
 <body>
-  <header class="titlebar">
-    <a class="logo-btn" href="${input.logoHref}" aria-label="Living Plan">
-      <img class="titlebar-logo" src="/favicon.png" alt="" width="29" height="29" />
-    </a>
-    <h1 class="brand">Dashboard</h1>
-    <div class="chrome-tools">
-      <div class="tabs" role="group" aria-label="Summary period">
-        <button type="button" class="tab-label" data-period="day" aria-pressed="true">Today</button>
-        <button type="button" class="tab-label" data-period="week" aria-pressed="false" aria-label="This week">Week</button>
-        <button type="button" class="tab-label" data-period="month" aria-pressed="false" aria-label="This month">Month</button>
-      </div>
-      <div class="tabs" role="group" aria-label="Plan status">
-        <button type="button" class="tab-label" data-filter="all" aria-pressed="true">All</button>
-        <button type="button" class="tab-label" data-filter="running" aria-pressed="false">Running</button>
-        <button type="button" class="tab-label" data-filter="executed" aria-pressed="false">Executed</button>
-        <button type="button" class="tab-label" data-filter="interrupted" aria-pressed="false">Interrupted</button>
-      </div>
-      <button type="button" class="titlebar-action" id="refresh">Refresh</button>
-      ${input.toolbarHtml}
-    </div>
-  </header>
+  ${renderHostToolbar({ title: 'Dashboard', logoHref: input.logoHref, endHtml: input.toolbarHtml })}
   <main>
-    ${input.accountHtml ?? ''}
-    <section class="stats" id="stats" aria-live="polite"></section>
-    <p class="lede">${input.lede}</p>
-    <p class="status" id="status">Loading…</p>
-    <div class="table-wrap">
+    <section class="dash-section" aria-label="Summary">
+      <div class="section-bar">
+        <div class="tabs" role="group" aria-label="Summary period">
+          <button type="button" class="tab-label" data-period="day" aria-pressed="true">Today</button>
+          <button type="button" class="tab-label" data-period="week" aria-pressed="false" aria-label="This week">Week</button>
+          <button type="button" class="tab-label" data-period="month" aria-pressed="false" aria-label="This month">Month</button>
+        </div>
+        <button type="button" class="titlebar-action" id="refresh">Refresh</button>
+      </div>
+      <section class="stats" id="stats" aria-live="polite"></section>
+      <p class="lede">${input.lede}</p>
+      <p class="status" id="status">Loading…</p>
+    </section>
+    <section class="dash-section" aria-label="Plans">
+      <div class="section-bar">
+        <div class="tabs" role="group" aria-label="Plan status">
+          <button type="button" class="tab-label" data-filter="all" aria-pressed="true">All</button>
+          <button type="button" class="tab-label" data-filter="running" aria-pressed="false">Running</button>
+          <button type="button" class="tab-label" data-filter="executed" aria-pressed="false">Executed</button>
+          <button type="button" class="tab-label" data-filter="interrupted" aria-pressed="false">Interrupted</button>
+        </div>
+      </div>
+      <div class="table-wrap">
       <table>
         <caption>Plans</caption>
         <thead>
@@ -377,7 +314,8 @@ export function renderDashboardDocument(options: DashboardDocumentInput): string
         </thead>
         <tbody id="rows"></tbody>
       </table>
-    </div>
+      </div>
+    </section>
   </main>
   <script>
     (() => {

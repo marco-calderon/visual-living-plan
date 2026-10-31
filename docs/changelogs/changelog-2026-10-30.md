@@ -261,14 +261,14 @@ Redeploy the Worker from `cloud/` and apply D1 migrations so the `plan_versions`
 
 ### Summary
 
-The cloud dashboard includes the account section and a Settings button. Settings uses the same appearance controls as a local plan and saves them on the host.
+The cloud dashboard and settings pages share a toolbar. Settings keeps the account details and every Pierre theme.
 
 ### Improvements
 
-- The cloud `/dashboard` shows the signed-in account, with email, name, tier, and a Settings button. `/account` stays its own page. The local dashboard is unchanged.
-- `/settings` on the cloud host uses the same appearance controls as a local plan: accent, page width, code wrap, and Pierre theme. Saving writes them on this host.
-- Those settings sit on documentation cards with 16px padding. The page-width control is the same pill as a local plan, and the Pierre theme uses the same collapse.
-- The dashboard uses the plan-page toolbar: logo, title, period and status pills, and refresh. On the cloud host, Account, Settings, and sign out sit in that toolbar.
+- The cloud dashboard and settings pages share one toolbar: logo, title, and a user menu. The menu has Settings and log out. The account button is gone. `/account` stays its own page.
+- Period and status filters sit with the dashboard sections again. Refresh stays with the period control.
+- The signed-in email, name, and tier are on Settings, with the host note.
+- `/settings` uses the same appearance controls as a local plan, including every Pierre theme, on documentation cards. Page width is the same pill, and the Pierre theme uses the same collapse.
 
 ### Notes
 

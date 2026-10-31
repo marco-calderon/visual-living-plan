@@ -50,17 +50,21 @@ export default {
     if (url.pathname === '/api/account/dashboard' && request.method === 'GET') return accountDashboardApi(request, env, auth, origin)
     const surface = cloudAccountRoute(url.pathname)
     if (surface === 'redirect') return Response.redirect(new URL('/dashboard', request.url).toString(), 302)
-    if (surface === 'dashboard') return signedInHtml(request, env, auth, (session) => renderPlansDashboard({
+    if (surface === 'dashboard') return signedInHtml(request, env, auth, async (session) => renderPlansDashboard({
       email: session.user.email,
       name: session.user.name || session.user.email,
       tier: normalizeTier(session.user.tier),
-    }))
+    }, settingsChromeFromManifest(await readClientManifest(env, request))))
     if (surface === 'account') return signedInHtml(request, env, auth, (session) => renderAccountPage({
       email: session.user.email,
       name: session.user.name || session.user.email,
       tier: normalizeTier(session.user.tier),
     }))
-    if (surface === 'settings') return signedInHtml(request, env, auth, async (session) => renderSettingsPage(await readAccountSettings(env.DB, session.user.id), settingsChromeFromManifest(await readClientManifest(env, request))))
+    if (surface === 'settings') return signedInHtml(request, env, auth, async (session) => renderSettingsPage(await readAccountSettings(env.DB, session.user.id), {
+      email: session.user.email,
+      name: session.user.name || session.user.email,
+      tier: normalizeTier(session.user.tier),
+    }, settingsChromeFromManifest(await readClientManifest(env, request))))
     if (url.pathname === '/login') {
       const cli = url.searchParams.get('cli') ?? ''
       if (cli && !isLoopback(cli)) return text(400, 'The sign-in callback must be on this machine.')
