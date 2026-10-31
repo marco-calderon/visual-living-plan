@@ -1,5 +1,4 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { hostToolbarCss } from '../hostToolbar.ts'
 import { HostBar } from '../HostBar.tsx'
 import { loadAccount } from '../planFns.ts'
 
@@ -19,7 +18,6 @@ function AccountPage() {
   const label = account.user.name || account.user.email
   return (
     <>
-      <style>{hostToolbarCss}</style>
       <HostBar title="Account" label={label} />
       <main className="host-page">
         <p className="kicker">Living Plan</p>

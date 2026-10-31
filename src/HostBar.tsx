@@ -1,4 +1,5 @@
 import { useLayoutEffect } from 'react'
+import './hostToolbar.css'
 
 type HostWindow = Window & { __LIVE_PLAN_THEME_URL__?: string }
 

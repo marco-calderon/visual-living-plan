@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
-import { hostToolbarCss } from '../hostToolbar.ts'
 import { authClient } from '../authClient.ts'
+import '../hostToolbar.css'
 
 type LoginSearch = { next?: string; cli?: string }
 
@@ -47,7 +47,6 @@ function LoginPage() {
 
   return (
     <>
-      <style>{hostToolbarCss}</style>
       <header className="titlebar">
         <a className="logo-btn" href="/dashboard" aria-label="Living Plan">
           <img className="titlebar-logo" src="/favicon.png" alt="" width={29} height={29} />

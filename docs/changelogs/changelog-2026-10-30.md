@@ -288,6 +288,10 @@ The web application is TanStack Start on the same Worker. Every page is a Start 
 
 - The hosted plan page shows the local title bar: Plan, Workflow, and the contents list. Settings opens from the profile menu on the plan, dashboard, settings, and account pages. A page with no account shows Sign in in that place.
 
+### Improvements
+
+- The hosted dashboard is a React page. Its layout is a stylesheet, and the period, status filter, summary, and plan table live in that component.
+
 ### New features
 
 - Sign-in, the dashboard, account, settings, plan history, the signed-in plan, and the no-account preview are all TanStack Start routes. Plan APIs and the Durable Object stay on the Worker.

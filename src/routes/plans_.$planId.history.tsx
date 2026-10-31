@@ -1,5 +1,4 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { hostToolbarCss } from '../hostToolbar.ts'
 import { HostBar } from '../HostBar.tsx'
 import { loadHistory } from '../planFns.ts'
 
@@ -24,7 +23,6 @@ function HistoryPage() {
   const history = Route.useLoaderData()
   return (
     <>
-      <style>{hostToolbarCss}</style>
       <HostBar title={history.title} label={history.name} />
       <main className="host-page">
         <p className="kicker">Living Plan</p>

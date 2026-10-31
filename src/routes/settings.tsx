@@ -8,7 +8,6 @@ import {
   settingsDocumentCss,
 } from '../appearanceSettings.ts'
 import { DIFFS_THEME_PRESETS } from '../diffsTheme.ts'
-import { hostToolbarCss } from '../hostToolbar.ts'
 import { HostBar } from '../HostBar.tsx'
 import { loadAccount } from '../planFns.ts'
 
@@ -74,7 +73,7 @@ function SettingsPage() {
 
   return (
     <>
-      <style>{`${settingsDocumentCss}\n${hostToolbarCss}\n${appearanceSettingsCss}`}</style>
+      <style>{`${settingsDocumentCss}\n${appearanceSettingsCss}`}</style>
       <HostBar title="Settings" label={label} themeUrl="/api/account/settings" />
       <main className="settings-page">
         <div className="settings-stack">
