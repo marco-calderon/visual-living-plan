@@ -246,9 +246,28 @@ The cloud host splits the plans dashboard, account, and settings into separate p
 
 ### New features
 
-- `/dashboard` on the cloud host is the plans dashboard: today, this week, and this month, status filters, and the same plan table as the local control dashboard. It also shows the account section, with a Settings button. `/account` stays its own page for the signed-in name, email, and tier. `/settings` opens the same appearance controls as a local plan and saves them on this host. `/` and `/review` redirect to `/dashboard`.
+- `/dashboard` on the cloud host is the plans dashboard: today, this week, and this month, status filters, and the same plan table as the local control dashboard. `/account` shows the signed-in name, email, and tier. `/settings` saves appearance on this host. `/` and `/review` redirect to `/dashboard`.
 - Publishing a plan with `serve --cloud` or `review --cloud` stores that document on the host. The host keeps the latest 10 versions and drops the oldest when an 11th is published. The dashboard links to the stored plan file. Loopback publish is unchanged.
 
 ### Notes
 
 Redeploy the Worker from `cloud/` and apply D1 migrations so the `plan_versions` table exists. No registry restart needed beyond the usual version check.
+
+## 1.6.10
+
+**PR:** (link once opened)
+
+**Bump:** patch
+
+### Summary
+
+The cloud dashboard includes the account section and a Settings button. Settings uses the same appearance controls as a local plan and saves them on the host.
+
+### Improvements
+
+- The cloud `/dashboard` shows the signed-in account, with email, name, tier, and a Settings button. `/account` stays its own page. The local dashboard is unchanged.
+- `/settings` on the cloud host uses the same appearance controls as a local plan: accent, page width, code wrap, and Pierre theme. Saving writes them on this host.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
