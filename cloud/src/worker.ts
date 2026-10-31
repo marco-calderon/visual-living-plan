@@ -10,7 +10,7 @@ import {
   settingsChromeFromManifest,
 } from './dashboardPage'
 import { hostedDashboard, type HostedPlanRow } from './hostedDashboard'
-import { listPlanVersions, publishPlanVersion, readPlanVersion } from './planVersions'
+import { LATEST_PLAN_VERSION_SQL, ensurePlanVersions, listPlanVersions, publishPlanVersion, readPlanVersion } from './planVersions'
 import { renderLoginPage } from './loginPage'
 import { PlanObject } from './planObject'
 import { renderCloudPage, type CloudPageAssets } from './page'
@@ -114,18 +114,65 @@ async function accountDashboardApi(
   if (!session) return text(401, 'Sign in required')
   const period = new URL(request.url).searchParams.get('period')
   const selected = period === 'week' || period === 'month' ? period : 'day'
-  const listed = await env.DB.prepare(
-    `SELECT p.id, p.title, p.mode, p.closed_at, p.created_at,
-            v.seq AS version_seq, v.title AS version_title, v.created_at AS version_at
-     FROM plans p
-     LEFT JOIN plan_versions v ON v.plan_id = p.id
-       AND v.seq = (SELECT MAX(seq) FROM plan_versions WHERE plan_id = p.id)
-     WHERE p.user_id = ?
-     ORDER BY p.created_at DESC`,
-  )
-    .bind(session.user.id)
-    .all<HostedPlanRow>()
-  return Response.json(hostedDashboard(listed.results ?? [], selected, origin))
+  let rows: HostedPlanRow[]
+  try {
+    rows = await listHostedPlanRows(env, session.user.id)
+  } catch {
+    return text(500, 'Could not read the dashboard.')
+  }
+  return Response.json(hostedDashboard(await backfillHostedPlans(env, session.user.id, rows), selected, origin))
+}
+
+async function listHostedPlanRows(env: Env, userId: string): Promise<HostedPlanRow[]> {
+  try {
+    await ensurePlanVersions(env.DB)
+    const listed = await env.DB.prepare(LATEST_PLAN_VERSION_SQL).bind(userId).all<HostedPlanRow>()
+    return listed.results ?? []
+  } catch {
+    const listed = await env.DB.prepare(
+      'SELECT id, title, mode, closed_at, created_at FROM plans WHERE user_id = ? ORDER BY created_at DESC',
+    )
+      .bind(userId)
+      .all<Omit<HostedPlanRow, 'version_seq' | 'version_title' | 'version_at'>>()
+    return (listed.results ?? []).map((row) => ({
+      ...row,
+      version_seq: null,
+      version_title: null,
+      version_at: null,
+    }))
+  }
+}
+
+/** A plan saved before the versions table existed still has its document on the Durable Object. */
+async function backfillHostedPlans(env: Env, userId: string, rows: HostedPlanRow[]): Promise<HostedPlanRow[]> {
+  const filled: HostedPlanRow[] = []
+  for (const row of rows) {
+    if (row.version_seq != null) {
+      filled.push(row)
+      continue
+    }
+    const version = await rememberPlanVersion(env, userId, row.id, row.title).catch(() => null)
+    filled.push(
+      version
+        ? { ...row, version_seq: version.seq, version_title: version.title, version_at: version.createdAt }
+        : row,
+    )
+  }
+  return filled
+}
+
+async function rememberPlanVersion(
+  env: Env,
+  userId: string,
+  planId: string,
+  title: string | null,
+): Promise<{ seq: number; title: string; createdAt: number } | null> {
+  const viewResponse = await planFetch(env, planId, new Request('https://plan.internal/view'), '/view', 'account')
+  if (!viewResponse.ok) return null
+  const view = (await viewResponse.json()) as { title?: unknown; source?: unknown }
+  if (typeof view.source !== 'string') return null
+  const storedTitle = typeof view.title === 'string' && view.title.trim() ? view.title : title || 'Living plan'
+  return publishPlanVersion(env.DB, { planId, userId, title: storedTitle, source: view.source })
 }
 
 async function accountRead(request: Request, env: Env, auth: ReturnType<typeof createAuth>): Promise<Response> {
@@ -222,7 +269,7 @@ async function registerPlan(request: Request, env: Env, auth: ReturnType<typeof 
     userId: session.user.id,
     title,
     source: body.markdown ?? '',
-  })
+  }).catch(() => undefined)
   return Response.json({
     plan: { id: cloudId, url: `${origin}/plans/${cloudId}/`, token, mode },
     revision: payload.revision ?? 0,
@@ -389,7 +436,7 @@ async function publishSource(request: Request, env: Env, planId: string, actor: 
     .first<{ user_id: string; title: string | null }>()
   if (!row) return forwarded
   const title = (typeof body.title === 'string' && body.title.trim() ? body.title : row.title || 'Living plan').slice(0, 200)
-  await publishPlanVersion(env.DB, { planId, userId: row.user_id, title, source: body.markdown })
+  await publishPlanVersion(env.DB, { planId, userId: row.user_id, title, source: body.markdown }).catch(() => undefined)
   if (typeof body.title === 'string' && body.title.trim()) {
     await env.DB.prepare('UPDATE plans SET title = ? WHERE id = ?').bind(title, planId).run()
   }
@@ -411,7 +458,14 @@ async function planDocument(
   seq: number | 'latest',
 ): Promise<Response> {
   if (!(await planOwner(request, env, auth, planId))) return text(401, 'Sign in required')
-  const version = await readPlanVersion(env.DB, planId, seq)
+  let version = await readPlanVersion(env.DB, planId, seq).catch(() => null)
+  if (!version && seq === 'latest') {
+    const row = await env.DB.prepare('SELECT user_id, title FROM plans WHERE id = ?')
+      .bind(planId)
+      .first<{ user_id: string; title: string | null }>()
+    if (row) await rememberPlanVersion(env, row.user_id, planId, row.title).catch(() => null)
+    version = await readPlanVersion(env.DB, planId, 'latest').catch(() => null)
+  }
   if (!version) return text(404, 'This plan has no saved version.')
   const filename = `${version.title.replace(/[^\w.-]+/g, '-').replace(/^-|-$/g, '') || 'plan'}.v${version.seq}.plan.md`
   return new Response(version.source, {
@@ -423,9 +477,20 @@ async function planDocument(
   })
 }
 
+async function versionsForPlan(env: Env, planId: string): Promise<Array<{ seq: number; title: string; createdAt: number }>> {
+  let versions = await listPlanVersions(env.DB, planId).catch(() => [])
+  if (versions.length > 0) return versions
+  const row = await env.DB.prepare('SELECT user_id, title FROM plans WHERE id = ?')
+    .bind(planId)
+    .first<{ user_id: string; title: string | null }>()
+  if (row) await rememberPlanVersion(env, row.user_id, planId, row.title).catch(() => null)
+  versions = await listPlanVersions(env.DB, planId).catch(() => [])
+  return versions
+}
+
 async function planHistory(request: Request, env: Env, auth: ReturnType<typeof createAuth>, planId: string): Promise<Response> {
   if (!(await planOwner(request, env, auth, planId))) return text(401, 'Sign in required')
-  const versions = await listPlanVersions(env.DB, planId)
+  const versions = await versionsForPlan(env, planId)
   const title = versions[0]?.title ?? 'Living plan'
   return html(renderVersionHistory({ title, planId, versions }))
 }
@@ -436,7 +501,7 @@ export async function hostedPlanVersions(request: Request, env: Env, planId: str
   const auth = createAuth(env, origin)
   const session = await readSession(auth, request, env.DB)
   if (!session || !(await planOwner(request, env, auth, planId))) return text(401, 'Sign in required')
-  const versions = await listPlanVersions(env.DB, planId)
+  const versions = await versionsForPlan(env, planId)
   return Response.json({
     title: versions[0]?.title ?? 'Living plan',
     planId,
