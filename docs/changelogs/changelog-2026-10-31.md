@@ -2,7 +2,7 @@
 
 ## 1.7.1
 
-**PR:** (link once known)
+**PR:** [#102](https://github.com/marco-calderon/visual-living-plan/pull/102)
 
 **Bump:** patch
 
