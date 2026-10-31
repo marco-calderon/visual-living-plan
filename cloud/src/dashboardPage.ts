@@ -1,6 +1,11 @@
 import { ACCENT_CHOICES, type AccountSettings } from './accountSettings'
 import { ACCOUNT_STYLES, FONT_LINK } from './loginPage'
-import { appearanceSettingsCss, appearanceSettingsHtml, appearanceSettingsScript } from '../../src/appearanceSettings'
+import {
+  appearanceSettingsCss,
+  appearanceSettingsHtml,
+  appearanceSettingsScript,
+  settingsDocumentCss,
+} from '../../src/appearanceSettings'
 import { renderDashboardDocument } from '../../src/dashboardDocument'
 
 function escapeHtml(value: string): string {
@@ -145,7 +150,45 @@ export function renderAccountPage(input: { email: string; name: string; tier: st
   )
 }
 
-export function renderSettingsPage(settings: AccountSettings): string {
+export type SettingsPageAssets = {
+  chromeHref: string | null
+  chromeCss: string[]
+}
+
+export type ClientManifestEntry = {
+  file: string
+  css?: string[]
+  name?: string
+  imports?: string[]
+}
+
+/** Settings hydrates the collapse and code-wrap switch only. The plan selector also mounts comments. */
+export function settingsChromeFromManifest(
+  manifest: Record<string, ClientManifestEntry> | null,
+): SettingsPageAssets {
+  const empty: SettingsPageAssets = { chromeHref: null, chromeCss: [] }
+  if (!manifest) return empty
+  const key =
+    'client/settingsChrome.tsx' in manifest
+      ? 'client/settingsChrome.tsx'
+      : Object.entries(manifest).find(([, entry]) => entry.name === 'settingsChrome')?.[0]
+  const chrome = key ? manifest[key] : undefined
+  if (!key || !chrome?.file) return empty
+  const css: string[] = []
+  const seen = new Set<string>()
+  const visit = (name: string) => {
+    if (seen.has(name)) return
+    seen.add(name)
+    const entry = manifest[name]
+    if (!entry) return
+    for (const file of entry.css ?? []) css.push(`/client/${file}`)
+    for (const imported of entry.imports ?? []) visit(imported)
+  }
+  visit(key)
+  return { chromeHref: `/client/${chrome.file}`, chromeCss: css }
+}
+
+export function renderSettingsPage(settings: AccountSettings, assets?: SettingsPageAssets): string {
   const saved = 'Saved on this host for your account.'
   const appearance = appearanceSettingsHtml({
     accent: settings.accent,
@@ -160,6 +203,12 @@ export function renderSettingsPage(settings: AccountSettings): string {
     wrapNote: saved,
     diffsNote: saved,
   })
+  const chromeCss = (assets?.chromeCss ?? [])
+    .map((href) => `<link rel="stylesheet" href="${escapeHtml(href)}" />`)
+    .join('\n')
+  const chromeJs = assets?.chromeHref
+    ? `<script>window.__LIVE_PLAN_THEME_URL__ = "/api/account/settings";</script>\n<script type="module" src="${escapeHtml(assets.chromeHref)}"></script>`
+    : ''
   return `<!doctype html>
 <html lang="en" data-plan-host="cloud" data-accent="${escapeHtml(settings.accent)}" data-layout="${escapeHtml(settings.pageWidth)}" data-diffs-theme="${escapeHtml(settings.diffsTheme)}" data-wrap-code="${settings.wrapCode ? 'true' : 'false'}">
 <head>
@@ -168,34 +217,9 @@ export function renderSettingsPage(settings: AccountSettings): string {
   <title>Settings · Living Plan</title>
   <link rel="icon" type="image/png" href="/favicon.png" />
   ${FONT_LINK}
+  ${chromeCss}
   <style>
-    ${ACCOUNT_STYLES}
-    ${PAGE_STYLES}
-    :root {
-      --line: var(--hairline);
-      --muted: var(--steel);
-      --font-display: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
-      --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      --control-solid: var(--canvas);
-      --tabs-bg: var(--surface);
-      --tab-active-bg: var(--primary);
-      --tab-active-fg: var(--on-primary);
-      --paper: var(--canvas);
-      --chip-bg: var(--surface);
-      --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-      --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-      --focus: var(--accent);
-      --accent-soft: #dbeafe;
-      --accent-hover-border: var(--accent);
-      --accent-hover-shadow: none;
-      --code-inline-bg: var(--surface);
-    }
-    @media (prefers-color-scheme: dark) {
-      :root { --accent-soft: rgba(147, 197, 253, 0.14); }
-    }
-    main.settings-page { width: min(56rem, calc(100% - 32px)); margin: 32px auto 64px; }
-    .settings-page .nav a[aria-current="page"] { text-decoration: underline; }
-    .settings-stack button { height: auto; padding: revert; }
+    ${settingsDocumentCss}
     ${appearanceSettingsCss}
   </style>
 </head>
@@ -215,6 +239,7 @@ export function renderSettingsPage(settings: AccountSettings): string {
     </div>
   </main>
   ${appearanceSettingsScript('/api/account/settings')}
+  ${chromeJs}
   ${SIGN_OUT_SCRIPT}
 </body>
 </html>`

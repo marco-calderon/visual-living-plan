@@ -7,6 +7,7 @@ import {
   renderPlansDashboard,
   renderSettingsPage,
   renderVersionHistory,
+  settingsChromeFromManifest,
 } from './dashboardPage'
 import { hostedDashboard, type HostedPlanRow } from './hostedDashboard'
 import { listPlanVersions, publishPlanVersion, readPlanVersion } from './planVersions'
@@ -59,7 +60,7 @@ export default {
       name: session.user.name || session.user.email,
       tier: normalizeTier(session.user.tier),
     }))
-    if (surface === 'settings') return signedInHtml(request, env, auth, async (session) => renderSettingsPage(await readAccountSettings(env.DB, session.user.id)))
+    if (surface === 'settings') return signedInHtml(request, env, auth, async (session) => renderSettingsPage(await readAccountSettings(env.DB, session.user.id), settingsChromeFromManifest(await readClientManifest(env, request))))
     if (url.pathname === '/login') {
       const cli = url.searchParams.get('cli') ?? ''
       if (cli && !isLoopback(cli)) return text(400, 'The sign-in callback must be on this machine.')
@@ -379,22 +380,30 @@ async function planFetch(env: Env, planId: string, request: Request, path: strin
   return stub.fetch(new Request(target, hasBody ? { method: request.method, headers, body: request.body } : { method: request.method, headers }))
 }
 
-async function loadAssets(env: Env, request: Request): Promise<CloudPageAssets> {
-  const empty: CloudPageAssets = { planMdxHref: null, planMdxCss: [], selectorHref: null, selectorCss: [] }
+async function readClientManifest(
+  env: Env,
+  request: Request,
+): Promise<Record<string, { file: string; css?: string[]; isEntry?: boolean; name?: string }> | null> {
   try {
     const manifestResponse = await env.ASSETS.fetch(new Request(new URL('/client/.vite/manifest.json', request.url)))
-    if (!manifestResponse.ok) return empty
-    const manifest = (await manifestResponse.json()) as Record<string, { file: string; css?: string[]; isEntry?: boolean; name?: string }>
-    const plan = manifest['client/planMdx.tsx'] ?? Object.values(manifest).find((entry) => entry.name === 'planMdx')
-    const selector = manifest['client/PlanSelector.tsx'] ?? Object.values(manifest).find((entry) => entry.name === 'selector')
-    return {
-      planMdxHref: plan ? `/client/${plan.file}` : null,
-      planMdxCss: (plan?.css ?? []).map((file) => `/client/${file}`),
-      selectorHref: selector ? `/client/${selector.file}` : null,
-      selectorCss: (selector?.css ?? []).map((file) => `/client/${file}`),
-    }
+    if (!manifestResponse.ok) return null
+    return (await manifestResponse.json()) as Record<string, { file: string; css?: string[]; isEntry?: boolean; name?: string }>
   } catch {
-    return empty
+    return null
+  }
+}
+
+async function loadAssets(env: Env, request: Request): Promise<CloudPageAssets> {
+  const empty: CloudPageAssets = { planMdxHref: null, planMdxCss: [], selectorHref: null, selectorCss: [] }
+  const manifest = await readClientManifest(env, request)
+  if (!manifest) return empty
+  const plan = manifest['client/planMdx.tsx'] ?? Object.values(manifest).find((entry) => entry.name === 'planMdx')
+  const selector = manifest['client/PlanSelector.tsx'] ?? Object.values(manifest).find((entry) => entry.name === 'selector')
+  return {
+    planMdxHref: plan ? `/client/${plan.file}` : null,
+    planMdxCss: (plan?.css ?? []).map((file) => `/client/${file}`),
+    selectorHref: selector ? `/client/${selector.file}` : null,
+    selectorCss: (selector?.css ?? []).map((file) => `/client/${file}`),
   }
 }
 

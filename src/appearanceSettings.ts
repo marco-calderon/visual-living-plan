@@ -234,20 +234,132 @@ export function appearanceSettingsScript(endpoint: string): string {
         setOpen(accordion.getAttribute('data-open') !== 'true')
       })
     })
-    document.querySelectorAll('[data-diffs-theme]').forEach((button) => {
-      button.addEventListener('click', () => {
-        const diffsTheme = button.getAttribute('data-diffs-theme')
-        if (!diffsTheme || diffsTheme === document.documentElement.dataset.diffsTheme) return
-        void saveAppearance({ diffsTheme })
-      })
+    document.addEventListener('click', (event) => {
+      const target = event.target
+      const button = target instanceof Element ? target.closest('[data-diffs-theme]') : null
+      if (!(button instanceof HTMLElement)) return
+      const diffsTheme = button.getAttribute('data-diffs-theme')
+      if (!diffsTheme || diffsTheme === document.documentElement.dataset.diffsTheme) return
+      void saveAppearance({ diffsTheme })
     })
   </script>`
 }
 
+/** Document tokens and cards for the cloud settings page. Matches the plan Settings tab. */
+export const settingsDocumentCss = `
+:root {
+  color-scheme: light;
+  --brand-blue: #2563eb;
+  --brand-blue-deep: #1d4ed8;
+  --brand-blue-200: #dbeafe;
+  --canvas: #ffffff;
+  --surface: #f4f4f5;
+  --hairline: #e4e4e7;
+  --ink: #18181b;
+  --charcoal: #27272a;
+  --steel: #71717a;
+  --primary: #09090b;
+  --on-primary: #ffffff;
+  --paper: var(--canvas);
+  --line: var(--hairline);
+  --muted: var(--steel);
+  --accent: var(--brand-blue-deep);
+  --radius: 16px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-xl: 24px;
+  --space-xxl: 32px;
+  --space-section: 64px;
+  --font-display: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --chip-bg: var(--surface);
+  --tabs-bg: var(--surface);
+  --control-solid: var(--canvas);
+  --tab-active-bg: var(--primary);
+  --tab-active-fg: var(--on-primary);
+  --accent-soft: var(--brand-blue-200);
+  --accent-hover-border: var(--brand-blue);
+  --code-inline-bg: var(--brand-blue-200);
+  --focus: var(--brand-blue-deep);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --canvas: #0c0c0e;
+    --surface: #18181b;
+    --hairline: #27272a;
+    --ink: #fafafa;
+    --charcoal: #e4e4e7;
+    --steel: #a1a1aa;
+    --primary: #fafafa;
+    --on-primary: #0c0c0e;
+    --accent: #93c5fd;
+    --accent-soft: rgba(147, 197, 253, 0.14);
+    --accent-hover-border: #93c5fd;
+    --code-inline-bg: rgba(147, 197, 253, 0.16);
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--charcoal);
+  font-family: var(--font-display);
+  font-size: 16px;
+  line-height: 1.5;
+}
+main.settings-page {
+  width: min(720px, calc(100% - var(--space-xxl) * 2));
+  margin: var(--space-xxl) auto var(--space-section);
+}
+body.layout-wide main.settings-page { width: min(1120px, calc(100% - var(--space-xxl) * 2)); }
+body.layout-full main.settings-page { width: calc(100% - var(--space-xxl) * 2); }
+.kicker {
+  margin: 0 0 var(--space-sm);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+h1 {
+  margin: 0 0 var(--space-md);
+  color: var(--ink);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.nav { display: flex; gap: var(--space-sm); align-items: center; flex-wrap: wrap; margin: 0 0 var(--space-md); }
+.nav a { color: var(--accent); font-size: 14px; font-weight: 600; text-decoration: none; }
+.nav a[aria-current="page"] { text-decoration: underline; }
+.nav button.secondary {
+  height: 40px;
+  padding: 11px var(--space-xl);
+  border: 1px solid var(--ink);
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.block {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: var(--space-md);
+  box-shadow: none;
+}
+`
+
 export const appearanceSettingsCss = `
 .settings-stack {
   display: grid;
-  gap: 1rem;
+  gap: var(--space-md);
 }
 .settings-kicker {
   font-size: 0.78rem;
@@ -486,6 +598,7 @@ export const appearanceSettingsCss = `
   background: var(--control-solid);
   overflow: clip;
 }
+.settings-accordion-trigger .plan-chrome-contents { display: contents; }
 .settings-accordion-trigger {
   display: flex;
   align-items: center;

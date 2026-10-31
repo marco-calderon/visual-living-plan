@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 import { allows, planCapReached } from '../cloud/src/access.ts'
 import { sessionFromToken } from '../cloud/src/auth.ts'
 import { defaultAccountSettings, mergeAccountSettings, readAccountSettings, saveAccountSettings } from '../cloud/src/accountSettings.ts'
-import { cloudAccountRoute, renderAccountPage, renderPlansDashboard, renderSettingsPage } from '../cloud/src/dashboardPage.ts'
+import { cloudAccountRoute, renderAccountPage, renderPlansDashboard, renderSettingsPage, settingsChromeFromManifest } from '../cloud/src/dashboardPage.ts'
 import { hostedDashboard } from '../cloud/src/hostedDashboard.ts'
 import { PLAN_VERSION_LIMIT, publishPlanVersion, readPlanVersion } from '../cloud/src/planVersions.ts'
 import { renderCloudPage } from '../cloud/src/page.ts'
@@ -42,15 +42,41 @@ test('signed-in cloud pages split the dashboard, account, and settings', () => {
   assert.match(account, /--canvas:\s*#ffffff/)
   assert.doesNotMatch(account, /#f7f6f3/)
 
-  const settings = renderSettingsPage(defaultAccountSettings())
+  const settings = renderSettingsPage(defaultAccountSettings(), {
+    chromeHref: '/client/settings-chrome.js',
+    chromeCss: ['/client/settings-chrome.css'],
+  })
   assert.match(settings, /<h1>Settings<\/h1>/)
   assert.match(settings, /Saved on this host/)
   assert.match(settings, /class="theme-swatch"/)
+  assert.match(settings, /class="width-choice"/)
   assert.match(settings, /data-page-width="default"/)
+  assert.match(settings, /data-accordion/)
+  assert.match(settings, /--space-md:\s*16px/)
+  assert.match(settings, /padding:\s*var\(--space-md\)/)
+  assert.match(settings, /class="block settings-section"/)
+  assert.match(settings, /\.plan-chrome-contents\s*\{\s*display:\s*contents;\s*\}/)
+  assert.match(settings, /src="\/client\/settings-chrome\.js"/)
+  assert.match(settings, /__LIVE_PLAN_THEME_URL__/)
+  assert.doesNotMatch(settings, /PlanSelector/)
+  assert.doesNotMatch(settings, /selector\.js/)
+  const chrome = settingsChromeFromManifest({
+    'client/PlanSelector.tsx': { file: 'assets/selector.js', name: 'selector', css: ['assets/selector.css'] },
+    'client/settingsChrome.tsx': {
+      file: 'assets/settingsChrome.js',
+      name: 'settingsChrome',
+      imports: ['_mountChrome.js'],
+    },
+    '_mountChrome.js': { file: 'assets/mountChrome.js', css: ['assets/mountChrome.css'] },
+  })
+  assert.equal(chrome.chromeHref, '/client/assets/settingsChrome.js')
+  assert.deepEqual(chrome.chromeCss, ['/client/assets/mountChrome.css'])
+  assert.equal(settingsChromeFromManifest({ 'client/PlanSelector.tsx': { file: 'assets/selector.js', name: 'selector' } }).chromeHref, null)
   assert.match(settings, /data-host-panel="cloud"/)
   assert.doesNotMatch(settings, /<h1>Account<\/h1>/)
   assert.doesNotMatch(settings, /data-host-panel="local"/)
   assert.doesNotMatch(settings, /data-account-settings/)
+  assert.doesNotMatch(settings, /height:\s*40px;\s*\n\s*padding:\s*11px 24px/)
 
   const dashboard = renderPlansDashboard({ email: 'person@example.com', name: 'Person', tier: 'free' })
   assert.match(dashboard, /<h1>Control dashboard<\/h1>/)

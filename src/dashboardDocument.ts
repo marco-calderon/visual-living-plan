@@ -266,12 +266,12 @@ export function renderDashboardDocument(options: DashboardDocumentInput): string
     .empty { color: var(--muted); }
     .account-card {
       margin: 1.4rem 0 0;
-      padding: 1rem 1.1rem;
+      padding: 16px;
       border: 1px solid var(--line);
       border-radius: 16px;
       background: var(--panel);
     }
-    .account-row { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-end; flex-wrap: wrap; }
+    .account-row { display: flex; justify-content: space-between; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
     .account-card h2 {
       margin: 0;
       font-family: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
