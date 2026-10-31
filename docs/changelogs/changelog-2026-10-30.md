@@ -273,3 +273,22 @@ The cloud dashboard and settings pages share a toolbar. Settings keeps the accou
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.7.0
+
+**PR:** (link once opened)
+
+**Bump:** minor
+
+### Summary
+
+The cloud plan page is a TanStack Start app on the same Worker. The browser still compiles the plan, and the local service stays the default.
+
+### New features
+
+- `start/` serves the signed-in plan page, sign-in, and a no-account preview of the same MDX page. Account, plan APIs, the Durable Object, and the dashboard stay on the Worker.
+- Run it locally with `cd start && npm run migrate:local && npm run dev`. The `BETTER_AUTH_SECRET` in `start/wrangler.jsonc` is for that local process only.
+
+### Notes
+
+Loopback `serve`, `--no-registry`, LAN, logs, and the terminal dashboard are unchanged. No registry restart needed beyond the usual version check.

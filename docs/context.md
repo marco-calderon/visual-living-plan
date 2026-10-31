@@ -36,6 +36,8 @@ The service and the private server are Elysia apps. Route handlers live in `src/
 | `src/parse.ts`, `src/planMdx/`, `client/planMdx.tsx`, `client/entries/`, `client/mdx/` | Plan file in. The page compiles it as MDX and renders the React plan |
 | `src/workflow.ts`, `src/execution.ts` | Expected workflow and the live execution overlay |
 | `client/` | React Flow canvas. It reads `window.__LIVE_PLAN_BASE__` and calls `/api/...` under that prefix |
+| `cloud/` | Worker session for `--cloud`: Better Auth, D1, and one SQLite Durable Object per plan |
+| `start/` | Cloud plan page on that Worker. TanStack Start. The browser still compiles the plan MDX |
 | `test/` | Node test runner via `npm test` |
 | `examples/rate-limit.plan.md` | The fixture plan used by service tests |
 

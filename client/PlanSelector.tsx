@@ -642,7 +642,9 @@ export function PlanSelector() {
   )
 }
 
-const mount = document.createElement('div')
-mount.id = 'plan-selector-root'
-document.body.append(mount)
-createRoot(mount).render(<PlanSelector />)
+if (typeof document !== 'undefined') {
+  const mount = document.createElement('div')
+  mount.id = 'plan-selector-root'
+  document.body.append(mount)
+  createRoot(mount).render(<PlanSelector />)
+}

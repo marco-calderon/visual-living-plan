@@ -25,6 +25,7 @@ Decisions are numbered in the order they were made. Superseded decisions stay he
 | [0019](0019-lan-publishing.md) | 2026-10-28 | Accepted | LAN publishing is opt-in and does not replace the loopback URL |
 | [0020](0020-mdx-plan-page.md) | 2026-10-28 | Accepted; fence rewrite superseded by 0021 | The plan page is the MDX React app; Markdoc is not on the render path |
 | [0021](0021-mdx-plan-entries.md) | 2026-10-28 | Accepted | Agents author MDX components; Markdoc tags and YAML entry fences are not parsed |
-| [0022](0022-opt-in-cloud-host.md) | 2026-10-30 | Accepted | `--cloud` hosts a plan on a signed-in Worker; the local service stays the default |
+| [0022](0022-opt-in-cloud-host.md) | 2026-10-30 | Accepted; page host updated by 0023 | `--cloud` hosts a plan on a signed-in Worker; the local service stays the default |
+| [0023](0023-tanstack-start-page.md) | 2026-10-30 | Accepted | The cloud plan page is TanStack Start; the browser still compiles MDX |
 
 Add the next decision as `0023-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.

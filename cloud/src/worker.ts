@@ -265,36 +265,25 @@ async function forwardPlan(
   const actor = account ? 'account' : viewer ? 'viewer' : ''
   const page = request.method === 'GET' && (rest === '/' || rest === '')
   if (page) {
-    if (!actor) return html(signInRequired(planId), 401)
-    const viewResponse = await planFetch(env, planId, request, '/view', actor)
-    if (!viewResponse.ok) return viewResponse
-    const view = (await viewResponse.json()) as {
-      title: string
-      source: string
-      mode: string
-      responses: unknown
-      comments: unknown
-      review: unknown
-      theme: { accent?: string } | null
-    }
+    const loaded = await loadHostedPlan(request, env, planId)
+    if (loaded instanceof Response) return loaded
     const assets = await loadAssets(env, request)
-    const settings = account && session ? await readAccountSettings(env.DB, session.user.id) : defaultAccountSettings()
     return html(
       renderCloudPage({
         basePath: `/plans/${planId}`,
-        title: view.title,
-        source: view.source,
-        mode: view.mode,
-        responses: view.responses,
-        comments: view.comments,
-        review: view.review,
-        accent: account ? settings.accent : view.theme?.accent || '#0f766e',
-        pageWidth: account ? settings.pageWidth : 'default',
-        diffsTheme: account ? settings.diffsTheme : 'pierre',
-        wrapCode: account ? settings.wrapCode : false,
-        owner: account,
-        email: session?.user.email ?? '',
-        settings,
+        title: loaded.title,
+        source: loaded.source,
+        mode: loaded.mode,
+        responses: loaded.responses,
+        comments: loaded.comments,
+        review: loaded.review,
+        accent: loaded.accent,
+        pageWidth: loaded.pageWidth,
+        diffsTheme: loaded.diffsTheme,
+        wrapCode: loaded.wrapCode,
+        owner: loaded.owner,
+        email: loaded.email,
+        settings: loaded.settings,
         assets,
       }),
     )
@@ -310,6 +299,70 @@ async function forwardPlan(
     return publishSource(request, env, planId, actor)
   }
   return planFetch(env, planId, request, rest || '/', actor)
+}
+
+export type HostedPlanPage = {
+  title: string
+  source: string
+  mode: string
+  revision: number
+  responses: unknown
+  comments: unknown
+  review: unknown
+  owner: boolean
+  email: string
+  accent: string
+  pageWidth: 'default' | 'wide' | 'full'
+  diffsTheme: string
+  wrapCode: boolean
+  settings: Awaited<ReturnType<typeof readAccountSettings>>
+}
+
+/** Plan document and session for the signed-in account or a viewer cookie. */
+export async function hostedPlanPage(request: Request, env: Env, planId: string): Promise<Response> {
+  const loaded = await loadHostedPlan(request, env, planId)
+  if (loaded instanceof Response) return loaded
+  return Response.json(loaded)
+}
+
+async function loadHostedPlan(request: Request, env: Env, planId: string): Promise<HostedPlanPage | Response> {
+  const origin = requestOrigin(request, env.PUBLIC_URL)
+  const auth = createAuth(env, origin)
+  const session = await readSession(auth, request, env.DB)
+  const row = await env.DB.prepare('SELECT user_id FROM plans WHERE id = ?').bind(planId).first<{ user_id: string }>()
+  const viewer = await viewerFor(request, env, planId)
+  const account = Boolean(session && row && row.user_id === session.user.id)
+  const actor = account ? 'account' : viewer ? 'viewer' : ''
+  if (!actor) return html(signInRequired(planId), 401)
+  const viewResponse = await planFetch(env, planId, request, '/view', actor)
+  if (!viewResponse.ok) return viewResponse
+  const view = (await viewResponse.json()) as {
+    title: string
+    source: string
+    mode: string
+    revision?: number
+    responses: unknown
+    comments: unknown
+    review: unknown
+    theme: { accent?: string } | null
+  }
+  const settings = account && session ? await readAccountSettings(env.DB, session.user.id) : defaultAccountSettings()
+  return {
+    title: view.title,
+    source: view.source,
+    mode: view.mode,
+    revision: view.revision ?? 0,
+    responses: view.responses,
+    comments: view.comments,
+    review: view.review,
+    owner: account,
+    email: session?.user.email ?? '',
+    accent: account ? settings.accent : view.theme?.accent || '#0f766e',
+    pageWidth: account ? settings.pageWidth : 'default',
+    diffsTheme: account ? settings.diffsTheme : 'pierre',
+    wrapCode: account ? settings.wrapCode : false,
+    settings,
+  }
 }
 
 async function publishSource(request: Request, env: Env, planId: string, actor: string): Promise<Response> {
