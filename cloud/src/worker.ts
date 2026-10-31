@@ -49,7 +49,11 @@ export default {
     if (url.pathname === '/api/account/dashboard' && request.method === 'GET') return accountDashboardApi(request, env, auth, origin)
     const surface = cloudAccountRoute(url.pathname)
     if (surface === 'redirect') return Response.redirect(new URL('/dashboard', request.url).toString(), 302)
-    if (surface === 'dashboard') return signedInHtml(request, env, auth, () => renderPlansDashboard())
+    if (surface === 'dashboard') return signedInHtml(request, env, auth, (session) => renderPlansDashboard({
+      email: session.user.email,
+      name: session.user.name || session.user.email,
+      tier: normalizeTier(session.user.tier),
+    }))
     if (surface === 'account') return signedInHtml(request, env, auth, (session) => renderAccountPage({
       email: session.user.email,
       name: session.user.name || session.user.email,
