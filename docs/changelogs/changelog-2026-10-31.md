@@ -1,5 +1,23 @@
 # Changelog — 2026-10-31
 
+## 1.7.3
+
+**PR:** [#104](https://github.com/marco-calderon/visual-living-plan/pull/104)
+
+**Bump:** patch
+
+### Summary
+
+Agents working in this repo can use Hallmark, the design skill that keeps new pages from looking generated.
+
+### Improvements
+
+- Hallmark from [nutlope/hallmark](https://github.com/nutlope/hallmark) is installed at `.agents/skills/hallmark`, beside the other third-party skills. `npm run skills:install` still copies only this repo's own skills and leaves Hallmark in place.
+
+### Notes
+
+No registry restart needed. The plan page is unchanged.
+
 ## 1.7.2
 
 **PR:** [#103](https://github.com/marco-calderon/visual-living-plan/pull/103)
