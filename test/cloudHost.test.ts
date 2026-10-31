@@ -145,14 +145,19 @@ test('a hosted plan and a loopback plan show different panels', () => {
     settings,
     assets,
   })
-  assert.match(hosted, /data-host-panel="cloud"/)
+  assert.match(hosted, /<header class="titlebar">/)
+  assert.match(hosted, /id="plan-toc"/)
+  assert.match(hosted, /data-tab-target="workflow"/)
   assert.match(hosted, /data-layout="wide"/)
+  assert.match(hosted, /data-theme/)
   assert.match(hosted, /__LIVE_PLAN_HOST__ = "cloud"/)
-  assert.match(hosted, /href="\/settings"/)
+  assert.match(hosted, /data-account-menu/)
   assert.doesNotMatch(hosted, /data-account-settings/)
-  assert.doesNotMatch(hosted, /data-host-panel="local"/)
+  assert.doesNotMatch(hosted, /data-host-panel/)
+  assert.doesNotMatch(hosted, /On this host/)
   const viewer = renderCloudPage({ ...hostedInput(settings, assets), owner: false, email: '' })
-  assert.match(viewer, /does not use this account/)
+  assert.match(viewer, /href="\/login">Sign in/)
+  assert.doesNotMatch(viewer, /data-account-menu/)
   assert.doesNotMatch(viewer, /data-account-settings/)
 })
 
