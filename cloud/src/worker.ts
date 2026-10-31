@@ -13,6 +13,7 @@ import { listPlanVersions, publishPlanVersion, readPlanVersion } from './planVer
 import { renderLoginPage } from './loginPage'
 import { PlanObject } from './planObject'
 import { renderCloudPage, type CloudPageAssets } from './page'
+import { requestOrigin } from './requestOrigin'
 export { PlanObject }
 
 export interface Env {
@@ -36,7 +37,7 @@ export default {
     if (url.pathname.startsWith('/client/') || url.pathname === '/favicon.png') {
       return env.ASSETS.fetch(request)
     }
-    const origin = (env.PUBLIC_URL || url.origin).replace(/\/$/, '')
+    const origin = requestOrigin(request, env.PUBLIC_URL)
     const auth = createAuth(env, origin)
 
     if (url.pathname.startsWith('/api/auth/')) {

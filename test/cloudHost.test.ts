@@ -22,7 +22,8 @@ import {
   submitInteraction,
   type PlanSql,
 } from '../cloud/src/planRoom.ts'
-import { hostedViewUrl, uploadSource } from '../src/cloudClient.ts'
+import { hostedViewUrl, planUrlOnCalledOrigin, registerCloudPlan, uploadSource } from '../src/cloudClient.ts'
+import { requestOrigin } from '../cloud/src/requestOrigin.ts'
 import { renderDashboardPage } from '../src/dashboardPage.ts'
 import { cloudIdInSource, sourceWithCloudId } from '../src/cloudFrontmatter.ts'
 import { readRegistryLock, type RegistryLock } from '../src/registryLock.ts'
@@ -212,6 +213,57 @@ test('the account session token from sign-in is accepted without a browser cooki
   db.query('UPDATE session SET expiresAt = ? WHERE token = ?').run(new Date(Date.now() - 1000).toISOString(), 'session-token')
   assert.equal(await sessionFromToken(store, 'session-token'), null)
   assert.equal(await sessionFromToken(store, 'plan-token'), null)
+})
+
+test('a loopback publish stays on the host the CLI called', async () => {
+  assert.equal(
+    planUrlOnCalledOrigin('http://127.0.0.1:8787', 'http://plan.logspace.qzz.io/plans/plan1234/'),
+    'http://127.0.0.1:8787/plans/plan1234/',
+  )
+  assert.equal(
+    planUrlOnCalledOrigin('https://plans.example', 'https://plan.logspace.qzz.io/plans/plan1234/'),
+    'https://plan.logspace.qzz.io/plans/plan1234/',
+  )
+  const previous = globalThis.fetch
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input))
+    assert.equal(url.origin, 'http://127.0.0.1:8787')
+    assert.equal(new Headers(init?.headers).get('x-living-plan-origin'), '127.0.0.1:8787')
+    return Response.json({
+      plan: {
+        id: 'plan1234',
+        url: 'http://plan.logspace.qzz.io/plans/plan1234/',
+        token: 'plan-token',
+        mode: 'watch',
+      },
+      revision: 1,
+    })
+  }) as typeof fetch
+  try {
+    const registered = await registerCloudPlan('http://127.0.0.1:8787', 'account-token', {
+      mode: 'watch',
+      title: 'Demo',
+      markdown: '# Demo\n',
+    })
+    assert.equal(registered.url, 'http://127.0.0.1:8787/plans/plan1234/')
+  } finally {
+    globalThis.fetch = previous
+  }
+})
+
+test('a local Worker uses the loopback origin the CLI called', () => {
+  const local = new Request('http://plan.logspace.qzz.io/api/plans', {
+    headers: { 'cf-connecting-ip': '127.0.0.1', 'x-living-plan-origin': '127.0.0.1:8787' },
+  })
+  assert.equal(requestOrigin(local, 'https://plan.logspace.qzz.io'), 'http://127.0.0.1:8787')
+  const remote = new Request('https://plan.logspace.qzz.io/api/plans', {
+    headers: { 'cf-connecting-ip': '203.0.113.4', 'x-living-plan-origin': 'http://127.0.0.1:8787' },
+  })
+  assert.equal(requestOrigin(remote, 'https://plan.logspace.qzz.io'), 'https://plan.logspace.qzz.io')
+  const hintedPublic = new Request('http://127.0.0.1:8787/api/plans', {
+    headers: { 'cf-connecting-ip': '127.0.0.1', 'x-living-plan-origin': 'https://evil.example' },
+  })
+  assert.equal(requestOrigin(hintedPublic), 'http://127.0.0.1:8787')
 })
 
 test('the opened cloud plan uses the signed view link', async () => {

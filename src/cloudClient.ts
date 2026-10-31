@@ -10,8 +10,34 @@ export type CloudRegistration = {
   revision: number
 }
 
-function bearer(token: string): Record<string, string> {
-  return { authorization: `Bearer ${token}`, 'content-type': 'application/json' }
+const LOOPBACK_ORIGIN_HEADER = 'x-living-plan-origin'
+
+function bearer(token: string, resourceUrl: string): Record<string, string> {
+  const headers: Record<string, string> = { authorization: `Bearer ${token}`, 'content-type': 'application/json' }
+  const origin = loopbackOrigin(resourceUrl)
+  if (origin) headers[LOOPBACK_ORIGIN_HEADER] = new URL(origin).host
+  return headers
+}
+
+function loopbackOrigin(value: string): string | null {
+  try {
+    const url = new URL(value)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+    if (url.hostname !== '127.0.0.1' && url.hostname !== 'localhost') return null
+    return url.origin
+  } catch {
+    return null
+  }
+}
+
+/** Keep a loopback publish on the host the CLI called. A public host may still return its own URL. */
+export function planUrlOnCalledOrigin(baseUrl: string, returnedUrl: string): string {
+  const base = new URL(normalizeBase(baseUrl))
+  const returned = new URL(returnedUrl)
+  if (returned.origin === base.origin) return returned.toString()
+  const pinned = loopbackOrigin(base.origin)
+  if (!pinned) return returned.toString()
+  return new URL(`${returned.pathname}${returned.search}${returned.hash}`, pinned).toString()
 }
 
 async function errorText(response: Response): Promise<string> {
@@ -72,9 +98,10 @@ export async function registerCloudPlan(
   accountToken: string,
   body: { cloudId?: string; mode: string; title: string; markdown: string },
 ): Promise<CloudRegistration> {
-  const response = await fetch(new URL('/api/plans', normalizeBase(baseUrl)), {
+  const base = normalizeBase(baseUrl)
+  const response = await fetch(new URL('/api/plans', base), {
     method: 'POST',
-    headers: bearer(accountToken),
+    headers: bearer(accountToken, base),
     body: JSON.stringify(body),
   })
   if (!response.ok) throw new Error(await errorText(response))
@@ -87,7 +114,7 @@ export async function registerCloudPlan(
   }
   return {
     id: payload.plan.id,
-    url: payload.plan.url,
+    url: planUrlOnCalledOrigin(baseUrl, payload.plan.url),
     token: payload.plan.token,
     mode: payload.plan.mode ?? body.mode,
     revision: typeof payload.revision === 'number' ? payload.revision : 0,
@@ -106,7 +133,7 @@ export async function uploadSource(options: {
   const send = (revision: number) =>
     fetchImpl(planApiUrl(options.planUrl, 'source'), {
       method: 'PUT',
-      headers: bearer(options.token),
+      headers: bearer(options.token, options.planUrl),
       body: JSON.stringify({ markdown: options.markdown, revision, title: options.title }),
     })
   let response = await send(options.revision)
@@ -124,7 +151,7 @@ export async function uploadSource(options: {
 export async function uploadJson(planUrl: string, token: string, path: string, body: unknown): Promise<void> {
   const response = await fetch(planApiUrl(planUrl, path), {
     method: 'PUT',
-    headers: bearer(token),
+    headers: bearer(token, planUrl),
     body: JSON.stringify(body),
   })
   if (!response.ok) throw new Error(await errorText(response))
@@ -134,7 +161,7 @@ export async function uploadJson(planUrl: string, token: string, path: string, b
 export async function hostedViewUrl(planUrl: string, accountToken: string): Promise<string | null> {
   try {
     const response = await fetch(planApiUrl(planUrl, 'share'), {
-      headers: { authorization: `Bearer ${accountToken}` },
+      headers: bearer(accountToken, planUrl),
     })
     if (!response.ok) return null
     const payload = (await response.json()) as { url?: string }
@@ -150,7 +177,7 @@ export async function hostedViewUrl(planUrl: string, accountToken: string): Prom
 export async function closeCloudPlan(planUrl: string, token: string): Promise<void> {
   const response = await fetch(planApiUrl(planUrl, ''), {
     method: 'DELETE',
-    headers: { authorization: `Bearer ${token}` },
+    headers: bearer(token, planUrl),
   })
   if (response.status === 404 || response.ok) return
   throw new Error(await errorText(response))

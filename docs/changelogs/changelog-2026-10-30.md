@@ -223,7 +223,7 @@ The cloud host splits the plans dashboard, account, and settings into separate p
 
 ### Bugs fixed
 
-- `serve --cloud` after a successful account login no longer stops with “Sign in required”. The host accepts that login’s session token, and the browser opens a link that can show the plan.
+- `serve --cloud` after a successful account login no longer stops with “Sign in required”. The host accepts that login’s session token. The plan URL stays on the loopback host from `account login` when the Worker is reached there, and the browser opens a link that can show the plan.
 
 ### New features
 
