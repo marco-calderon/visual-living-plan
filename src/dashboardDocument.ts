@@ -1,6 +1,8 @@
 export type DashboardDocumentInput = {
   lede?: string
   navHtml?: string
+  /** Cloud dashboard only. The local dashboard leaves this empty. */
+  accountHtml?: string
   apiPath?: string
   host?: 'local' | 'cloud'
   headExtra: string
@@ -15,6 +17,7 @@ export function renderDashboardDocument(options: DashboardDocumentInput): string
   const input = {
     lede: options.lede ?? defaultLede,
     navHtml: options.navHtml ?? defaultNav,
+    accountHtml: options.accountHtml ?? '',
     apiPath: options.apiPath ?? '/api/dashboard',
     headExtra: options.headExtra,
     footScript: options.footScript,
@@ -125,7 +128,7 @@ export function renderDashboardDocument(options: DashboardDocumentInput): string
     }
     .segment, .filters { display: flex; gap: 0.35rem; flex-wrap: wrap; }
     .filters { margin: 0 0 1.85rem; padding-bottom: 0.45rem; }
-    button.seg, button.filter, button.refresh {
+    button.seg, button.filter, button.refresh, a.refresh {
       font: inherit;
       border: 1px solid var(--line);
       background: var(--panel);
@@ -133,13 +136,14 @@ export function renderDashboardDocument(options: DashboardDocumentInput): string
       border-radius: 999px;
       padding: 0.4rem 0.8rem;
       cursor: pointer;
+      text-decoration: none;
     }
     button.seg[aria-pressed="true"], button.filter[aria-pressed="true"] {
       background: var(--primary);
       border-color: var(--primary);
       color: var(--on-primary);
     }
-    button.refresh { font-weight: 600; }
+    button.refresh, a.refresh { font-weight: 600; }
     .stats {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -221,13 +225,13 @@ export function renderDashboardDocument(options: DashboardDocumentInput): string
       margin-bottom: 0.3rem;
     }
     .meter span { display: block; height: 100%; background: var(--accent); }
-    button.seg, button.filter, button.refresh {
+    button.seg, button.filter, button.refresh, a.refresh {
       transition: transform 160ms var(--ease-out), background-color 150ms ease, color 150ms ease, border-color 150ms ease;
     }
-    button.seg:active, button.filter:active, button.refresh:active { transform: scale(0.97); }
+    button.seg:active, button.filter:active, button.refresh:active, a.refresh:active { transform: scale(0.97); }
     @media (prefers-reduced-motion: reduce) {
-      button.seg, button.filter, button.refresh { transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease; }
-      button.seg:active, button.filter:active, button.refresh:active { transform: none; }
+      button.seg, button.filter, button.refresh, a.refresh { transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease; }
+      button.seg:active, button.filter:active, button.refresh:active, a.refresh:active { transform: none; }
     }
     @media (prefers-reduced-motion: no-preference) {
       @keyframes enter {
@@ -260,6 +264,28 @@ export function renderDashboardDocument(options: DashboardDocumentInput): string
     }
     a.action:hover { text-decoration: underline; }
     .empty { color: var(--muted); }
+    .account-card {
+      margin: 1.4rem 0 0;
+      padding: 1rem 1.1rem;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+    }
+    .account-row { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-end; flex-wrap: wrap; }
+    .account-card h2 {
+      margin: 0;
+      font-family: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-weight: 600;
+      font-size: 1.35rem;
+      color: var(--ink);
+    }
+    .account-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    .account-card p { margin: 0.7rem 0 0; color: var(--muted); line-height: 1.5; }
+    .account-meta strong { color: var(--ink); font-weight: 600; }
+    .account-note code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.86em;
+    }
   </style>
 </head>
 <body>
@@ -272,6 +298,7 @@ export function renderDashboardDocument(options: DashboardDocumentInput): string
       </div>
       ${input.navHtml}
     </div>
+    ${input.accountHtml ?? ''}
     <div class="toolbar">
       <div class="segment" role="group" aria-label="Summary period">
         <button type="button" class="seg" data-period="day" aria-pressed="true">Today</button>

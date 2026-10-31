@@ -246,7 +246,7 @@ The cloud host splits the plans dashboard, account, and settings into separate p
 
 ### New features
 
-- `/dashboard` on the cloud host is the plans dashboard: today, this week, and this month, status filters, and the same plan table as the local control dashboard. `/account` shows the signed-in name, email, and tier. `/settings` saves appearance on this host. `/` and `/review` redirect to `/dashboard`.
+- `/dashboard` on the cloud host is the plans dashboard: today, this week, and this month, status filters, and the same plan table as the local control dashboard. It also shows the account section, with a Settings button. `/account` stays its own page for the signed-in name, email, and tier. `/settings` opens the same appearance controls as a local plan and saves them on this host. `/` and `/review` redirect to `/dashboard`.
 - Publishing a plan with `serve --cloud` or `review --cloud` stores that document on the host. The host keeps the latest 10 versions and drops the oldest when an 11th is published. The dashboard links to the stored plan file. Loopback publish is unchanged.
 
 ### Notes

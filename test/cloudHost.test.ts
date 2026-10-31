@@ -44,10 +44,15 @@ test('signed-in cloud pages split the dashboard, account, and settings', () => {
 
   const settings = renderSettingsPage(defaultAccountSettings())
   assert.match(settings, /<h1>Settings<\/h1>/)
-  assert.match(settings, /Save on this host/)
+  assert.match(settings, /Saved on this host/)
+  assert.match(settings, /class="theme-swatch"/)
+  assert.match(settings, /data-page-width="default"/)
+  assert.match(settings, /data-host-panel="cloud"/)
   assert.doesNotMatch(settings, /<h1>Account<\/h1>/)
+  assert.doesNotMatch(settings, /data-host-panel="local"/)
+  assert.doesNotMatch(settings, /data-account-settings/)
 
-  const dashboard = renderPlansDashboard()
+  const dashboard = renderPlansDashboard({ email: 'person@example.com', name: 'Person', tier: 'free' })
   assert.match(dashboard, /<h1>Control dashboard<\/h1>/)
   assert.match(dashboard, /data-period="day"/)
   assert.match(dashboard, /data-filter="running"/)
@@ -55,9 +60,13 @@ test('signed-in cloud pages split the dashboard, account, and settings', () => {
   assert.match(dashboard, /data-filter="interrupted"/)
   assert.match(dashboard, /\/api\/account\/dashboard/)
   assert.match(dashboard, /data-plan-host="cloud"/)
+  assert.match(dashboard, /data-account-section/)
+  assert.match(dashboard, /Signed in as person@example.com/)
+  assert.match(dashboard, /Name <strong>Person<\/strong>/)
+  assert.match(dashboard, /Tier <strong>free<\/strong>/)
   assert.match(dashboard, /href="\/account"/)
-  assert.match(dashboard, /href="\/settings"/)
-  assert.doesNotMatch(dashboard, /Save on this host/)
+  assert.match(dashboard, /<a class="refresh" href="\/settings">Settings<\/a>/)
+  assert.doesNotMatch(dashboard, /class="theme-swatch"/)
 
   assert.equal(cloudAccountRoute('/dashboard'), 'dashboard')
   assert.equal(cloudAccountRoute('/dashboard/'), 'dashboard')
@@ -196,6 +205,8 @@ test('the hosted dashboard lists a stored plan the way the local dashboard does'
   assert.match(local, /registry's plans folder/)
   assert.match(local, /const apiPath = "\/api\/dashboard"/)
   assert.doesNotMatch(local, /api\/account\/dashboard/)
+  assert.doesNotMatch(local, /data-account-section/)
+  assert.doesNotMatch(local, /href="\/settings"/)
 })
 
 test('the account session token from sign-in is accepted without a browser cookie', async () => {
