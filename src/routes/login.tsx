@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
+import { Button } from '../../client/ui/button.tsx'
 import { authClient } from '../authClient.ts'
 import '../hostToolbar.css'
 
@@ -93,12 +94,12 @@ function LoginPage() {
           </p>
         ) : null}
         <div className="account-actions">
-          <button type="submit" disabled={pending}>
+          <Button type="submit" variant="primary" disabled={pending}>
             Sign in
-          </button>
-          <button type="button" className="secondary" disabled={pending} onClick={() => void submit('sign-up')}>
+          </Button>
+          <Button type="button" variant="secondary" disabled={pending} onClick={() => void submit('sign-up')}>
             Create account
-          </button>
+          </Button>
         </div>
       </form>
       <p>

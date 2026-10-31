@@ -1472,7 +1472,7 @@ export function renderPlanPage(options: {
   <div id="review-dock" class="review-dock"${showReviewBar ? '' : ' hidden'}>
     <div class="review-bar" role="region" aria-label="Review this plan">
       <div class="actions">
-        <button class="btn danger" data-review-decision="deny">Deny</button>
+        <button class="plan-btn plan-btn-danger" data-review-decision="deny">Deny</button>
       </div>
     </div>
   </div>

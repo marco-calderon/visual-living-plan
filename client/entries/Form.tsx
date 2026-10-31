@@ -1,5 +1,6 @@
 import { Pencil } from 'lucide-react'
 import { Children, isValidElement, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { Button } from '../ui/button.tsx'
 import { Box } from './Box'
 import { FormContext } from './entryContext'
 import { Field } from './Field'
@@ -227,14 +228,14 @@ export function Form({ id, prompt, fields, values, locked, children, className, 
             {immediate ? null : (
               <div className="plan-form-actions">
                 {submitted && !editing ? (
-                  <button type="button" className="plan-btn" data-form-edit={id} onClick={startEdit} disabled={locked}>
+                  <Button type="button" data-form-edit={id} onClick={startEdit} disabled={locked}>
                     <Pencil size={16} aria-hidden="true" />
                     Edit
-                  </button>
+                  </Button>
                 ) : (
-                  <button type="submit" className="plan-btn plan-btn-primary" disabled={disabled}>
+                  <Button type="submit" variant="primary" disabled={disabled}>
                     Submit
-                  </button>
+                  </Button>
                 )}
               </div>
             )}

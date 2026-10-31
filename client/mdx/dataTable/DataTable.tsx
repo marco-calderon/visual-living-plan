@@ -10,6 +10,7 @@ import {
   type ColumnFiltersState,
   type SortingState,
 } from '@tanstack/react-table'
+import { Button } from '../../ui/button.tsx'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select.tsx'
 import { features, type DataTableFeatures } from './features.ts'
 import {
@@ -224,20 +225,15 @@ export function DataTable({ children, label, placeholder = 'Search' }: DataTable
       </div>
       {paginate ? (
         <div className="plan-data-table-pager" data-plan-grab-ignore="">
-          <button
-            type="button"
-            className="plan-btn"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
+          <Button type="button" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
             Previous
-          </button>
+          </Button>
           <p className="plan-data-table-page">
             Page {pageIndex + 1} of {pageCount}
           </p>
-          <button type="button" className="plan-btn" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
+          <Button type="button" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
             Next
-          </button>
+          </Button>
         </div>
       ) : null}
     </div>

@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useLayoutEffect, useState, type CSSProperties } from 'react'
 import { ACCENT_CHOICES } from '../../cloud/src/accountSettings.ts'
 import { CodeWrapSwitch } from '../../client/chrome/CodeWrapSwitch.tsx'
+import { Button } from '../../client/ui/button.tsx'
 import { DIFFS_THEME_PRESETS, diffsThemePreset, type DiffsThemeSample } from '../diffsTheme.ts'
 import { HostBar } from '../HostBar.tsx'
 import { loadAccount } from '../planFns.ts'
@@ -191,7 +192,7 @@ function SettingsPage() {
             </p>
             <div className="width-choices" role="radiogroup" aria-label="Page width">
               {WIDTHS.map((option) => (
-                <button
+                <Button
                   key={option.id}
                   type="button"
                   className="width-choice"
@@ -203,7 +204,7 @@ function SettingsPage() {
                   }}
                 >
                   {option.label}
-                </button>
+                </Button>
               ))}
             </div>
             <p className="settings-meta">{SAVED}</p>

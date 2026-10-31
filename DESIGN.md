@@ -107,9 +107,10 @@ Flat by default. Hairline border, no shadow, on documentation cards. Level 2 sha
 
 ## Components to apply
 
-- **button-primary**: black pill, white text, 11px 24px, rounded-full.
-- **button-secondary**: transparent, ink text, 1px ink border, pill.
-- **button-tertiary**: canvas fill, hairline border, pill.
+- **button-primary**: black pill, white text, 8px 12px, rounded-full.
+- **button-secondary**: transparent, ink text, 1px ink border, 8px 12px, pill.
+- **button-tertiary**: canvas fill, hairline border, 8px 12px, pill.
+- **button-danger**: danger-soft fill, danger text, danger border, 8px 12px, pill.
 - **card-base**: canvas was the spec for white cards; this app uses surface (`#f4f4f5`) so the card is visibly different from the white page. 16px radius, 16px padding, 1px hairline. Nested cards pad 12px.
 - **text-input**: canvas fill, hairline border, 8px radius, 40px height. Focus: 2px brand-blue-deep.
 - **badge-success**, **badge-new**, **badge-beta** as specified, pill shaped.
