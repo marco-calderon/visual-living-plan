@@ -90,7 +90,7 @@ export function dashboardDocumentCss(): string {
       background: transparent;
       color: var(--ink);
       border-radius: 999px;
-      padding: 6px 12px;
+      padding: 8px 12px;
     }
     .tab-label[aria-pressed="true"] {
       background: var(--primary);

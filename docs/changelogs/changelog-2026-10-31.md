@@ -1,5 +1,25 @@
 # Changelog — 2026-10-31
 
+## 1.7.4
+
+**PR:** (link once opened)
+
+**Bump:** patch
+
+### Summary
+
+Action buttons use one shared pill with 8px by 12px padding.
+
+### Improvements
+
+- Submit, Send answers, Approve, Deny, Edit, Open workflow diagram, and table paging use the button component.
+- Sign-in, Create account, Refresh, the account control, comment send, and the review Deny button use that same padding.
+- The design system records 8px 12px on the primary, secondary, tertiary, and danger pills.
+
+### Notes
+
+Icon controls keep their own size: the logo, the page icons, the stepper, and the send arrow. No registry restart needed.
+
 ## 1.7.3
 
 **PR:** [#104](https://github.com/marco-calderon/visual-living-plan/pull/104)

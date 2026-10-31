@@ -64,9 +64,12 @@ export const ACCOUNT_STYLES = `
       font: inherit;
     }
     input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-    button {
-      height: 40px;
-      padding: 11px 24px;
+    button,
+    .plan-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 12px;
       border-radius: 9999px;
       font-family: inherit;
       font-size: 14px;
@@ -74,8 +77,10 @@ export const ACCOUNT_STYLES = `
       line-height: 1.4;
       cursor: pointer;
     }
-    button.primary { border: 0; background: var(--primary); color: var(--on-primary); }
-    button.secondary { border: 1px solid var(--ink); background: transparent; color: var(--ink); }
+    button.primary,
+    .plan-btn-primary { border: 1px solid var(--primary); background: var(--primary); color: var(--on-primary); }
+    button.secondary,
+    .plan-btn-secondary { border: 1px solid var(--ink); background: transparent; color: var(--ink); }
     code {
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size: 13px;
@@ -118,8 +123,8 @@ function escapeHtml(value: string): string {
 export function renderLoginPage(options: { google: boolean; github: boolean; cli: string }): string {
   const cli = JSON.stringify(options.cli)
   const providers = [
-    options.google ? `<button class="secondary" type="button" data-provider="google">Continue with Google</button>` : '',
-    options.github ? `<button class="secondary" type="button" data-provider="github">Continue with GitHub</button>` : '',
+    options.google ? `<button class="plan-btn plan-btn-secondary" type="button" data-provider="google">Continue with Google</button>` : '',
+    options.github ? `<button class="plan-btn plan-btn-secondary" type="button" data-provider="github">Continue with GitHub</button>` : '',
   ].join('')
   return `<!doctype html>
 <html lang="en">
@@ -141,8 +146,8 @@ export function renderLoginPage(options: { google: boolean; github: boolean; cli
       <form>
         <label>Email <input name="email" type="email" autocomplete="username" required /></label>
         <label>Password <input name="password" type="password" autocomplete="current-password" required minlength="8" /></label>
-        <button class="primary" type="submit">Sign in</button>
-        <button class="secondary" type="button" data-signup>Create an account</button>
+        <button class="plan-btn plan-btn-primary" type="submit">Sign in</button>
+        <button class="plan-btn plan-btn-secondary" type="button" data-signup>Create an account</button>
         <div class="error" role="alert"></div>
       </form>
     </section>

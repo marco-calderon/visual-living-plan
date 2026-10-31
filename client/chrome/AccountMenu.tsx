@@ -9,7 +9,7 @@ async function signOut(): Promise<void> {
 export function AccountMenu({ label }: { label: string }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="titlebar-user" aria-label="Account menu">
+      <DropdownMenuTrigger className="plan-btn plan-btn-secondary titlebar-user" aria-label="Account menu">
         {label}
         <ChevronDown size={16} aria-hidden="true" />
       </DropdownMenuTrigger>

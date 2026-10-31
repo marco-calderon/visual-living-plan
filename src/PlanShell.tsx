@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { Button } from '../client/ui/button.tsx'
 import { hostToolbarCss } from './hostToolbar.ts'
 import { buildPlanToc, renderPlanTocHtml } from './planToc.ts'
 import { planPageStyles } from './planPageStyles.ts'
@@ -148,14 +149,14 @@ export function PlanShell({
           </div>
           {accountLabel ? (
             <div className="account-menu" data-account-menu="" data-label={accountLabel}>
-              <button type="button" className="titlebar-user" aria-haspopup="menu" aria-expanded="false">
+              <Button type="button" variant="secondary" className="titlebar-user" aria-haspopup="menu" aria-expanded="false">
                 {accountLabel}
-              </button>
+              </Button>
             </div>
           ) : (
-            <a className="titlebar-user" href="/login">
+            <Button variant="secondary" className="titlebar-user" nativeButton={false} render={<a href="/login" />}>
               Sign in
-            </a>
+            </Button>
           )}
         </div>
       </header>

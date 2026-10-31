@@ -1,4 +1,5 @@
 import { useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { Button } from '../ui/button.tsx'
 import { Box } from './Box'
 import { ItemContext } from './entryContext'
 import { Item } from './Item'
@@ -69,9 +70,9 @@ export function Questions({ id, prompt, items, answers, locked, children, classN
               ))}
               {indexed}
               <div>
-                <button type="submit" className="plan-btn plan-btn-primary" disabled={disabled}>
+                <Button type="submit" variant="primary" disabled={disabled}>
                   Send answers
-                </button>
+                </Button>
               </div>
               <p className="plan-state" data-state-for={id}>{state}</p>
             </VStack>

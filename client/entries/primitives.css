@@ -1048,11 +1048,14 @@ a.plan-step-label:hover {
 .plan-ui textarea { min-height: 88px; resize: vertical; }
 
 .plan-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   border: 1px solid var(--hairline);
   background: var(--canvas);
   color: var(--ink);
   border-radius: 9999px;
-  padding: 11px 24px;
+  padding: 8px 12px;
   font: inherit;
   font-size: 14px;
   font-weight: 600;
@@ -1083,6 +1086,7 @@ a.plan-step-label:hover {
 }
 .plan-btn-primary,
 .plan-btn-primary:hover:not(:disabled) { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.plan-btn-secondary { background: transparent; border-color: var(--ink); color: var(--ink); }
 .plan-btn-danger { background: var(--danger-soft); border-color: var(--danger-border); color: var(--danger); }
 
 .plan-chip {
