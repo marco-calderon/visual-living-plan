@@ -11,7 +11,8 @@ import { sessionFromToken } from '../cloud/src/auth.ts'
 import { defaultAccountSettings, mergeAccountSettings, readAccountSettings, saveAccountSettings } from '../cloud/src/accountSettings.ts'
 import { cloudAccountRoute, renderAccountPage, renderPlansDashboard, renderSettingsPage, settingsChromeFromManifest } from '../cloud/src/dashboardPage.ts'
 import { hostedDashboard } from '../cloud/src/hostedDashboard.ts'
-import { PLAN_VERSION_LIMIT, publishPlanVersion, readPlanVersion } from '../cloud/src/planVersions.ts'
+import { LATEST_PLAN_VERSION_SQL, PLAN_VERSION_LIMIT, ensurePlanVersions, publishPlanVersion, readPlanVersion } from '../cloud/src/planVersions.ts'
+import type { HostedPlanRow } from '../cloud/src/hostedDashboard.ts'
 import { renderCloudPage } from '../cloud/src/page.ts'
 import {
   ackEvents,
@@ -225,6 +226,46 @@ test('a published cloud plan keeps the latest 10 documents', async () => {
   assert.equal(latest?.title, 'Renamed')
   const count = db.query('SELECT COUNT(*) AS n FROM plan_versions').get() as { n: number }
   assert.equal(count.n, PLAN_VERSION_LIMIT)
+})
+
+test('a hosted plan is listed when the versions table was missing', async () => {
+  const db = new Database(':memory:')
+  db.exec(`CREATE TABLE plans (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    token TEXT NOT NULL,
+    title TEXT,
+    mode TEXT NOT NULL,
+    tier TEXT NOT NULL,
+    closed_at INTEGER,
+    created_at INTEGER NOT NULL
+  )`)
+  const now = Date.UTC(2026, 9, 31, 18, 0, 0)
+  db.query(
+    'INSERT INTO plans (id, user_id, token, title, mode, tier, closed_at, created_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)',
+  ).run('rate-limit-rollout', 'user-1', 'token', 'Rate limiting rollout', 'watch', 'pro', now)
+  const store = d1Of(db)
+  await ensurePlanVersions(store)
+  const before = await store.prepare(LATEST_PLAN_VERSION_SQL).bind('user-1').all<HostedPlanRow>()
+  assert.equal(before.results?.[0]?.id, 'rate-limit-rollout')
+  assert.equal(before.results?.[0]?.version_seq ?? null, null)
+  const saved = await publishPlanVersion(store, {
+    planId: 'rate-limit-rollout',
+    userId: 'user-1',
+    title: 'Rate limiting rollout',
+    source: '# Rate limiting rollout\n',
+    now,
+  })
+  assert.equal(saved.stored, true)
+  assert.equal(saved.seq, 1)
+  const after = await store.prepare(LATEST_PLAN_VERSION_SQL).bind('user-1').all<HostedPlanRow>()
+  const payload = hostedDashboard(after.results ?? [], 'day', 'https://plan.example', now + 1000)
+  assert.equal(payload.summary.running, 1)
+  assert.equal(payload.plans[0]?.title, 'Rate limiting rollout')
+  assert.equal(payload.plans[0]?.status, 'running')
+  const plan = payload.plans[0] as { fileUrl?: string; historyUrl?: string }
+  assert.equal(plan.fileUrl, '/plans/rate-limit-rollout/document')
+  assert.equal(plan.historyUrl, '/plans/rate-limit-rollout/history')
 })
 
 test('the hosted dashboard lists a stored plan the way the local dashboard does', () => {

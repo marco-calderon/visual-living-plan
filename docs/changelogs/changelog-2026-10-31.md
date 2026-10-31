@@ -1,5 +1,23 @@
 # Changelog — 2026-10-31
 
+## 1.7.2
+
+**PR:** (link once known)
+
+**Bump:** patch
+
+### Summary
+
+The account dashboard lists a hosted plan that was saved before its document history existed.
+
+### Bugs fixed
+
+- The account dashboard lists a hosted plan when its saved document was not in the versions table. Opening the dashboard stores that document, so the plan file link works.
+
+### Notes
+
+No registry restart needed beyond the usual version check. The hosted dashboard shows that plan after this worker is deployed.
+
 ## 1.7.1
 
 **PR:** [#102](https://github.com/marco-calderon/visual-living-plan/pull/102)

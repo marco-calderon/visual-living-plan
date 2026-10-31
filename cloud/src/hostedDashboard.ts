@@ -40,7 +40,7 @@ export function hostedDashboard(
       directory: `/plans/${row.id}/`,
       cwd: '',
       url: `${origin}/plans/${row.id}/`,
-      host: new URL(origin).host,
+      host: originHost(origin),
       port: 0,
       startedAt,
       heartbeatAt: row.version_at ?? startedAt,
@@ -68,4 +68,12 @@ export function hostedDashboard(
     return record
   })
   return buildDashboard(plans, period, now)
+}
+
+function originHost(origin: string): string {
+  try {
+    return new URL(origin).host
+  } catch {
+    return ''
+  }
 }
