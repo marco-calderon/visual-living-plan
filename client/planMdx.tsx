@@ -1,5 +1,5 @@
 import { run } from '@mdx-js/mdx'
-import { Children, createContext, isValidElement, useContext, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react'
+import { Children, createContext, isValidElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import * as runtime from 'react/jsx-runtime'
 import { fileVersionName, fileVersionSeq, fileVersionText } from '../src/fileVersion.ts'
@@ -285,6 +285,11 @@ function PlanMdxApp() {
       cancelled = true
     }
   }, [locked, mdx, responses])
+
+  useLayoutEffect(() => {
+    const root = document.getElementById('plan-mdx-root')
+    if (root) stampPlanParts(root)
+  })
 
   useEffect(() => {
     const root = document.getElementById('plan-mdx-root')

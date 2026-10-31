@@ -240,7 +240,7 @@ After.
     markdown.html,
     [
       '<h1 data-plan-part="markdown:0/heading:1" data-plan-kind="heading">Demo</h1>',
-      '<div class="rich-table"><table><thead><tr><th>Name</th><th class="align-right">Count</th></tr></thead><tbody><tr><td><strong>Ada</strong></td><td class="align-right"><code>3</code></td></tr><tr><td>&lt;b&gt;</td><td class="align-right">4</td></tr></tbody></table></div>',
+      `<div class="rich-table"><table><thead><tr>${cell('th', 'markdown:0', 1, 'Name')}${cell('th', 'markdown:0', 2, 'Count', 'right')}</tr></thead><tbody><tr>${cell('td', 'markdown:0', 3, '<strong>Ada</strong>')}${cell('td', 'markdown:0', 4, '<code>3</code>', 'right')}</tr><tr>${cell('td', 'markdown:0', 5, '&lt;b&gt;')}${cell('td', 'markdown:0', 6, '4', 'right')}</tr></tbody></table></div>`,
       '<p data-plan-part="markdown:0/paragraph:1" data-plan-kind="paragraph">After.</p>',
     ].join('\n'),
   )
@@ -255,7 +255,7 @@ bar | baz
   assert.ok(markdown && markdown.type === 'markdown')
   assert.equal(
     markdown.html,
-    '<div class="rich-table"><table><thead><tr><th class="align-center">abc</th><th class="align-right">defghi</th></tr></thead><tbody><tr><td class="align-center">bar</td><td class="align-right">baz</td></tr></tbody></table></div>',
+    `<div class="rich-table"><table><thead><tr>${cell('th', 'markdown:0', 1, 'abc', 'center')}${cell('th', 'markdown:0', 2, 'defghi', 'right')}</tr></thead><tbody><tr>${cell('td', 'markdown:0', 3, 'bar', 'center')}${cell('td', 'markdown:0', 4, 'baz', 'right')}</tr></tbody></table></div>`,
   )
 })
 
@@ -269,7 +269,7 @@ test('escaped pipes and pipes inside code stay in the cell', () => {
   assert.ok(markdown && markdown.type === 'markdown')
   assert.equal(
     markdown.html,
-    '<div class="rich-table"><table><thead><tr><th>Call</th><th>Note</th></tr></thead><tbody><tr><td>b <code>|</code> az</td><td><code>foo | bar</code></td></tr><tr><td>f|oo</td><td>kept</td></tr></tbody></table></div>',
+    `<div class="rich-table"><table><thead><tr>${cell('th', 'markdown:0', 1, 'Call')}${cell('th', 'markdown:0', 2, 'Note')}</tr></thead><tbody><tr>${cell('td', 'markdown:0', 3, 'b <code>|</code> az')}${cell('td', 'markdown:0', 4, '<code>foo | bar</code>')}</tr><tr>${cell('td', 'markdown:0', 5, 'f|oo')}${cell('td', 'markdown:0', 6, 'kept')}</tr></tbody></table></div>`,
   )
 })
 
@@ -287,7 +287,7 @@ Next
   assert.equal(
     markdown.html,
     [
-      '<div class="rich-table"><table><thead><tr><th>abc</th><th>def</th></tr></thead><tbody><tr><td>bar</td><td>baz</td></tr><tr><td>bar</td><td></td></tr><tr><td>bar</td><td>baz</td></tr></tbody></table></div>',
+      `<div class="rich-table"><table><thead><tr>${cell('th', 'markdown:0', 1, 'abc')}${cell('th', 'markdown:0', 2, 'def')}</tr></thead><tbody><tr>${cell('td', 'markdown:0', 3, 'bar')}${cell('td', 'markdown:0', 4, 'baz')}</tr><tr>${cell('td', 'markdown:0', 5, 'bar')}${cell('td', 'markdown:0', 6, '')}</tr><tr>${cell('td', 'markdown:0', 7, 'bar')}${cell('td', 'markdown:0', 8, 'baz')}</tr></tbody></table></div>`,
       '<p data-plan-part="markdown:0/paragraph:1" data-plan-kind="paragraph">Next</p>',
     ].join('\n'),
   )
@@ -314,7 +314,7 @@ test('a header-only table has no body', () => {
   assert.ok(markdown && markdown.type === 'markdown')
   assert.equal(
     markdown.html,
-    '<div class="rich-table"><table><thead><tr><th>abc</th><th>def</th></tr></thead></table></div>',
+    `<div class="rich-table"><table><thead><tr>${cell('th', 'markdown:0', 1, 'abc')}${cell('th', 'markdown:0', 2, 'def')}</tr></thead></table></div>`,
   )
 })
 
@@ -330,7 +330,7 @@ test('a table inside a phase body stays inside that phase', () => {
   assert.ok(phase && phase.type === 'phase')
   assert.equal(
     phase.bodyHtml,
-    '<div class="rich-table"><table><thead><tr><th>Step</th><th class="align-center">State</th></tr></thead><tbody><tr><td>Parse</td><td class="align-center">done</td></tr></tbody></table></div>',
+    `<div class="rich-table"><table><thead><tr>${cell('th', 'phase:design', 1, 'Step')}${cell('th', 'phase:design', 2, 'State', 'center')}</tr></thead><tbody><tr>${cell('td', 'phase:design', 3, 'Parse')}${cell('td', 'phase:design', 4, 'done', 'center')}</tr></tbody></table></div>`,
   )
 })
 
@@ -342,13 +342,13 @@ test('the table showcase renders tables in the plan, a phase, and a callout', ()
   assert.ok(markdown && markdown.type === 'markdown')
   assert.ok(phase && phase.type === 'phase')
   assert.ok(callout && callout.type === 'callout')
-  assert.match(markdown.html, /<th>Status<\/th><th>Meaning<\/th><th class="align-right">Lease<\/th>/)
-  assert.match(phase.bodyHtml, /<th>Column<\/th><th>Purpose<\/th>/)
+  assert.match(markdown.html, new RegExp(`${cell('th', 'markdown:0', 1, 'Status')}${cell('th', 'markdown:0', 2, 'Meaning')}${cell('th', 'markdown:0', 3, 'Lease', 'right')}`))
+  assert.match(phase.bodyHtml, new RegExp(cell('th', 'phase:queue', 1, 'Column') + cell('th', 'phase:queue', 2, 'Purpose')))
   assert.match(phase.bodyHtml, /<code>google_ads_operation_id<\/code>/)
   assert.match(phase.bodyHtml, /<li[^>]*><code>enqueue\(db, operations\)<\/code>/)
   assert.doesNotMatch(phase.bodyHtml, /\| --- \|/)
-  assert.match(callout.bodyHtml, /<th>Producer<\/th><th>When<\/th>/)
-  assert.match(callout.bodyHtml, /<td>COE<\/td><td>now<\/td>/)
+  assert.match(callout.bodyHtml, new RegExp(cell('th', 'callout:producers', 1, 'Producer') + cell('th', 'callout:producers', 2, 'When')))
+  assert.match(callout.bodyHtml, new RegExp(cell('td', 'callout:producers', 3, 'COE') + cell('td', 'callout:producers', 4, 'now')))
 })
 
 test('a following block ends the table', () => {
@@ -363,8 +363,20 @@ const n = 1
 `)
   const markdown = plan.blocks.find((block) => block.type === 'markdown')
   assert.ok(markdown && markdown.type === 'markdown')
-  assert.match(
-    markdown.html,
-    /^<div class="rich-table"><table><thead><tr><th>A<\/th><th>B<\/th><\/tr><\/thead><tbody><tr><td>1<\/td><td>2<\/td><\/tr><\/tbody><\/table><\/div>\n<h2 data-plan-part="markdown:0\/heading:1" data-plan-kind="heading">Next<\/h2>\n<pre class="code-block" data-plan-part="markdown:0\/code:1" data-plan-kind="code"/,
-  )
+  const table = `<div class="rich-table"><table><thead><tr>${cell('th', 'markdown:0', 1, 'A')}${cell('th', 'markdown:0', 2, 'B')}</tr></thead><tbody><tr>${cell('td', 'markdown:0', 3, '1')}${cell('td', 'markdown:0', 4, '2')}</tr></tbody></table></div>`
+  assert.ok(markdown.html.startsWith(`${table}\n<h2 data-plan-part="markdown:0/heading:1" data-plan-kind="heading">Next</h2>\n`))
+  assert.match(markdown.html, /data-plan-part="markdown:0\/code:1" data-plan-kind="code"/)
 })
+
+function cell(
+  tag: 'th' | 'td',
+  scope: string,
+  index: number,
+  body: string,
+  align: 'left' | 'center' | 'right' = 'left',
+): string {
+  const part = `data-plan-part="${scope}/cell:${index}" data-plan-kind="cell"`
+  if (align === 'center') return `<${tag} class="align-center" ${part}>${body}</${tag}>`
+  if (align === 'right') return `<${tag} class="align-right" ${part}>${body}</${tag}>`
+  return `<${tag} ${part}>${body}</${tag}>`
+}

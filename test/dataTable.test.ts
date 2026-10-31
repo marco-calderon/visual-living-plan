@@ -4,6 +4,7 @@ import test from 'node:test'
 import { createElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { DataTable } from '../client/mdx/dataTable/DataTable.tsx'
+import { dataTableCellToken } from '../src/planMdx/cellPart.ts'
 import { planHasDataTable } from '../client/mdx/dataTable/detect.ts'
 import {
   DATA_TABLE_PAGE_SIZE,
@@ -220,6 +221,31 @@ test('a cell wraps on its own, or inside a percentage of the table', () => {
   assert.match(tableCssText(), /overflow-x:\s*auto/)
   assert.match(tableCssText(), /\.plan-data-table :is\(th, td\) \*[\s\S]*white-space:\s*nowrap/)
   assert.match(tableCssText(), /\.plan-data-table-value\[data-wrap\]/)
+})
+
+test('data table cells keep a logical comment token', () => {
+  const html = renderToStaticMarkup(
+    createElement(
+      DataTable,
+      { label: 'Owners' },
+      createElement(Column, { id: 'name', header: 'Name', sort: true }),
+      createElement(Column, { id: 'state', header: 'State' }),
+      createElement(Row, null, createElement(Cell, null, 'Gateway'), createElement(Cell, null, 'succeeded')),
+      createElement(Row, null, createElement(Cell, null, 'Limits'), createElement(Cell, null, 'running')),
+    ),
+  )
+  for (const token of [
+    dataTableCellToken('header', 'name'),
+    dataTableCellToken('header', 'state'),
+    dataTableCellToken('row-1', 'name'),
+    dataTableCellToken('row-1', 'state'),
+    dataTableCellToken('row-2', 'name'),
+  ]) {
+    assert.equal(html.includes(`data-plan-cell="${token}"`), true)
+  }
+  const cells = [...html.matchAll(/<t[dh]\b[^>]*>/g)].map((match) => match[0] ?? '')
+  assert.equal(cells.length, 6)
+  assert.equal(cells.every((tag) => tag.includes('data-plan-cell="')), true)
 })
 
 test('a plan with a data table still parses', () => {
