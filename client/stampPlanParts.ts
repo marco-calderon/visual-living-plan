@@ -1,4 +1,6 @@
-type Counts = {
+import { dataTableCellPartId, isDataTableCellToken, markdownCellPartId } from '../src/planMdx/cellPart.ts'
+
+type ProseCounts = {
   heading: number
   paragraph: number
   'list-item': number
@@ -6,11 +8,16 @@ type Counts = {
   code: number
 }
 
-function freshCounts(): Counts {
-  return { heading: 0, paragraph: 0, 'list-item': 0, diagram: 0, code: 0 }
+type Counts = ProseCounts & {
+  cell: number
+  dataTable: number
 }
 
-/** Mark the rendered MDX plan so comments can grab a heading, paragraph, option, or entry. */
+function freshCounts(): Counts {
+  return { heading: 0, paragraph: 0, 'list-item': 0, diagram: 0, code: 0, cell: 0, dataTable: 0 }
+}
+
+/** Mark the rendered MDX plan so comments can grab a heading, paragraph, option, entry, or table cell. */
 export function stampPlanParts(root: ParentNode): void {
   const article = root.querySelector<HTMLElement>('[data-plan-rendered]') ?? (root instanceof HTMLElement ? root : null)
   if (!article) return
@@ -31,6 +38,7 @@ export function stampPlanParts(root: ParentNode): void {
       counts = freshCounts()
     }
     stampProse(child, `markdown:${proseIndex}`, counts)
+    stampElementTables(child, `markdown:${proseIndex}`, counts)
   }
 }
 
@@ -68,6 +76,7 @@ function stampEntry(entry: HTMLElement): void {
     for (const child of [...rich.children]) {
       if (!(child instanceof HTMLElement) || child.matches('[data-entry]')) continue
       stampProse(child, scope, counts)
+      stampElementTables(child, scope, counts)
     }
   }
 }
@@ -87,7 +96,45 @@ function stampProse(element: HTMLElement, scope: string, counts: Counts): void {
   }
 }
 
-function proseKind(element: HTMLElement): keyof Counts | null {
+function stampElementTables(element: HTMLElement, scope: string, counts: Counts): void {
+  const hostEntry = element.closest('[data-entry]')
+  for (const table of elementsWithClass(element, 'rich-table')) {
+    if (table.closest('[data-entry]') !== hostEntry) continue
+    for (const cell of table.querySelectorAll<HTMLElement>('th, td')) {
+      if (cell.closest('.rich-table') !== table) continue
+      counts.cell += 1
+      assignCell(cell, markdownCellPartId(scope, counts.cell))
+    }
+  }
+  for (const table of elementsWithClass(element, 'plan-data-table')) {
+    if (table.closest('[data-entry]') !== hostEntry) continue
+    counts.dataTable += 1
+    const index = counts.dataTable
+    for (const cell of table.querySelectorAll<HTMLElement>('[data-plan-cell]')) {
+      if (cell.closest('.plan-data-table') !== table) continue
+      const token = cell.dataset.planCell ?? ''
+      if (!isDataTableCellToken(token)) continue
+      assignCell(cell, dataTableCellPartId(scope, index, token))
+    }
+  }
+}
+
+function assignCell(cell: HTMLElement, partId: string): void {
+  if (partId.length > 200) return
+  cell.dataset.planPart = partId
+  cell.dataset.planKind = 'cell'
+}
+
+function elementsWithClass(element: HTMLElement, className: string): HTMLElement[] {
+  const found: HTMLElement[] = []
+  if (element.classList.contains(className)) found.push(element)
+  for (const node of element.querySelectorAll<HTMLElement>(`.${className}`)) {
+    if (!found.includes(node)) found.push(node)
+  }
+  return found
+}
+
+function proseKind(element: HTMLElement): keyof ProseCounts | null {
   if (/^H[1-6]$/.test(element.tagName)) return 'heading'
   if (element.tagName === 'P') return 'paragraph'
   if (element.tagName === 'LI') return 'list-item'

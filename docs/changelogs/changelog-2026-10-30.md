@@ -210,3 +210,22 @@ A signed-in cloud account has a dashboard. Appearance settings are stored on the
 ### Notes
 
 Redeploy the Worker from `cloud/` and apply D1 migrations so the `user_settings` table exists. No registry restart needed beyond the usual version check.
+
+## 1.6.8
+
+**PR:** (opening)
+
+**Bump:** patch
+
+### Summary
+
+Comments can point at one cell in a markdown table or a data table. Comments on the rest of the plan stay the same.
+
+### New features
+
+- Turn comments on and select a single markdown table cell, or one `<DataTable>` `<Cell>`, and send a comment on that cell.
+- A data table cell keeps that comment when the table is sorted, filtered, or paged. The search, sort, and page controls still work while comments are on.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
