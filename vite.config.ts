@@ -21,6 +21,7 @@ export default defineConfig({
         mermaid: resolve(rootDir, 'client/mermaid.ts'),
         highlight: resolve(rootDir, 'client/highlight.tsx'),
         selector: resolve(rootDir, 'client/PlanSelector.tsx'),
+        settingsChrome: resolve(rootDir, 'client/settingsChrome.tsx'),
         planMdx: resolve(rootDir, 'client/planMdx.tsx'),
       },
       output: {

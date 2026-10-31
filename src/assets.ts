@@ -48,6 +48,7 @@ export async function loadClientAssets(): Promise<ClientAssets | null> {
           item.name !== 'mermaid' &&
           item.name !== 'highlight' &&
           item.name !== 'selector' &&
+          item.name !== 'settingsChrome' &&
           item.name !== 'planMdx',
       )
 

@@ -14,6 +14,11 @@ function apiPath(path: string): string {
   return `${base}${path}`
 }
 
+function themePutUrl(): string {
+  const custom = (window as Window & { __LIVE_PLAN_THEME_URL__?: string }).__LIVE_PLAN_THEME_URL__
+  return custom || apiPath('/api/theme')
+}
+
 function readWrapCode(): boolean {
   return document.documentElement.dataset.wrapCode === 'true'
 }
@@ -44,7 +49,7 @@ export function CodeWrapSwitch({ initialChecked }: CodeWrapSwitchProps) {
     setChecked(next)
     publishWrapCode(next)
     try {
-      const response = await fetch(apiPath('/api/theme'), {
+      const response = await fetch(themePutUrl(), {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ wrapCode: next }),

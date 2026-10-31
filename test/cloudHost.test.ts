@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 import { allows, planCapReached } from '../cloud/src/access.ts'
 import { sessionFromToken } from '../cloud/src/auth.ts'
 import { defaultAccountSettings, mergeAccountSettings, readAccountSettings, saveAccountSettings } from '../cloud/src/accountSettings.ts'
-import { cloudAccountRoute, renderAccountPage, renderPlansDashboard, renderSettingsPage } from '../cloud/src/dashboardPage.ts'
+import { cloudAccountRoute, renderAccountPage, renderPlansDashboard, renderSettingsPage, settingsChromeFromManifest } from '../cloud/src/dashboardPage.ts'
 import { hostedDashboard } from '../cloud/src/hostedDashboard.ts'
 import { PLAN_VERSION_LIMIT, publishPlanVersion, readPlanVersion } from '../cloud/src/planVersions.ts'
 import { renderCloudPage } from '../cloud/src/page.ts'
@@ -42,22 +42,79 @@ test('signed-in cloud pages split the dashboard, account, and settings', () => {
   assert.match(account, /--canvas:\s*#ffffff/)
   assert.doesNotMatch(account, /#f7f6f3/)
 
-  const settings = renderSettingsPage(defaultAccountSettings())
-  assert.match(settings, /<h1>Settings<\/h1>/)
-  assert.match(settings, /Save on this host/)
+  const accountIdentity = { email: 'person@example.com', name: 'Person', tier: 'free' }
+  const settings = renderSettingsPage(defaultAccountSettings(), accountIdentity, {
+    chromeHref: '/client/settings-chrome.js',
+    chromeCss: ['/client/settings-chrome.css'],
+  })
+  assert.match(settings, /<h1 class="brand">Settings<\/h1>/)
+  assert.match(settings, /<header class="titlebar">/)
+  assert.match(settings, /data-account-menu/)
+  assert.match(settings, /data-account-section/)
+  assert.match(settings, /Signed in as person@example.com/)
+  assert.match(settings, /Name <strong>Person<\/strong>/)
+  assert.match(settings, /Tier <strong>free<\/strong>/)
+  assert.match(settings, /data-diffs-theme="pierre"/)
+  assert.match(settings, /data-diffs-theme="soft"/)
+  assert.match(settings, /data-diffs-theme="vibrant"/)
+  assert.match(settings, /data-diffs-theme="protanopia-deuteranopia"/)
+  assert.match(settings, /data-diffs-theme="tritanopia"/)
+  assert.doesNotMatch(settings, /<p class="nav">/)
+  assert.doesNotMatch(settings, /href="\/account"/)
+  assert.match(settings, /Saved on this host/)
+  assert.match(settings, /class="theme-swatch"/)
+  assert.match(settings, /class="width-choice"/)
+  assert.match(settings, /data-page-width="default"/)
+  assert.match(settings, /data-accordion/)
+  assert.match(settings, /--space-md:\s*16px/)
+  assert.match(settings, /padding:\s*var\(--space-md\)/)
+  assert.match(settings, /class="block settings-section"/)
+  assert.match(settings, /\.plan-chrome-contents\s*\{\s*display:\s*contents;\s*\}/)
+  assert.match(settings, /src="\/client\/settings-chrome\.js"/)
+  assert.match(settings, /__LIVE_PLAN_THEME_URL__/)
+  assert.doesNotMatch(settings, /PlanSelector/)
+  assert.doesNotMatch(settings, /selector\.js/)
+  const chrome = settingsChromeFromManifest({
+    'client/PlanSelector.tsx': { file: 'assets/selector.js', name: 'selector', css: ['assets/selector.css'] },
+    'client/settingsChrome.tsx': {
+      file: 'assets/settingsChrome.js',
+      name: 'settingsChrome',
+      imports: ['_mountChrome.js'],
+    },
+    '_mountChrome.js': { file: 'assets/mountChrome.js', css: ['assets/mountChrome.css'] },
+  })
+  assert.equal(chrome.chromeHref, '/client/assets/settingsChrome.js')
+  assert.deepEqual(chrome.chromeCss, ['/client/assets/mountChrome.css'])
+  assert.equal(settingsChromeFromManifest({ 'client/PlanSelector.tsx': { file: 'assets/selector.js', name: 'selector' } }).chromeHref, null)
+  assert.match(settings, /data-host-panel="cloud"/)
   assert.doesNotMatch(settings, /<h1>Account<\/h1>/)
+  assert.doesNotMatch(settings, /data-host-panel="local"/)
+  assert.doesNotMatch(settings, /data-account-settings/)
+  assert.doesNotMatch(settings, /height:\s*40px;\s*\n\s*padding:\s*11px 24px/)
 
-  const dashboard = renderPlansDashboard()
-  assert.match(dashboard, /<h1>Control dashboard<\/h1>/)
-  assert.match(dashboard, /data-period="day"/)
+  const dashboard = renderPlansDashboard(accountIdentity)
+  assert.match(dashboard, /<header class="titlebar">/)
+  assert.match(dashboard, /<h1 class="brand">Dashboard<\/h1>/)
+  assert.match(dashboard, /class="chrome-tools"/)
+  assert.match(dashboard, /data-account-menu/)
+  assert.match(dashboard, /data-label="Person"/)
+  const header = dashboard.slice(dashboard.indexOf('<header'), dashboard.indexOf('</header>'))
+  assert.doesNotMatch(header, /data-period/)
+  assert.doesNotMatch(header, /data-filter/)
+  assert.match(dashboard, /<\/header>[\s\S]*data-period="day"/)
+  assert.match(dashboard, /aria-label="Summary period"/)
+  assert.match(dashboard, /aria-label="Plan status"/)
   assert.match(dashboard, /data-filter="running"/)
   assert.match(dashboard, /data-filter="executed"/)
   assert.match(dashboard, /data-filter="interrupted"/)
+  assert.match(dashboard, /id="refresh"/)
   assert.match(dashboard, /\/api\/account\/dashboard/)
   assert.match(dashboard, /data-plan-host="cloud"/)
-  assert.match(dashboard, /href="\/account"/)
-  assert.match(dashboard, /href="\/settings"/)
-  assert.doesNotMatch(dashboard, /Save on this host/)
+  assert.doesNotMatch(dashboard, /data-account-section/)
+  assert.doesNotMatch(dashboard, /href="\/account"/)
+  assert.doesNotMatch(dashboard, /href="\/settings"/)
+  assert.doesNotMatch(dashboard, /href="\/">Running plans/)
+  assert.doesNotMatch(dashboard, /class="theme-swatch"/)
 
   assert.equal(cloudAccountRoute('/dashboard'), 'dashboard')
   assert.equal(cloudAccountRoute('/dashboard/'), 'dashboard')
@@ -193,9 +250,13 @@ test('the hosted dashboard lists a stored plan the way the local dashboard does'
   assert.equal(plan.fileUrl, '/plans/plan1234/document')
   assert.equal(plan.historyUrl, '/plans/plan1234/history')
   const local = renderDashboardPage()
+  assert.match(local, /<header class="titlebar">/)
+  assert.match(local, /href="\/">Running plans/)
   assert.match(local, /registry's plans folder/)
   assert.match(local, /const apiPath = "\/api\/dashboard"/)
   assert.doesNotMatch(local, /api\/account\/dashboard/)
+  assert.doesNotMatch(local, /data-account-section/)
+  assert.doesNotMatch(local, /href="\/settings"/)
 })
 
 test('the account session token from sign-in is accepted without a browser cookie', async () => {

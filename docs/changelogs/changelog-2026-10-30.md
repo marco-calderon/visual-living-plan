@@ -252,3 +252,24 @@ The cloud host splits the plans dashboard, account, and settings into separate p
 ### Notes
 
 Redeploy the Worker from `cloud/` and apply D1 migrations so the `plan_versions` table exists. No registry restart needed beyond the usual version check.
+
+## 1.6.10
+
+**PR:** [#100](https://github.com/marco-calderon/visual-living-plan/pull/100)
+
+**Bump:** patch
+
+### Summary
+
+The cloud dashboard and settings pages share a toolbar. Settings keeps the account details and every Pierre theme.
+
+### Improvements
+
+- The cloud dashboard and settings pages share one toolbar: logo, title, and a user menu. The menu has Settings and log out. The account button is gone. `/account` stays its own page.
+- Period and status filters sit with the dashboard sections again. Refresh stays with the period control.
+- The signed-in email, name, and tier are on Settings, with the host note.
+- `/settings` uses the same appearance controls as a local plan, including every Pierre theme, on documentation cards. Page width is the same pill, and the Pierre theme uses the same collapse.
+
+### Notes
+
+No registry restart needed beyond the usual version check.

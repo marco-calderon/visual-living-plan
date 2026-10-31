@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { toast, Toaster } from 'sonner'
+import { AccountMenu } from './AccountMenu.tsx'
 import { CodeWrapSwitch } from './CodeWrapSwitch.tsx'
 import { PlanDetails } from './PlanDetails.tsx'
 import { PlansMenu } from './PlansMenu.tsx'
@@ -70,6 +71,17 @@ function mountCodeWrap() {
   createRoot(slot).render(<CodeWrapSwitch initialChecked={checked} />)
 }
 
+function mountAccountMenu() {
+  const host = document.querySelector('[data-account-menu]')
+  if (!(host instanceof HTMLElement) || host.dataset.accountMenuMounted === 'true') return
+  const label = host.getAttribute('data-label') || 'Account'
+  host.dataset.accountMenuMounted = 'true'
+  const slot = document.createElement('div')
+  slot.className = 'account-menu'
+  host.replaceWith(slot)
+  createRoot(slot).render(<AccountMenu label={label} />)
+}
+
 function mountToaster() {
   if (document.getElementById('plan-toaster-root')) return
   const legacy = document.getElementById('toast')
@@ -96,4 +108,5 @@ mountPlans()
 mountPlanDetails()
 mountAccordions()
 mountCodeWrap()
+mountAccountMenu()
 mountToaster()
