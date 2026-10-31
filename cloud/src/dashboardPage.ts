@@ -106,29 +106,22 @@ export function cloudAccountRoute(pathname: string): CloudSurface | null {
   return null
 }
 
-/** Same control dashboard as the local host, plus this account so Settings lives here. */
+/** Same control dashboard as the local host, plus this account so Settings lives in the toolbar. */
 export function renderPlansDashboard(account: { email: string; name: string; tier: string }): string {
   const accountHtml = `<section class="account-card" data-account-section data-host-panel="cloud">
       <div class="account-row">
-        <div>
-          <p class="kicker">Account</p>
-          <h2>Account</h2>
-        </div>
-        <div class="account-actions">
-          <a class="refresh" href="/settings">Settings</a>
-          <button type="button" class="refresh" data-sign-out>Sign out</button>
-        </div>
+        <p class="account-identity">Signed in as ${escapeHtml(account.email)}.</p>
+        <p class="account-meta">Name <strong>${escapeHtml(account.name || account.email)}</strong></p>
+        <p class="account-meta">Tier <strong>${escapeHtml(account.tier)}</strong></p>
       </div>
-      <p>Signed in as ${escapeHtml(account.email)}.</p>
-      <p class="account-meta">Name <strong>${escapeHtml(account.name || account.email)}</strong></p>
-      <p class="account-meta">Tier <strong>${escapeHtml(account.tier)}</strong></p>
       <p class="account-note">If a terminal is waiting on account login, close this window and return to it. Host a plan from that machine with <code>live-plan serve path/to/work.plan.md --cloud</code>. Each publish stores the plan here. Loopback plans stay separate and do not require this account.</p>
     </section>`
   return renderDashboardDocument({
     host: 'cloud',
     apiPath: '/api/account/dashboard',
+    logoHref: '/dashboard',
     lede: 'Hosted plans for this account. Summaries follow the local day, week, and month. Each published version is stored on this host, and the latest 10 are kept. Loopback plans stay on your machine.',
-    navHtml: '<p class="nav"><a class="link" href="/account">Account</a></p>',
+    toolbarHtml: '<a class="titlebar-action" href="/account">Account</a><a class="titlebar-action titlebar-action-primary" href="/settings">Settings</a><button type="button" class="titlebar-action" data-sign-out>Sign out</button>',
     accountHtml,
     headExtra: '<link rel="icon" type="image/png" href="/favicon.png" />',
     footScript: SIGN_OUT_SCRIPT,

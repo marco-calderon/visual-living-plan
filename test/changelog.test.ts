@@ -172,6 +172,7 @@ test('the repo changelog is classified and Settings renders it above Appearance'
   assert.ok(release.bugs.some((line) => line.version === '1.6.9' && line.text.includes('Sign in required')))
   assert.ok(release.improvements.some((line) => line.version === '1.6.10' && line.text.includes('Settings button')))
   assert.ok(release.improvements.some((line) => line.version === '1.6.10' && line.text.includes('collapse')))
+  assert.ok(release.improvements.some((line) => line.version === '1.6.10' && line.text.includes('toolbar')))
 
   const plan = parsePlan('---\ntitle: Sample\n---\n\n# Scope\n\nKeep it.\n', 'sample.plan.md')
   const html = renderPlanPage({

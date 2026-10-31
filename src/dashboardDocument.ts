@@ -1,8 +1,11 @@
 export type DashboardDocumentInput = {
   lede?: string
-  navHtml?: string
+  /** Extra titlebar controls, after the period, status, and refresh tools. */
+  toolbarHtml?: string
   /** Cloud dashboard only. The local dashboard leaves this empty. */
   accountHtml?: string
+  /** Logo target. Local opens running plans. The cloud host opens this dashboard. */
+  logoHref?: string
   apiPath?: string
   host?: 'local' | 'cloud'
   headExtra: string
@@ -10,14 +13,15 @@ export type DashboardDocumentInput = {
 }
 
 const defaultLede = 'Running plans and plans that have already executed. Summaries follow the local day, week, and month. Files modified is the largest git change set seen during the run. Each plan file is kept in the registry\'s plans folder.'
-const defaultNav = '<p class="nav"><a class="link" href="/">Running plans</a></p>'
+const defaultToolbar = '<a class="titlebar-action" href="/">Running plans</a>'
 
 /** Control dashboard document. Loopback and the cloud host share this layout. */
 export function renderDashboardDocument(options: DashboardDocumentInput): string {
   const input = {
     lede: options.lede ?? defaultLede,
-    navHtml: options.navHtml ?? defaultNav,
+    toolbarHtml: options.toolbarHtml ?? defaultToolbar,
     accountHtml: options.accountHtml ?? '',
+    logoHref: options.logoHref ?? '/',
     apiPath: options.apiPath ?? '/api/dashboard',
     headExtra: options.headExtra,
     footScript: options.footScript,
@@ -85,77 +89,124 @@ export function renderDashboardDocument(options: DashboardDocumentInput): string
       font-family: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
       background: var(--canvas);
     }
-    main { width: min(1180px, calc(100% - 2rem)); margin: 0 auto; padding: 2.2rem 0 4rem; }
-    .top {
+    main { margin: 0; padding: 24px 32px 64px; }
+    .titlebar {
+      position: sticky;
+      top: 0;
+      z-index: 8;
       display: flex;
-      justify-content: space-between;
-      gap: 1rem;
-      align-items: flex-end;
-      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      min-height: 3.75rem;
+      padding: 8px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
     }
-    .kicker {
-      margin: 0 0 0.35rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--accent);
-    }
-    h1 {
-      font-family: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
-      font-weight: 600;
-      font-size: 32px;
-      line-height: 1.25;
-      letter-spacing: -0.5px;
-      margin: 0;
-      color: var(--ink);
-    }
-    .lede { margin: 0.7rem 0 0; color: var(--muted); max-width: 40rem; line-height: 1.5; }
-    .nav { display: flex; gap: 0.5rem; align-items: center; }
-    a.link {
-      color: var(--accent);
-      font-weight: 600;
+    .logo-btn {
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
       text-decoration: none;
     }
-    a.link:hover { text-decoration: underline; }
-    .toolbar {
-      display: flex;
-      justify-content: space-between;
-      gap: 0.8rem;
-      align-items: center;
-      flex-wrap: wrap;
-      margin: 1.4rem 0 0.9rem;
+    .logo-btn:focus-visible,
+    .tab-label:focus-visible,
+    .titlebar-action:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
     }
-    .segment, .filters { display: flex; gap: 0.35rem; flex-wrap: wrap; }
-    .filters { margin: 0 0 1.85rem; padding-bottom: 0.45rem; }
-    button.seg, button.filter, button.refresh, a.refresh {
-      font: inherit;
+    .titlebar-logo {
+      width: 29px;
+      height: 29px;
+      display: block;
+      border-radius: 50%;
+    }
+    .brand {
+      flex: 0 0 auto;
+      margin: 0;
+      font-weight: 600;
+      font-size: 20px;
+      line-height: 1.4;
+      color: var(--ink);
+      white-space: nowrap;
+    }
+    .chrome-tools {
+      display: flex;
+      flex: 1 1 auto;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-left: auto;
+    }
+    .tabs {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      padding: 3px;
       border: 1px solid var(--line);
-      background: var(--panel);
+      border-radius: 999px;
+      background: var(--surface);
+    }
+    .tab-label,
+    .titlebar-action {
+      font: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.4;
+      cursor: pointer;
+    }
+    .tab-label {
+      border: 0;
+      background: transparent;
       color: var(--ink);
       border-radius: 999px;
-      padding: 0.4rem 0.8rem;
-      cursor: pointer;
+      padding: 6px 12px;
+    }
+    .tab-label[aria-pressed="true"] {
+      background: var(--primary);
+      color: var(--on-primary);
+    }
+    .titlebar-action {
+      display: inline-flex;
+      align-items: center;
+      height: 36px;
+      padding: 0 16px;
+      border: 1px solid var(--ink);
+      border-radius: 9999px;
+      background: transparent;
+      color: var(--ink);
       text-decoration: none;
     }
-    button.seg[aria-pressed="true"], button.filter[aria-pressed="true"] {
+    .titlebar-action-primary {
       background: var(--primary);
       border-color: var(--primary);
       color: var(--on-primary);
     }
-    button.refresh, a.refresh { font-weight: 600; }
+    .lede {
+      margin: 0 0 8px;
+      color: var(--muted);
+      max-width: 72rem;
+      font-size: 14px;
+      line-height: 1.5;
+    }
     .stats {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 0.7rem;
-      margin: 0 0 0.8rem;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+      margin: 0 0 16px;
     }
     .stat {
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 16px;
-      padding: 0.85rem 0.95rem;
-      box-shadow: var(--shadow);
+      padding: 16px;
+      box-shadow: none;
     }
     .stat span { display: block; color: var(--muted); font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase; }
     .stat strong {
@@ -167,7 +218,7 @@ export function renderDashboardDocument(options: DashboardDocumentInput): string
       font-size: 1.7rem;
       font-variant-numeric: tabular-nums;
     }
-    .status { color: var(--muted); margin: 0 0 0.8rem; }
+    .status { color: var(--muted); margin: 0 0 16px; font-size: 14px; line-height: 1.5; }
     .table-wrap {
       overflow: auto;
       border: 1px solid var(--line);
@@ -178,15 +229,15 @@ export function renderDashboardDocument(options: DashboardDocumentInput): string
     table { width: 100%; border-collapse: collapse; min-width: 860px; }
     caption {
       text-align: left;
-      padding: 0.85rem 1rem 0;
-      font-family: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      padding: 16px 16px 0;
       font-weight: 600;
       color: var(--ink);
-      font-size: 1.25rem;
+      font-size: 20px;
+      line-height: 1.4;
     }
     th, td {
       text-align: left;
-      padding: 0.75rem 0.9rem;
+      padding: 12px 16px;
       border-bottom: 1px solid var(--line);
       vertical-align: top;
     }
@@ -225,13 +276,13 @@ export function renderDashboardDocument(options: DashboardDocumentInput): string
       margin-bottom: 0.3rem;
     }
     .meter span { display: block; height: 100%; background: var(--accent); }
-    button.seg, button.filter, button.refresh, a.refresh {
+    .tab-label, .titlebar-action {
       transition: transform 160ms var(--ease-out), background-color 150ms ease, color 150ms ease, border-color 150ms ease;
     }
-    button.seg:active, button.filter:active, button.refresh:active, a.refresh:active { transform: scale(0.97); }
+    .tab-label:active, .titlebar-action:active { transform: scale(0.97); }
     @media (prefers-reduced-motion: reduce) {
-      button.seg, button.filter, button.refresh, a.refresh { transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease; }
-      button.seg:active, button.filter:active, button.refresh:active, a.refresh:active { transform: none; }
+      .tab-label, .titlebar-action { transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease; }
+      .tab-label:active, .titlebar-action:active { transform: none; }
     }
     @media (prefers-reduced-motion: no-preference) {
       @keyframes enter {
@@ -242,15 +293,14 @@ export function renderDashboardDocument(options: DashboardDocumentInput): string
         from { opacity: 0; }
         to { opacity: 1; }
       }
-      .top, .toolbar, .stats, .status, .filters, .table-wrap {
+      .lede, .account-card, .stats, .status, .table-wrap {
         animation: enter 200ms var(--ease-out) both;
       }
-      .top { animation-delay: 0ms; }
-      .toolbar { animation-delay: 40ms; }
+      .lede { animation-delay: 0ms; }
+      .account-card { animation-delay: 40ms; }
       .stats { animation-delay: 80ms; }
       .status { animation-delay: 120ms; }
-      .filters { animation-delay: 160ms; }
-      .table-wrap { animation-delay: 200ms; }
+      .table-wrap { animation-delay: 160ms; }
       .stat.enter { animation: enter 200ms var(--ease-out) both; }
       tbody tr.enter { animation: row-in 150ms var(--ease-out) both; }
     }
@@ -265,22 +315,17 @@ export function renderDashboardDocument(options: DashboardDocumentInput): string
     a.action:hover { text-decoration: underline; }
     .empty { color: var(--muted); }
     .account-card {
-      margin: 1.4rem 0 0;
+      display: grid;
+      gap: 12px;
+      margin: 0 0 16px;
       padding: 16px;
       border: 1px solid var(--line);
       border-radius: 16px;
       background: var(--panel);
     }
-    .account-row { display: flex; justify-content: space-between; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
-    .account-card h2 {
-      margin: 0;
-      font-family: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
-      font-weight: 600;
-      font-size: 1.35rem;
-      color: var(--ink);
-    }
-    .account-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
-    .account-card p { margin: 0.7rem 0 0; color: var(--muted); line-height: 1.5; }
+    .account-row { display: flex; gap: 12px 24px; align-items: baseline; flex-wrap: wrap; }
+    .account-card p { margin: 0; color: var(--muted); line-height: 1.5; }
+    .account-identity { color: var(--ink); font-weight: 600; }
     .account-meta strong { color: var(--ink); font-weight: 600; }
     .account-note code {
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -289,32 +334,32 @@ export function renderDashboardDocument(options: DashboardDocumentInput): string
   </style>
 </head>
 <body>
+  <header class="titlebar">
+    <a class="logo-btn" href="${input.logoHref}" aria-label="Living Plan">
+      <img class="titlebar-logo" src="/favicon.png" alt="" width="29" height="29" />
+    </a>
+    <h1 class="brand">Dashboard</h1>
+    <div class="chrome-tools">
+      <div class="tabs" role="group" aria-label="Summary period">
+        <button type="button" class="tab-label" data-period="day" aria-pressed="true">Today</button>
+        <button type="button" class="tab-label" data-period="week" aria-pressed="false" aria-label="This week">Week</button>
+        <button type="button" class="tab-label" data-period="month" aria-pressed="false" aria-label="This month">Month</button>
+      </div>
+      <div class="tabs" role="group" aria-label="Plan status">
+        <button type="button" class="tab-label" data-filter="all" aria-pressed="true">All</button>
+        <button type="button" class="tab-label" data-filter="running" aria-pressed="false">Running</button>
+        <button type="button" class="tab-label" data-filter="executed" aria-pressed="false">Executed</button>
+        <button type="button" class="tab-label" data-filter="interrupted" aria-pressed="false">Interrupted</button>
+      </div>
+      <button type="button" class="titlebar-action" id="refresh">Refresh</button>
+      ${input.toolbarHtml}
+    </div>
+  </header>
   <main>
-    <div class="top">
-      <div>
-        <p class="kicker">Living Plan</p>
-        <h1>Control dashboard</h1>
-        <p class="lede">${input.lede}</p>
-      </div>
-      ${input.navHtml}
-    </div>
     ${input.accountHtml ?? ''}
-    <div class="toolbar">
-      <div class="segment" role="group" aria-label="Summary period">
-        <button type="button" class="seg" data-period="day" aria-pressed="true">Today</button>
-        <button type="button" class="seg" data-period="week" aria-pressed="false">This week</button>
-        <button type="button" class="seg" data-period="month" aria-pressed="false">This month</button>
-      </div>
-      <button type="button" class="refresh" id="refresh">Refresh</button>
-    </div>
     <section class="stats" id="stats" aria-live="polite"></section>
+    <p class="lede">${input.lede}</p>
     <p class="status" id="status">Loading…</p>
-    <div class="filters" role="group" aria-label="Plan status">
-      <button type="button" class="filter" data-filter="all" aria-pressed="true">All</button>
-      <button type="button" class="filter" data-filter="running" aria-pressed="false">Running</button>
-      <button type="button" class="filter" data-filter="executed" aria-pressed="false">Executed</button>
-      <button type="button" class="filter" data-filter="interrupted" aria-pressed="false">Interrupted</button>
-    </div>
     <div class="table-wrap">
       <table>
         <caption>Plans</caption>

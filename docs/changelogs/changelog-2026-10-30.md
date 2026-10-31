@@ -268,6 +268,7 @@ The cloud dashboard includes the account section and a Settings button. Settings
 - The cloud `/dashboard` shows the signed-in account, with email, name, tier, and a Settings button. `/account` stays its own page. The local dashboard is unchanged.
 - `/settings` on the cloud host uses the same appearance controls as a local plan: accent, page width, code wrap, and Pierre theme. Saving writes them on this host.
 - Those settings sit on documentation cards with 16px padding. The page-width control is the same pill as a local plan, and the Pierre theme uses the same collapse.
+- The dashboard uses the plan-page toolbar: logo, title, period and status pills, and refresh. On the cloud host, Account, Settings, and sign out sit in that toolbar.
 
 ### Notes
 

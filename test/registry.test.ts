@@ -186,7 +186,7 @@ test('registry http api registers, lists, and requires a token to mutate', async
     const dashboardPage = await fetch(new URL('/dashboard', registry.url))
     assert.equal(dashboardPage.status, 200)
     const dashboardHtml = await dashboardPage.text()
-    assert.match(dashboardHtml, /Control dashboard/)
+    assert.match(dashboardHtml, /<h1 class="brand">Dashboard<\/h1>/)
     assert.match(dashboardHtml, /<table>/)
 
     const denied = await fetch(new URL('/api/processes', registry.url), {

@@ -45,7 +45,7 @@ Run `npx wrangler d1 migrations apply living-plan --remote` again after you upda
 
 ## Signed-in pages
 
-`/dashboard` is the plans dashboard: the same period, status, and table layout as the local control dashboard, for this account's hosted plans. That page includes the account section and a Settings button. `/account` shows the name, email, and tier. `/settings` saves appearance in D1 with the same controls as a local plan. `/` and `/review` redirect to `/dashboard`. A hosted plan page uses the account's appearance and shows a hosted-plan panel. A loopback plan keeps writing the theme file beside that plan and does not ask for an account.
+`/dashboard` is the plans dashboard: the same titlebar, period, status, and table layout as the local control dashboard, for this account's hosted plans. The toolbar holds Account, Settings, and sign out, and the page shows who is signed in. `/account` shows the name, email, and tier. `/settings` saves appearance in D1 with the same controls as a local plan. `/` and `/review` redirect to `/dashboard`. A hosted plan page uses the account's appearance and shows a hosted-plan panel. A loopback plan keeps writing the theme file beside that plan and does not ask for an account.
 
 When an agent publishes a plan (`serve --cloud`, `review --cloud`, or a later file upload), the host stores that markdown. It keeps the latest 10 versions and drops the oldest on the 11th. The dashboard links to the current plan file and the version list. Loopback publish is unchanged.
 
