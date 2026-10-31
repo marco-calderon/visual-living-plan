@@ -1,9 +1,9 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "visual-living-plan-start",
+  "name": "visual-living-plan",
   "compatibility_date": "2026-10-23",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "src/server.ts",
+  "main": "src/entry.ts",
   // Local workerd only. Production sets BETTER_AUTH_SECRET with `wrangler secret put`.
   "vars": {
     "BETTER_AUTH_SECRET": "local-dev-secret-at-least-32-characters"
@@ -13,7 +13,7 @@
       "binding": "DB",
       "database_name": "living-plan",
       "database_id": "00000000-0000-0000-0000-000000000001",
-      "migrations_dir": "../cloud/migrations"
+      "migrations_dir": "cloud/migrations"
     }
   ],
   "durable_objects": {

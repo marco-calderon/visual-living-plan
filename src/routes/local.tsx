@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import sample from '../../../examples/rate-limit.plan.md?raw'
+import sample from '../../examples/rate-limit.plan.md?raw'
 import { PlanShell } from '../PlanShell.tsx'
 import { planBootstrap } from '../planFns.ts'
 

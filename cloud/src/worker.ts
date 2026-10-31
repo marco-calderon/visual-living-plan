@@ -429,6 +429,21 @@ async function planHistory(request: Request, env: Env, auth: ReturnType<typeof c
   return html(renderVersionHistory({ title, planId, versions }))
 }
 
+/** Version list for the Start history page. The standalone Worker still returns HTML from planHistory. */
+export async function hostedPlanVersions(request: Request, env: Env, planId: string): Promise<Response> {
+  const origin = requestOrigin(request, env.PUBLIC_URL)
+  const auth = createAuth(env, origin)
+  const session = await readSession(auth, request, env.DB)
+  if (!session || !(await planOwner(request, env, auth, planId))) return text(401, 'Sign in required')
+  const versions = await listPlanVersions(env.DB, planId)
+  return Response.json({
+    title: versions[0]?.title ?? 'Living plan',
+    planId,
+    versions,
+    name: session.user.name || session.user.email,
+  })
+}
+
 async function planFetch(env: Env, planId: string, request: Request, path: string, actor: string): Promise<Response> {
   const headers = new Headers(request.headers)
   headers.delete('x-living-plan-actor')

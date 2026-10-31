@@ -1,4 +1,4 @@
-# ADR 0023: The cloud plan page is TanStack Start
+# ADR 0023: TanStack Start is the web application
 
 - Status: Accepted
 - Date: 2026-10-30
@@ -12,15 +12,15 @@ The Worker was also the HTML document: a string page that loaded the Vite client
 
 ## Decision
 
-`start/` is the cloud page. It is a TanStack Start app on the same Worker as `cloud/`.
+TanStack Start is the web application. It lives at the repository root, on the same Worker as `cloud/`. There is no separate app directory.
 
-- `GET /plans/:id` renders the plan with the existing MDX client and comment layer. The browser compiles the source, as it does on loopback.
-- `GET /login` is the account form. It posts to the existing Better Auth routes. `GET /local` renders the same client with no account and no Durable Object.
-- WebSocket upgrades, `/api/*`, plan writes, the viewer link, version history, and `/dashboard`, `/account`, and `/settings` stay on the Worker in `cloud/`. `/` and `/review` still redirect to `/dashboard`.
-- The local Bun service, loopback on `127.0.0.1`, `--no-registry`, and LAN publishing are unchanged. `--cloud` is still opt-in.
+- Every page is a Start route: `/`, `/review` (both redirect to `/dashboard`), `/login`, `/dashboard`, `/account`, `/settings`, `/plans/:id`, `/plans/:id/history`, `/local`, and `/sample`.
+- `GET /plans/:id` renders the plan with the existing MDX client and comment layer. The browser compiles the source, as it does on loopback. `/local` renders that same page with no account and no Durable Object.
+- WebSocket upgrades, `/api/*`, plan writes, the viewer link, `/plans/:id/document`, and `/plans/:id/versions/:n` stay on the Worker in `cloud/`.
+- The local Bun service, loopback on `127.0.0.1`, `--no-registry`, and LAN publishing are unchanged. `npm run dev` is still that service. `--cloud` is still opt-in. The library client bundle is `vite.client.config.ts`.
 
 ## Consequences
 
-A cloud plan URL is served by `start/src/server.ts`. That module exports the Durable Object and delegates every session request to the Worker fetch. The string plan page in `cloud/src/page.ts` remains for a Worker started from `cloud/` alone. New cloud pages go through Start.
+`src/entry.ts` exports the Durable Object and delegates session requests to the Worker fetch. `npm run host` runs the application on local workerd, including D1 and the Durable Object. Apply migrations with `npm run host:migrate`. Production still sets `BETTER_AUTH_SECRET` as a secret. The value in `wrangler.jsonc` is for that local process only.
 
-`cd start && npm run migrate:local && npm run dev` runs the host on local workerd, including D1 and the Durable Object. Production still sets `BETTER_AUTH_SECRET` as a secret. The value in `start/wrangler.jsonc` is for that local process only.
+The string documents in `cloud/` remain for a Worker started from `cloud/` alone. The application entry does not use them for page requests.

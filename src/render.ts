@@ -25,7 +25,7 @@ import { buildPlanToc, renderPlanTocHtml } from './planToc'
 import { planToExpectedGraph, withPlannedWorkflow } from './workflow'
 import { changelogSectionHtml, type ChangelogRelease } from './changelog'
 import { appearanceSettingsHtml } from './appearanceSettings'
-import { planPageStyles } from './planPageStyles.ts'
+import { planPageStyles } from './planPageStyles'
 
 export type RenderTheme = {
   accent: string

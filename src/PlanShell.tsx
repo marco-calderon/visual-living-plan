@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { hostToolbarCss } from '../../src/hostToolbar.ts'
-import { buildPlanToc, renderPlanTocHtml } from '../../src/planToc.ts'
-import { planPageStyles } from '../../src/planPageStyles.ts'
+import { hostToolbarCss } from './hostToolbar.ts'
+import { buildPlanToc, renderPlanTocHtml } from './planToc.ts'
+import { planPageStyles } from './planPageStyles.ts'
 import { bindPlanChrome } from './bindPlanChrome.ts'
 
 const PLAN_ICON =
@@ -81,10 +81,10 @@ export function PlanShell({
     bindPlanChrome()
     if (started.current) return
     started.current = true
-    void import('../../client/planMdx.tsx')
-    void import('../../client/main.tsx')
-    void import('../../client/chrome/mountChrome.tsx')
-    if (host === 'cloud') void import('../../client/PlanSelector.tsx')
+    void import('../client/planMdx.tsx')
+    void import('../client/main.tsx')
+    void import('../client/chrome/mountChrome.tsx')
+    if (host === 'cloud') void import('../client/PlanSelector.tsx')
   }, [accent, basePath, diffsTheme, host, mode, pageWidth, transport, wrapCode])
 
   return (

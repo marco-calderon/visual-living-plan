@@ -138,3 +138,68 @@ html[data-layout='full'] .plan-shell {
   text-transform: uppercase;
   font-size: 12px;
 }
+
+.host-page {
+  width: min(40rem, calc(100% - 32px));
+  margin: 24px auto 64px;
+  display: grid;
+  gap: 16px;
+}
+
+.host-page h1 {
+  margin: 0;
+  font-size: 32px;
+  letter-spacing: -0.03em;
+}
+
+.host-page p,
+.host-page .kicker {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.host-page .kicker {
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.host-page .card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.host-page .meta {
+  color: #71717a;
+  font-size: 14px;
+}
+
+.host-page .meta strong {
+  color: var(--ink);
+}
+
+.host-page ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.host-page li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.host-page code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.86em;
+}

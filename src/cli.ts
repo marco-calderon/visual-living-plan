@@ -181,7 +181,7 @@ async function ensureClientBuild(): Promise<void> {
   if (assets?.mermaidHref && assets.highlightHref && assets.selectorHref && assets.planMdxHref) return
   console.log('Building execution client (vite)...')
   await new Promise<void>((resolveBuild, reject) => {
-    const child = spawn(process.execPath, ['x', 'vite', 'build'], {
+    const child = spawn(process.execPath, ['x', 'vite', 'build', '--config', 'vite.client.config.ts'], {
       cwd: packageRoot,
       stdio: 'inherit',
       shell: process.platform === 'win32',

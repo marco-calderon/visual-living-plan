@@ -282,7 +282,7 @@ No registry restart needed beyond the usual version check.
 
 ### Summary
 
-The cloud plan page is a TanStack Start app on the same Worker. The browser still compiles the plan, and the local service stays the default.
+The web application is TanStack Start on the same Worker. Every page is a Start route. The browser still compiles the plan, and the local service stays the default.
 
 ### Bugs fixed
 
@@ -290,8 +290,8 @@ The cloud plan page is a TanStack Start app on the same Worker. The browser stil
 
 ### New features
 
-- `start/` serves the signed-in plan page, sign-in, and a no-account preview of the same MDX page. Account, plan APIs, the Durable Object, and the dashboard stay on the Worker.
-- Run it locally with `cd start && npm run migrate:local && npm run dev`. The `BETTER_AUTH_SECRET` in `start/wrangler.jsonc` is for that local process only.
+- Sign-in, the dashboard, account, settings, plan history, the signed-in plan, and the no-account preview are all TanStack Start routes. Plan APIs and the Durable Object stay on the Worker.
+- Run it locally with `npm run host:migrate && npm run host`. The `BETTER_AUTH_SECRET` in `wrangler.jsonc` is for that local process only. `npm run dev` is still the loopback service.
 
 ### Notes
 

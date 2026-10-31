@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
-import { hostToolbarCss } from '../../../src/hostToolbar.ts'
+import { hostToolbarCss } from '../hostToolbar.ts'
 import { authClient } from '../authClient.ts'
 
 type LoginSearch = { next?: string; cli?: string }

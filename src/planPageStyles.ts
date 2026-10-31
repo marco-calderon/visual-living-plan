@@ -1,4 +1,4 @@
-import { appearanceSettingsCss } from './appearanceSettings.ts'
+import { appearanceSettingsCss } from './appearanceSettings'
 
 export const planPageStyles = `
 :root {
