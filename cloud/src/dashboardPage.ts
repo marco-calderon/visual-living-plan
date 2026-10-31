@@ -59,7 +59,7 @@ function accountNav(current: 'dashboard' | 'account' | 'settings'): string {
   return `<p class="nav">${link('/dashboard', 'Dashboard')}${link('/account', 'Account')}${link('/settings', 'Settings')}<button class="secondary" type="button" data-sign-out>Sign out</button></p>`
 }
 
-function accountShell(title: string, body: string, scripts = ''): string {
+function accountShell(title: string, body: string, label: string, scripts = ''): string {
   return `<!doctype html>
 <html lang="en" data-plan-host="cloud">
 <head>
@@ -68,9 +68,10 @@ function accountShell(title: string, body: string, scripts = ''): string {
   <title>${escapeHtml(title)} · Living Plan</title>
   <link rel="icon" type="image/png" href="/favicon.png" />
   ${FONT_LINK}
-  <style>${ACCOUNT_STYLES}${PAGE_STYLES}</style>
+  <style>${ACCOUNT_STYLES}${PAGE_STYLES}${hostToolbarCss}</style>
 </head>
 <body>
+  ${renderHostToolbar({ title, logoHref: '/dashboard', endHtml: accountMenuHtml(label) })}
   <main>
     ${body}
   </main>
@@ -157,6 +158,7 @@ export function renderAccountPage(input: { email: string; name: string; tier: st
       <p class="meta">Tier <strong>${escapeHtml(input.tier)}</strong></p>
       <p class="host-note">If a terminal is waiting on account login, close this window and return to it. Host a plan from that machine with <code>live-plan serve path/to/work.plan.md --cloud</code>. Each publish stores the plan here. Loopback plans stay separate and do not require this account.</p>
     </section>`,
+    input.name || input.email,
   )
 }
 
@@ -275,5 +277,6 @@ export function renderVersionHistory(input: {
       ${items}
       <p class="host-note"><a href="/plans/${escapeHtml(input.planId)}/">Open the live plan</a></p>
     </section>`,
+    'Account',
   )
 }

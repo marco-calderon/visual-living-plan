@@ -309,8 +309,9 @@ export type HostedPlanPage = {
   responses: unknown
   comments: unknown
   review: unknown
-  owner: boolean
-  email: string
+    owner: boolean
+    email: string
+    name: string
   accent: string
   pageWidth: 'default' | 'wide' | 'full'
   diffsTheme: string
@@ -357,6 +358,7 @@ async function loadHostedPlan(request: Request, env: Env, planId: string): Promi
     review: view.review,
     owner: account,
     email: session?.user.email ?? '',
+    name: session?.user.name || session?.user.email || '',
     accent: account ? settings.accent : view.theme?.accent || '#0f766e',
     pageWidth: account ? settings.pageWidth : 'default',
     diffsTheme: account ? settings.diffsTheme : 'pierre',

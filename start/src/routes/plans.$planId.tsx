@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { useEffect, useRef } from 'react'
+import { PlanShell } from '../PlanShell.tsx'
 import { loadPlan } from '../planFns.ts'
 
 export const Route = createFileRoute('/plans/$planId')({
@@ -26,29 +26,6 @@ function jsonScript(value: unknown): string {
 function CloudPlanPage() {
   const page = Route.useLoaderData()
   const { planId } = Route.useParams()
-  const started = useRef(false)
-
-  useEffect(() => {
-    if (started.current) return
-    started.current = true
-    const win = window as Window & {
-      __LIVE_PLAN_BASE__?: string
-      __LIVE_PLAN_TRANSPORT__?: string
-      __LIVE_PLAN_HOST__?: string
-    }
-    win.__LIVE_PLAN_BASE__ = `/plans/${planId}`
-    win.__LIVE_PLAN_TRANSPORT__ = 'websocket'
-    win.__LIVE_PLAN_HOST__ = 'cloud'
-    document.body.dataset.planMode = page.mode
-    document.body.dataset.planHost = 'cloud'
-    document.body.dataset.accent = page.accent
-    document.documentElement.dataset.layout = page.pageWidth
-    document.documentElement.dataset.diffsTheme = page.diffsTheme
-    document.documentElement.dataset.wrapCode = page.wrapCode ? 'true' : 'false'
-    void import('../../../client/planMdx.tsx')
-    void import('../../../client/PlanSelector.tsx')
-  }, [page, planId])
-
   const boot = {
     source: page.source,
     title: page.title,
@@ -59,19 +36,23 @@ function CloudPlanPage() {
   }
 
   return (
-    <main className="plan-shell">
-      <p className="host-strip">
-        <strong>Cloud</strong>
-        <span>{page.owner ? `Signed in as ${page.email}` : 'Shared review link'}</span>
-        <a href="/dashboard">Dashboard</a>
-        <a href="/local">Without an account</a>
-      </p>
-      <section data-tab-panel="plan">
-        <div id="plan-mdx-root" />
-      </section>
+    <PlanShell
+      title={page.title}
+      source={page.source}
+      mode={page.mode}
+      host="cloud"
+      pageWidth={page.pageWidth}
+      accent={page.accent}
+      diffsTheme={page.diffsTheme}
+      wrapCode={page.wrapCode}
+      accountLabel={page.owner ? page.name || page.email : undefined}
+      basePath={`/plans/${planId}`}
+      transport="websocket"
+      bootstrap={page.bootstrap}
+    >
       <script type="application/json" id="living-plan-mdx" dangerouslySetInnerHTML={{ __html: jsonScript(boot) }} />
       <script type="application/json" id="living-plan-comments" dangerouslySetInnerHTML={{ __html: jsonScript(page.comments ?? []) }} />
       <script type="application/json" id="living-plan-review" dangerouslySetInnerHTML={{ __html: jsonScript(page.review ?? null) }} />
-    </main>
+    </PlanShell>
   )
 }

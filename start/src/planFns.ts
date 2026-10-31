@@ -24,13 +24,35 @@ export const loadPlan = createServerFn({ method: 'GET' })
       review: unknown
       owner: boolean
       email: string
+      name?: string
       accent: string
       pageWidth: 'default' | 'wide' | 'full'
       diffsTheme: string
       wrapCode: boolean
+      execution?: { active?: boolean }
     }
-    return { ok: true as const, page }
+    return { ok: true as const, page: { ...page, bootstrap: await workflowBootstrap(page.source, page.execution) } }
   })
+
+async function workflowBootstrap(source: string, execution?: { active?: boolean }): Promise<string> {
+  try {
+    const [{ parsePlan }, { createIdleExecutionState }, { buildExpectedGraph }] = await Promise.all([
+      import('../../src/parse.ts'),
+      import('../../src/execution.ts'),
+      import('../../src/expectedWorkflow.ts'),
+    ])
+    const plan = parsePlan(source)
+    const state = { ...createIdleExecutionState(), ...(execution ?? {}), planned: buildExpectedGraph(plan) }
+    return JSON.stringify(state).replaceAll('<', '\\u003c')
+  } catch (error) {
+    console.error('workflow bootstrap failed', error)
+    return JSON.stringify({ active: false }).replaceAll('<', '\\u003c')
+  }
+}
+
+export const planBootstrap = createServerFn({ method: 'POST' })
+  .validator((source: string) => source)
+  .handler(async ({ data }) => ({ bootstrap: await workflowBootstrap(data) }))
 
 export const openSample = createServerFn({ method: 'POST' })
   .handler(async () => {

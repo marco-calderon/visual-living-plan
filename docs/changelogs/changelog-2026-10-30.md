@@ -284,6 +284,10 @@ No registry restart needed beyond the usual version check.
 
 The cloud plan page is a TanStack Start app on the same Worker. The browser still compiles the plan, and the local service stays the default.
 
+### Bugs fixed
+
+- The hosted plan page shows the local title bar: Plan, Workflow, and the contents list. Settings opens from the profile menu on the plan, dashboard, settings, and account pages. A page with no account shows Sign in in that place.
+
 ### New features
 
 - `start/` serves the signed-in plan page, sign-in, and a no-account preview of the same MDX page. Account, plan APIs, the Durable Object, and the dashboard stay on the Worker.
