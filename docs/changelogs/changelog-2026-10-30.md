@@ -287,7 +287,6 @@ The web application is TanStack Start on the same Worker. Every page is a Start 
 ### Bugs fixed
 
 - The hosted plan page shows the local title bar: Plan, Workflow, and the contents list. Settings opens from the profile menu on the plan, dashboard, settings, and account pages. A page with no account shows Sign in in that place.
-- A hosted plan uses that same shell, including the contents list. Dark mode themes the diagrams and phase cards with the page.
 
 ### Improvements
 
