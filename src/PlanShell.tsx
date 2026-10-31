@@ -3,6 +3,7 @@ import { hostToolbarCss } from './hostToolbar.ts'
 import { buildPlanToc, renderPlanTocHtml } from './planToc.ts'
 import { planPageStyles } from './planPageStyles.ts'
 import { bindPlanChrome } from './bindPlanChrome.ts'
+import { themeBootstrapScript } from './themeBootstrap.ts'
 
 const PLAN_ICON =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>'
@@ -78,17 +79,26 @@ export function PlanShell({
     win.__LIVE_PLAN_HOST__ = host
     if (transport) win.__LIVE_PLAN_TRANSPORT__ = transport
     else delete win.__LIVE_PLAN_TRANSPORT__
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const applyTheme = () => {
+      document.documentElement.dataset.theme = media.matches ? 'dark' : 'light'
+    }
+    applyTheme()
+    media.addEventListener('change', applyTheme)
     bindPlanChrome()
-    if (started.current) return
-    started.current = true
-    void import('../client/planMdx.tsx')
-    void import('../client/main.tsx')
-    void import('../client/chrome/mountChrome.tsx')
-    if (host === 'cloud') void import('../client/PlanSelector.tsx')
+    if (!started.current) {
+      started.current = true
+      void import('../client/planMdx.tsx')
+      void import('../client/main.tsx')
+      void import('../client/chrome/mountChrome.tsx')
+      if (host === 'cloud') void import('../client/PlanSelector.tsx')
+    }
+    return () => media.removeEventListener('change', applyTheme)
   }, [accent, basePath, diffsTheme, host, mode, pageWidth, transport, wrapCode])
 
   return (
     <>
+      <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       <style>{`${hostToolbarCss}\n${planPageStyles}`}</style>
       <header className="titlebar">
         <div className="plan-details" data-plan-details>

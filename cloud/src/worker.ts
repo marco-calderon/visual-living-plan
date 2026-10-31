@@ -283,6 +283,7 @@ async function forwardPlan(
         wrapCode: loaded.wrapCode,
         owner: loaded.owner,
         email: loaded.email,
+        name: loaded.name,
         settings: loaded.settings,
         assets,
       }),
@@ -468,16 +469,26 @@ async function readClientManifest(
 }
 
 async function loadAssets(env: Env, request: Request): Promise<CloudPageAssets> {
-  const empty: CloudPageAssets = { planMdxHref: null, planMdxCss: [], selectorHref: null, selectorCss: [] }
+  const empty: CloudPageAssets = {
+    planMdxHref: null,
+    planMdxCss: [],
+    selectorHref: null,
+    selectorCss: [],
+    chromeHref: null,
+    chromeCss: [],
+  }
   const manifest = await readClientManifest(env, request)
   if (!manifest) return empty
   const plan = manifest['client/planMdx.tsx'] ?? Object.values(manifest).find((entry) => entry.name === 'planMdx')
   const selector = manifest['client/PlanSelector.tsx'] ?? Object.values(manifest).find((entry) => entry.name === 'selector')
+  const chrome = settingsChromeFromManifest(manifest)
   return {
     planMdxHref: plan ? `/client/${plan.file}` : null,
     planMdxCss: (plan?.css ?? []).map((file) => `/client/${file}`),
     selectorHref: selector ? `/client/${selector.file}` : null,
     selectorCss: (selector?.css ?? []).map((file) => `/client/${file}`),
+    chromeHref: chrome.chromeHref,
+    chromeCss: chrome.chromeCss,
   }
 }
 
