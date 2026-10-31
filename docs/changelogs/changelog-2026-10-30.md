@@ -291,6 +291,7 @@ The web application is TanStack Start on the same Worker. Every page is a Start 
 ### Improvements
 
 - The hosted dashboard is a React page. Its layout is a stylesheet, and the period, status filter, summary, and plan table live in that component.
+- Hosted settings is a React page. Accent, width, code wrap, and the Pierre theme save from that component. The sample opener shows the title bar while it redirects.
 
 ### New features
 
