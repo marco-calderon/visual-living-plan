@@ -1,5 +1,7 @@
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useLayoutEffect, useMemo, useState, type ReactNode } from 'react'
+import { dataTableCellToken } from '../../../src/planMdx/cellPart.ts'
+import { stampPlanParts } from '../../stampPlanParts.ts'
 import {
   createColumnHelper,
   filterFn_equalsString,
@@ -111,6 +113,11 @@ export function DataTable({ children, label, placeholder = 'Search' }: DataTable
   const rowsOnPage = table.getRowModel().rows
   const wraps = model.columns.some((column) => column.wraps)
 
+  useLayoutEffect(() => {
+    const root = document.getElementById('plan-mdx-root')
+    if (root) stampPlanParts(root)
+  })
+
   return (
     <div
       className="plan-data-table"
@@ -176,6 +183,7 @@ export function DataTable({ children, label, placeholder = 'Search' }: DataTable
                       aria-sort={
                         column?.sort ? (sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : 'none') : undefined
                       }
+                      data-plan-cell={dataTableCellToken('header', column?.id ?? header.column.id)}
                       data-fit={wraps && column && !column.wraps ? 'true' : undefined}
                       {...cellWrapAttrs(column?.share)}
                     >
@@ -193,7 +201,11 @@ export function DataTable({ children, label, placeholder = 'Search' }: DataTable
                   {row.getAllCells().map((cell) => {
                     const column = model.columns.find((item) => item.id === cell.column.id)
                     return (
-                      <td key={cell.id} data-fit={wraps && column && !column.wraps ? 'true' : undefined}>
+                      <td
+                        key={cell.id}
+                        data-plan-cell={dataTableCellToken(row.id, column?.id ?? cell.column.id)}
+                        data-fit={wraps && column && !column.wraps ? 'true' : undefined}
+                      >
                         <table.FlexRender cell={cell} />
                       </td>
                     )

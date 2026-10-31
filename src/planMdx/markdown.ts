@@ -1,7 +1,10 @@
 /**
  * Static HTML for plan prose: headings, lists, tables, mermaid figures, and code.
  * The open page replaces this with compiled MDX. Part ids match the comment targets.
+ * Table cells use the same `cell:N` ids as `stampPlanParts`.
  */
+
+import { markdownCellPartId } from './cellPart'
 
 type Align = 'left' | 'center' | 'right'
 
@@ -11,6 +14,7 @@ type PartCounts = {
   'list-item': number
   diagram: number
   code: number
+  cell: number
 }
 
 type Block =
@@ -23,7 +27,7 @@ type Block =
   | { type: 'hr' }
 
 export function renderPlanMarkdown(source: string, scope: string): string {
-  const counts: PartCounts = { heading: 0, paragraph: 0, 'list-item': 0, diagram: 0, code: 0 }
+  const counts: PartCounts = { heading: 0, paragraph: 0, 'list-item': 0, diagram: 0, code: 0, cell: 0 }
   return parseBlocks(source.replace(/\r\n/g, '\n'))
     .map((block) => renderBlock(block, scope, counts))
     .filter((html) => html.length > 0)
@@ -97,7 +101,7 @@ function renderBlock(block: Block, scope: string, counts: PartCounts): string {
   }
   if (block.type === 'hr') return '<hr>'
   if (block.type === 'code') return renderFence(block.info, block.content, scope, counts)
-  if (block.type === 'table') return renderTable(block)
+  if (block.type === 'table') return renderTable(block, scope, counts)
   return renderList(block, scope, counts)
 }
 
@@ -116,9 +120,9 @@ function renderFence(info: string, content: string, scope: string, counts: PartC
   return `<pre ${attrs.join(' ')}><code>${body}</code></pre>`
 }
 
-function renderTable(block: Extract<Block, { type: 'table' }>): string {
+function renderTable(block: Extract<Block, { type: 'table' }>, scope: string, counts: PartCounts): string {
   const head = block.header
-    .map((cell, index) => cellTag('th', block.aligns[index] ?? 'left', cell))
+    .map((cell, index) => cellTag('th', block.aligns[index] ?? 'left', cell, scope, counts))
     .join('')
   const body =
     block.rows.length === 0
@@ -126,15 +130,18 @@ function renderTable(block: Extract<Block, { type: 'table' }>): string {
       : `<tbody>${block.rows
           .map(
             (row) =>
-              `<tr>${row.map((cell, index) => cellTag('td', block.aligns[index] ?? 'left', cell)).join('')}</tr>`,
+              `<tr>${row.map((cell, index) => cellTag('td', block.aligns[index] ?? 'left', cell, scope, counts)).join('')}</tr>`,
           )
           .join('')}</tbody>`
   return `<div class="rich-table"><table><thead><tr>${head}</tr></thead>${body}</table></div>`
 }
 
-function cellTag(tag: 'th' | 'td', align: Align, cell: string): string {
-  const className = align === 'center' ? ' class="align-center"' : align === 'right' ? ' class="align-right"' : ''
-  return `<${tag}${className}>${renderInline(unescapePipes(cell.trim()))}</${tag}>`
+function cellTag(tag: 'th' | 'td', align: Align, cell: string, scope: string, counts: PartCounts): string {
+  counts.cell += 1
+  const part = `data-plan-part="${markdownCellPartId(scope, counts.cell)}" data-plan-kind="cell"`
+  const alignClass = align === 'center' ? 'align-center' : align === 'right' ? 'align-right' : ''
+  const attrs = alignClass ? ` class="${alignClass}" ${part}` : ` ${part}`
+  return `<${tag}${attrs}>${renderInline(unescapePipes(cell.trim()))}</${tag}>`
 }
 
 function renderList(block: Extract<Block, { type: 'list' }>, scope: string, counts: PartCounts): string {
