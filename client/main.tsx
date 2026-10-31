@@ -126,7 +126,7 @@ function ExecutionApp() {
   )
 }
 
-const root = document.getElementById('execution-root')
-if (root) {
-  createRoot(root).render(<ExecutionApp />)
+if (typeof document !== 'undefined') {
+  const root = document.getElementById('execution-root')
+  if (root) createRoot(root).render(<ExecutionApp />)
 }

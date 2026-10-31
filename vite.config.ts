@@ -1,34 +1,45 @@
+import { cloudflare } from '@cloudflare/vite-plugin'
+import { tanstackStart } from '@tanstack/react-start/plugin/vite'
+import viteReact from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
-
-const rootDir = dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
-  // Bundles are served under /client/* (see loadClientAssets / registry routes).
-  // Without this, Vite's modulepreload helper prefixes chunk URLs as /assets/...,
-  // which 404s on plan pages and floods the console during highlight/workflow loads.
-  base: '/client/',
-  plugins: [react()],
-  build: {
-    outDir: 'dist/client',
-    emptyOutDir: true,
-    manifest: true,
-    rollupOptions: {
-      input: {
-        main: resolve(rootDir, 'client/main.tsx'),
-        mermaid: resolve(rootDir, 'client/mermaid.ts'),
-        highlight: resolve(rootDir, 'client/highlight.tsx'),
-        selector: resolve(rootDir, 'client/PlanSelector.tsx'),
-        settingsChrome: resolve(rootDir, 'client/settingsChrome.tsx'),
-        planMdx: resolve(rootDir, 'client/planMdx.tsx'),
-      },
-      output: {
-        entryFileNames: 'assets/[name]-[hash].js',
-        chunkFileNames: 'assets/[name]-[hash].js',
-        assetFileNames: 'assets/[name]-[hash][extname]',
-      },
-    },
+  resolve: {
+    tsconfigPaths: true,
+    dedupe: ['react', 'react-dom'],
   },
+  ssr: {
+    noExternal: ['yaml', 'winston', 'winston-daily-rotate-file'],
+  },
+  optimizeDeps: {
+    include: [
+      '@xyflow/react',
+      '@mdx-js/mdx',
+      '@base-ui/react/menu',
+      '@base-ui/react/popover',
+      '@base-ui/react/switch',
+      '@base-ui/react/checkbox',
+      '@base-ui/react/collapsible',
+      '@base-ui/react/radio',
+      '@base-ui/react/radio-group',
+      '@base-ui/react/select',
+      '@base-ui/react/number-field',
+      'use-sync-external-store/shim/index.js',
+      'use-sync-external-store/shim/with-selector.js',
+      'lucide-react',
+      'sonner',
+      'elkjs/lib/elk.bundled.js',
+      '@pierre/diffs/react',
+      '@tanstack/react-table',
+      '@tanstack/charts',
+      '@tanstack/charts/react',
+      'pele',
+      '@panzoom/panzoom',
+    ],
+  },
+  server: {
+    host: '127.0.0.1',
+    port: 3000,
+  },
+  plugins: [cloudflare({ viteEnvironment: { name: 'ssr' } }), tanstackStart(), viteReact()],
 })

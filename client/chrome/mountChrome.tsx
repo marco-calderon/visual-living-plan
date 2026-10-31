@@ -103,10 +103,12 @@ function mountToaster() {
   )
 }
 
-document.documentElement.dataset.planChrome = 'react'
-mountPlans()
-mountPlanDetails()
-mountAccordions()
-mountCodeWrap()
-mountAccountMenu()
-mountToaster()
+if (typeof document !== 'undefined') {
+  document.documentElement.dataset.planChrome = 'react'
+  mountPlans()
+  mountPlanDetails()
+  mountAccordions()
+  mountCodeWrap()
+  mountAccountMenu()
+  mountToaster()
+}

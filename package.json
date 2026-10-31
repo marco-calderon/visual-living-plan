@@ -1,6 +1,6 @@
 {
   "name": "visual-living-plan",
-  "version": "1.6.10",
+  "version": "1.7.0",
   "description": "Agent-authored living plans with human interaction, live updates, and a swappable execution canvas",
   "type": "module",
   "bin": {
@@ -29,7 +29,9 @@
     "build": "node scripts/build-cli.mjs",
     "prepack": "npm run build",
     "install:global": "npm run build && npm install -g .",
-    "build:client": "vite build",
+    "build:client": "vite build --config vite.client.config.ts",
+    "host": "vite dev --host 127.0.0.1 --port 3000",
+    "host:migrate": "wrangler d1 migrations apply living-plan --local",
     "dev": "bun src/cli.ts",
     "serve": "bun src/cli.ts serve",
     "review": "bun src/cli.ts review",
@@ -50,6 +52,9 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
+    "@tanstack/react-router": "1.170.46",
+    "@tanstack/react-start": "1.169.4",
+    "better-auth": "^1.4.0",
     "@semos-labs/glyph": "^0.2.10",
     "@tanstack/react-table": "^9.3.1",
     "drizzle-orm": "^0.45.4",
@@ -64,11 +69,14 @@
     "yaml": "^2.8.1"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.26.0",
+    "@cloudflare/workers-types": "^5.20261023.1",
     "@mdx-js/mdx": "^3.1.1",
     "@panzoom/panzoom": "^4.6.2",
     "@pierre/diffs": "^1.5.2",
     "@playwright/test": "^1.64.1",
     "@tanstack/charts": "^1.1.0",
+    "@tanstack/router-cli": "^1.132.0",
     "@types/bun": "^1.4.2",
     "@types/node": "^24.6.2",
     "@types/react": "^19.3.0",
@@ -81,6 +89,7 @@
     "pele": "^1.6.0",
     "react-dom": "^19.3.0",
     "typescript": "^5.9.3",
-    "vite": "^8.3.4"
+    "vite": "^8.3.4",
+    "wrangler": "^4.156.0"
   }
 }

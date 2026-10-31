@@ -273,3 +273,31 @@ The cloud dashboard and settings pages share a toolbar. Settings keeps the accou
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.7.0
+
+**PR:** [#101](https://github.com/marco-calderon/visual-living-plan/pull/101)
+
+**Bump:** minor
+
+### Summary
+
+The web application is TanStack Start on the same Worker. Every page is a Start route. The browser still compiles the plan, and the local service stays the default.
+
+### Bugs fixed
+
+- The hosted plan page shows the local title bar: Plan, Workflow, and the contents list. Settings opens from the profile menu on the plan, dashboard, settings, and account pages. A page with no account shows Sign in in that place.
+
+### Improvements
+
+- The hosted dashboard is a React page. Its layout is a stylesheet, and the period, status filter, summary, and plan table live in that component.
+- Hosted settings is a React page. Accent, width, code wrap, and the Pierre theme save from that component. The sample opener shows the title bar while it redirects.
+
+### New features
+
+- Sign-in, the dashboard, account, settings, plan history, the signed-in plan, and the no-account preview are all TanStack Start routes. Plan APIs and the Durable Object stay on the Worker.
+- Run it locally with `npm run host:migrate && npm run host`. The `BETTER_AUTH_SECRET` in `wrangler.jsonc` is for that local process only. `npm run dev` is still the loopback service.
+
+### Notes
+
+Loopback `serve`, `--no-registry`, LAN, logs, and the terminal dashboard are unchanged. No registry restart needed beyond the usual version check.

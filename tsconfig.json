@@ -13,5 +13,17 @@
     "forceConsistentCasingInFileNames": true,
     "jsx": "react-jsx"
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": [
+    "src/routes",
+    "src/entry.ts",
+    "src/router.tsx",
+    "src/routeTree.gen.ts",
+    "src/PlanShell.tsx",
+    "src/HostBar.tsx",
+    "src/bindPlanChrome.ts",
+    "src/planFns.ts",
+    "src/authClient.ts",
+    "src/cloudflare.d.ts"
+  ]
 }

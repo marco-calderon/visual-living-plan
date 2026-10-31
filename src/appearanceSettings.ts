@@ -179,6 +179,8 @@ export function appearanceSettingsHtml(input: AppearanceSettingsInput): string {
 export function appearanceSettingsScript(endpoint: string): string {
   const target = JSON.stringify(endpoint)
   return `<script>
+    if (!window.__livingPlanAppearanceBound) {
+    window.__livingPlanAppearanceBound = true
     async function saveAppearance(partial) {
       const error = document.querySelector('[data-settings-error]')
       if (error) error.textContent = ''
@@ -242,6 +244,7 @@ export function appearanceSettingsScript(endpoint: string): string {
       if (!diffsTheme || diffsTheme === document.documentElement.dataset.diffsTheme) return
       void saveAppearance({ diffsTheme })
     })
+    }
   </script>`
 }
 

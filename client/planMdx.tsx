@@ -340,7 +340,7 @@ function PlanMdxApp() {
   )
 }
 
-const root = document.getElementById('plan-mdx-root')
-if (root) {
-  createRoot(root).render(<PlanMdxApp />)
+if (typeof document !== 'undefined') {
+  const root = document.getElementById('plan-mdx-root')
+  if (root) createRoot(root).render(<PlanMdxApp />)
 }

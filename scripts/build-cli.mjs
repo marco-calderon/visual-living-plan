@@ -56,7 +56,7 @@ run(process.execPath, [tsc, '-p', join(root, 'tsconfig.json')])
 copyFileSync(join(root, 'src/favicon.png'), join(root, 'dist/favicon.png'))
 
 // 4. Client bundle
-run(process.execPath, [vite, 'build'])
+run(process.execPath, [vite, 'build', '--config', join(root, 'vite.client.config.ts')])
 
 // 5. Executable bit for the bin entry
 chmodSync(join(root, 'dist/cli.js'), 0o755)
