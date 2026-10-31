@@ -229,3 +229,26 @@ Comments can point at one cell in a markdown table or a data table. Comments on 
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.6.9
+
+**PR:** [#98](https://github.com/marco-calderon/visual-living-plan/pull/98)
+
+**Bump:** patch
+
+### Summary
+
+The cloud host splits the plans dashboard, account, and settings into separate pages, and stores each published plan document.
+
+### Bugs fixed
+
+- `serve --cloud` after a successful account login no longer stops with “Sign in required”. The host accepts that login’s session token. The plan URL stays on the loopback host from `account login` when the Worker is reached there, and the browser opens a link that can show the plan.
+
+### New features
+
+- `/dashboard` on the cloud host is the plans dashboard: today, this week, and this month, status filters, and the same plan table as the local control dashboard. `/account` shows the signed-in name, email, and tier. `/settings` saves appearance on this host. `/` and `/review` redirect to `/dashboard`.
+- Publishing a plan with `serve --cloud` or `review --cloud` stores that document on the host. The host keeps the latest 10 versions and drops the oldest when an 11th is published. The dashboard links to the stored plan file. Loopback publish is unchanged.
+
+### Notes
+
+Redeploy the Worker from `cloud/` and apply D1 migrations so the `plan_versions` table exists. No registry restart needed beyond the usual version check.

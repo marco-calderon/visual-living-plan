@@ -44,7 +44,7 @@ import {
 import { isPidAlive } from './pid'
 import { DEFAULT_REGISTRY_HOST, DEFAULT_REGISTRY_PORT } from './registryConstants'
 import { formatServiceLogLines, isLogDay, listLogs, recordLog, type LogLevel } from './serviceLog'
-import { closeCloudPlan } from './cloudClient'
+import { closeCloudPlan, hostedViewUrl } from './cloudClient'
 import {
   cloudFlagConflict,
   prepareCloudPlan,
@@ -420,7 +420,8 @@ async function cmdCloudServe(file: string, args: string[], mode: 'watch' | 'revi
     console.log(`Living Plan (${mode}): ${record.url}`)
     console.log(`Plan file: ${resolve(file)}`)
     console.log('Hosted plan. The local registry was not started.')
-    await openBrowser(record.url)
+    const account = await requireCloudAccount()
+    await openBrowser((await hostedViewUrl(record.url, account.token)) ?? record.url)
     if (mode === 'watch' && hasFlag(args, '--detach')) {
       const pid = spawnCloudWatch(fileURLToPath(import.meta.url), record)
       const stored = await readCloudFile()

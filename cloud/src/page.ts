@@ -1,4 +1,4 @@
-import { cloudHostPanel, accountSettingsScript } from './dashboardPage'
+import { cloudHostPanel } from './dashboardPage'
 import type { AccountSettings } from './accountSettings'
 
 export type CloudPageAssets = {
@@ -93,7 +93,7 @@ export function renderCloudPage(input: {
 </head>
 <body data-plan-mode="${escapeHtml(input.mode)}" data-plan-host="cloud" data-accent="${escapeHtml(input.accent)}">
   <main>
-    ${cloudHostPanel({ owner: input.owner, email: input.email, settings: input.settings })}
+    ${cloudHostPanel({ owner: input.owner, email: input.email })}
     <section data-tab-panel="plan">
       <div id="plan-mdx-root" class="plan-mdx-pending"></div>
     </section>
@@ -102,7 +102,6 @@ export function renderCloudPage(input: {
   <script type="application/json" id="living-plan-comments">${jsonScript(input.comments ?? [])}</script>
   <script type="application/json" id="living-plan-review">${jsonScript(input.review ?? null)}</script>
   <script>window.__LIVE_PLAN_BASE__ = ${JSON.stringify(input.basePath)}; window.__LIVE_PLAN_TRANSPORT__ = "websocket"; window.__LIVE_PLAN_HOST__ = "cloud";</script>
-  ${input.owner ? accountSettingsScript() : ''}
   ${planMdx}
   ${selector}
 </body>

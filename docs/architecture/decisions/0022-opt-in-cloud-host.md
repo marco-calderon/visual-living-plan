@@ -26,3 +26,5 @@ While `serve`, `review`, `events`, `wait`, or `watch` runs, that process watches
 ## Consequences
 
 A cloud plan's id is `cloudId` in the file, not the hash of the local path. The Worker serves the same Vite plan client from `/client/` and does not import the local renderer. The account bearer registers a plan. The plan bearer uploads and reads submissions. A viewer cookie reads and submits on the page. An https plan URL is not rewritten onto `127.0.0.1`.
+
+Each source upload is a published version of the plan document. The Worker stores that markdown in D1 (`plan_versions`) and keeps the latest 10 versions. Publishing an 11th deletes the oldest. The Durable Object still holds the live session. Loopback snapshots and the registry plans folder are unchanged. `/dashboard` on the host is the plans dashboard. `/account` and `/settings` are separate pages. `/` and `/review` redirect to `/dashboard`.
