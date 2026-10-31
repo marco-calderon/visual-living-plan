@@ -255,7 +255,7 @@ Redeploy the Worker from `cloud/` and apply D1 migrations so the `plan_versions`
 
 ## 1.6.10
 
-**PR:** (link once opened)
+**PR:** [#100](https://github.com/marco-calderon/visual-living-plan/pull/100)
 
 **Bump:** patch
 
