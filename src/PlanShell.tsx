@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '../client/ui/button.tsx'
 import { hostToolbarCss } from './hostToolbar.ts'
+import { planSourceFlags } from './planMdx/source.ts'
 import { buildPlanToc, renderPlanTocHtml } from './planToc.ts'
 import { planPageStyles } from './planPageStyles.ts'
 import { bindPlanChrome } from './bindPlanChrome.ts'
@@ -94,8 +95,9 @@ export function PlanShell({
       void import('../client/chrome/mountChrome.tsx')
       if (host === 'cloud') void import('../client/PlanSelector.tsx')
     }
+    if (planSourceFlags(source).code) void import('../client/highlight.tsx')
     return () => media.removeEventListener('change', applyTheme)
-  }, [accent, basePath, diffsTheme, host, mode, pageWidth, transport, wrapCode])
+  }, [accent, basePath, diffsTheme, host, mode, pageWidth, source, transport, wrapCode])
 
   return (
     <>
