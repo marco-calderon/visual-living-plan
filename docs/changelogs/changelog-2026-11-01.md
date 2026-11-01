@@ -132,3 +132,24 @@ A diagram on a rendered plan has zoom, pan, and maximize controls again, on the 
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.7.16
+
+**PR:** link once opened
+
+**Bump:** patch
+
+### Summary
+
+Sign in and creating an account are separate hosted pages. Sign in asks for email and password. The account page can also ask for a name. Both pages can continue with GitHub.
+
+### Improvements
+
+- Sign in asks for email and password only.
+- Create an account is its own page at `/signup`, with an optional name, and each page links to the other.
+- Sign in and sign up can continue with GitHub. The Worker reads `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` from its environment. The callback is `https://plan.logspace.qzz.io/api/auth/callback/github`.
+- The sign-in page no longer links to the account-free sample. A loopback plan still does not ask for an account.
+
+### Notes
+
+No registry restart needed. `account login` still opens `/login`.

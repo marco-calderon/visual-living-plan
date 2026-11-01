@@ -24,13 +24,13 @@ npx wrangler deploy
 
 Migrations are `src/migrations`. `npm run host:migrate` applies them to the local workerd database.
 
-`BETTER_AUTH_SECRET` is a long random string. Wrangler prints the `*.workers.dev` URL. Use that origin, with no path, as `PUBLIC_URL` when you attach a custom domain:
+`BETTER_AUTH_SECRET` is a long random string. Wrangler prints the `*.workers.dev` URL. When the host has a custom domain, set `PUBLIC_URL` to that origin with no path. For this deployment that is `https://plan.logspace.qzz.io`:
 
 ```bash
 npx wrangler secret put PUBLIC_URL
 ```
 
-Email and password sign-in works without anything else. For Google or GitHub, create an OAuth app whose callback is `https://<host>/api/auth/callback/google` or `https://<host>/api/auth/callback/github`, then:
+Email and password sign-in works without anything else. The sign-in and sign-up pages also offer GitHub. With `PUBLIC_URL` set to `https://plan.logspace.qzz.io`, Better Auth sends GitHub to `https://plan.logspace.qzz.io/api/auth/callback/github`. For Google, the callback is `https://<host>/api/auth/callback/google`. Then:
 
 ```bash
 npx wrangler secret put GOOGLE_CLIENT_ID
@@ -45,7 +45,7 @@ Run `npx wrangler d1 migrations apply living-plan --remote` again after you upda
 
 ## Signed-in pages
 
-TanStack Start serves `/dashboard`, `/account`, `/settings`, `/login`, `/plans/:id`, and `/plans/:id/history`. `/` and `/review` redirect to `/dashboard`. The Worker does not return those documents. Elysia in `src/host/app.ts` serves the account and plan APIs those pages call, including `GET /api/account`, `GET /api/account/dashboard`, and `PUT /api/account/settings`, plus plan writes, the viewer link, and the Durable Object. A loopback plan keeps writing the theme file beside that plan and does not ask for an account.
+TanStack Start serves `/dashboard`, `/account`, `/settings`, `/login`, `/signup`, `/plans/:id`, and `/plans/:id/history`. `/` and `/review` redirect to `/dashboard`. The Worker does not return those documents. Elysia in `src/host/app.ts` serves the account and plan APIs those pages call, including `GET /api/account`, `GET /api/account/dashboard`, and `PUT /api/account/settings`, plus plan writes, the viewer link, and the Durable Object. A loopback plan keeps writing the theme file beside that plan and does not ask for an account. `/local` stays that sample, with no sign-in.
 
 When an agent publishes a plan (`serve --cloud`, `review --cloud`, or a later file upload), the host stores that markdown in D1. It keeps the latest 10 versions and drops the oldest on the 11th. The dashboard links to the current plan file and the version list. Loopback publish writes the same machine's `registry.sqlite`.
 
