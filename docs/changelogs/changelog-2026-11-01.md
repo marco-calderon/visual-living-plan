@@ -78,7 +78,7 @@ No registry restart needed beyond the usual version check. The next local open f
 
 ## 1.7.13
 
-**PR:** (link once known)
+**PR:** [#114](https://github.com/marco-calderon/visual-living-plan/pull/114)
 
 **Bump:** patch
 
