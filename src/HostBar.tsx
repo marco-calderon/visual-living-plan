@@ -4,18 +4,15 @@ import './hostToolbar.css'
 
 type HostWindow = Window & { __LIVE_PLAN_THEME_URL__?: string }
 
-/** Title bar for account pages. The profile control is the account menu. */
-export function HostBar({
-  title,
-  label,
-  logoHref = '/dashboard',
-  themeUrl,
-}: {
+type HostBarProps = {
   title: string
   label: string
   logoHref?: string
   themeUrl?: string
-}) {
+}
+
+/** Title bar for account pages. The profile control is the account menu. */
+export function HostBar({ title, label, logoHref = '/dashboard', themeUrl }: HostBarProps) {
   useLayoutEffect(() => {
     if (themeUrl) (window as HostWindow).__LIVE_PLAN_THEME_URL__ = themeUrl
     void import('../client/chrome/mountChrome.tsx')

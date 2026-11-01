@@ -319,6 +319,31 @@ main.settings-page {
 }
 body.layout-wide main.settings-page { width: min(1120px, calc(100% - var(--space-xxl) * 2)); }
 body.layout-full main.settings-page { width: calc(100% - var(--space-xxl) * 2); }
+.settings-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  margin: 0 0 var(--space-md);
+  padding: 0 16px;
+  border: 1px solid var(--ink);
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.settings-back svg { width: 16px; height: 16px; display: block; flex: none; }
+.settings-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.settings-back { transition: transform 160ms var(--ease-out), background-color 150ms ease, color 150ms ease, border-color 150ms ease; }
+.settings-back:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) {
+  .settings-back { transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease; }
+  .settings-back:active { transform: none; }
+}
 .kicker {
   margin: 0 0 var(--space-sm);
   letter-spacing: 0.08em;

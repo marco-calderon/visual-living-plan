@@ -69,6 +69,38 @@ body.layout-full .settings-page {
   width: calc(100% - var(--space-xxl) * 2);
 }
 
+.settings-page .settings-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  margin: 0 0 var(--space-md);
+  padding: 0 16px;
+  border: 1px solid var(--ink);
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: transform 160ms var(--ease-out), background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+.settings-page .settings-back svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  flex: none;
+}
+.settings-page .settings-back:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.settings-page .settings-back:active {
+  transform: scale(0.97);
+}
+
 .settings-page .settings-stack {
   display: grid;
   gap: var(--space-md);
@@ -474,6 +506,12 @@ body.layout-full .settings-page {
   .settings-page .plan-switch-thumb {
     transition: none;
     animation: none;
+  }
+  .settings-page .settings-back {
+    transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+  }
+  .settings-page .settings-back:active {
+    transform: none;
   }
 }
 

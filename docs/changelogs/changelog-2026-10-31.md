@@ -1,5 +1,23 @@
 # Changelog — 2026-10-31
 
+## 1.7.7
+
+**PR:** [#107](https://github.com/marco-calderon/visual-living-plan/pull/107)
+
+**Bump:** patch
+
+### Summary
+
+Settings has a back button above the page content. It returns to the previous page.
+
+### Improvements
+
+- The settings page shows a back button with a left arrow above the settings content. It follows the previous history entry.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
+
 ## 1.7.6
 
 **PR:** [#108](https://github.com/marco-calderon/visual-living-plan/pull/108)

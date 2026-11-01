@@ -76,6 +76,7 @@ test('the logo opens a card; the title sits on the solid bar', () => {
   assert.doesNotMatch(html, /\.titlebar\s*\{[^}]*background:\s*none/)
   assert.doesNotMatch(html, /\.plan-card \.brand/)
 
+  assert.doesNotMatch(html, /data-history-back/)
   assert.match(bar, /data-plan-details-toggle/)
   assert.match(bar, /aria-expanded="false"/)
   assert.match(bar, /aria-label="Plan details"/)
