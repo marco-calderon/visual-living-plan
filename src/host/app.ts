@@ -4,7 +4,7 @@ import { defaultAccountSettings, readAccountSettings, saveAccountSettings } from
 import { createAuth, sessionFromToken, type AuthSession } from './auth'
 import { hostedDashboard, type HostedPlanRow } from './hostedDashboard'
 import { LATEST_PLAN_VERSION_SQL, ensurePlanVersions, listPlanVersions, publishPlanVersion, readPlanVersion } from './planVersions'
-import { replayableRequest } from './replayableRequest'
+import { rehydrateRequest } from './rehydrateRequest'
 import { requestOrigin } from './requestOrigin'
 
 type PlanStub = {
@@ -37,6 +37,9 @@ function authFor(env: HostEnv, request: Request) {
 /** HTTP routes for the hosted app. WebSocket upgrades stay outside this app so the Durable Object socket is not copied into a new Response. Ahead-of-time compilation is off because Workers reject `new Function`. */
 export function createHostApp(env: HostEnv) {
   return new Elysia({ strictPath: true, aot: false })
+    .onBeforeHandle((context) => {
+      rehydrateRequest(context)
+    })
     .onError(({ code, error }) => {
       if (code === 'NOT_FOUND') return text(404, 'Not found')
       return text(500, error instanceof Error ? error.message : 'Unknown error')
@@ -49,7 +52,6 @@ export function createHostApp(env: HostEnv) {
     )
     .post('/api/plans', ({ request }) => registerPlan(request, env, authFor(env, request), requestOrigin(request, env.PUBLIC_URL)))
     .get('/api/auth/cli-session', ({ request }) => cliSession(request, env, authFor(env, request), new URL(request.url)))
-    .all('/api/auth/*', ({ request }) => authFor(env, request).handler(request))
     .get('/plans/:planId/share', ({ request, params }) =>
       sharePlan(request, env, authFor(env, request), requestOrigin(request, env.PUBLIC_URL), params.planId),
     )
@@ -70,7 +72,11 @@ export function createHostApp(env: HostEnv) {
 export async function handleHostRequest(request: Request, env: HostEnv): Promise<Response> {
   if (!env.BETTER_AUTH_SECRET) return text(500, 'BETTER_AUTH_SECRET is not set.')
   if (request.headers.get('upgrade')?.toLowerCase() === 'websocket') return upgradePlan(request, env)
-  return createHostApp(env).fetch(replayableRequest(request))
+  const url = new URL(request.url)
+  if (url.pathname.startsWith('/api/auth/') && !url.pathname.startsWith('/api/auth/cli-session')) {
+    return authFor(env, request).handler(request)
+  }
+  return createHostApp(env).fetch(request)
 }
 
 async function upgradePlan(request: Request, env: HostEnv): Promise<Response> {

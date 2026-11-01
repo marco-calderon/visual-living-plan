@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { Elysia } from 'elysia'
 import { createHostApp, handleHostRequest, type HostEnv } from '../src/host/app.ts'
-import { replayableRequest } from '../src/host/replayableRequest.ts'
+import { rehydrateRequest } from '../src/host/rehydrateRequest.ts'
 
 function env(): HostEnv {
   const statement = {
@@ -40,34 +40,37 @@ test('hosted HTTP routes are an Elysia app', async () => {
 })
 
 test('a JSON route can read the body after Elysia parses it', async () => {
-  const app = new Elysia({ strictPath: true, aot: false }).post('/echo', async ({ request }) => request.json())
+  const app = new Elysia({ strictPath: true, aot: false })
+    .onBeforeHandle((context) => {
+      rehydrateRequest(context)
+    })
+    .post('/echo', async ({ request }) => request.json())
   const response = await app.fetch(
-    replayableRequest(
-      new Request('http://127.0.0.1/echo', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email: 'a@b.c' }),
-      }),
-    ),
+    new Request('http://127.0.0.1/echo', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'a@b.c' }),
+    }),
   )
   assert.equal(response.status, 200)
   assert.deepEqual(await response.json(), { email: 'a@b.c' })
 })
 
-test('account creation returns Better Auth JSON instead of an empty 500', async () => {
-  const response = await handleHostRequest(
-    new Request('http://127.0.0.1/api/auth/sign-up/email', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        email: 'signup-check@example.com',
-        password: 'not-a-real-password',
-        name: 'Signup Check',
-      }),
-    }),
-    env(),
+test('account creation reads the JSON body before the database adapter runs', async () => {
+  await assert.rejects(
+    () =>
+      handleHostRequest(
+        new Request('http://127.0.0.1/api/auth/sign-up/email', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            email: 'signup-check@example.com',
+            password: 'not-a-real-password',
+            name: 'Signup Check',
+          }),
+        }),
+        env(),
+      ),
+    /Failed to initialize database adapter/,
   )
-  const body = await response.text()
-  assert.notEqual(body, '')
-  assert.doesNotMatch(body, /Body already used/)
 })

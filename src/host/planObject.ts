@@ -1,7 +1,7 @@
 import { DurableObject } from 'cloudflare:workers'
 import { Elysia } from 'elysia'
 import { IDLE_MS } from './access'
-import { replayableRequest } from './replayableRequest'
+import { rehydrateRequest } from './rehydrateRequest'
 import {
   ackEvents,
   actorAllows,
@@ -72,7 +72,7 @@ export class PlanObject extends DurableObject {
 
   async fetch(request: Request): Promise<Response> {
     if (request.headers.get('upgrade')?.toLowerCase() === 'websocket') return this.acceptSocket(request)
-    return this.httpApp().fetch(replayableRequest(request))
+    return this.httpApp().fetch(request)
   }
 
   private async acceptSocket(request: Request): Promise<Response> {
@@ -99,6 +99,9 @@ export class PlanObject extends DurableObject {
     const authorizationOf = (request: Request) => request.headers.get('authorization')
     // Ahead-of-time compilation is off because Workers reject `new Function`.
     return new Elysia({ strictPath: true, aot: false })
+      .onBeforeHandle((context) => {
+        rehydrateRequest(context)
+      })
       .onError(({ error }) => {
         if (error instanceof StaleRevision) return Response.json({ revision: error.revision }, { status: 409 })
         if (error instanceof PlanRoomError) return text(error.status, error.message)
