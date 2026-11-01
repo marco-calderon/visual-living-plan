@@ -92,7 +92,7 @@ const PLAN_CHROME_SCRIPT = `<script>
     if (!nav) return
     const docked = tocIsDocked()
     nav.dataset.open = !docked && open ? 'true' : 'false'
-    nav.inert = docked || !open
+    nav.inert = !docked && !open
     if (toggle) toggle.setAttribute('aria-expanded', !docked && open ? 'true' : 'false')
     if (backdrop) backdrop.hidden = docked || !open
   }
@@ -107,6 +107,50 @@ const PLAN_CHROME_SCRIPT = `<script>
     if (target === 'workflow') requestAnimationFrame(() => window.dispatchEvent(new Event('resize')))
     updateTocCurrent()
   }
+  const followTocLink = (tocLink) => {
+    setTocOpen(false)
+    const kind = tocLink.getAttribute('data-toc')
+    const ref = tocLink.getAttribute('data-toc-target') || ''
+    if (kind === 'workflow' || kind === 'workflow-step') activateTab('workflow')
+    else {
+      activateTab('plan')
+      const section = findPlanTarget(ref)
+      if (section) section.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }
+  const tocLinkFrom = (event) => {
+    const target = event.target
+    if (!(target instanceof Element)) return null
+    return target.closest('#plan-toc a[data-toc]')
+  }
+  let tocPress = null
+  let tocPointerLink = null
+  let tocPointerAt = 0
+  document.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse' || !event.isPrimary || event.button !== 0) {
+      tocPress = null
+      return
+    }
+    const link = tocLinkFrom(event)
+    tocPress = link ? { id: event.pointerId, x: event.clientX, y: event.clientY, link } : null
+  })
+  document.addEventListener('pointerup', (event) => {
+    const press = tocPress
+    tocPress = null
+    if (!press || event.pointerId !== press.id) return
+    const dx = event.clientX - press.x
+    const dy = event.clientY - press.y
+    if (dx * dx + dy * dy > 100) return
+    const link = tocLinkFrom(event)
+    if (!link || link !== press.link) return
+    event.preventDefault()
+    tocPointerLink = link
+    tocPointerAt = Date.now()
+    followTocLink(link)
+  })
+  document.addEventListener('pointercancel', (event) => {
+    if (tocPress && event.pointerId === tocPress.id) tocPress = null
+  })
   document.addEventListener('click', (event) => {
     const target = event.target
     if (!(target instanceof Element)) return
@@ -128,15 +172,11 @@ const PLAN_CHROME_SCRIPT = `<script>
     const tocLink = target.closest('#plan-toc a[data-toc]')
     if (!tocLink) return
     event.preventDefault()
-    setTocOpen(false)
-    const kind = tocLink.getAttribute('data-toc')
-    const ref = tocLink.getAttribute('data-toc-target') || ''
-    if (kind === 'workflow' || kind === 'workflow-step') activateTab('workflow')
-    else {
-      activateTab('plan')
-      const section = findPlanTarget(ref)
-      if (section) section.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    if (tocPointerLink === tocLink && Date.now() - tocPointerAt < 700) {
+      tocPointerLink = null
+      return
     }
+    followTocLink(tocLink)
   })
   window.addEventListener('scroll', () => updateTocCurrent(), { passive: true })
   window.addEventListener('resize', () => setTocOpen(document.getElementById('plan-toc')?.dataset.open === 'true'))
