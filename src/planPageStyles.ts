@@ -762,6 +762,7 @@ ${appearanceSettingsCss}
 }
 .tab-btn:focus-visible,
 .btn:focus-visible,
+.plan-btn:focus-visible,
 .choice-option:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -1236,24 +1237,34 @@ input[type="checkbox"] {
 textarea { min-height: 88px; resize: vertical; }
 
 .button-row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
-.btn {
+.btn,
+.plan-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   border: 1px solid var(--hairline);
   background: var(--canvas);
   color: var(--ink);
   border-radius: 9999px;
-  padding: 11px 24px;
+  padding: 8px 12px;
   font: inherit;
   font-size: 14px;
   font-weight: 600;
   line-height: 1.4;
   cursor: pointer;
 }
-.btn:hover:not(:disabled) { background: var(--surface); }
-.btn:disabled { opacity: 0.55; cursor: default; }
+.btn:hover:not(:disabled),
+.plan-btn:hover:not(:disabled) { background: var(--surface); }
+.btn:disabled,
+.plan-btn:disabled { opacity: 0.55; cursor: default; }
 .btn.primary,
-.btn.primary:hover:not(:disabled) { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
-.btn.secondary { background: transparent; border-color: var(--ink); color: var(--ink); }
-.btn.danger { background: var(--danger-soft); border-color: var(--danger-border); color: var(--danger); }
+.btn.primary:hover:not(:disabled),
+.plan-btn-primary,
+.plan-btn-primary:hover:not(:disabled) { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.btn.secondary,
+.plan-btn-secondary { background: transparent; border-color: var(--ink); color: var(--ink); }
+.btn.danger,
+.plan-btn-danger { background: var(--danger-soft); border-color: var(--danger-border); color: var(--danger); }
 
 .interaction-state {
   margin-top: 0.85rem;
@@ -1320,7 +1331,7 @@ textarea { min-height: 88px; resize: vertical; }
   justify-content: flex-end;
   align-items: center;
 }
-.review-bar .actions .btn { flex: 0 0 auto; }
+.review-bar .actions :is(.btn, .plan-btn) { flex: 0 0 auto; }
 .review-note {
   display: block;
   width: 100%;
@@ -1386,10 +1397,10 @@ textarea { min-height: 88px; resize: vertical; }
   0%, 100% { opacity: 0.55; }
   50% { opacity: 1; }
 }
-:is(.btn, .logo-btn, .tab-btn, .choice-option, .workflow-step, .theme-swatch, .settings-accordion-trigger, .mermaid-control, .processes-toggle) {
+:is(.btn, .plan-btn, .logo-btn, .tab-btn, .choice-option, .workflow-step, .theme-swatch, .settings-accordion-trigger, .mermaid-control, .processes-toggle) {
   transition: transform 160ms var(--ease-out), background-color 150ms ease, border-color 150ms ease, color 150ms ease;
 }
-:is(.btn, .logo-btn, .tab-btn, .choice-option, .workflow-step, .theme-swatch, .settings-accordion-trigger, .mermaid-control, .processes-toggle):active:not(:disabled) {
+:is(.btn, .plan-btn, .logo-btn, .tab-btn, .choice-option, .workflow-step, .theme-swatch, .settings-accordion-trigger, .mermaid-control, .processes-toggle):active:not(:disabled) {
   transform: scale(0.97);
 }
 
@@ -1411,10 +1422,10 @@ textarea { min-height: 88px; resize: vertical; }
     transition: opacity 150ms var(--ease-out);
   }
   .plan-toc { transition: none; }
-  :is(.btn, .logo-btn, .tab-btn, .choice-option, .workflow-step, .theme-swatch, .diffs-theme-option, .settings-accordion-trigger, .mermaid-control, .processes-toggle) {
+  :is(.btn, .plan-btn, .logo-btn, .tab-btn, .choice-option, .workflow-step, .theme-swatch, .diffs-theme-option, .settings-accordion-trigger, .mermaid-control, .processes-toggle) {
     transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
   }
-  :is(.btn, .logo-btn, .tab-btn, .choice-option, .workflow-step, .theme-swatch, .diffs-theme-option, .settings-accordion-trigger, .mermaid-control, .processes-toggle):active {
+  :is(.btn, .plan-btn, .logo-btn, .tab-btn, .choice-option, .workflow-step, .theme-swatch, .diffs-theme-option, .settings-accordion-trigger, .mermaid-control, .processes-toggle):active {
     transform: none;
   }
   .plan-switch,

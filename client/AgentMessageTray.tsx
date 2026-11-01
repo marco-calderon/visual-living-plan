@@ -4,6 +4,7 @@ import { ArrowUp, CircleCheck, CircleX, TriangleAlert } from 'lucide-react'
 import { CommentProgress } from './CommentProgress.tsx'
 import { CommentReply, type CommentReplyView } from './CommentReply.tsx'
 import { Bubble, BubbleContent } from './ui/Bubble.tsx'
+import { Button } from './ui/button.tsx'
 import { isSendShortcut, SendShortcut } from './ui/Kbd.tsx'
 import { Message, MessageContent, MessageFooter } from './ui/Message.tsx'
 
@@ -231,7 +232,7 @@ export function AgentMessageTray({
             </div>
           </form>
         </div>
-        <button
+        <Button
           type="button"
           className={working ? 'plan-agent-toggle is-working' : 'plan-agent-toggle'}
           aria-expanded={open}
@@ -239,7 +240,7 @@ export function AgentMessageTray({
           onPointerDown={onTogglePointerDown}
         >
           {working ? <CommentProgress label="Working" /> : `Messages${messages.length > 0 ? ` ${messages.length}` : ''}`}
-        </button>
+        </Button>
       </div>
     </div>
   )

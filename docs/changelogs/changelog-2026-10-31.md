@@ -1,6 +1,6 @@
 # Changelog — 2026-10-31
 
-## 1.7.3
+## 1.7.5
 
 **PR:** [#106](https://github.com/marco-calderon/visual-living-plan/pull/106)
 
@@ -17,6 +17,44 @@ Code fences and diff hunks on a rendered plan are syntax highlighted.
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.7.4
+
+**PR:** [#105](https://github.com/marco-calderon/visual-living-plan/pull/105)
+
+**Bump:** patch
+
+### Summary
+
+Action buttons use one shared pill with 8px by 12px padding.
+
+### Improvements
+
+- Submit, Send answers, Approve, Deny, Edit, Open workflow diagram, and table paging use the button component.
+- Sign-in, Create account, Refresh, the account control, comment send, and the review Deny button use that same padding.
+- The design system records 8px 12px on the primary, secondary, tertiary, and danger pills.
+
+### Notes
+
+Icon controls keep their own size: the logo, the page icons, the stepper, and the send arrow. No registry restart needed.
+
+## 1.7.3
+
+**PR:** [#104](https://github.com/marco-calderon/visual-living-plan/pull/104)
+
+**Bump:** patch
+
+### Summary
+
+Agents working in this repo can use Hallmark, the design skill that keeps new pages from looking generated.
+
+### Improvements
+
+- Hallmark from [nutlope/hallmark](https://github.com/nutlope/hallmark) is installed at `.agents/skills/hallmark`, beside the other third-party skills. `npm run skills:install` still copies only this repo's own skills and leaves Hallmark in place.
+
+### Notes
+
+No registry restart needed. The plan page is unchanged.
 
 ## 1.7.2
 

@@ -12,6 +12,7 @@ import {
   visiblePlans,
   type DashboardFilter,
 } from '../dashboardFormat.ts'
+import { Button } from '../../client/ui/button.tsx'
 import { HostBar } from '../HostBar.tsx'
 import { loadAccount } from '../planFns.ts'
 import type { PlanRecord } from '../processRecord.ts'
@@ -124,7 +125,7 @@ function DashboardPage() {
             <div className="section-bar">
               <div className="tabs" role="group" aria-label="Summary period">
                 {PERIODS.map((item) => (
-                  <button
+                  <Button
                     key={item.id}
                     type="button"
                     className="tab-label"
@@ -133,11 +134,12 @@ function DashboardPage() {
                     onClick={() => choosePeriod(item.id)}
                   >
                     {item.label}
-                  </button>
+                  </Button>
                 ))}
               </div>
-              <button
+              <Button
                 type="button"
+                variant="secondary"
                 className="titlebar-action"
                 onClick={() => {
                   setShift('filter')
@@ -145,7 +147,7 @@ function DashboardPage() {
                 }}
               >
                 Refresh
-              </button>
+              </Button>
             </div>
             <section className="stats" aria-live="polite">
               {payload ? (
@@ -166,7 +168,7 @@ function DashboardPage() {
             <div className="section-bar">
               <div className="tabs" role="group" aria-label="Plan status">
                 {FILTERS.map((item) => (
-                  <button
+                  <Button
                     key={item.id}
                     type="button"
                     className="tab-label"
@@ -174,7 +176,7 @@ function DashboardPage() {
                     onClick={() => chooseFilter(item.id)}
                   >
                     {item.label}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>

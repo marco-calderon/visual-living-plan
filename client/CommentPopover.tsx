@@ -5,6 +5,7 @@ import { CommentProgress } from './CommentProgress.tsx'
 import { CommentReply } from './CommentReply.tsx'
 import type { PlanPartElement } from './planParts.ts'
 import { Bubble, BubbleContent } from './ui/Bubble.tsx'
+import { Button } from './ui/button.tsx'
 import { isSendShortcut, SendShortcut } from './ui/Kbd.tsx'
 import { Message, MessageContent, MessageFooter } from './ui/Message.tsx'
 import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle } from './ui/Popover.tsx'
@@ -148,9 +149,9 @@ export function CommentPopover({
           {error ? <p className="plan-comment-error">{error}</p> : null}
           <div className="plan-comment-actions">
             <SendShortcut />
-            <button type="submit" className="btn primary" disabled={sending || draft.trim().length === 0}>
+            <Button type="submit" variant="primary" disabled={sending || draft.trim().length === 0}>
               {sending ? 'Sending' : 'Send'}
-            </button>
+            </Button>
           </div>
         </form>
       </PopoverContent>

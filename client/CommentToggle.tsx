@@ -1,3 +1,4 @@
+import { Button } from './ui/button.tsx'
 import { Kbd } from './ui/Kbd.tsx'
 
 export type CommentToggleProps = {
@@ -7,7 +8,7 @@ export type CommentToggleProps = {
 
 export function CommentToggle({ enabled, onToggle }: CommentToggleProps) {
   return (
-    <button
+    <Button
       type="button"
       className="plan-grab-toggle"
       data-plan-grab-ignore=""
@@ -17,6 +18,6 @@ export function CommentToggle({ enabled, onToggle }: CommentToggleProps) {
     >
       Comment
       <Kbd aria-hidden="true">C</Kbd>
-    </button>
+    </Button>
   )
 }
