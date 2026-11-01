@@ -11,7 +11,8 @@ export function dashboardDocumentCss(): string {
       --surface: #f4f4f5;
       --paper: var(--canvas);
       --panel: var(--surface);
-      --line: #e4e4e7;
+      --hairline: #e4e4e7;
+      --line: var(--hairline);
       --accent: #1d4ed8;
       --primary: #09090b;
       --on-primary: #ffffff;
@@ -21,6 +22,17 @@ export function dashboardDocumentCss(): string {
       --warn: #9a3412;
       --warn-soft: #ffedd5;
       --shadow: none;
+      --shadow-popover: 0 4px 6px rgba(0, 0, 0, 0.08);
+      --font-body: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --space-xxs: 4px;
+      --space-xs: 8px;
+      --space-sm: 12px;
+      --space-md: 16px;
+      --space-lg: 20px;
+      --space-xl: 24px;
+      --space-xxl: 32px;
+      --space-section: 64px;
       --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
       --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
     }
@@ -34,7 +46,8 @@ export function dashboardDocumentCss(): string {
         --surface: #18181b;
         --paper: var(--canvas);
         --panel: var(--surface);
-        --line: #27272a;
+        --hairline: #27272a;
+        --line: var(--hairline);
         --accent: #93c5fd;
         --primary: #fafafa;
         --on-primary: #0c0c0e;
@@ -44,13 +57,15 @@ export function dashboardDocumentCss(): string {
         --warn: #fdba74;
         --warn-soft: rgba(253, 186, 116, 0.12);
         --shadow: none;
+        --shadow-popover: 0 4px 6px rgba(0, 0, 0, 0.08);
       }
     }
+    html, body { overflow-x: clip; }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       color: var(--charcoal);
-      font-family: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-family: var(--font-body);
       background: var(--canvas);
     }
     main { margin: 0; padding: 24px 32px 64px; }
@@ -116,11 +131,11 @@ export function dashboardDocumentCss(): string {
       padding: 16px;
       box-shadow: none;
     }
-    .stat span { display: block; color: var(--muted); font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase; }
+    .stat span { display: block; color: var(--muted); font-size: 13px; font-weight: 500; }
     .stat strong {
       display: block;
       margin-top: 0.25rem;
-      font-family: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-family: var(--font-body);
       font-weight: 600;
       color: var(--ink);
       font-size: 1.7rem;
@@ -151,8 +166,6 @@ export function dashboardDocumentCss(): string {
     }
     th {
       font-size: 0.75rem;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
       color: var(--muted);
       font-weight: 600;
     }
@@ -160,7 +173,7 @@ export function dashboardDocumentCss(): string {
     .title { font-weight: 600; }
     .sub { display: block; margin-top: 0.2rem; color: var(--muted); font-size: 0.82rem; line-height: 1.4; }
     .path {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-family: var(--font-mono);
       font-size: 0.75rem;
       overflow-wrap: break-word;
     }
@@ -232,7 +245,7 @@ export function dashboardDocumentCss(): string {
     .account-identity { color: var(--ink); font-weight: 600; }
     .account-meta strong { color: var(--ink); font-weight: 600; }
     .account-note code {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-family: var(--font-mono);
       font-size: 0.86em;
     }`
 }

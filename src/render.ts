@@ -70,6 +70,7 @@ function clientScript(
 ): string {
   return `
 (() => {
+  document.documentElement.classList.add('js');
   let mode = ${JSON.stringify(mode)};
   const apiBase = ${JSON.stringify(basePath)};
   const interactionsLocked = ${JSON.stringify(executionActive)};
@@ -114,9 +115,10 @@ function clientScript(
     cancelPlanDetailsClose();
     if (open) {
       planCard.hidden = false;
-      planCard.removeAttribute('data-closed');
+      planCard.setAttribute('data-closed', '');
       planCard.removeAttribute('data-open');
       void planCard.getBoundingClientRect();
+      planCard.removeAttribute('data-closed');
       planCard.setAttribute('data-open', '');
       return;
     }
@@ -1495,7 +1497,6 @@ export function renderPlanPage(options: {
       <main class="settings-stack">
         ${options.changelog ? changelogSectionHtml(options.changelog) : ''}
         <section class="block settings-section" data-host-panel="local" data-plan-host="local">
-          <div class="settings-kicker">This machine</div>
           <h3>Local plan</h3>
           <p class="settings-copy">This plan is on loopback. Appearance stays in the theme file on this machine. An account is not required.</p>
         </section>

@@ -183,7 +183,6 @@ export function changelogSectionHtml(release: ChangelogRelease): string {
       ].join('')
     : card('changes', 'Changes', release.changes)
   return `<section class="block settings-section" data-section data-changelog>
-          <div class="settings-kicker">Release</div>
           <h3>Changelog</h3>
           <p class="settings-copy">${shippedCopy(release)}</p>
           <div class="release-cards">

@@ -254,7 +254,7 @@ function PlanRow({ plan }: { plan: DashboardPlan }) {
     <tr>
       <td>
         <span className="title">{plan.title || 'Untitled plan'}</span>
-        <span className="sub">{bits.join(' · ')}</span>
+        <span className="sub">{bits.join(', ')}</span>
         {plan.planPath ? <BrokenPath className="sub path" value={plan.planPath} /> : null}
       </td>
       <td>
@@ -266,17 +266,17 @@ function PlanRow({ plan }: { plan: DashboardPlan }) {
           <span style={{ width: `${ratio}%` }} />
         </div>
         <span className="sub">
-          {ratio}% · {completionLabel(plan.completionState)}
+          {ratio}% {completionLabel(plan.completionState)}
         </span>
         <span className="sub">
-          {plan.phaseDone}/{plan.phaseTotal} phases · {plan.interactionDone}/{plan.interactionTotal} answers
+          {plan.phaseDone}/{plan.phaseTotal} phases, {plan.interactionDone}/{plan.interactionTotal} answers
         </span>
       </td>
       <td>
         {plan.directory ? <BrokenPath className="path" value={plan.directory} /> : null}
         {plan.git?.branch ? (
           <span className="sub">
-            {plan.git.branch} · {plan.git.dirty ? 'dirty' : 'clean'}
+            {plan.git.branch}, {plan.git.dirty ? 'dirty' : 'clean'}
           </span>
         ) : null}
       </td>

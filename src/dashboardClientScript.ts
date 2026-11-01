@@ -110,7 +110,7 @@ export function dashboardClientScript(apiPath: string): string {
         const bits = [record.mode || 'watch'];
         if (record.executionStep) bits.push(record.executionStep);
         if (record.outcome) bits.push(record.outcome);
-        cell.append(text('span', 'sub', bits.join(' · ')));
+        cell.append(text('span', 'sub', bits.join(', ')));
         if (record.planPath) cell.append(pathNode('sub path', record.planPath));
         return cell;
       }
@@ -124,10 +124,10 @@ export function dashboardClientScript(apiPath: string): string {
         meter.append(bar);
         cell.append(meter);
         const state = completionLabel[record.completionState] || 'Idle';
-        cell.append(text('span', 'sub', ratio + '% · ' + state));
+        cell.append(text('span', 'sub', ratio + '% ' + state));
         const phases = Number(record.phaseDone) + '/' + Number(record.phaseTotal) + ' phases';
         const answers = Number(record.interactionDone) + '/' + Number(record.interactionTotal) + ' answers';
-        cell.append(text('span', 'sub', phases + ' · ' + answers));
+        cell.append(text('span', 'sub', phases + ', ' + answers));
         return cell;
       }
 
@@ -135,7 +135,7 @@ export function dashboardClientScript(apiPath: string): string {
         const cell = document.createElement('td');
         if (record.directory) cell.append(pathNode('path', record.directory));
         const git = record.git || {};
-        if (git.branch) cell.append(text('span', 'sub', git.branch + (git.dirty ? ' · dirty' : ' · clean')));
+        if (git.branch) cell.append(text('span', 'sub', git.branch + (git.dirty ? ', dirty' : ', clean')));
         return cell;
       }
 
@@ -217,14 +217,14 @@ export function dashboardClientScript(apiPath: string): string {
         const range = summary.from ? formatRange(summary) : '';
         const started = typeof summary.started === 'number' ? summary.started : 0;
         status.textContent = (summary.label || 'Period')
-          + (range ? ' · ' + range : '')
-          + ' · '
+          + (range ? '. ' + range : '')
+          + '. '
           + plans.length
           + (plans.length === 1 ? ' plan active' : ' plans active')
-          + ' · '
+          + '. '
           + started
           + ' started in this period'
-          + (filter === 'all' ? '' : ' · showing ' + shown.length);
+          + (filter === 'all' ? '' : '. showing ' + shown.length);
         rows.replaceChildren();
         if (shown.length === 0) {
           const row = document.createElement('tr');

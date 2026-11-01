@@ -1,5 +1,14 @@
-.plan-data-table {
+/* Hallmark · checked: 2026-11-01 · genre: modern-minimal (inferred) · shape: app screen
+ * built: the project · redesign: polish · v2.0.0 */
+:root {
   --row-line: #f0f0f1;
+}
+
+:root[data-theme="dark"] {
+  --row-line: #222226;
+}
+
+.plan-data-table {
   --cell-pad-x: 16px;
   container-type: inline-size;
   max-width: 100%;
@@ -13,10 +22,6 @@
   font-size: 14px;
   line-height: 1.5;
   box-shadow: none;
-}
-
-:root[data-theme="dark"] .plan-data-table {
-  --row-line: #222226;
 }
 
 .plan-data-table-toolbar {

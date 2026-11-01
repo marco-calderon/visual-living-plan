@@ -45,7 +45,8 @@ export const PROCESSES_PANEL_STYLES = `
   top: 100%;
   right: 0;
   margin-top: 0.55rem;
-  width: min(380px, calc(100vw - 2rem));
+  width: 380px;
+  max-width: calc(100vw - 2rem);
   max-height: min(70vh, 640px);
   overflow: auto;
   border: 1px solid var(--line);
@@ -54,8 +55,6 @@ export const PROCESSES_PANEL_STYLES = `
   box-shadow: var(--shadow);
   padding: 0.85rem;
   transform-origin: top right;
-  opacity: 0;
-  transform: scale(0.95);
   transition:
     opacity 200ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
     transform 200ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
@@ -65,14 +64,14 @@ export const PROCESSES_PANEL_STYLES = `
   opacity: 1;
   transform: scale(1);
 }
-.processes-panel[data-closed] {
+html.js .processes-panel[data-closed] {
   opacity: 0;
   transform: scale(0.95);
 }
 @media (prefers-reduced-motion: reduce) {
   .processes-panel,
   .processes-panel[data-open],
-  .processes-panel[data-closed] {
+  html.js .processes-panel[data-closed] {
     transform: none;
     transition: opacity 150ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
   }
@@ -327,6 +326,7 @@ export function processesPanelMarkup(selfId?: string): string {
 export function processesPanelScript(): string {
   return `
 (() => {
+  document.documentElement.classList.add('js');
   setTimeout(() => {
   if (document.documentElement.dataset.planChrome === 'react') return;
   const root = document.querySelector('[data-processes-root]');
@@ -376,9 +376,10 @@ export function processesPanelScript(): string {
     cancelClose();
     if (open) {
       panel.hidden = false;
-      panel.removeAttribute('data-closed');
+      panel.setAttribute('data-closed', '');
       panel.removeAttribute('data-open');
       void panel.getBoundingClientRect();
+      panel.removeAttribute('data-closed');
       panel.setAttribute('data-open', '');
       if (latest) paint(latest);
       return;
