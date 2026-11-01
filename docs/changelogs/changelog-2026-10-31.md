@@ -12,7 +12,7 @@ Settings has a back button in the title bar. It returns to the previous page.
 
 ### Improvements
 
-- The hosted settings page and the local plan Settings tab show a back button with a left arrow at the top left of the title bar. It follows the previous history entry.
+- The settings page shows a back button with a left arrow at the top left of the title bar. It follows the previous history entry.
 
 ### Notes
 

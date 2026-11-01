@@ -5,12 +5,12 @@ function escapeHtml(value: string): string {
 const HISTORY_BACK_ICON =
   '<svg class="lucide lucide-arrow-left" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>'
 
-/** Title-bar control that returns to the previous history entry. It does not target a route. */
-export function historyBackButtonHtml(hidden = false): string {
-  return `<button type="button" class="titlebar-action titlebar-back" data-history-back${hidden ? ' hidden' : ''}>${HISTORY_BACK_ICON}Back</button>`
+/** Settings title-bar control that returns to the previous history entry. It does not target a route. */
+export function historyBackButtonHtml(): string {
+  return `<button type="button" class="titlebar-action titlebar-back" data-history-back>${HISTORY_BACK_ICON}Back</button>`
 }
 
-/** Binds the history-back control. The plan page binds the same control in its own script. */
+/** Binds the settings history-back control. */
 export function historyBackScript(): string {
   return `<script>document.querySelector('[data-history-back]')?.addEventListener('click', () => { history.back() })</script>`
 }

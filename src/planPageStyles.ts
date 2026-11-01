@@ -458,34 +458,6 @@ body.has-review-bar .plan-toc-toggle { bottom: 5.5rem; }
   display: block;
   border-radius: 50%;
 }
-.titlebar-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex: 0 0 auto;
-  height: 36px;
-  padding: 0 16px;
-  border: 1px solid var(--ink);
-  border-radius: 9999px;
-  background: transparent;
-  color: var(--ink);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.4;
-  cursor: pointer;
-}
-.titlebar-back svg {
-  width: 16px;
-  height: 16px;
-  display: block;
-  flex: none;
-}
-.titlebar-back:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-.titlebar-back[hidden] { display: none !important; }
 .logo-badge {
   position: absolute;
   top: -0.15rem;
@@ -1414,10 +1386,10 @@ textarea { min-height: 88px; resize: vertical; }
   0%, 100% { opacity: 0.55; }
   50% { opacity: 1; }
 }
-:is(.btn, .logo-btn, .tab-btn, .titlebar-back, .choice-option, .workflow-step, .theme-swatch, .settings-accordion-trigger, .mermaid-control, .processes-toggle) {
+:is(.btn, .logo-btn, .tab-btn, .choice-option, .workflow-step, .theme-swatch, .settings-accordion-trigger, .mermaid-control, .processes-toggle) {
   transition: transform 160ms var(--ease-out), background-color 150ms ease, border-color 150ms ease, color 150ms ease;
 }
-:is(.btn, .logo-btn, .tab-btn, .titlebar-back, .choice-option, .workflow-step, .theme-swatch, .settings-accordion-trigger, .mermaid-control, .processes-toggle):active:not(:disabled) {
+:is(.btn, .logo-btn, .tab-btn, .choice-option, .workflow-step, .theme-swatch, .settings-accordion-trigger, .mermaid-control, .processes-toggle):active:not(:disabled) {
   transform: scale(0.97);
 }
 
@@ -1439,10 +1411,10 @@ textarea { min-height: 88px; resize: vertical; }
     transition: opacity 150ms var(--ease-out);
   }
   .plan-toc { transition: none; }
-  :is(.btn, .logo-btn, .tab-btn, .titlebar-back, .choice-option, .workflow-step, .theme-swatch, .diffs-theme-option, .settings-accordion-trigger, .mermaid-control, .processes-toggle) {
+  :is(.btn, .logo-btn, .tab-btn, .choice-option, .workflow-step, .theme-swatch, .diffs-theme-option, .settings-accordion-trigger, .mermaid-control, .processes-toggle) {
     transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
   }
-  :is(.btn, .logo-btn, .tab-btn, .titlebar-back, .choice-option, .workflow-step, .theme-swatch, .diffs-theme-option, .settings-accordion-trigger, .mermaid-control, .processes-toggle):active {
+  :is(.btn, .logo-btn, .tab-btn, .choice-option, .workflow-step, .theme-swatch, .diffs-theme-option, .settings-accordion-trigger, .mermaid-control, .processes-toggle):active {
     transform: none;
   }
   .plan-switch,
