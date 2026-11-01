@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-10-30
-- Updates: the page-serving sentence of [0022](0022-opt-in-cloud-host.md)
+- Updates: the page-serving sentence of [0022](0022-opt-in-cloud-host.md). Where the host code lives is updated by [0024](0024-one-plan-store.md).
 
 ## Context
 

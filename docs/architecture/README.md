@@ -4,7 +4,7 @@ Visual Living Plan is two hosts and one plan page. An agent writes one `.plan.md
 
 The default host is a Bun process on this machine. `--cloud` is a separate host: a TanStack Start application and a Cloudflare Worker. Both hosts leave MDX compilation in the browser.
 
-Read [the decisions](decisions/README.md) for why it is shaped this way. Read [the project context](../context.md) before changing the code. Worker setup is [cloud/README.md](../../cloud/README.md).
+Read [the decisions](decisions/README.md) for why it is shaped this way. Read [the project context](../context.md) before changing the code. Worker setup is [docs/cloud-host.md](../cloud-host.md).
 
 ## How the app is put together
 
@@ -20,7 +20,7 @@ flowchart TB
 
   subgraph hosted ["Opt-in — serve --cloud"]
     Start["TanStack Start<br/>pages at the repo root"]
-    Worker["Worker in cloud/<br/>auth, APIs, sockets"]
+    Worker["Elysia in src/host<br/>auth, APIs, sockets"]
     D1[("D1 living-plan")]
     DO["PlanObject<br/>one SQLite Durable Object"]
     Start -->|"server functions"| Worker
@@ -37,7 +37,7 @@ flowchart TB
 |---|---|---|---|
 | Local loopback | Bun, Elysia, `127.0.0.1:9477` | Every plan on this machine, in `~/.config/living-plan/registry.sqlite` | `serve` and `review` start it. `npm run dev` is this CLI |
 | Web application | TanStack Start, Vite, `src/entry.ts` | HTML for `/dashboard`, `/login`, `/plans/:id`, and the other pages | `npm run host` on local workerd, port 3000. Production is the same Worker |
-| Worker session | `cloud/src/worker.ts` | Better Auth, the plan catalog, plan APIs, WebSockets | Every request the Start router does not claim, including upgrades |
+| Worker session | `src/host/app.ts` | Better Auth, the plan catalog, plan APIs, WebSockets | Every request the Start router does not claim, including upgrades |
 | Private server | One Elysia process, its own port | One plan, no registry row | `--no-registry` only |
 
 `dashboard`, `tui`, `logs`, and `lan` stay on the local service even when a plan is hosted in the cloud.
@@ -51,7 +51,7 @@ TanStack Start lives at the repository root. There is no `app/` directory. `vite
 ```mermaid
 flowchart TD
   Req["Request"] --> Upgrade{"WebSocket upgrade?"}
-  Upgrade -->|yes| Worker["cloud/src/worker.ts"]
+  Upgrade -->|yes| Worker["src/host/app.ts"]
   Upgrade -->|no| Favicon{"/favicon.png"}
   Favicon -->|yes| Icon["Asset, or the built-in mark"]
   Favicon -->|no| Page{"GET or HEAD of a page route?"}
@@ -74,29 +74,30 @@ Page routes, from `src/pageRoutes.ts` and `src/routes/`:
 | `/local` | `local.tsx` | The sample plan in `PlanShell`, with no account and no Durable Object |
 | `/sample` | `sample.tsx` | Signs in, opens the sample on the account, redirects to `/plans/:id` |
 
-`/plans/:id/` is rewritten to `/plans/:id` before Start sees it. Other page paths lose a trailing slash the same way. `/client/...` on this Worker is 404. The Start bundle imports the plan client itself. The Worker does not return a second HTML copy of these pages. `cloud/` keeps the session, the plan APIs, the Durable Object, and auth.
+`/plans/:id/` is rewritten to `/plans/:id` before Start sees it. Other page paths lose a trailing slash the same way. `/client/...` on this Worker is 404. The Start bundle imports the plan client itself. The Worker does not return a second HTML copy of these pages. `src/host` keeps the session, the plan APIs, the Durable Object, and auth.
 
-Server functions in `src/planFns.ts` call back into `cloud/src/worker.ts` with the incoming cookie. The route never talks to D1 or the Durable Object on its own.
+Server functions in `src/planFns.ts` call back into `src/host/app.ts` with the incoming cookie. The route never talks to D1 or the Durable Object on its own.
 
 `npm run dev` is still the local Bun CLI. `npm run host` is this application on local workerd, including D1 and the Durable Object. Apply the local migrations with `npm run host:migrate`. The library bundle the Bun service serves from `/client/` is built by `vite.client.config.ts` (`npm run build:client`).
 
 ## The Worker, D1, and Better Auth
 
-`cloud/src/worker.ts` owns everything that is not a page: `/api/auth/*`, `/api/account`, `/api/plans`, `/api/health`, plan writes, the viewer link, document downloads, and WebSocket upgrades. It refuses to start when `BETTER_AUTH_SECRET` is missing. The value in `wrangler.jsonc` is for local workerd. Production sets the secret with Wrangler.
+`src/host/app.ts` is the Elysia app for everything that is not a page: `/api/auth/*`, `/api/account`, `/api/plans`, `/api/health`, plan writes, the viewer link, document downloads, and WebSocket upgrades. It refuses to start when `BETTER_AUTH_SECRET` is missing. The value in `wrangler.jsonc` is for local workerd. Production sets the secret with Wrangler. An upgrade is forwarded to the Durable Object before Elysia copies the response, so the Workers socket stays on that response.
 
-Better Auth (`cloud/src/auth.ts`) uses the D1 binding `DB`. Email and password are always on. Google and GitHub are added when both id and secret are set. The `bearer` and `organization` plugins are on. D1 rejects `Date` and boolean bindings, so `bindableD1` turns a `Date` into an ISO string and a boolean into `0` or `1` before `bind`.
+Better Auth (`src/host/auth.ts`) uses the D1 binding `DB`. Email and password are always on. Google and GitHub are added when both id and secret are set. The `bearer` and `organization` plugins are on. D1 rejects `Date` and boolean bindings, so `bindableD1` turns a `Date` into an ISO string and a boolean into `0` or `1` before `bind`.
 
 The CLI stores the raw session token from sign-in. Better Auth's bearer plugin does not turn that token back into a session, so `getSession` only sees a browser cookie. `sessionFromToken` reads `session` joined to `user` in D1.
 
-D1 is the account database, not the live plan. Migrations live in `cloud/migrations/`.
+D1 is the account database and the published plan documents, not the live plan. Migrations live in `src/migrations`.
 
 | Table | Role |
 |---|---|
 | `user`, `session`, `account`, `verification` | Better Auth identity. `user.tier` is `free`, `pro`, or `business` |
 | `organization`, `member`, `invitation` | Better Auth organizations |
-| `plans` | Catalog row: id, owning user, plan bearer, title, mode, tier, `closed_at` |
-| `user_settings` | Accent, page width, diff theme, code wrap |
-| `plan_versions` | Published markdown. The latest 10 per plan. The 11th drops the oldest |
+| `plans` | Catalog row shared with the local registry: id, user, token, title, mode, status, path, timestamps, and `meta` JSON. Local rows leave `user_id` null. Tier lives in `meta` |
+| `user_settings` | Account appearance in `meta`: accent, page width, diff theme, code wrap |
+| `plan_versions` | Document history. `body` is the markdown. The host keeps the latest 10. Local keeps the chain |
+| `plan_runs`, `plan_events` | Same tables as the local registry. The host leaves runs empty. Events on the host are the Durable Object queue |
 
 Three credentials, and they are not interchangeable ([ADR 0022](decisions/0022-opt-in-cloud-host.md)):
 
@@ -115,7 +116,7 @@ Open plans, sockets, and idle time follow `user.tier`. Free is 1 plan, 2 sockets
 
 Each cloud plan is one SQLite Durable Object, class `PlanObject`, binding `PLANS`. Wrangler migration `v1` creates that class. The id is `cloudId`, not a hash of the file path.
 
-`cloud/src/planObject.ts` accepts the WebSocket, enforces the socket cap, and runs an alarm for idle close. The SQL is `cloud/src/planRoom.ts`, on `this.ctx.storage.sql`.
+`src/host/planObject.ts` accepts the WebSocket, enforces the socket cap, and runs an alarm for idle close. Its other routes are Elysia. The SQL is `src/host/planRoom.ts`, on `this.ctx.storage.sql`.
 
 | Stored in the object | What it is |
 |---|---|
@@ -124,7 +125,7 @@ Each cloud plan is one SQLite Durable Object, class `PlanObject`, binding `PLANS
 
 The page and the agent share that object's hibernating WebSockets. A local plan still uses server-sent events on the Bun process. The Durable Object holds the live session. D1 holds the account and the published document versions. Uploading source writes the Durable Object first, then `plan_versions` in D1. A stale revision is HTTP 409.
 
-`close` sets the object closed and sets `plans.closed_at` in D1. An idle alarm closes the object when no socket is open and last seen is older than the tier's idle time.
+`close` sets the object closed and sets `plans.status` to `executed` with `ended_at` in D1. An idle alarm closes the object when no socket is open and last seen is older than the tier's idle time.
 
 ## A plan page
 
@@ -178,7 +179,7 @@ The printed URL is the bind address ([ADR 0016](decisions/0016-loopback-address.
 
 LAN publishing is off until `live-plan lan on` ([ADR 0019](decisions/0019-lan-publishing.md)). That command stores the choice under `~/.config/living-plan`, listens on all interfaces when no non-loopback `--host` was set, and advertises `living-plan.local` at a private LAN address. The registry lock still tells the CLI to dial `127.0.0.1`, so `serve` and `review` keep printing the loopback plan URL. The LAN URL, printed only by `lan on` and `lan status`, carries a secret. Visiting it sets a cookie. A non-loopback request without that cookie or secret gets 401 on plan pages and plan APIs. Loopback stays open. The agent stream still requires its bearer token. `lan off` withdraws the announcement, removes a firewall rule this tool added, and binds `127.0.0.1` again.
 
-`--cloud` is a separate host ([ADR 0022](decisions/0022-opt-in-cloud-host.md)). `account login` stores an account bearer in `~/.config/living-plan/cloud.json`. `serve --cloud` and `review --cloud` register the plan on that Worker, write `cloudId` into the plan frontmatter, and keep the plan bearer in `cloud.json`. They do not start the local registry. The page and the agent share a WebSocket on one SQLite Durable Object. `dashboard`, `tui`, `logs`, and `lan` stay local. The web application is TanStack Start at the repository root ([ADR 0023](decisions/0023-tanstack-start-page.md)). The browser still compiles the plan MDX and mounts the same React entries. The Worker keeps the account, the Durable Object, and every plan API. `npm run host` runs that application on local workerd. Setup for the Worker bindings is [cloud/README.md](../../cloud/README.md).
+`--cloud` is a separate host ([ADR 0022](decisions/0022-opt-in-cloud-host.md)). `account login` stores an account bearer in `~/.config/living-plan/cloud.json`. `serve --cloud` and `review --cloud` register the plan on that Worker, write `cloudId` into the plan frontmatter, and keep the plan bearer in `cloud.json`. They do not start the local registry. The page and the agent share a WebSocket on one SQLite Durable Object. `dashboard`, `tui`, `logs`, and `lan` stay local. The web application is TanStack Start at the repository root ([ADR 0023](decisions/0023-tanstack-start-page.md)). The browser still compiles the plan MDX and mounts the same React entries. The Worker keeps the account, the Durable Object, and every plan API. `npm run host` runs that application on local workerd. Setup for the Worker bindings is [docs/cloud-host.md](../cloud-host.md).
 
 ```mermaid
 flowchart LR
@@ -296,7 +297,7 @@ flowchart LR
   Summary --> Page["/dashboard"]
 ```
 
-A row overlaps the selected window when it started before the end of the window and is still running, or its end falls inside the window. Finished runs are stored in `plan_runs` with typed `started_at` and `ended_at` columns. `GET /api/dashboard` selects that window in Drizzle: `started_at` is at or before the window end, and `COALESCE(ended_at, heartbeat_at, started_at)` is at or after the window start. Open sessions and live private processes stay in memory. A running row overlaps when it started before the window end. A finished in-memory row uses `ended_at`, then `heartbeat_at`. Completion counts phases marked done plus interactions that already have an answer (`src/planProgress.ts`). Files modified is the git change count captured with the run. The plan markdown copied into the registry home is linked from the table at `/archive/<id>`.
+A row overlaps the selected window when it started before the end of the window and is still running, or its end falls inside the window. Finished runs are stored in `plan_runs` with typed `started_at` and `ended_at` columns. `GET /api/dashboard` selects that window in SQLite: `started_at` is at or before the window end, and `COALESCE(ended_at, heartbeat_at, started_at)` is at or after the window start. Open sessions and live private processes stay in memory. A running row overlaps when it started before the window end. A finished in-memory row uses `ended_at`, then `heartbeat_at`. Completion counts phases marked done plus interactions that already have an answer (`src/planProgress.ts`). Files modified is the git change count captured with the run. The plan markdown copied into the registry home is linked from the table at `/archive/<id>`.
 
 ## What lives where
 
@@ -308,8 +309,7 @@ A row overlaps the selected window when it started before the end of the window 
 | `src/planRoutes.ts` | Elysia routes for one plan, at the origin or under `/plans/<id>/` |
 | `src/planHost.ts` | All sessions on the service: register, reattach, close, idle timeout, git snapshot cache, dashboard rows for open sessions |
 | `src/registryService.ts` | The Elysia app: health, plan list, registration, dashboard, archive, and the hosted plan routes |
-| `src/registryStore.ts` | SQLite through Drizzle: `plans` for private servers, `plan_sessions` for live hosted plans, `plan_events` for submissions, `plan_runs` for finished runs |
-| `src/db/schema.ts`, `src/db/migrate.ts` | Table definitions and the SQL that creates them, including the copy from the older `processes` table |
+| `src/registryStore.ts`, `src/store/` | The shared SQLite schema, opened with Drizzle on bun locally and with D1 on the host. `plans.meta` holds configuration. `migrate.ts` folds older local tables into that shape |
 | `src/server.ts` | The private one-plan Elysia app used by `--no-registry` |
 | `src/httpServer.ts` | Binds an Elysia app with `Bun.serve` so event streams stay open |
 | `src/localName.ts` | Loopback checks and HTTP origin formatting |
@@ -318,9 +318,9 @@ A row overlaps the selected window when it started before the end of the window 
 | `src/cli.ts` | Client of the service. `serve` registers and prints that plan's undelivered submissions. `events`, `wait`, `watch`, and `review` read the same stream. `logs` prints the diagnostic files under `~/.config/living-plan/logs`. `dashboard` opens `/dashboard`. `tui` reads `/api/processes` and `/api/dashboard`, and leaves the service running when it exits. `--cloud` uses the signed-in host instead |
 | `src/cloudStore.ts`, `src/cloudClient.ts`, `src/cloudCommand.ts`, `src/cloudWatch.ts`, `src/cloudFrontmatter.ts` | Account session and plan bearers in `cloud.json`, frontmatter `cloudId`, upload, and the file watcher for `--cloud` |
 | `src/agentEvents.ts` | SSE reader for a local plan, WebSocket reader for a cloud plan, ack helper, and `planApiUrl` used by the CLI |
-| `src/entry.ts`, `src/pageRoutes.ts` | Worker entry. Pages go to TanStack Start. Auth, plan APIs, and WebSockets go to `cloud/` |
+| `src/entry.ts`, `src/pageRoutes.ts` | Worker entry. Pages go to TanStack Start. Auth, plan APIs, and WebSockets go to `src/host` |
 | `src/routes/`, `src/PlanShell.tsx`, `src/planFns.ts` | The web application. Start routes, the plan shell, and the server functions that call the Worker |
-| `cloud/` | Better Auth on D1, the plan catalog, published versions, and one SQLite Durable Object per plan |
+| `src/host/`, `src/migrations/` | Better Auth on D1, the plan catalog, published versions, Elysia routes, and one SQLite Durable Object per plan |
 | `vite.config.ts`, `wrangler.jsonc` | The Start app and its Worker bindings. `vite.client.config.ts` is the `/client/` bundle the Bun service serves |
 | `src/dashboard.ts`, `src/dashboardPage.ts`, `src/tui/` | Period summary, the dashboard page, and the terminal view of the same read |
 | `src/planArchive.ts` | Copy a plan file into the registry home and serve that copy |
@@ -331,8 +331,8 @@ A row overlaps the selected window when it started before the end of the window 
 
 ## What survives a restart
 
-The service writes each open session to `~/.config/living-plan/registry.sqlite` (`plan_sessions`): plan path, mode, iteration, responses, comments, execution, review, token, cwd, theme config path, and last-seen time. Submissions are rows in `plan_events`. On startup it opens those files again and reattaches the watchers. A missing plan file drops that session. Diagnostic logs are not in the database. They are files under `~/.config/living-plan/logs` and stay on disk across a restart.
+The service writes each open session into `plans` in `~/.config/living-plan/registry.sqlite`. The token, path, and mode are columns. Iteration, responses, comments, execution, review, cwd, and the theme config path are keys in `meta`. Submissions are rows in `plan_events`. On startup it opens those rows again and reattaches the watchers. A missing plan file drops that session. Diagnostic logs are not in the database. They are files under `~/.config/living-plan/logs` and stay on disk across a restart.
 
-`live-plan close`, the idle timeout, and `DELETE /api/plans/<id>` delete that session's `plan_sessions` row and its `plan_events` rows. Stopping the service process does not. The next start restores the sessions whose plan files are still on disk. Finished runs stay in `plan_runs` and are not reopened. Live private servers are rows in `plans`. A database that still has the older `processes` table is copied into `plans` on open. The copied markdown stays at `~/.config/living-plan/plans/<id>.plan.md`.
+`live-plan close`, the idle timeout, and `DELETE /api/plans/<id>` clear that session's token and its `plan_events` rows. A row that is only a session is deleted. A live process row stays until it is pruned. Stopping the service process does not. The next start restores the sessions whose plan files are still on disk. Finished runs stay in `plan_runs` and are not reopened. Live private servers are `plans` rows with a pid in `meta`. A database that still has the older `processes` table, wide columns, or `plan_sessions` is folded into this shape on open. The copied markdown stays at `~/.config/living-plan/plans/<id>.plan.md`.
 
 When the installed package version differs from the version in the lock file, the CLI stops the running service and starts the current one.

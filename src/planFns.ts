@@ -22,13 +22,13 @@ export type HistoryPayload = {
 }
 
 async function workerAndEnv() {
-  return Promise.all([import('../cloud/src/worker.ts'), import('cloudflare:workers')])
+  return Promise.all([import('./host/app.ts'), import('cloudflare:workers')])
 }
 
 export const loadAccount = createServerFn({ method: 'GET' }).handler(async () => {
   const request = getRequest()
-  const [{ default: worker }, { env }] = await workerAndEnv()
-  const response = await worker.fetch(
+  const [{ handleHostRequest }, { env }] = await workerAndEnv()
+  const response = await handleHostRequest(
     new Request(new URL('/api/account', request.url), {
       headers: { cookie: request.headers.get('cookie') ?? '' },
     }),
@@ -104,9 +104,9 @@ export const planBootstrap = createServerFn({ method: 'POST' })
 
 export const openSample = createServerFn({ method: 'POST' }).handler(async () => {
   const request = getRequest()
-  const [{ default: worker }, { env }] = await workerAndEnv()
+  const [{ handleHostRequest }, { env }] = await workerAndEnv()
   const sampleModule = await import('../examples/rate-limit.plan.md?raw')
-  const response = await worker.fetch(
+  const response = await handleHostRequest(
     new Request(new URL('/api/plans', request.url), {
       method: 'POST',
       headers: {

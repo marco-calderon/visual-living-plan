@@ -1,3 +1,3 @@
 declare module 'cloudflare:workers' {
-  export const env: import('../cloud/src/worker.ts').Env
+  export const env: import('./host/app.ts').HostEnv
 }

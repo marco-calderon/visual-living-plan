@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { useLayoutEffect, useState, type CSSProperties } from 'react'
-import { ACCENT_CHOICES } from '../../cloud/src/accountSettings.ts'
+import { ACCENT_CHOICES } from '../host/accountSettings.ts'
 import { CodeWrapSwitch } from '../../client/chrome/CodeWrapSwitch.tsx'
 import { Button } from '../../client/ui/button.tsx'
 import { DIFFS_THEME_PRESETS, diffsThemePreset, type DiffsThemeSample } from '../diffsTheme.ts'

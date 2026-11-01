@@ -1,6 +1,6 @@
 # ADR 0008: Dashboard period filters run inside the finished-run query
 
-- Status: Accepted
+- Status: Accepted. The window query is unchanged. As of [0024](0024-one-plan-store.md), those columns are read and written with the SQLite store.
 - Date: 2026-10-12
 
 ## Context

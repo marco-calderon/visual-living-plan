@@ -2,7 +2,7 @@
 export const PLAN_VERSION_LIMIT = 10
 
 /** Latest saved document for each plan. A missing table is created before this runs. */
-export const LATEST_PLAN_VERSION_SQL = `SELECT p.id, p.title, p.mode, p.closed_at, p.created_at,
+export const LATEST_PLAN_VERSION_SQL = `SELECT p.id, p.title, p.mode, p.ended_at, p.started_at,
        v.seq AS version_seq, v.title AS version_title, v.created_at AS version_at
 FROM plans p
 LEFT JOIN (
@@ -12,16 +12,18 @@ LEFT JOIN (
 ) latest ON latest.plan_id = p.id
 LEFT JOIN plan_versions v ON v.plan_id = latest.plan_id AND v.seq = latest.seq
 WHERE p.user_id = ?
-ORDER BY p.created_at DESC`
+ORDER BY p.started_at DESC`
 
 const PLAN_VERSIONS_TABLE_SQL = `CREATE TABLE IF NOT EXISTS plan_versions (
   id TEXT PRIMARY KEY,
   plan_id TEXT NOT NULL,
-  user_id TEXT NOT NULL,
   seq INTEGER NOT NULL,
   title TEXT NOT NULL,
-  source TEXT NOT NULL,
+  body TEXT NOT NULL,
   created_at INTEGER NOT NULL,
+  parent_id TEXT,
+  reason TEXT,
+  restored_from_id TEXT,
   UNIQUE (plan_id, seq)
 )`
 
@@ -46,7 +48,7 @@ export type PublishedVersion = {
 type VersionRow = {
   seq: number
   title: string
-  source: string
+  body: string
   created_at: number
 }
 
@@ -59,20 +61,20 @@ export async function publishPlanVersion(
   const title = input.title.slice(0, 200) || 'Living plan'
   const source = input.source
   const latest = await db
-    .prepare('SELECT seq, title, source, created_at FROM plan_versions WHERE plan_id = ? ORDER BY seq DESC LIMIT 1')
+    .prepare('SELECT seq, title, body, created_at FROM plan_versions WHERE plan_id = ? ORDER BY seq DESC LIMIT 1')
     .bind(input.planId)
     .first<VersionRow>()
-  if (latest && latest.source === source && latest.title === title) {
-    return { seq: latest.seq, title: latest.title, source: latest.source, createdAt: latest.created_at, stored: false }
+  if (latest && latest.body === source && latest.title === title) {
+    return { seq: latest.seq, title: latest.title, source: latest.body, createdAt: latest.created_at, stored: false }
   }
   const seq = (latest?.seq ?? 0) + 1
   const id = crypto.randomUUID()
   const createdAt = input.now ?? Date.now()
   await db
     .prepare(
-      'INSERT INTO plan_versions (id, plan_id, user_id, seq, title, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO plan_versions (id, plan_id, seq, title, body, created_at, parent_id, reason, restored_from_id) VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL)',
     )
-    .bind(id, input.planId, input.userId, seq, title, source, createdAt)
+    .bind(id, input.planId, seq, title, source, createdAt)
     .run()
   await db
     .prepare(
@@ -110,13 +112,13 @@ export async function readPlanVersion(
   const row =
     seq === 'latest'
       ? await db
-          .prepare('SELECT seq, title, source, created_at FROM plan_versions WHERE plan_id = ? ORDER BY seq DESC LIMIT 1')
+          .prepare('SELECT seq, title, body, created_at FROM plan_versions WHERE plan_id = ? ORDER BY seq DESC LIMIT 1')
           .bind(planId)
           .first<VersionRow>()
       : await db
-          .prepare('SELECT seq, title, source, created_at FROM plan_versions WHERE plan_id = ? AND seq = ?')
+          .prepare('SELECT seq, title, body, created_at FROM plan_versions WHERE plan_id = ? AND seq = ?')
           .bind(planId, seq)
           .first<VersionRow>()
   if (!row) return null
-  return { seq: row.seq, title: row.title, source: row.source, createdAt: row.created_at }
+  return { seq: row.seq, title: row.title, source: row.body, createdAt: row.created_at }
 }

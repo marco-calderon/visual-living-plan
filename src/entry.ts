@@ -1,11 +1,12 @@
 import handler from '@tanstack/react-start/server-entry'
-import worker, { PlanObject, type Env as CloudEnv } from '../cloud/src/worker.ts'
+import { handleHostRequest, type HostEnv } from './host/app.ts'
+import { PlanObject } from './host/planObject.ts'
 import { faviconFromAsset } from './favicon.ts'
 import { planIdFromPath, tanstackPage } from './pageRoutes.ts'
 
 export { PlanObject }
 
-type StartEnv = CloudEnv
+type StartEnv = HostEnv
 
 export default {
   async fetch(request: Request, env: StartEnv): Promise<Response> {
@@ -16,7 +17,7 @@ export default {
     }
     if (!upgrade && url.pathname === '/favicon.png') return serveFavicon(request, env)
     const page = upgrade ? null : tanstackPage(url.pathname, request.method)
-    if (!page) return worker.fetch(request, env)
+    if (!page) return handleHostRequest(request, env)
     if (page === 'plan') {
       const id = planIdFromPath(url.pathname)
       if (id && url.pathname.endsWith('/')) {

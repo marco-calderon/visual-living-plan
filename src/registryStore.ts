@@ -1,25 +1,13 @@
-import { mkdir } from 'node:fs/promises'
-import { dirname } from 'node:path'
-import { and, desc, eq, lte, sql } from 'drizzle-orm'
-import { openPlanDatabase } from './db/client'
-import { planInsertFromProcess, planRowToProcess, planRunInsert, planRunRowToRecord } from './db/rows'
-import {
-  planEvents,
-  planRuns,
-  planSessions,
-  plans,
-  type PlanEventInsert,
-  type PlanEventRow,
-  type PlanInsert,
-  type PlanRunInsert,
-  type PlanSessionInsert,
-  type PlanSessionRow,
-} from './db/schema'
+import { and, desc, eq, gte, isNotNull, lte, sql } from 'drizzle-orm'
+import { drizzle, type BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
 import { STALE_MS } from './registryConstants'
 import { isPidAlive } from './pid'
-import type { PlanMode, PlanRecord, ProcessPulse, ProcessRecord } from './processRecord'
+import { finishedPlan, isPlanMode, type PlanMode, type PlanRecord, type ProcessPulse, type ProcessRecord } from './processRecord'
+import { keepProgress, metaFromProcess, metaFromRecord, readMeta, type PlanMeta } from './store/meta'
+import { migratePlanDatabase } from './store/migrate'
+import { planEvents, planRuns, plans } from './store/tables'
+import { openSqliteStore } from './store/sqlite'
 import type { PlanSubmissionEvent } from './types'
-import { finishedPlan, isPlanMode } from './processRecord'
 
 export type StoredPlanSession = {
   id: string
@@ -61,150 +49,159 @@ export type RegistryStore = {
   close(): void
 }
 
-function sessionValues(session: StoredPlanSession): PlanSessionInsert {
+type Database = BunSQLiteDatabase<Record<string, unknown>>
+type PlanRow = typeof plans.$inferSelect
+
+const runningProcess = and(eq(plans.status, 'running'), sql`json_extract(${plans.meta}, '$.pid') IS NOT NULL`)
+
+function parsed(value: string, fallback: unknown): unknown {
+  try {
+    return JSON.parse(value) as unknown
+  } catch {
+    return fallback
+  }
+}
+
+function toProcess(row: PlanRow): ProcessRecord | undefined {
+  const meta = readMeta(row.meta)
+  if (meta.pid == null || row.status !== 'running') return undefined
   return {
-    id: session.id,
-    token: session.token,
-    planPath: session.planPath,
-    mode: session.mode,
-    iteration: session.iteration,
+    id: row.id,
+    pid: meta.pid,
+    title: row.title,
+    summary: meta.summary,
+    agent: meta.agent,
+    mode: isPlanMode(row.mode) ? row.mode : 'watch',
+    planPath: row.planPath ?? '',
+    directory: meta.directory,
+    cwd: meta.cwd,
+    url: meta.url,
+    host: meta.host,
+    port: meta.port,
+    startedAt: row.startedAt,
+    heartbeatAt: row.heartbeatAt,
+    pendingCount: meta.pendingCount,
+    executionActive: meta.executionActive,
+    executionStep: meta.executionStep,
+    git: meta.git,
+  }
+}
+
+function toRecord(row: typeof planRuns.$inferSelect): PlanRecord {
+  const meta = readMeta(row.meta)
+  const mode = isPlanMode(row.mode) ? row.mode : 'watch'
+  const status = row.status === 'executed' || row.status === 'interrupted' ? row.status : 'running'
+  return {
+    id: row.id,
+    pid: meta.pid ?? 0,
+    title: row.title,
+    summary: meta.summary,
+    agent: meta.agent,
+    mode,
+    planPath: row.planPath ?? '',
+    directory: meta.directory,
+    cwd: meta.cwd,
+    url: meta.url,
+    host: meta.host,
+    port: meta.port,
+    startedAt: row.startedAt,
+    heartbeatAt: row.heartbeatAt,
+    pendingCount: meta.pendingCount,
+    executionActive: meta.executionActive,
+    executionStep: meta.executionStep,
+    git: meta.git,
+    status,
+    storedPath: meta.storedPath,
+    endedAt: row.endedAt,
+    durationMs: meta.durationMs,
+    phaseTotal: meta.phaseTotal,
+    phaseDone: meta.phaseDone,
+    interactionTotal: meta.interactionTotal,
+    interactionDone: meta.interactionDone,
+    completionRatio: meta.completionRatio,
+    completionState: meta.completionState,
+    filesModified: meta.filesModified,
+    outcome: meta.outcome,
+  }
+}
+
+function toSession(row: PlanRow): StoredPlanSession | undefined {
+  if (!row.token) return undefined
+  const meta = readMeta(row.meta)
+  return {
+    id: row.id,
+    token: row.token,
+    planPath: row.planPath ?? '',
+    mode: isPlanMode(row.mode) ? row.mode : 'watch',
+    iteration: meta.iteration,
+    cwd: meta.cwd,
+    configPath: meta.configPath,
+    responsesJson: JSON.stringify(meta.responses ?? {}),
+    executionJson: JSON.stringify(meta.execution ?? {}),
+    reviewJson: meta.review == null ? null : JSON.stringify(meta.review),
+    commentsJson: JSON.stringify(meta.comments ?? []),
+    startedAt: row.startedAt,
+    lastSeenAt: meta.lastSeenAt ?? row.heartbeatAt,
+  }
+}
+
+function sessionMeta(current: PlanMeta, session: StoredPlanSession): PlanMeta {
+  return {
+    ...current,
     cwd: session.cwd,
+    iteration: session.iteration,
     configPath: session.configPath,
-    responsesJson: session.responsesJson,
-    executionJson: session.executionJson,
-    reviewJson: session.reviewJson,
-    commentsJson: session.commentsJson,
-    startedAt: session.startedAt,
+    responses: parsed(session.responsesJson, {}),
+    execution: parsed(session.executionJson, {}),
+    review: session.reviewJson ? parsed(session.reviewJson, null) : null,
+    comments: parsed(session.commentsJson, []),
     lastSeenAt: session.lastSeenAt,
   }
 }
 
-function toSession(row: PlanSessionRow): StoredPlanSession {
-  return {
-    id: row.id,
-    token: row.token,
-    planPath: row.planPath,
-    mode: isPlanMode(row.mode) ? row.mode : 'watch',
-    iteration: row.iteration,
-    cwd: row.cwd,
-    configPath: row.configPath,
-    responsesJson: row.responsesJson,
-    executionJson: row.executionJson,
-    reviewJson: row.reviewJson,
-    commentsJson: row.commentsJson,
-    startedAt: row.startedAt,
-    lastSeenAt: row.lastSeenAt,
-  }
-}
-
-/** Fields replaced on conflict. `startedAt` and progress counters stay as first written. */
-function livePlanUpdate(values: PlanInsert): Omit<
-  PlanInsert,
-  | 'id'
-  | 'startedAt'
-  | 'status'
-  | 'storedPath'
-  | 'endedAt'
-  | 'durationMs'
-  | 'phaseTotal'
-  | 'phaseDone'
-  | 'interactionTotal'
-  | 'interactionDone'
-  | 'completionRatio'
-  | 'completionState'
-  | 'outcome'
-> {
-  const {
-    id: _id,
-    startedAt: _startedAt,
-    status: _status,
-    storedPath: _storedPath,
-    endedAt: _endedAt,
-    durationMs: _durationMs,
-    phaseTotal: _phaseTotal,
-    phaseDone: _phaseDone,
-    interactionTotal: _interactionTotal,
-    interactionDone: _interactionDone,
-    completionRatio: _completionRatio,
-    completionState: _completionState,
-    outcome: _outcome,
-    ...set
-  } = values
-  return set
-}
-
-function eventValues(planId: string, event: PlanSubmissionEvent): PlanEventInsert {
-  return {
-    id: event.id,
-    planId,
-    seq: event.seq,
-    event: event.event,
-    dataJson: JSON.stringify(event.data),
-    createdAt: event.createdAt,
-    deliveredAt: event.deliveredAt,
-  }
-}
-
-function toEvent(row: PlanEventRow): PlanSubmissionEvent | null {
-  if (row.event !== 'interaction' && row.event !== 'review' && row.event !== 'comment') return null
-  let data: unknown = null
-  try {
-    data = JSON.parse(row.dataJson) as unknown
-  } catch {
-    return null
-  }
-  return {
-    id: row.id,
-    seq: row.seq,
-    event: row.event,
-    data,
-    createdAt: row.createdAt,
-    deliveredAt: row.deliveredAt,
-  }
-}
-
-function sessionUpdate(values: PlanSessionInsert): Omit<PlanSessionInsert, 'id' | 'startedAt'> {
-  const { id: _id, startedAt: _startedAt, ...set } = values
-  return set
-}
-
-function runUpdate(values: PlanRunInsert): Omit<PlanRunInsert, 'runId'> {
-  const { runId: _runId, ...set } = values
-  return set
-}
-
 export async function openRegistryStore(dbPath: string): Promise<RegistryStore> {
-  if (dbPath !== ':memory:') {
-    await mkdir(dirname(dbPath), { recursive: true })
-  }
-  const opened = openPlanDatabase(dbPath)
-  const db = opened.db
+  const sqlite = openSqliteStore(dbPath)
+  migratePlanDatabase(sqlite)
+  const db: Database = drizzle(sqlite.database)
   let closed = false
 
   const store: RegistryStore = {
     upsert(record) {
-      const values = planInsertFromProcess(record)
-      db.insert(plans)
-        .values(values)
-        .onConflictDoUpdate({
-          target: plans.id,
-          set: livePlanUpdate(values),
-        })
-        .run()
+      const incoming = metaFromProcess(record)
+      db.transaction((tx) => {
+        const existing = tx.select().from(plans).where(eq(plans.id, record.id)).get()
+        const meta = existing ? keepProgress(readMeta(existing.meta), incoming) : incoming
+        const values = {
+          userId: existing?.userId ?? null,
+          token: existing?.token ?? null,
+          title: record.title,
+          mode: record.mode,
+          status: existing?.status ?? 'running',
+          planPath: record.planPath,
+          startedAt: existing?.startedAt ?? record.startedAt,
+          endedAt: existing?.endedAt ?? null,
+          heartbeatAt: record.heartbeatAt,
+          meta,
+        }
+        if (existing) tx.update(plans).set(values).where(eq(plans.id, record.id)).run()
+        else tx.insert(plans).values({ id: record.id, ...values }).run()
+      })
     },
     get(id) {
-      const row = db.select().from(plans).where(eq(plans.id, id)).get()
-      if (!row || row.status !== 'running') return undefined
-      return planRowToProcess(row)
+      const row = db.select().from(plans).where(and(eq(plans.id, id), runningProcess)).get()
+      return row ? toProcess(row) : undefined
     },
     list() {
       return db
         .select()
         .from(plans)
-        .where(eq(plans.status, 'running'))
+        .where(runningProcess)
         .orderBy(desc(plans.startedAt))
         .all()
-        .map((row) => planRowToProcess(row))
+        .flatMap((row) => {
+          const record = toProcess(row)
+          return record ? [record] : []
+        })
     },
     heartbeat(id, pulse) {
       const current = store.get(id)
@@ -243,32 +240,37 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
       return removed
     },
     saveSession(session, events) {
-      const values = sessionValues(session)
       db.transaction((tx) => {
-        tx.insert(planSessions)
-          .values(values)
-          .onConflictDoUpdate({
-            target: planSessions.id,
-            set: sessionUpdate(values),
-          })
-          .run()
+        const existing = tx.select().from(plans).where(eq(plans.id, session.id)).get()
+        const meta = sessionMeta(existing ? readMeta(existing.meta) : readMeta(null), session)
+        const values = {
+          userId: existing?.userId ?? null,
+          token: session.token,
+          title: existing?.title ?? '',
+          mode: session.mode,
+          status: existing?.status ?? 'running',
+          planPath: session.planPath,
+          startedAt: existing?.startedAt ?? session.startedAt,
+          endedAt: existing?.endedAt ?? null,
+          heartbeatAt: existing && readMeta(existing.meta).pid != null ? existing.heartbeatAt : session.lastSeenAt,
+          meta,
+        }
+        if (existing) tx.update(plans).set(values).where(eq(plans.id, session.id)).run()
+        else tx.insert(plans).values({ id: session.id, ...values }).run()
         if (!events) return
         for (const event of events) {
-          const row = eventValues(session.id, event)
-          tx.insert(planEvents)
-            .values(row)
-            .onConflictDoUpdate({
-              target: planEvents.id,
-              set: {
-                planId: row.planId,
-                seq: row.seq,
-                event: row.event,
-                dataJson: row.dataJson,
-                createdAt: row.createdAt,
-                deliveredAt: row.deliveredAt,
-              },
-            })
-            .run()
+          const data = JSON.stringify(event.data)
+          const eventValues = {
+            planId: session.id,
+            seq: event.seq,
+            event: event.event,
+            data,
+            createdAt: event.createdAt,
+            deliveredAt: event.deliveredAt,
+          }
+          const found = tx.select({ id: planEvents.id }).from(planEvents).where(eq(planEvents.id, event.id)).get()
+          if (found) tx.update(planEvents).set(eventValues).where(eq(planEvents.id, event.id)).run()
+          else tx.insert(planEvents).values({ id: event.id, ...eventValues }).run()
         }
       })
     },
@@ -280,62 +282,91 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
         .orderBy(planEvents.seq)
         .all()
         .flatMap((row) => {
-          const event = toEvent(row)
-          return event ? [event] : []
+          if (row.event !== 'interaction' && row.event !== 'review' && row.event !== 'comment') return []
+          const data = parsed(row.data, null)
+          if (data == null && row.data !== 'null') return []
+          return [{ id: row.id, seq: row.seq, event: row.event, data, createdAt: row.createdAt, deliveredAt: row.deliveredAt }]
         })
     },
     getSession(id) {
-      const row = db.select().from(planSessions).where(eq(planSessions.id, id)).get()
+      const row = db.select().from(plans).where(and(eq(plans.id, id), isNotNull(plans.token))).get()
       return row ? toSession(row) : undefined
     },
     getSessionByPath(planPath) {
-      const row = db.select().from(planSessions).where(eq(planSessions.planPath, planPath)).get()
+      const row = db.select().from(plans).where(and(eq(plans.planPath, planPath), isNotNull(plans.token))).get()
       return row ? toSession(row) : undefined
     },
     listSessions() {
       return db
         .select()
-        .from(planSessions)
-        .orderBy(desc(planSessions.startedAt))
+        .from(plans)
+        .where(isNotNull(plans.token))
+        .orderBy(desc(plans.startedAt))
         .all()
-        .map((row) => toSession(row))
+        .flatMap((row) => {
+          const session = toSession(row)
+          return session ? [session] : []
+        })
     },
     deleteSession(id) {
-      const removed = db.transaction((tx) => {
+      return db.transaction((tx) => {
+        const existing = tx.select().from(plans).where(eq(plans.id, id)).get()
+        if (!existing?.token) return false
         tx.delete(planEvents).where(eq(planEvents.planId, id)).run()
-        return tx.delete(planSessions).where(eq(planSessions.id, id)).returning({ id: planSessions.id }).all()
+        if (readMeta(existing.meta).pid == null) {
+          tx.delete(plans).where(eq(plans.id, id)).run()
+          return true
+        }
+        const meta = readMeta(existing.meta)
+        tx.update(plans)
+          .set({
+            token: null,
+            meta: { ...meta, responses: {}, execution: {}, review: null, comments: [], configPath: null },
+          })
+          .where(eq(plans.id, id))
+          .run()
+        return true
       })
-      return removed.length > 0
     },
     saveRun(record) {
-      const values = planRunInsert(record)
-      db.insert(planRuns)
-        .values(values)
-        .onConflictDoUpdate({
-          target: planRuns.runId,
-          set: runUpdate(values),
-        })
-        .run()
+      const runId = `${record.id}:${record.startedAt}`
+      const values = {
+        id: record.id,
+        userId: null,
+        token: null,
+        title: record.title,
+        mode: record.mode,
+        status: record.status,
+        planPath: record.planPath,
+        startedAt: record.startedAt,
+        endedAt: record.endedAt,
+        heartbeatAt: record.heartbeatAt,
+        meta: metaFromRecord(record),
+      }
+      const existing = db.select({ runId: planRuns.runId }).from(planRuns).where(eq(planRuns.runId, runId)).get()
+      if (existing) db.update(planRuns).set(values).where(eq(planRuns.runId, runId)).run()
+      else db.insert(planRuns).values({ runId, ...values }).run()
     },
     listRuns(window) {
-      const overlap = window
-        ? and(
-            lte(planRuns.startedAt, window.to),
-            sql`COALESCE(${planRuns.endedAt}, ${planRuns.heartbeatAt}, ${planRuns.startedAt}) >= ${window.from}`,
-          )
-        : undefined
-      return db
-        .select()
-        .from(planRuns)
-        .where(overlap)
-        .orderBy(desc(planRuns.startedAt))
-        .all()
-        .map((row) => planRunRowToRecord(row))
+      const rows = window
+        ? db
+            .select()
+            .from(planRuns)
+            .where(
+              and(
+                lte(planRuns.startedAt, window.to),
+                gte(sql`COALESCE(${planRuns.endedAt}, ${planRuns.heartbeatAt}, ${planRuns.startedAt})`, window.from),
+              ),
+            )
+            .orderBy(desc(planRuns.startedAt))
+            .all()
+        : db.select().from(planRuns).orderBy(desc(planRuns.startedAt)).all()
+      return rows.map((row) => toRecord(row))
     },
     close() {
       if (closed) return
       closed = true
-      opened.close()
+      sqlite.close()
     },
   }
 
