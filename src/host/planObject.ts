@@ -96,7 +96,8 @@ export class PlanObject extends DurableObject {
     const sql = this.sql()
     const actorOf = (request: Request) => request.headers.get('x-living-plan-actor')
     const authorizationOf = (request: Request) => request.headers.get('authorization')
-    return new Elysia({ strictPath: true })
+    // Ahead-of-time compilation is off because Workers reject `new Function`.
+    return new Elysia({ strictPath: true, aot: false })
       .onError(({ error }) => {
         if (error instanceof StaleRevision) return Response.json({ revision: error.revision }, { status: 409 })
         if (error instanceof PlanRoomError) return text(error.status, error.message)

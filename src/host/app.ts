@@ -33,9 +33,9 @@ function authFor(env: HostEnv, request: Request) {
   return createAuth(env, requestOrigin(request, env.PUBLIC_URL))
 }
 
-/** HTTP routes for the hosted app. WebSocket upgrades stay outside this app so the Durable Object socket is not copied into a new Response. */
+/** HTTP routes for the hosted app. WebSocket upgrades stay outside this app so the Durable Object socket is not copied into a new Response. Ahead-of-time compilation is off because Workers reject `new Function`. */
 export function createHostApp(env: HostEnv) {
-  return new Elysia({ strictPath: true })
+  return new Elysia({ strictPath: true, aot: false })
     .onError(({ code, error }) => {
       if (code === 'NOT_FOUND') return text(404, 'Not found')
       return text(500, error instanceof Error ? error.message : 'Unknown error')
