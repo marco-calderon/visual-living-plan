@@ -3,8 +3,6 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { faviconBase64 } from './faviconBase64.ts'
 
-const faviconPath = join(dirname(fileURLToPath(import.meta.url)), 'favicon.png')
-
 function embeddedFavicon(): Uint8Array {
   const binary = atob(faviconBase64.replace(/\s/g, ''))
   const bytes = new Uint8Array(binary.length)
@@ -12,15 +10,21 @@ function embeddedFavicon(): Uint8Array {
   return bytes
 }
 
+function faviconFromFile(): Uint8Array | undefined {
+  const moduleUrl = import.meta.url
+  if (!moduleUrl) return undefined
+  try {
+    const faviconPath = join(dirname(fileURLToPath(moduleUrl)), 'favicon.png')
+    return new Uint8Array(readFileSync(faviconPath))
+  } catch {
+    return undefined
+  }
+}
+
 export const faviconLink = '<link rel="icon" type="image/png" href="/favicon.png" />'
 
 export function faviconResponse(): Response {
-  let body: Uint8Array
-  try {
-    body = new Uint8Array(readFileSync(faviconPath))
-  } catch {
-    body = embeddedFavicon()
-  }
+  const body = faviconFromFile() ?? embeddedFavicon()
   return new Response(body, {
     headers: {
       'content-type': 'image/png',
