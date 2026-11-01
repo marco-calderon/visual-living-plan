@@ -1,6 +1,6 @@
 {
   "name": "visual-living-plan",
-  "version": "1.7.11",
+  "version": "1.7.12",
   "description": "Agent-authored living plans with human interaction, live updates, and a swappable execution canvas",
   "type": "module",
   "bin": {
@@ -42,7 +42,7 @@
     "dashboard": "bun src/cli.ts dashboard",
     "tui": "bun src/cli.ts tui",
     "skills:install": "node scripts/install-skills.mjs",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.worker.json",
     "test": "bun test ./test",
     "test:e2e": "bun run build:client && playwright test"
   },
@@ -57,7 +57,6 @@
     "better-auth": "^1.4.0",
     "@semos-labs/glyph": "^0.2.10",
     "@tanstack/react-table": "^9.3.1",
-    "drizzle-orm": "^0.45.4",
     "elkjs": "^0.12.0",
     "elysia": "^1.4.30",
     "lucide-react": "^1.58.0",

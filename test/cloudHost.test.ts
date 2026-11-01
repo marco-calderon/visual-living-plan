@@ -6,12 +6,12 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { Database } from 'bun:sqlite'
 import { fileURLToPath } from 'node:url'
-import { allows, planCapReached } from '../cloud/src/access.ts'
-import { sessionFromToken } from '../cloud/src/auth.ts'
-import { mergeAccountSettings, readAccountSettings, saveAccountSettings } from '../cloud/src/accountSettings.ts'
-import { hostedDashboard } from '../cloud/src/hostedDashboard.ts'
-import { LATEST_PLAN_VERSION_SQL, PLAN_VERSION_LIMIT, ensurePlanVersions, publishPlanVersion, readPlanVersion } from '../cloud/src/planVersions.ts'
-import type { HostedPlanRow } from '../cloud/src/hostedDashboard.ts'
+import { allows, planCapReached } from '../src/host/access.ts'
+import { sessionFromToken } from '../src/host/auth.ts'
+import { mergeAccountSettings, readAccountSettings, saveAccountSettings } from '../src/host/accountSettings.ts'
+import { hostedDashboard } from '../src/host/hostedDashboard.ts'
+import { LATEST_PLAN_VERSION_SQL, PLAN_VERSION_LIMIT, ensurePlanVersions, publishPlanVersion, readPlanVersion } from '../src/host/planVersions.ts'
+import type { HostedPlanRow } from '../src/host/hostedDashboard.ts'
 import {
   ackEvents,
   initPlan,
@@ -20,9 +20,9 @@ import {
   StaleRevision,
   submitInteraction,
   type PlanSql,
-} from '../cloud/src/planRoom.ts'
+} from '../src/host/planRoom.ts'
 import { hostedViewUrl, planUrlOnCalledOrigin, registerCloudPlan, uploadSource } from '../src/cloudClient.ts'
-import { requestOrigin } from '../cloud/src/requestOrigin.ts'
+import { requestOrigin } from '../src/host/requestOrigin.ts'
 import { renderDashboardPage } from '../src/dashboardPage.ts'
 import { cloudIdInSource, sourceWithCloudId } from '../src/cloudFrontmatter.ts'
 import { readRegistryLock, type RegistryLock } from '../src/registryLock.ts'
@@ -32,7 +32,7 @@ const entry = fileURLToPath(new URL('../src/cli.ts', import.meta.url))
 
 test('a published cloud plan keeps the latest 10 documents', async () => {
   const db = new Database(':memory:')
-  db.exec(await readFile(new URL('../cloud/migrations/0003_plan_versions.sql', import.meta.url), 'utf8'))
+  db.exec(await readFile(new URL('../src/migrations/0003_plan_versions.sql', import.meta.url), 'utf8'))
   const store = d1Of(db)
   for (let n = 1; n <= PLAN_VERSION_LIMIT + 1; n += 1) {
     const saved = await publishPlanVersion(store, {

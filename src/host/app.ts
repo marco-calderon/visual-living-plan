@@ -1,16 +1,24 @@
+import { Elysia } from 'elysia'
 import { PLAN_CAPS, allows, normalizeTier, planCapReached } from './access'
 import { defaultAccountSettings, readAccountSettings, saveAccountSettings } from './accountSettings'
 import { createAuth, sessionFromToken, type AuthSession } from './auth'
 import { hostedDashboard, type HostedPlanRow } from './hostedDashboard'
 import { LATEST_PLAN_VERSION_SQL, ensurePlanVersions, listPlanVersions, publishPlanVersion, readPlanVersion } from './planVersions'
-import { PlanObject } from './planObject'
 import { requestOrigin } from './requestOrigin'
-export { PlanObject }
 
-export interface Env {
+type PlanStub = {
+  fetch(request: Request): Promise<Response>
+}
+
+type PlanNamespace = {
+  idFromName(name: string): unknown
+  get(id: unknown): PlanStub
+}
+
+export interface HostEnv {
   DB: D1Database
-  PLANS: DurableObjectNamespace<PlanObject>
-  ASSETS: Fetcher
+  PLANS: PlanNamespace
+  ASSETS?: { fetch(request: Request): Promise<Response> }
   BETTER_AUTH_SECRET: string
   PUBLIC_URL?: string
   GOOGLE_CLIENT_ID?: string
@@ -21,39 +29,60 @@ export interface Env {
 
 const ID = /^[A-Za-z0-9_-]{8,80}$/
 
-export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    if (!env.BETTER_AUTH_SECRET) return text(500, 'BETTER_AUTH_SECRET is not set.')
-    const url = new URL(request.url)
-    const origin = requestOrigin(request, env.PUBLIC_URL)
-    const auth = createAuth(env, origin)
+function authFor(env: HostEnv, request: Request) {
+  return createAuth(env, requestOrigin(request, env.PUBLIC_URL))
+}
 
-    if (url.pathname.startsWith('/api/auth/')) {
-      if (url.pathname === '/api/auth/cli-session') return cliSession(request, env, auth, url)
-      return auth.handler(request)
-    }
-    if (url.pathname === '/api/account' && request.method === 'GET') return accountRead(request, env, auth)
-    if (url.pathname === '/api/account/settings' && request.method === 'PUT') return accountSave(request, env, auth)
-    if (url.pathname === '/api/account/dashboard' && request.method === 'GET') return accountDashboardApi(request, env, auth, origin)
-    if (url.pathname === '/api/plans' && request.method === 'POST') return registerPlan(request, env, auth, origin)
-    if (url.pathname === '/api/health') return Response.json({ ok: true })
+/** HTTP routes for the hosted app. WebSocket upgrades stay outside this app so the Durable Object socket is not copied into a new Response. */
+export function createHostApp(env: HostEnv) {
+  return new Elysia({ strictPath: true })
+    .onError(({ code, error }) => {
+      if (code === 'NOT_FOUND') return text(404, 'Not found')
+      return text(500, error instanceof Error ? error.message : 'Unknown error')
+    })
+    .get('/api/health', () => ({ ok: true }))
+    .get('/api/account', ({ request }) => accountRead(request, env, authFor(env, request)))
+    .put('/api/account/settings', ({ request }) => accountSave(request, env, authFor(env, request)))
+    .get('/api/account/dashboard', ({ request }) =>
+      accountDashboardApi(request, env, authFor(env, request), requestOrigin(request, env.PUBLIC_URL)),
+    )
+    .post('/api/plans', ({ request }) => registerPlan(request, env, authFor(env, request), requestOrigin(request, env.PUBLIC_URL)))
+    .get('/api/auth/cli-session', ({ request }) => cliSession(request, env, authFor(env, request), new URL(request.url)))
+    .all('/api/auth/*', ({ request }) => authFor(env, request).handler(request))
+    .get('/plans/:planId/share', ({ request, params }) =>
+      sharePlan(request, env, authFor(env, request), requestOrigin(request, env.PUBLIC_URL), params.planId),
+    )
+    .get('/plans/:planId/view/:sig', ({ request, params }) => acceptViewer(request, env, params.planId, params.sig))
+    .get('/plans/:planId/document', ({ request, params }) =>
+      planDocument(request, env, authFor(env, request), params.planId, 'latest'),
+    )
+    .get('/plans/:planId/versions/:seq', ({ request, params }) =>
+      planDocument(request, env, authFor(env, request), params.planId, Number(params.seq)),
+    )
+    .all('/plans/:planId', ({ request, params }) => forwardPlan(request, env, authFor(env, request), params.planId, '/'))
+    .all('/plans/:planId/*', ({ request, params }) => {
+      const rest = params['*'] ? `/${params['*']}` : '/'
+      return forwardPlan(request, env, authFor(env, request), params.planId, rest)
+    })
+}
 
-    const planMatch = /^\/plans\/([A-Za-z0-9_-]{8,80})(\/.*)?$/.exec(url.pathname)
-    if (!planMatch) return text(404, 'Not found')
-    const planId = planMatch[1] ?? ''
-    const rest = planMatch[2] ?? '/'
-    if (rest === '/share' && request.method === 'GET') return sharePlan(request, env, auth, origin, planId)
-    if (rest.startsWith('/view/')) return acceptViewer(request, env, planId, rest.slice('/view/'.length))
-    if (rest === '/document' && request.method === 'GET') return planDocument(request, env, auth, planId, 'latest')
-    const versionMatch = /^\/versions\/(\d+)$/.exec(rest)
-    if (versionMatch && request.method === 'GET') return planDocument(request, env, auth, planId, Number(versionMatch[1]))
-    return forwardPlan(request, env, auth, planId, rest)
-  },
+export async function handleHostRequest(request: Request, env: HostEnv): Promise<Response> {
+  if (!env.BETTER_AUTH_SECRET) return text(500, 'BETTER_AUTH_SECRET is not set.')
+  if (request.headers.get('upgrade')?.toLowerCase() === 'websocket') return upgradePlan(request, env)
+  return createHostApp(env).fetch(request)
+}
+
+async function upgradePlan(request: Request, env: HostEnv): Promise<Response> {
+  const url = new URL(request.url)
+  const planMatch = /^\/plans\/([A-Za-z0-9_-]{8,80})(\/.*)?$/.exec(url.pathname)
+  if (!planMatch?.[1]) return text(404, 'Not found')
+  const rest = planMatch[2] && planMatch[2] !== '/' ? planMatch[2] : '/'
+  return forwardPlan(request, env, authFor(env, request), planMatch[1], rest)
 }
 
 async function accountDashboardApi(
   request: Request,
-  env: Env,
+  env: HostEnv,
   auth: ReturnType<typeof createAuth>,
   origin: string,
 ): Promise<Response> {
@@ -70,7 +99,7 @@ async function accountDashboardApi(
   return Response.json(hostedDashboard(await backfillHostedPlans(env, session.user.id, rows), selected, origin))
 }
 
-async function listHostedPlanRows(env: Env, userId: string): Promise<HostedPlanRow[]> {
+async function listHostedPlanRows(env: HostEnv, userId: string): Promise<HostedPlanRow[]> {
   try {
     await ensurePlanVersions(env.DB)
     const listed = await env.DB.prepare(LATEST_PLAN_VERSION_SQL).bind(userId).all<HostedPlanRow>()
@@ -91,7 +120,7 @@ async function listHostedPlanRows(env: Env, userId: string): Promise<HostedPlanR
 }
 
 /** A plan saved before the versions table existed still has its document on the Durable Object. */
-async function backfillHostedPlans(env: Env, userId: string, rows: HostedPlanRow[]): Promise<HostedPlanRow[]> {
+async function backfillHostedPlans(env: HostEnv, userId: string, rows: HostedPlanRow[]): Promise<HostedPlanRow[]> {
   const filled: HostedPlanRow[] = []
   for (const row of rows) {
     if (row.version_seq != null) {
@@ -109,7 +138,7 @@ async function backfillHostedPlans(env: Env, userId: string, rows: HostedPlanRow
 }
 
 async function rememberPlanVersion(
-  env: Env,
+  env: HostEnv,
   userId: string,
   planId: string,
   title: string | null,
@@ -122,7 +151,7 @@ async function rememberPlanVersion(
   return publishPlanVersion(env.DB, { planId, userId, title: storedTitle, source: view.source })
 }
 
-async function accountRead(request: Request, env: Env, auth: ReturnType<typeof createAuth>): Promise<Response> {
+async function accountRead(request: Request, env: HostEnv, auth: ReturnType<typeof createAuth>): Promise<Response> {
   const session = await readSession(auth, request, env.DB)
   if (!session) return text(401, 'Sign in required')
   const settings = await readAccountSettings(env.DB, session.user.id)
@@ -138,7 +167,7 @@ async function accountRead(request: Request, env: Env, auth: ReturnType<typeof c
   })
 }
 
-async function accountSave(request: Request, env: Env, auth: ReturnType<typeof createAuth>): Promise<Response> {
+async function accountSave(request: Request, env: HostEnv, auth: ReturnType<typeof createAuth>): Promise<Response> {
   const session = await readSession(auth, request, env.DB)
   if (!session) return text(401, 'Sign in required')
   const patch = await request.json().catch(() => null)
@@ -146,7 +175,7 @@ async function accountSave(request: Request, env: Env, auth: ReturnType<typeof c
   return Response.json({ settings })
 }
 
-async function listOpenPlans(env: Env, userId: string): Promise<Array<{ id: string; title: string; mode: string }>> {
+async function listOpenPlans(env: HostEnv, userId: string): Promise<Array<{ id: string; title: string; mode: string }>> {
   const listed = await env.DB.prepare(
     'SELECT id, title, mode FROM plans WHERE user_id = ? AND closed_at IS NULL ORDER BY created_at DESC',
   )
@@ -155,7 +184,7 @@ async function listOpenPlans(env: Env, userId: string): Promise<Array<{ id: stri
   return listed.results ?? []
 }
 
-async function cliSession(request: Request, env: Env, auth: ReturnType<typeof createAuth>, url: URL): Promise<Response> {
+async function cliSession(request: Request, env: HostEnv, auth: ReturnType<typeof createAuth>, url: URL): Promise<Response> {
   const redirect = url.searchParams.get('redirect') ?? ''
   if (!isLoopback(redirect)) return text(400, 'The sign-in callback must be on this machine.')
   const session = await readSession(auth, request, env.DB)
@@ -165,7 +194,7 @@ async function cliSession(request: Request, env: Env, auth: ReturnType<typeof cr
   return Response.redirect(target.toString(), 302)
 }
 
-async function registerPlan(request: Request, env: Env, auth: ReturnType<typeof createAuth>, origin: string): Promise<Response> {
+async function registerPlan(request: Request, env: HostEnv, auth: ReturnType<typeof createAuth>, origin: string): Promise<Response> {
   const session = await readSession(auth, request, env.DB)
   if (!session || !allows('account', 'register')) return text(401, 'Sign in required')
   const body = (await request.json().catch(() => null)) as { cloudId?: string; mode?: string; title?: string; markdown?: string } | null
@@ -225,7 +254,7 @@ async function registerPlan(request: Request, env: Env, auth: ReturnType<typeof 
 
 async function sharePlan(
   request: Request,
-  env: Env,
+  env: HostEnv,
   auth: ReturnType<typeof createAuth>,
   origin: string,
   planId: string,
@@ -237,7 +266,7 @@ async function sharePlan(
   return Response.json({ url: `${origin}/plans/${planId}/view/${sig}` })
 }
 
-async function acceptViewer(request: Request, env: Env, planId: string, sig: string): Promise<Response> {
+async function acceptViewer(request: Request, env: HostEnv, planId: string, sig: string): Promise<Response> {
   const expected = await signPlan(env.BETTER_AUTH_SECRET, planId)
   if (!timingSafe(expected, sig)) return text(401, 'This review link is not valid.')
   const headers = new Headers({ location: `/plans/${planId}/` })
@@ -247,7 +276,7 @@ async function acceptViewer(request: Request, env: Env, planId: string, sig: str
 
 async function forwardPlan(
   request: Request,
-  env: Env,
+  env: HostEnv,
   auth: ReturnType<typeof createAuth>,
   planId: string,
   rest: string,
@@ -289,13 +318,13 @@ export type HostedPlanPage = {
 }
 
 /** Plan document and session for the signed-in account or a viewer cookie. */
-export async function hostedPlanPage(request: Request, env: Env, planId: string): Promise<Response> {
+export async function hostedPlanPage(request: Request, env: HostEnv, planId: string): Promise<Response> {
   const loaded = await loadHostedPlan(request, env, planId)
   if (loaded instanceof Response) return loaded
   return Response.json(loaded)
 }
 
-async function loadHostedPlan(request: Request, env: Env, planId: string): Promise<HostedPlanPage | Response> {
+async function loadHostedPlan(request: Request, env: HostEnv, planId: string): Promise<HostedPlanPage | Response> {
   const origin = requestOrigin(request, env.PUBLIC_URL)
   const auth = createAuth(env, origin)
   const session = await readSession(auth, request, env.DB)
@@ -336,7 +365,7 @@ async function loadHostedPlan(request: Request, env: Env, planId: string): Promi
   }
 }
 
-async function publishSource(request: Request, env: Env, planId: string, actor: string): Promise<Response> {
+async function publishSource(request: Request, env: HostEnv, planId: string, actor: string): Promise<Response> {
   const raw = await request.text()
   let body: { markdown?: unknown; title?: unknown }
   try {
@@ -364,7 +393,7 @@ async function publishSource(request: Request, env: Env, planId: string, actor: 
   return forwarded
 }
 
-async function planOwner(request: Request, env: Env, auth: ReturnType<typeof createAuth>, planId: string): Promise<boolean> {
+async function planOwner(request: Request, env: HostEnv, auth: ReturnType<typeof createAuth>, planId: string): Promise<boolean> {
   const session = await readSession(auth, request, env.DB)
   if (!session) return false
   const row = await env.DB.prepare('SELECT user_id FROM plans WHERE id = ?').bind(planId).first<{ user_id: string }>()
@@ -373,7 +402,7 @@ async function planOwner(request: Request, env: Env, auth: ReturnType<typeof cre
 
 async function planDocument(
   request: Request,
-  env: Env,
+  env: HostEnv,
   auth: ReturnType<typeof createAuth>,
   planId: string,
   seq: number | 'latest',
@@ -398,7 +427,7 @@ async function planDocument(
   })
 }
 
-async function versionsForPlan(env: Env, planId: string): Promise<Array<{ seq: number; title: string; createdAt: number }>> {
+async function versionsForPlan(env: HostEnv, planId: string): Promise<Array<{ seq: number; title: string; createdAt: number }>> {
   let versions = await listPlanVersions(env.DB, planId).catch(() => [])
   if (versions.length > 0) return versions
   const row = await env.DB.prepare('SELECT user_id, title FROM plans WHERE id = ?')
@@ -410,7 +439,7 @@ async function versionsForPlan(env: Env, planId: string): Promise<Array<{ seq: n
 }
 
 /** Version list for the Start history page. */
-export async function hostedPlanVersions(request: Request, env: Env, planId: string): Promise<Response> {
+export async function hostedPlanVersions(request: Request, env: HostEnv, planId: string): Promise<Response> {
   const origin = requestOrigin(request, env.PUBLIC_URL)
   const auth = createAuth(env, origin)
   const session = await readSession(auth, request, env.DB)
@@ -424,12 +453,12 @@ export async function hostedPlanVersions(request: Request, env: Env, planId: str
   })
 }
 
-async function planFetch(env: Env, planId: string, request: Request, path: string, actor: string): Promise<Response> {
+async function planFetch(env: HostEnv, planId: string, request: Request, path: string, actor: string): Promise<Response> {
   const headers = new Headers(request.headers)
   headers.delete('x-living-plan-actor')
   if (actor) headers.set('x-living-plan-actor', actor)
   const stub = env.PLANS.get(env.PLANS.idFromName(planId))
-  const target = new URL(path, 'https://plan.internal')
+  const target = new URL(path, 'https://plan.internal').toString()
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD'
   return stub.fetch(new Request(target, hasBody ? { method: request.method, headers, body: request.body } : { method: request.method, headers }))
 }
@@ -442,7 +471,7 @@ async function readSession(auth: ReturnType<typeof createAuth>, request: Request
   return sessionFromToken(db, match[1])
 }
 
-async function viewerFor(request: Request, env: Env, planId: string): Promise<boolean> {
+async function viewerFor(request: Request, env: HostEnv, planId: string): Promise<boolean> {
   const cookie = readCookie(request.headers.get('cookie'), 'living_plan_view')
   if (!cookie) return false
   const split = cookie.indexOf('.')

@@ -1,7 +1,5 @@
-import { Database } from 'bun:sqlite'
-import { mkdirSync } from 'node:fs'
-import { dirname } from 'node:path'
 import { nanoid } from 'nanoid'
+import { openSqliteStore, type SqliteStore } from './store/sqlite'
 
 export type PlanSnapshotReason = 'create' | 'edit' | 'restore'
 
@@ -64,13 +62,10 @@ export type PlanSnapshotStore = {
   close: () => void
 }
 
-/** Append-only plan source history, same tables as the MDX sample. One document per file. */
+/** Append-only plan source history in the shared SQLite store. One document id per plan. */
 export function openPlanSnapshots(path: string, documentId: string): PlanSnapshotStore {
-  if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
-  const db = new Database(path)
+  const db = openSqliteStore(path)
   db.exec('PRAGMA foreign_keys = ON')
-  db.exec('PRAGMA busy_timeout = 5000')
-  if (path !== ':memory:') db.exec('PRAGMA journal_mode = WAL')
   db.exec(`
     CREATE TABLE IF NOT EXISTS plan_documents (
       id TEXT PRIMARY KEY,
@@ -109,15 +104,7 @@ export function openPlanSnapshots(path: string, documentId: string): PlanSnapsho
       const snapshot = readSnapshot(db, snapshotId)
       if (!snapshot || snapshot.documentId !== documentId) throw new Error('Snapshot not found')
       if (snapshot.id === current.headSnapshotId) return { changed: false, plan: current, snapshot: null }
-      return insertChange(
-        db,
-        documentId,
-        'restore',
-        snapshot.title,
-        snapshot.body,
-        current.headSnapshotId,
-        snapshot.id,
-      )
+      return insertChange(db, documentId, 'restore', snapshot.title, snapshot.body, current.headSnapshotId, snapshot.id)
     },
     list: () => listSnapshots(db, documentId),
     head: () => readDocument(db, documentId),
@@ -128,7 +115,7 @@ export function openPlanSnapshots(path: string, documentId: string): PlanSnapsho
 }
 
 function insertChange(
-  db: Database,
+  db: SqliteStore,
   documentId: string,
   reason: PlanSnapshotReason,
   title: string,
@@ -139,22 +126,23 @@ function insertChange(
   const now = Date.now()
   const snapshotId = `snap_${nanoid(12)}`
   const seqRow = db
-    .query<{ seq: number }, [string]>('SELECT COALESCE(MAX(seq), 0) AS seq FROM plan_snapshots WHERE document_id = ?')
-    .get(documentId)
+    .prepare('SELECT COALESCE(MAX(seq), 0) AS seq FROM plan_snapshots WHERE document_id = ?')
+    .bind(documentId)
+    .get<{ seq: number }>()
   const seq = (seqRow?.seq ?? 0) + 1
-  const write = db.transaction(() => {
+  db.transaction(() => {
     if (reason === 'create') {
-      db.query(
+      db.prepare(
         `INSERT INTO plan_documents (id, title, body, created_at, updated_at, head_snapshot_id)
          VALUES (?, ?, ?, ?, ?, NULL)`,
       ).run(documentId, title, body, now, now)
     }
-    db.query(
+    db.prepare(
       `INSERT INTO plan_snapshots (
         id, document_id, seq, parent_id, title, body, reason, restored_from_id, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(snapshotId, documentId, seq, parentId, title, body, reason, restoredFromId, now)
-    db.query(`UPDATE plan_documents SET title = ?, body = ?, updated_at = ?, head_snapshot_id = ? WHERE id = ?`).run(
+    db.prepare(`UPDATE plan_documents SET title = ?, body = ?, updated_at = ?, head_snapshot_id = ? WHERE id = ?`).run(
       title,
       body,
       now,
@@ -162,15 +150,14 @@ function insertChange(
       documentId,
     )
   })
-  write()
   const plan = readDocument(db, documentId)
   const snapshot = readSnapshot(db, snapshotId)
   if (!plan || !snapshot) throw new Error('Snapshot write did not persist')
   return { changed: true, plan, snapshot }
 }
 
-function readDocument(db: Database, id: string): PlanSnapshotDocument | null {
-  const row = db.query<DocumentRow, [string]>('SELECT * FROM plan_documents WHERE id = ?').get(id)
+function readDocument(db: SqliteStore, id: string): PlanSnapshotDocument | null {
+  const row = db.prepare('SELECT * FROM plan_documents WHERE id = ?').bind(id).get<DocumentRow>()
   if (!row || !row.head_snapshot_id) return null
   return {
     id: row.id,
@@ -182,15 +169,16 @@ function readDocument(db: Database, id: string): PlanSnapshotDocument | null {
   }
 }
 
-function readSnapshot(db: Database, id: string): PlanSnapshotRecord | null {
-  const row = db.query<SnapshotRow, [string]>('SELECT * FROM plan_snapshots WHERE id = ?').get(id)
+function readSnapshot(db: SqliteStore, id: string): PlanSnapshotRecord | null {
+  const row = db.prepare('SELECT * FROM plan_snapshots WHERE id = ?').bind(id).get<SnapshotRow>()
   return row ? mapSnapshot(row) : null
 }
 
-function listSnapshots(db: Database, documentId: string): PlanSnapshotRecord[] {
+function listSnapshots(db: SqliteStore, documentId: string): PlanSnapshotRecord[] {
   const rows = db
-    .query<SnapshotRow, [string]>('SELECT * FROM plan_snapshots WHERE document_id = ? ORDER BY seq ASC')
-    .all(documentId)
+    .prepare('SELECT * FROM plan_snapshots WHERE document_id = ? ORDER BY seq ASC')
+    .bind(documentId)
+    .all<SnapshotRow>()
   return rows.map(mapSnapshot)
 }
 

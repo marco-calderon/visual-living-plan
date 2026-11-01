@@ -1,25 +1,23 @@
-import { mkdir } from 'node:fs/promises'
-import { dirname } from 'node:path'
-import { and, desc, eq, lte, sql } from 'drizzle-orm'
-import { openPlanDatabase } from './db/client'
-import { planInsertFromProcess, planRowToProcess, planRunInsert, planRunRowToRecord } from './db/rows'
+import { selectRow, selectRows, upsert } from './store/codec'
+import { migratePlanDatabase } from './store/migrate'
 import {
-  planEvents,
-  planRuns,
-  planSessions,
-  plans,
-  type PlanEventInsert,
-  type PlanEventRow,
+  EVENT_FIELDS,
+  PLAN_FIELDS,
+  PLAN_KEEP,
+  RUN_FIELDS,
+  SESSION_FIELDS,
   type PlanInsert,
-  type PlanRunInsert,
-  type PlanSessionInsert,
-  type PlanSessionRow,
-} from './db/schema'
+  type PlanRow,
+  type PlanRunRow,
+} from './store/schema'
+import { openSqliteStore, type SqliteStore } from './store/sqlite'
+import { planInsertFromProcess, planRowToProcess, planRunInsert, planRunRowToRecord } from './store/rows'
 import { STALE_MS } from './registryConstants'
 import { isPidAlive } from './pid'
-import type { PlanMode, PlanRecord, ProcessPulse, ProcessRecord } from './processRecord'
-import type { PlanSubmissionEvent } from './types'
+import type { PlanMode, ProcessPulse, ProcessRecord } from './processRecord'
 import { finishedPlan, isPlanMode } from './processRecord'
+import type { PlanRecord } from './processRecord'
+import type { PlanSubmissionEvent } from './types'
 
 export type StoredPlanSession = {
   id: string
@@ -61,79 +59,19 @@ export type RegistryStore = {
   close(): void
 }
 
-function sessionValues(session: StoredPlanSession): PlanSessionInsert {
-  return {
-    id: session.id,
-    token: session.token,
-    planPath: session.planPath,
-    mode: session.mode,
-    iteration: session.iteration,
-    cwd: session.cwd,
-    configPath: session.configPath,
-    responsesJson: session.responsesJson,
-    executionJson: session.executionJson,
-    reviewJson: session.reviewJson,
-    commentsJson: session.commentsJson,
-    startedAt: session.startedAt,
-    lastSeenAt: session.lastSeenAt,
-  }
+type SessionRow = StoredPlanSession
+
+type EventRow = {
+  id: string
+  planId: string
+  seq: number
+  event: string
+  dataJson: string
+  createdAt: number
+  deliveredAt: number | null
 }
 
-function toSession(row: PlanSessionRow): StoredPlanSession {
-  return {
-    id: row.id,
-    token: row.token,
-    planPath: row.planPath,
-    mode: isPlanMode(row.mode) ? row.mode : 'watch',
-    iteration: row.iteration,
-    cwd: row.cwd,
-    configPath: row.configPath,
-    responsesJson: row.responsesJson,
-    executionJson: row.executionJson,
-    reviewJson: row.reviewJson,
-    commentsJson: row.commentsJson,
-    startedAt: row.startedAt,
-    lastSeenAt: row.lastSeenAt,
-  }
-}
-
-/** Fields replaced on conflict. `startedAt` and progress counters stay as first written. */
-function livePlanUpdate(values: PlanInsert): Omit<
-  PlanInsert,
-  | 'id'
-  | 'startedAt'
-  | 'status'
-  | 'storedPath'
-  | 'endedAt'
-  | 'durationMs'
-  | 'phaseTotal'
-  | 'phaseDone'
-  | 'interactionTotal'
-  | 'interactionDone'
-  | 'completionRatio'
-  | 'completionState'
-  | 'outcome'
-> {
-  const {
-    id: _id,
-    startedAt: _startedAt,
-    status: _status,
-    storedPath: _storedPath,
-    endedAt: _endedAt,
-    durationMs: _durationMs,
-    phaseTotal: _phaseTotal,
-    phaseDone: _phaseDone,
-    interactionTotal: _interactionTotal,
-    interactionDone: _interactionDone,
-    completionRatio: _completionRatio,
-    completionState: _completionState,
-    outcome: _outcome,
-    ...set
-  } = values
-  return set
-}
-
-function eventValues(planId: string, event: PlanSubmissionEvent): PlanEventInsert {
+function eventValues(planId: string, event: PlanSubmissionEvent): EventRow {
   return {
     id: event.id,
     planId,
@@ -145,7 +83,7 @@ function eventValues(planId: string, event: PlanSubmissionEvent): PlanEventInser
   }
 }
 
-function toEvent(row: PlanEventRow): PlanSubmissionEvent | null {
+function toEvent(row: EventRow): PlanSubmissionEvent | null {
   if (row.event !== 'interaction' && row.event !== 'review' && row.event !== 'comment') return null
   let data: unknown = null
   try {
@@ -163,48 +101,42 @@ function toEvent(row: PlanEventRow): PlanSubmissionEvent | null {
   }
 }
 
-function sessionUpdate(values: PlanSessionInsert): Omit<PlanSessionInsert, 'id' | 'startedAt'> {
-  const { id: _id, startedAt: _startedAt, ...set } = values
-  return set
-}
-
-function runUpdate(values: PlanRunInsert): Omit<PlanRunInsert, 'runId'> {
-  const { runId: _runId, ...set } = values
-  return set
+function toSession(row: SessionRow): StoredPlanSession {
+  return {
+    id: row.id,
+    token: row.token,
+    planPath: row.planPath,
+    mode: isPlanMode(row.mode) ? row.mode : 'watch',
+    iteration: row.iteration,
+    cwd: row.cwd,
+    configPath: row.configPath,
+    responsesJson: row.responsesJson,
+    executionJson: row.executionJson,
+    reviewJson: row.reviewJson,
+    commentsJson: row.commentsJson,
+    startedAt: row.startedAt,
+    lastSeenAt: row.lastSeenAt,
+  }
 }
 
 export async function openRegistryStore(dbPath: string): Promise<RegistryStore> {
-  if (dbPath !== ':memory:') {
-    await mkdir(dirname(dbPath), { recursive: true })
-  }
-  const opened = openPlanDatabase(dbPath)
-  const db = opened.db
+  const db = openSqliteStore(dbPath)
+  migratePlanDatabase(db)
   let closed = false
 
   const store: RegistryStore = {
     upsert(record) {
-      const values = planInsertFromProcess(record)
-      db.insert(plans)
-        .values(values)
-        .onConflictDoUpdate({
-          target: plans.id,
-          set: livePlanUpdate(values),
-        })
-        .run()
+      writePlan(db, planInsertFromProcess(record))
     },
     get(id) {
-      const row = db.select().from(plans).where(eq(plans.id, id)).get()
+      const row = selectRow<PlanRow>(db, PLAN_FIELDS, 'SELECT * FROM plans WHERE id = ?', [id])
       if (!row || row.status !== 'running') return undefined
       return planRowToProcess(row)
     },
     list() {
-      return db
-        .select()
-        .from(plans)
-        .where(eq(plans.status, 'running'))
-        .orderBy(desc(plans.startedAt))
-        .all()
-        .map((row) => planRowToProcess(row))
+      return selectRows<PlanRow>(db, PLAN_FIELDS, `SELECT * FROM plans WHERE status = 'running' ORDER BY started_at DESC`).map((row) =>
+        planRowToProcess(row),
+      )
     },
     heartbeat(id, pulse) {
       const current = store.get(id)
@@ -224,7 +156,7 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
       return store.get(id)
     },
     remove(id) {
-      const removed = db.delete(plans).where(eq(plans.id, id)).returning({ id: plans.id }).all()
+      const removed = db.prepare('DELETE FROM plans WHERE id = ? RETURNING id').bind(id).all<{ id: string }>()
       return removed.length > 0
     },
     prune(options) {
@@ -243,101 +175,66 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
       return removed
     },
     saveSession(session, events) {
-      const values = sessionValues(session)
-      db.transaction((tx) => {
-        tx.insert(planSessions)
-          .values(values)
-          .onConflictDoUpdate({
-            target: planSessions.id,
-            set: sessionUpdate(values),
-          })
-          .run()
+      db.transaction(() => {
+        upsert(db, 'plan_sessions', SESSION_FIELDS, session, 'id', ['started_at'])
         if (!events) return
         for (const event of events) {
-          const row = eventValues(session.id, event)
-          tx.insert(planEvents)
-            .values(row)
-            .onConflictDoUpdate({
-              target: planEvents.id,
-              set: {
-                planId: row.planId,
-                seq: row.seq,
-                event: row.event,
-                dataJson: row.dataJson,
-                createdAt: row.createdAt,
-                deliveredAt: row.deliveredAt,
-              },
-            })
-            .run()
+          upsert(db, 'plan_events', EVENT_FIELDS, eventValues(session.id, event), 'id', [])
         }
       })
     },
     listEvents(planId) {
-      return db
-        .select()
-        .from(planEvents)
-        .where(eq(planEvents.planId, planId))
-        .orderBy(planEvents.seq)
-        .all()
-        .flatMap((row) => {
+      return selectRows<EventRow>(db, EVENT_FIELDS, 'SELECT * FROM plan_events WHERE plan_id = ? ORDER BY seq', [planId]).flatMap(
+        (row) => {
           const event = toEvent(row)
           return event ? [event] : []
-        })
+        },
+      )
     },
     getSession(id) {
-      const row = db.select().from(planSessions).where(eq(planSessions.id, id)).get()
+      const row = selectRow<SessionRow>(db, SESSION_FIELDS, 'SELECT * FROM plan_sessions WHERE id = ?', [id])
       return row ? toSession(row) : undefined
     },
     getSessionByPath(planPath) {
-      const row = db.select().from(planSessions).where(eq(planSessions.planPath, planPath)).get()
+      const row = selectRow<SessionRow>(db, SESSION_FIELDS, 'SELECT * FROM plan_sessions WHERE plan_path = ?', [planPath])
       return row ? toSession(row) : undefined
     },
     listSessions() {
-      return db
-        .select()
-        .from(planSessions)
-        .orderBy(desc(planSessions.startedAt))
-        .all()
-        .map((row) => toSession(row))
+      return selectRows<SessionRow>(db, SESSION_FIELDS, 'SELECT * FROM plan_sessions ORDER BY started_at DESC').map((row) =>
+        toSession(row),
+      )
     },
     deleteSession(id) {
-      const removed = db.transaction((tx) => {
-        tx.delete(planEvents).where(eq(planEvents.planId, id)).run()
-        return tx.delete(planSessions).where(eq(planSessions.id, id)).returning({ id: planSessions.id }).all()
+      const removed = db.transaction(() => {
+        db.prepare('DELETE FROM plan_events WHERE plan_id = ?').bind(id).run()
+        return db.prepare('DELETE FROM plan_sessions WHERE id = ? RETURNING id').bind(id).all<{ id: string }>()
       })
       return removed.length > 0
     },
     saveRun(record) {
-      const values = planRunInsert(record)
-      db.insert(planRuns)
-        .values(values)
-        .onConflictDoUpdate({
-          target: planRuns.runId,
-          set: runUpdate(values),
-        })
-        .run()
+      upsert(db, 'plan_runs', RUN_FIELDS, planRunInsert(record), 'run_id', [])
     },
     listRuns(window) {
-      const overlap = window
-        ? and(
-            lte(planRuns.startedAt, window.to),
-            sql`COALESCE(${planRuns.endedAt}, ${planRuns.heartbeatAt}, ${planRuns.startedAt}) >= ${window.from}`,
+      const rows = window
+        ? selectRows<PlanRunRow>(
+            db,
+            RUN_FIELDS,
+            'SELECT * FROM plan_runs WHERE started_at <= ? AND COALESCE(ended_at, heartbeat_at, started_at) >= ? ORDER BY started_at DESC',
+            [window.to, window.from],
           )
-        : undefined
-      return db
-        .select()
-        .from(planRuns)
-        .where(overlap)
-        .orderBy(desc(planRuns.startedAt))
-        .all()
-        .map((row) => planRunRowToRecord(row))
+        : selectRows<PlanRunRow>(db, RUN_FIELDS, 'SELECT * FROM plan_runs ORDER BY started_at DESC')
+      return rows.map((row) => planRunRowToRecord(row))
     },
     close() {
       if (closed) return
       closed = true
-      opened.close()
+      db.close()
     },
   }
 
   return store
+}
+
+function writePlan(db: SqliteStore, values: PlanInsert): void {
+  upsert(db, 'plans', PLAN_FIELDS, values, 'id', PLAN_KEEP)
 }

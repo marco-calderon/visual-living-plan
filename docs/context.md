@@ -27,7 +27,7 @@ The service and the private server are Elysia apps. Route handlers live in `src/
 | `src/planRoutes.ts` | Elysia routes for that plan |
 | `src/planHost.ts` | Session map, registration, idle close, git cache |
 | `src/registryService.ts` | The long-lived Elysia app and its routes |
-| `src/registryStore.ts` | SQLite through Drizzle. `plans`, `plan_sessions`, `plan_events`, and `plan_runs`. Finished runs are filtered by `started_at` and `ended_at` |
+| `src/registryStore.ts` | Local SQLite store. `plans`, `plan_sessions`, `plan_events`, and `plan_runs` in `registry.sqlite`. Finished runs are filtered by `started_at` and `ended_at` |
 | `src/server.ts` | Private one-plan Elysia app |
 | `src/configHome.ts` | XDG `~/.config/living-plan` home, env overrides, legacy migration |
 | `src/serviceLog.ts`, `src/clientLog.ts` | Development log of errors, warnings, and logs. Files under `~/.config/living-plan/logs`. Read with `live-plan logs` |
@@ -36,7 +36,8 @@ The service and the private server are Elysia apps. Route handlers live in `src/
 | `src/parse.ts`, `src/planMdx/`, `client/planMdx.tsx`, `client/entries/`, `client/mdx/` | Plan file in. The page compiles it as MDX and renders the React plan |
 | `src/workflow.ts`, `src/execution.ts` | Expected workflow and the live execution overlay |
 | `client/` | React Flow canvas. It reads `window.__LIVE_PLAN_BASE__` and calls `/api/...` under that prefix |
-| `cloud/` | Worker session for `--cloud`: Better Auth, D1, and one SQLite Durable Object per plan |
+| `src/host/` | Worker session for `--cloud`: Better Auth, D1 plan rows, Elysia routes, and one SQLite Durable Object per plan |
+| `src/migrations/` | D1 migrations for accounts, settings, and published plan versions |
 | `src/routes/`, `src/entry.ts` | The web application on that Worker. TanStack Start. The browser still compiles the plan MDX |
 | `test/` | Node test runner via `npm test` |
 | `examples/rate-limit.plan.md` | The fixture plan used by service tests |

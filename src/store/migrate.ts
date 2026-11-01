@@ -1,7 +1,7 @@
-import { sql } from 'drizzle-orm'
-import type { PlanDatabase } from './client'
-import { parseStoredRun, planRunInsert } from './rows'
-import { planRuns } from './schema'
+import { insert } from './codec'
+import { planRunInsert, parseStoredRun } from './rows'
+import { RUN_FIELDS } from './schema'
+import type { SqliteStore } from './sqlite'
 
 type ColumnSpec = {
   name: string
@@ -53,11 +53,8 @@ const SHARED_PLAN_COLUMNS: ColumnSpec[] = [
   { name: 'git_summary', create: "git_summary TEXT NOT NULL DEFAULT ''", alter: "git_summary TEXT NOT NULL DEFAULT ''" },
 ]
 
-/** SQL columns for `plans`. Names match `src/db/schema.ts`. */
-export const PLAN_COLUMNS: ColumnSpec[] = [
-  { name: 'id', create: 'id TEXT PRIMARY KEY', alter: null },
-  ...SHARED_PLAN_COLUMNS,
-]
+/** SQL columns for `plans`. Names match `PLAN_FIELDS`. */
+export const PLAN_COLUMNS: ColumnSpec[] = [{ name: 'id', create: 'id TEXT PRIMARY KEY', alter: null }, ...SHARED_PLAN_COLUMNS]
 
 /** SQL columns for typed `plan_runs`. `id` is the plan id; `run_id` is the primary key. */
 export const PLAN_RUN_COLUMNS: ColumnSpec[] = [
@@ -88,7 +85,7 @@ export const PLAN_EVENT_COLUMNS: ColumnSpec[] = [
   { name: 'plan_id', create: 'plan_id TEXT NOT NULL', alter: "plan_id TEXT NOT NULL DEFAULT ''" },
   { name: 'seq', create: 'seq INTEGER NOT NULL', alter: 'seq INTEGER NOT NULL DEFAULT 0' },
   { name: 'event', create: 'event TEXT NOT NULL', alter: "event TEXT NOT NULL DEFAULT ''" },
-  { name: 'data_json', create: 'data_json TEXT NOT NULL', alter: "data_json TEXT NOT NULL DEFAULT '{}'" },
+  { name: 'data_json', create: "data_json TEXT NOT NULL", alter: "data_json TEXT NOT NULL DEFAULT '{}'" },
   { name: 'created_at', create: 'created_at INTEGER NOT NULL', alter: 'created_at INTEGER NOT NULL DEFAULT 0' },
   { name: 'delivered_at', create: 'delivered_at INTEGER', alter: 'delivered_at INTEGER' },
 ]
@@ -113,20 +110,14 @@ const COPY_FROM_PROCESSES = `
   WHERE NOT EXISTS (SELECT 1 FROM plans WHERE plans.id = processes.id)
 `
 
-/** Schema changes stay as SQL text. Drizzle runs them; table rows are read and written with the query builder. */
-function runSql(db: PlanDatabase, statement: string): void {
-  db.run(sql.raw(statement))
-}
-
-function tableExists(db: PlanDatabase, name: string): boolean {
-  const rows = db.all<{ name: string }>(
-    sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ${name}`,
+function tableExists(db: SqliteStore, name: string): boolean {
+  return Boolean(
+    db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`).bind(name).get<{ name: string }>(),
   )
-  return rows.length > 0
 }
 
-function columnNames(db: PlanDatabase, table: KnownTable): Set<string> {
-  const rows = db.all<{ name: string }>(sql.raw(`PRAGMA table_info(${table})`))
+function columnNames(db: SqliteStore, table: KnownTable): Set<string> {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>()
   return new Set(rows.map((row) => row.name))
 }
 
@@ -134,23 +125,23 @@ function createTableSql(table: KnownTable, columns: ColumnSpec[]): string {
   return `CREATE TABLE ${table} (\n${columns.map((column) => column.create).join(',\n')}\n)`
 }
 
-function ensureTable(db: PlanDatabase, table: KnownTable, columns: ColumnSpec[]): void {
+function ensureTable(db: SqliteStore, table: KnownTable, columns: ColumnSpec[]): void {
   if (!tableExists(db, table)) {
-    runSql(db, createTableSql(table, columns))
+    db.exec(createTableSql(table, columns))
     return
   }
   const present = columnNames(db, table)
   for (const column of columns) {
     if (!column.alter || present.has(column.name)) continue
-    runSql(db, `ALTER TABLE ${table} ADD COLUMN ${column.alter}`)
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column.alter}`)
   }
 }
 
-function foldProcesses(db: PlanDatabase): void {
+function foldProcesses(db: SqliteStore): void {
   if (!tableExists(db, 'processes')) return
-  db.transaction((tx) => {
-    runSql(tx, COPY_FROM_PROCESSES)
-    runSql(tx, 'DROP TABLE processes')
+  db.transaction(() => {
+    db.prepare(COPY_FROM_PROCESSES).run()
+    db.prepare('DROP TABLE processes').run()
   })
 }
 
@@ -160,37 +151,37 @@ type LegacyRunRow = {
   payload: string
 }
 
-function migrateLegacyRuns(db: PlanDatabase): void {
+function migrateLegacyRuns(db: SqliteStore): void {
   if (!tableExists(db, 'plan_runs')) return
   const present = columnNames(db, 'plan_runs')
   if (!present.has('payload') || present.has('title')) return
-  const legacy = db.all<LegacyRunRow>(sql`SELECT run_id, started_at, payload FROM plan_runs`)
+  const legacy = db.prepare('SELECT run_id, started_at, payload FROM plan_runs').all<LegacyRunRow>()
   const parsed = legacy.flatMap((row) => {
     const record = parseStoredRun(row.payload)
     return record ? [{ runId: row.run_id, record }] : []
   })
-  db.transaction((tx) => {
-    runSql(tx, 'ALTER TABLE plan_runs RENAME TO plan_runs_legacy')
-    runSql(tx, createTableSql('plan_runs', PLAN_RUN_COLUMNS))
+  db.transaction(() => {
+    db.exec('ALTER TABLE plan_runs RENAME TO plan_runs_legacy')
+    db.exec(createTableSql('plan_runs', PLAN_RUN_COLUMNS))
     for (const row of parsed) {
-      tx.insert(planRuns).values(planRunInsert(row.record, row.runId)).run()
+      insert(db, 'plan_runs', RUN_FIELDS, planRunInsert(row.record, row.runId))
     }
-    runSql(tx, 'DROP TABLE plan_runs_legacy')
+    db.exec('DROP TABLE plan_runs_legacy')
   })
 }
 
 /** Create `plans`, add any columns added after an older build, and fold in legacy tables. */
-export function migratePlanDatabase(db: PlanDatabase): void {
+export function migratePlanDatabase(db: SqliteStore): void {
   ensureTable(db, 'plans', PLAN_COLUMNS)
-  runSql(db, 'CREATE INDEX IF NOT EXISTS plans_started_at_idx ON plans (started_at)')
-  runSql(db, 'CREATE INDEX IF NOT EXISTS plans_status_idx ON plans (status)')
+  db.exec('CREATE INDEX IF NOT EXISTS plans_started_at_idx ON plans (started_at)')
+  db.exec('CREATE INDEX IF NOT EXISTS plans_status_idx ON plans (status)')
   foldProcesses(db)
   ensureTable(db, 'plan_sessions', PLAN_SESSION_COLUMNS)
   ensureTable(db, 'plan_events', PLAN_EVENT_COLUMNS)
-  runSql(db, 'CREATE INDEX IF NOT EXISTS plan_events_plan_id_idx ON plan_events (plan_id)')
-  runSql(db, 'CREATE INDEX IF NOT EXISTS plan_events_plan_seq_idx ON plan_events (plan_id, seq)')
+  db.exec('CREATE INDEX IF NOT EXISTS plan_events_plan_id_idx ON plan_events (plan_id)')
+  db.exec('CREATE INDEX IF NOT EXISTS plan_events_plan_seq_idx ON plan_events (plan_id, seq)')
   migrateLegacyRuns(db)
   ensureTable(db, 'plan_runs', PLAN_RUN_COLUMNS)
-  runSql(db, 'CREATE INDEX IF NOT EXISTS plan_runs_started_at_idx ON plan_runs (started_at)')
-  runSql(db, 'CREATE INDEX IF NOT EXISTS plan_runs_ended_at_idx ON plan_runs (ended_at)')
+  db.exec('CREATE INDEX IF NOT EXISTS plan_runs_started_at_idx ON plan_runs (started_at)')
+  db.exec('CREATE INDEX IF NOT EXISTS plan_runs_ended_at_idx ON plan_runs (ended_at)')
 }

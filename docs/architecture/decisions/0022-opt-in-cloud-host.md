@@ -1,6 +1,6 @@
 # ADR 0022: An opt-in cloud host
 
-- Status: Accepted. The page host in the consequences is updated by [0023](0023-tanstack-start-page.md).
+- Status: Accepted. The page host in the consequences is updated by [0023](0023-tanstack-start-page.md). Where that code lives is updated by [0024](0024-one-plan-store.md).
 - Date: 2026-10-30
 
 ## Context

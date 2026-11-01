@@ -13,7 +13,7 @@
       "binding": "DB",
       "database_name": "living-plan",
       "database_id": "00000000-0000-0000-0000-000000000001",
-      "migrations_dir": "cloud/migrations"
+      "migrations_dir": "src/migrations"
     }
   ],
   "durable_objects": {

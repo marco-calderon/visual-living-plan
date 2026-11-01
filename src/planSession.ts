@@ -12,6 +12,7 @@ import { recordLog } from './serviceLog'
 import { loadLatestChangelog } from './changelog'
 import { defaultRegistryHome } from './configHome'
 import { openPlanSnapshots, type PlanSnapshotStore } from './planSnapshots'
+import { registryDatabasePath } from './registryLock'
 import { renderPlanPage } from './render'
 import {
   configPathBesidePlan,
@@ -208,7 +209,7 @@ export async function openPlanSession(options: {
   let closed = false
   let mdxStore: PlanSnapshotStore | null = null
   try {
-    const opened = openPlanSnapshots(join(defaultRegistryHome(), 'mdx', `${id}.sqlite`), id)
+    const opened = openPlanSnapshots(registryDatabasePath(defaultRegistryHome()), id)
     try {
       opened.sync(plan.title, source)
       mdxStore = opened

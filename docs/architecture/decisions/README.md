@@ -27,5 +27,6 @@ Decisions are numbered in the order they were made. Superseded decisions stay he
 | [0021](0021-mdx-plan-entries.md) | 2026-10-28 | Accepted | Agents author MDX components; Markdoc tags and YAML entry fences are not parsed |
 | [0022](0022-opt-in-cloud-host.md) | 2026-10-30 | Accepted; page host updated by 0023 | `--cloud` hosts a plan on a signed-in Worker; the local service stays the default |
 | [0023](0023-tanstack-start-page.md) | 2026-10-30 | Accepted | TanStack Start is the web application; the browser still compiles MDX |
+| [0024](0024-one-plan-store.md) | 2026-11-01 | Accepted | One SQLite store for local plans and D1 for hosted plans; Elysia on every HTTP route |
 
-Add the next decision as `0023-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.
+Add the next decision as `0025-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.

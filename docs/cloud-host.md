@@ -6,23 +6,23 @@ You need a Cloudflare account on the Workers Paid plan. Durable Objects are not 
 
 ## Deploy
 
-From the repository root, build the plan page, then deploy from `cloud/`:
+From the repository root:
 
 ```bash
 npm run build:client
-cd cloud
-npm install
 npx wrangler login
 npx wrangler d1 create living-plan
 ```
 
-Copy the printed `database_id` into `database_id` in `cloud/wrangler.jsonc`. Then:
+Copy the printed `database_id` into `database_id` in `wrangler.jsonc`. Then:
 
 ```bash
 npx wrangler d1 migrations apply living-plan --remote
 npx wrangler secret put BETTER_AUTH_SECRET
 npx wrangler deploy
 ```
+
+Migrations are `src/migrations`. `npm run host:migrate` applies them to the local workerd database.
 
 `BETTER_AUTH_SECRET` is a long random string. Wrangler prints the `*.workers.dev` URL. Use that origin, with no path, as `PUBLIC_URL` when you attach a custom domain:
 
@@ -45,9 +45,9 @@ Run `npx wrangler d1 migrations apply living-plan --remote` again after you upda
 
 ## Signed-in pages
 
-TanStack Start serves `/dashboard`, `/account`, `/settings`, `/login`, `/plans/:id`, and `/plans/:id/history`. `/` and `/review` redirect to `/dashboard`. The Worker does not return those documents. It serves the account and plan APIs those pages call, including `GET /api/account`, `GET /api/account/dashboard`, and `PUT /api/account/settings`, plus plan writes, the viewer link, and the Durable Object. A loopback plan keeps writing the theme file beside that plan and does not ask for an account.
+TanStack Start serves `/dashboard`, `/account`, `/settings`, `/login`, `/plans/:id`, and `/plans/:id/history`. `/` and `/review` redirect to `/dashboard`. The Worker does not return those documents. Elysia in `src/host/app.ts` serves the account and plan APIs those pages call, including `GET /api/account`, `GET /api/account/dashboard`, and `PUT /api/account/settings`, plus plan writes, the viewer link, and the Durable Object. A loopback plan keeps writing the theme file beside that plan and does not ask for an account.
 
-When an agent publishes a plan (`serve --cloud`, `review --cloud`, or a later file upload), the host stores that markdown. It keeps the latest 10 versions and drops the oldest on the 11th. The dashboard links to the current plan file and the version list. Loopback publish is unchanged.
+When an agent publishes a plan (`serve --cloud`, `review --cloud`, or a later file upload), the host stores that markdown in D1. It keeps the latest 10 versions and drops the oldest on the 11th. The dashboard links to the current plan file and the version list. Loopback publish writes the same machine's `registry.sqlite`.
 
 ## Use it
 

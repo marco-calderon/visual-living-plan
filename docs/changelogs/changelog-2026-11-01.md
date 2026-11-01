@@ -54,3 +54,23 @@ The architecture page now explains both hosts and how a plan page is rendered, f
 ### Notes
 
 Docs only. No registry restart needed. The hosted pages are the TanStack routes. The Worker does not keep a second HTML copy.
+
+## 1.7.12
+
+**PR:** (opened with this change)
+
+**Bump:** patch
+
+### Summary
+
+Plan saving and the hosted APIs live in one place. Local plans use SQLite. Hosted plans stay in D1. HTTP routes are Elysia apps.
+
+### Improvements
+
+- The hosted account, plan catalog, published versions, and Durable Object moved from `cloud/` into `src/host`. D1 migrations are `src/migrations`. Deploy from the repository root.
+- The local service stores sessions, submissions, finished runs, and document history in `registry.sqlite` through one SQLite store.
+- Hosted HTTP routes and the Durable Object's plan routes are Elysia. TanStack pages, Better Auth, and the live Durable Object socket stay.
+
+### Notes
+
+No registry restart needed beyond the usual version check. Redeploy the Worker and apply D1 migrations (`npm run host:migrate` locally, `wrangler d1 migrations apply` in production). A local plan's older `mdx/*.sqlite` history is not copied; the next open saves the current document in `registry.sqlite`.
