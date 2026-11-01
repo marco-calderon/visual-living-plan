@@ -74,7 +74,7 @@ Page routes, from `src/pageRoutes.ts` and `src/routes/`:
 | `/local` | `local.tsx` | The sample plan in `PlanShell`, with no account and no Durable Object |
 | `/sample` | `sample.tsx` | Signs in, opens the sample on the account, redirects to `/plans/:id` |
 
-`/plans/:id/` is rewritten to `/plans/:id` before Start sees it. Other page paths lose a trailing slash the same way. `/client/...` on this Worker is 404. The Start bundle imports the plan client itself. The string pages in `cloud/src/page.ts` remain for a Worker started from `cloud/` alone. `src/entry.ts` does not use them.
+`/plans/:id/` is rewritten to `/plans/:id` before Start sees it. Other page paths lose a trailing slash the same way. `/client/...` on this Worker is 404. The Start bundle imports the plan client itself. The Worker does not return a second HTML copy of these pages. `cloud/` keeps the session, the plan APIs, the Durable Object, and auth.
 
 Server functions in `src/planFns.ts` call back into `cloud/src/worker.ts` with the incoming cookie. The route never talks to D1 or the Durable Object on its own.
 

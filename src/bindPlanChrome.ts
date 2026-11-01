@@ -117,11 +117,57 @@ function focusPlanRef(ref: string): void {
   updateTocCurrent()
 }
 
+function followTocLink(tocLink: Element): void {
+  setTocOpen(false)
+  const kind = tocLink.getAttribute('data-toc')
+  const ref = tocLink.getAttribute('data-toc-target') || ''
+  if (kind === 'workflow') activateTab('workflow')
+  else if (kind === 'workflow-step' && ref) focusWorkflowStep(ref)
+  else if (ref) focusPlanRef(ref)
+}
+
+type TocPress = { id: number; x: number; y: number; link: Element }
+
+function tocLinkFrom(event: Event): Element | null {
+  const target = event.target
+  if (!(target instanceof Element)) return null
+  return target.closest('#plan-toc a[data-toc]')
+}
+
 /** Plan and Workflow tabs, and the contents list, using the same controls as the local page. */
 export function bindPlanChrome(): void {
   const win = window as PlanWindow
   if (win.__planChromeBound) return
   win.__planChromeBound = true
+  // iPad taps the label or icon. WebKit treats :hover as the gesture and skips click.
+  let tocPress: TocPress | null = null
+  let tocPointerLink: Element | null = null
+  let tocPointerAt = 0
+  document.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse' || !event.isPrimary || event.button !== 0) {
+      tocPress = null
+      return
+    }
+    const link = tocLinkFrom(event)
+    tocPress = link ? { id: event.pointerId, x: event.clientX, y: event.clientY, link } : null
+  })
+  document.addEventListener('pointerup', (event) => {
+    const press = tocPress
+    tocPress = null
+    if (!press || event.pointerId !== press.id) return
+    const dx = event.clientX - press.x
+    const dy = event.clientY - press.y
+    if (dx * dx + dy * dy > 100) return
+    const link = tocLinkFrom(event)
+    if (!link || link !== press.link) return
+    event.preventDefault()
+    tocPointerLink = link
+    tocPointerAt = Date.now()
+    followTocLink(link)
+  })
+  document.addEventListener('pointercancel', (event) => {
+    if (tocPress && event.pointerId === tocPress.id) tocPress = null
+  })
   document.addEventListener('click', (event) => {
     const target = event.target
     if (!(target instanceof Element)) return
@@ -144,12 +190,11 @@ export function bindPlanChrome(): void {
     const tocLink = target.closest('#plan-toc a[data-toc]')
     if (!tocLink) return
     event.preventDefault()
-    setTocOpen(false)
-    const kind = tocLink.getAttribute('data-toc')
-    const ref = tocLink.getAttribute('data-toc-target') || ''
-    if (kind === 'workflow') activateTab('workflow')
-    else if (kind === 'workflow-step' && ref) focusWorkflowStep(ref)
-    else if (ref) focusPlanRef(ref)
+    if (tocPointerLink === tocLink && Date.now() - tocPointerAt < 700) {
+      tocPointerLink = null
+      return
+    }
+    followTocLink(tocLink)
   })
   window.addEventListener('scroll', () => updateTocCurrent(), { passive: true })
   window.addEventListener('resize', () => setTocOpen(document.getElementById('plan-toc')?.dataset.open === 'true'))
