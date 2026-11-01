@@ -57,7 +57,7 @@ Docs only. No registry restart needed. The hosted pages are the TanStack routes.
 
 ## 1.7.12
 
-**PR:** (opened with this change)
+**PR:** [#113](https://github.com/marco-calderon/visual-living-plan/pull/113)
 
 **Bump:** patch
 
