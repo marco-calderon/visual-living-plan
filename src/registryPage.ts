@@ -27,6 +27,8 @@ export function renderRegistryPage(): string {
       --primary: #09090b;
       --on-primary: #ffffff;
       --shadow: none;
+      --font-body: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
       --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
     }
@@ -47,16 +49,16 @@ export function renderRegistryPage(): string {
         --shadow: none;
       }
     }
+    html, body { overflow-x: clip; }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       color: var(--charcoal);
-      font-family: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-family: var(--font-body);
       background: var(--canvas);
     }
     main { width: min(760px, calc(100% - 2rem)); margin: 0 auto; padding: 2.5rem 0 4rem; }
-    .kicker { margin: 0 0 0.4rem; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.75rem; font-weight: 600; color: var(--accent); }
-    h1 { font-family: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif; font-weight: 600; font-size: 32px; line-height: 1.25; letter-spacing: -0.5px; margin: 0 0 0.7rem; color: var(--ink); }
+    h1 { font-family: var(--font-body); font-weight: 600; font-size: 32px; line-height: 1.25; letter-spacing: -0.5px; margin: 0 0 0.7rem; color: var(--ink); overflow-wrap: break-word; min-width: 0; }
     .lede { margin: 0 0 1rem; color: var(--muted); max-width: 38rem; line-height: 1.5; }
     .lede a { color: var(--accent); font-weight: 600; }
     .status { color: var(--muted); margin: 0 0 0.8rem; }
@@ -69,11 +71,11 @@ export function renderRegistryPage(): string {
       box-shadow: var(--shadow);
     }
     .title-row { display: flex; justify-content: space-between; gap: 0.6rem; align-items: baseline; }
-    h2 { margin: 0; font-size: 20px; font-weight: 600; line-height: 1.4; font-family: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif; color: var(--ink); }
+    h2 { margin: 0; font-size: 20px; font-weight: 600; line-height: 1.4; font-family: var(--font-body); color: var(--ink); }
     h2 a { color: inherit; text-decoration: none; }
     h2 a:hover { color: var(--accent); }
-    .mode { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; }
-    .path { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.78rem; word-break: break-all; margin: 0.45rem 0; }
+    .mode { color: var(--muted); font-size: 13px; font-weight: 600; }
+    .path { font-family: var(--font-mono); font-size: 0.78rem; word-break: break-all; margin: 0.45rem 0; }
     .meta { color: var(--muted); font-size: 0.88rem; line-height: 1.45; margin: 0.15rem 0; }
     .actions { display: flex; gap: 0.45rem; margin-top: 0.75rem; }
     a.btn {
@@ -97,10 +99,9 @@ export function renderRegistryPage(): string {
         from { opacity: 0; transform: translateY(8px); }
         to { opacity: 1; transform: none; }
       }
-      .kicker, h1, .lede, .actions, .status, #list {
+      h1, .lede, .actions, .status, #list {
         animation: enter 200ms var(--ease-out) both;
       }
-      .kicker { animation-delay: 0ms; }
       h1 { animation-delay: 40ms; }
       .lede { animation-delay: 80ms; }
       .actions { animation-delay: 120ms; }
@@ -112,7 +113,6 @@ export function renderRegistryPage(): string {
 </head>
 <body>
   <main>
-    <p class="kicker">Living Plan</p>
     <h1>Running plans</h1>
     <p class="lede">Plans started from the CLI. Each one is linked to a directory and that directory's git status. Open an entry to work in its site. Finished runs stay on the <a href="/dashboard">dashboard</a>.</p>
     <p class="actions"><a class="btn" href="/dashboard">Dashboard</a></p>

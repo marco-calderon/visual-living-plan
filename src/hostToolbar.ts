@@ -41,9 +41,9 @@ export const hostToolbarCss = `
   z-index: 8;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-sm);
   min-height: 3.75rem;
-  padding: 8px 16px;
+  padding: var(--space-xs) var(--space-md);
   background: var(--surface);
   border-bottom: 1px solid var(--hairline);
 }
@@ -85,7 +85,7 @@ export const hostToolbarCss = `
   flex: 1 1 auto;
   align-items: center;
   justify-content: flex-end;
-  gap: 12px;
+  gap: var(--space-sm);
   flex-wrap: wrap;
   margin-left: auto;
 }
@@ -93,13 +93,13 @@ export const hostToolbarCss = `
 .titlebar-user {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-xs);
   border: 1px solid var(--ink);
   border-radius: 9999px;
   background: transparent;
   color: var(--ink);
   font: inherit;
-  padding: 8px 12px;
+  padding: var(--space-xs) var(--space-sm);
   font-size: 14px;
   font-weight: 600;
   line-height: 1.4;
@@ -111,12 +111,12 @@ export const hostToolbarCss = `
 .plan-menu-popup {
   box-sizing: border-box;
   min-width: 11rem;
-  padding: 4px;
+  padding: var(--space-xxs);
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--canvas);
   color: var(--ink);
-  box-shadow: rgba(0, 0, 0, 0.08) 0px 4px 6px;
+  box-shadow: var(--shadow-popover);
   transform-origin: var(--transform-origin);
   transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out);
 }
@@ -129,7 +129,7 @@ export const hostToolbarCss = `
   display: flex;
   align-items: center;
   width: 100%;
-  padding: 8px 12px;
+  padding: var(--space-xs) var(--space-sm);
   border: 0;
   border-radius: 8px;
   background: transparent;

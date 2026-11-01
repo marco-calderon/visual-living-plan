@@ -93,3 +93,23 @@ The line under the title bar stays the gray hairline in dark mode.
 ### Notes
 
 No registry restart needed.
+
+## 1.7.14
+
+**PR:** [#116](https://github.com/marco-calderon/visual-living-plan/pull/116)
+
+**Bump:** patch
+
+### Summary
+
+Dashboard, plan, settings, account, and login screens follow the same canvas, ink, hairline, and type, with sentence-case labels and the same spacing scale.
+
+### Improvements
+
+- Section labels and table heads are sentence case in DM Sans. Redundant kickers above a heading that already names the section are gone.
+- Colors, type, and the spacing scale use the existing design tokens, including the danger red. Inputs stay at an 8px radius and secondary buttons keep an ink outline.
+- Focus rings show immediately. Horizontal overflow clips. Plan-card and plans-panel motion stays visible when scripting is off, and still fades when it is on.
+
+### Notes
+
+No registry restart needed. The title bar keeps its class and the dark hairline.

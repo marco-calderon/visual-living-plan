@@ -20,7 +20,6 @@ function AccountPage() {
     <>
       <HostBar title="Account" label={label} />
       <main className="host-page">
-        <p className="kicker">Living Plan</p>
         <section className="card">
           <h1>Account</h1>
           <p>Signed in as {account.user.email}.</p>

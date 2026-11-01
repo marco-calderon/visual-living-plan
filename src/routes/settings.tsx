@@ -123,7 +123,6 @@ function SettingsPage() {
         <SettingsBackButton />
         <div className="settings-stack">
           <section className="block settings-section" data-account-section="" data-host-panel="cloud">
-            <div className="settings-kicker">Account</div>
             <h3>Signed in as {account.user.email}</h3>
             <p className="settings-copy">
               Name <strong>{label}</strong>
@@ -142,7 +141,6 @@ function SettingsPage() {
           </section>
 
           <section className="block settings-section">
-            <div className="settings-kicker">Appearance</div>
             <h3>Accent color</h3>
             <p className="settings-copy">
               Pick one of eight presets tuned for light and dark mode, or set a custom hex. Changes save on this host
@@ -195,7 +193,6 @@ function SettingsPage() {
           </section>
 
           <section className="block settings-section">
-            <div className="settings-kicker">Layout</div>
             <h3>Page width</h3>
             <p className="settings-copy">
               Choose the document column. Default, wide, and full apply to Plan, Workflow, and Settings. Full uses the
@@ -222,7 +219,6 @@ function SettingsPage() {
           </section>
 
           <section className="block settings-section">
-            <div className="settings-kicker">Code & diffs</div>
             <div className="code-wrap-setting">
               <div className="code-wrap-copy">
                 <h3 id="code-wrap-label">Wrap text in code</h3>

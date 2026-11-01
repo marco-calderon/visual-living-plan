@@ -86,9 +86,9 @@ export function dashboardStatusLine(
   const range = summary.from ? formatRange(summary) : ''
   const count = summary.plans
   let text = summary.label || 'Period'
-  if (range) text += ` · ${range}`
-  text += ` · ${count} ${count === 1 ? 'plan active' : 'plans active'}`
-  text += ` · ${summary.started} started in this period`
-  if (filter !== 'all') text += ` · showing ${shown}`
+  if (range) text += `. ${range}`
+  text += `. ${count} ${count === 1 ? 'plan active' : 'plans active'}`
+  text += `. ${summary.started} started in this period`
+  if (filter !== 'all') text += `. showing ${shown}`
   return text
 }
