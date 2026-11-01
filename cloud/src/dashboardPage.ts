@@ -239,10 +239,10 @@ export function renderSettingsPage(
   ${renderHostToolbar({
     title: 'Settings',
     logoHref: '/dashboard',
-    startHtml: historyBackButtonHtml(),
     endHtml: accountMenuHtml(account.name || account.email),
   })}
   <main class="settings-page">
+    ${historyBackButtonHtml()}
     <div class="settings-stack">
       ${accountSection(account)}
       ${appearance}

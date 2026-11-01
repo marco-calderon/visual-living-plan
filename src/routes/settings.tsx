@@ -1,4 +1,5 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import { ArrowLeft } from 'lucide-react'
 import { useLayoutEffect, useState, type CSSProperties } from 'react'
 import { ACCENT_CHOICES } from '../../cloud/src/accountSettings.ts'
 import { CodeWrapSwitch } from '../../client/chrome/CodeWrapSwitch.tsx'
@@ -70,6 +71,15 @@ function DiffSample({ sample, mode }: { sample: DiffsThemeSample; mode: 'Light' 
   )
 }
 
+function SettingsBackButton() {
+  return (
+    <button type="button" className="settings-back" data-history-back="" onClick={() => history.back()}>
+      <ArrowLeft size={16} aria-hidden="true" />
+      Back
+    </button>
+  )
+}
+
 function SettingsPage() {
   const account = Route.useLoaderData()
   const settings = account.settings
@@ -107,8 +117,9 @@ function SettingsPage() {
 
   return (
     <>
-      <HostBar title="Settings" label={label} themeUrl={THEME_URL} historyBack />
+      <HostBar title="Settings" label={label} themeUrl={THEME_URL} />
       <main className="settings-page">
+        <SettingsBackButton />
         <div className="settings-stack">
           <section className="block settings-section" data-account-section="" data-host-panel="cloud">
             <div className="settings-kicker">Account</div>

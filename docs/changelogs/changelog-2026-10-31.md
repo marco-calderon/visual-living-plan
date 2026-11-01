@@ -8,11 +8,11 @@
 
 ### Summary
 
-Settings has a back button in the title bar. It returns to the previous page.
+Settings has a back button above the page content. It returns to the previous page.
 
 ### Improvements
 
-- The settings page shows a back button with a left arrow at the top left of the title bar. It follows the previous history entry.
+- The settings page shows a back button with a left arrow above the settings content. It follows the previous history entry.
 
 ### Notes
 

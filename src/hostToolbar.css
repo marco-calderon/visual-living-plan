@@ -70,7 +70,6 @@
   cursor: pointer;
 }
 .titlebar-action { padding: 0 16px; }
-.titlebar-action svg { width: 16px; height: 16px; display: block; flex: none; }
 .titlebar-user { padding: 0 12px 0 14px; }
 .account-menu { display: flex; }
 .plan-menu-positioner { z-index: 30; }

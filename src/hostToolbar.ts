@@ -5,9 +5,9 @@ function escapeHtml(value: string): string {
 const HISTORY_BACK_ICON =
   '<svg class="lucide lucide-arrow-left" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>'
 
-/** Settings title-bar control that returns to the previous history entry. It does not target a route. */
+/** Settings control above the page content. It returns to the previous history entry and does not target a route. */
 export function historyBackButtonHtml(): string {
-  return `<button type="button" class="titlebar-action titlebar-back" data-history-back>${HISTORY_BACK_ICON}Back</button>`
+  return `<button type="button" class="settings-back" data-history-back>${HISTORY_BACK_ICON}Back</button>`
 }
 
 /** Binds the settings history-back control. */
@@ -16,9 +16,8 @@ export function historyBackScript(): string {
 }
 
 /** Title bar shared by the cloud dashboard and settings pages, and by the local dashboard. */
-export function renderHostToolbar(input: { title: string; logoHref: string; endHtml: string; startHtml?: string }): string {
+export function renderHostToolbar(input: { title: string; logoHref: string; endHtml: string }): string {
   return `<header class="titlebar">
-    ${input.startHtml ?? ''}
     <a class="logo-btn" href="${escapeHtml(input.logoHref)}" aria-label="Living Plan">
       <img class="titlebar-logo" src="/favicon.png" alt="" width="29" height="29" />
     </a>
@@ -108,7 +107,6 @@ export const hostToolbarCss = `
   cursor: pointer;
 }
 .titlebar-action { padding: 0 16px; }
-.titlebar-action svg { width: 16px; height: 16px; display: block; flex: none; }
 .titlebar-user { padding: 0 12px 0 14px; }
 .account-menu { display: flex; }
 .plan-menu-positioner { z-index: 30; }
