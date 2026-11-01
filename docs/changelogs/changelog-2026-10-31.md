@@ -1,5 +1,23 @@
 # Changelog — 2026-10-31
 
+## 1.7.3
+
+**PR:** (link once known)
+
+**Bump:** patch
+
+### Summary
+
+Code fences and diff hunks on a rendered plan are syntax highlighted.
+
+### Bugs fixed
+
+- A fenced code block and a diff hunk on the local plan page and the hosted plan page use Pierre token colors. Keywords, strings, and names are no longer one plain monospace color.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
+
 ## 1.7.2
 
 **PR:** [#103](https://github.com/marco-calderon/visual-living-plan/pull/103)
