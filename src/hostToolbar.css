@@ -57,15 +57,16 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-xs);
+  height: 36px;
   border: 1px solid var(--ink);
-  border-radius: 9999px;
+  border-radius: 999px;
   background: transparent;
   color: var(--ink);
   font: inherit;
-  padding: var(--space-xs) var(--space-sm);
+  padding: 0 var(--space-md);
   font-size: 14px;
-  font-weight: 600;
-  line-height: 1.4;
+  font-weight: 500;
+  line-height: 1;
   text-decoration: none;
   cursor: pointer;
 }

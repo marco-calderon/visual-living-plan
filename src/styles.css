@@ -10,30 +10,33 @@ body {
 :root {
   color-scheme: light;
   --canvas: #ffffff;
-  --ink: #18181b;
+  --ink: #181e25;
   --ink-strong: #000000;
-  --charcoal: #27272a;
+  --charcoal: #34393f;
   --slate: #3f3f46;
-  --steel: #71717a;
+  --steel: #666666;
   --muted: var(--steel);
-  --surface: #f4f4f5;
-  --hairline: #e4e4e7;
+  --surface: #f5f5f5;
+  --hairline: #e9e9e9;
   --line: var(--hairline);
-  --blue: #1d4ed8;
-  --accent: #1d4ed8;
-  --accent-soft: #dbeafe;
-  --primary: #09090b;
+  --blue: #2563eb;
+  --focus: #0094fc;
+  --accent: #0094fc;
+  --accent-soft: #e6f9ff;
+  --primary: #171717;
+  --primary-hover: #242424;
+  --primary-active: #000000;
   --on-primary: #ffffff;
-  --good: #166534;
-  --good-soft: #dcfce7;
-  --warn: #9a3412;
-  --warn-soft: #ffedd5;
-  --danger: #d45656;
-  --danger-soft: #fef2f2;
-  --danger-border: #d45656;
+  --good: #0a7a38;
+  --good-soft: #dcf5e2;
+  --warn: #9a4a0c;
+  --warn-soft: #fff9f0;
+  --danger: #c9322a;
+  --danger-soft: #fff4f0;
+  --danger-border: #ef4d3e;
   --shadow-popover: 0 4px 6px rgba(0, 0, 0, 0.08);
   --font-body: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --space-xxs: 4px;
   --space-xs: 8px;
   --space-sm: 12px;
@@ -52,25 +55,29 @@ body {
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --canvas: #0c0c0e;
-    --ink: #fafafa;
-    --charcoal: #e4e4e7;
-    --steel: #a1a1aa;
+    --canvas: #171717;
+    --ink: #ededed;
+    --charcoal: #ededed;
+    --steel: #949494;
     --muted: var(--steel);
-    --surface: #18181b;
-    --hairline: #27272a;
-    --blue: #93c5fd;
-    --accent: #93c5fd;
-    --accent-soft: rgba(147, 197, 253, 0.14);
-    --primary: #fafafa;
-    --on-primary: #0c0c0e;
-    --good: #86efac;
-    --good-soft: rgba(134, 239, 172, 0.12);
-    --warn: #fdba74;
-    --warn-soft: rgba(253, 186, 116, 0.12);
-    --danger: #fca5a5;
-    --danger-soft: rgba(252, 165, 165, 0.16);
-    --danger-border: #fca5a5;
+    --surface: #1c1c1c;
+    --hairline: #2c2c2c;
+    --line: var(--hairline);
+    --blue: #0094fc;
+    --focus: #0094fc;
+    --accent: #0094fc;
+    --accent-soft: #1a425b;
+    --primary: #ffffff;
+    --primary-hover: #f5f5f5;
+    --primary-active: #e9e9e9;
+    --on-primary: #171717;
+    --good: #6edb8f;
+    --good-soft: #19482a;
+    --warn: #ffd8a3;
+    --warn-soft: #5b4127;
+    --danger: #ffc9bd;
+    --danger-soft: #5a332e;
+    --danger-border: #5a332e;
   }
 }
 
@@ -121,7 +128,7 @@ a:focus-visible,
   display: grid;
   gap: 6px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .account-label {
@@ -138,10 +145,11 @@ a:focus-visible,
 }
 
 .account-card input {
-  height: 40px;
+  height: 36px;
+  min-width: 0;
   border: 1px solid var(--hairline);
   border-radius: 8px;
-  padding: 0 var(--space-sm);
+  padding: 0 var(--space-md);
   background: var(--canvas);
   color: var(--ink);
   font: inherit;
@@ -151,16 +159,70 @@ a:focus-visible,
   border-color: var(--danger);
 }
 
+.account-password {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  align-items: center;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--canvas);
+}
+
+.account-password:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+  border-color: var(--accent);
+}
+
+.account-password input {
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+}
+
+.account-password input:focus-visible {
+  outline: none;
+}
+
+.account-password input[aria-invalid='true'] {
+  border-color: transparent;
+}
+
+.account-reveal {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.account-reveal:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 @media (hover: hover) {
   .account-card input:hover {
+    background: var(--surface);
+  }
+
+  .account-password:hover {
     background: var(--surface);
   }
 }
 
 .account-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: var(--space-xs);
+}
+
+.account-actions .plan-btn {
+  width: 100%;
 }
 
 .pill {

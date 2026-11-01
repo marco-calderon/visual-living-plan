@@ -3,22 +3,30 @@
 .plan-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  justify-content: center;
+  gap: var(--space-xs, 8px);
+  height: 36px;
   border: 1px solid var(--hairline);
   background: var(--canvas);
   color: var(--ink);
-  border-radius: 9999px;
-  padding: 8px 12px;
+  border-radius: 999px;
+  padding: 0 var(--space-md, 16px);
   font: inherit;
   font-size: 14px;
-  font-weight: 600;
-  line-height: 1.4;
+  font-weight: 500;
+  line-height: 1;
   cursor: pointer;
   text-decoration: none;
   transition:
     transform 160ms var(--ease-out),
     background-color 150ms ease,
     border-color 150ms ease;
+}
+
+.plan-btn svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
 }
 
 .plan-btn:hover:not(:disabled) {
@@ -39,10 +47,21 @@
   outline-offset: 2px;
 }
 
-.plan-btn-primary,
-.plan-btn-primary:hover:not(:disabled) {
+.plan-btn-primary {
   background: var(--primary);
   border-color: var(--primary);
+  color: var(--on-primary);
+}
+
+.plan-btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+  color: var(--on-primary);
+}
+
+.plan-btn-primary:active:not(:disabled) {
+  background: var(--primary-active);
+  border-color: var(--primary-active);
   color: var(--on-primary);
 }
 

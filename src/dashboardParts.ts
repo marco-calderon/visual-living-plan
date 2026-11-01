@@ -4,21 +4,22 @@ import { hostToolbarCss } from './hostToolbar'
 export function dashboardDocumentCss(): string {
   return `    :root {
       color-scheme: light;
-      --ink: #18181b;
-      --charcoal: #27272a;
-      --muted: #71717a;
+      --ink: #181e25;
+      --charcoal: #34393f;
+      --muted: #666666;
       --canvas: #ffffff;
-      --surface: #f4f4f5;
+      --surface: #f5f5f5;
       --paper: var(--canvas);
       --panel: var(--surface);
-      --hairline: #e4e4e7;
+      --hairline: #e9e9e9;
       --line: var(--hairline);
-      --accent: #1d4ed8;
-      --primary: #09090b;
+      --accent: #0094fc;
+      --primary: #171717;
+      --primary-hover: #242424;
       --on-primary: #ffffff;
       --accent-soft: #dbeafe;
-      --good: #166534;
-      --good-soft: #dcfce7;
+      --good: #0a7a38;
+      --good-soft: #dcf5e2;
       --warn: #9a3412;
       --warn-soft: #ffedd5;
       --shadow: none;
@@ -39,20 +40,21 @@ export function dashboardDocumentCss(): string {
     @media (prefers-color-scheme: dark) {
       :root {
         color-scheme: dark;
-        --ink: #fafafa;
-        --charcoal: #e4e4e7;
-        --muted: #a1a1aa;
-        --canvas: #0c0c0e;
-        --surface: #18181b;
+        --ink: #ededed;
+        --charcoal: #ededed;
+        --muted: #949494;
+        --canvas: #171717;
+        --surface: #1c1c1c;
         --paper: var(--canvas);
         --panel: var(--surface);
-        --hairline: #27272a;
+        --hairline: #2c2c2c;
         --line: var(--hairline);
-        --accent: #93c5fd;
-        --primary: #fafafa;
-        --on-primary: #0c0c0e;
+        --accent: #0094fc;
+        --primary: #ffffff;
+        --primary-hover: #f5f5f5;
+        --on-primary: #171717;
         --accent-soft: rgba(147, 197, 253, 0.14);
-        --good: #86efac;
+        --good: #6edb8f;
         --good-soft: rgba(134, 239, 172, 0.12);
         --warn: #fdba74;
         --warn-soft: rgba(253, 186, 116, 0.12);

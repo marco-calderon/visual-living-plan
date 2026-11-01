@@ -15,7 +15,7 @@ const VARIANT_CLASS: Record<ButtonVariant, string | undefined> = {
   danger: 'plan-btn-danger',
 }
 
-/** Pill button. Compact padding is 8px 12px, from the plan button styles. */
+/** 36px pill. Primary is the near-black MiniMax control; quiet pills keep an ink border. */
 export function Button({ variant = 'tertiary', className, ...props }: ButtonProps) {
   const classes = ['plan-btn', VARIANT_CLASS[variant], className].filter(Boolean).join(' ')
   return <ButtonPrimitive data-slot="button" className={classes} {...props} />

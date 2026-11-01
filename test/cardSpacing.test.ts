@@ -63,7 +63,7 @@ test('documentation cards use the space scale in both color schemes', () => {
   assertSpaceScale(css)
   assert.doesNotMatch(darkBlock, /--space-/)
   assert.match(css, /--canvas:\s*#ffffff/)
-  assert.match(dark, /--canvas:\s*#0c0c0e/)
+  assert.match(dark, /--canvas:\s*#171717/)
   assert.match(css, /\.block\s*\{[^}]*border:\s*1px solid var\(--hairline\)/)
   assert.match(css, /\.block\s*\{[^}]*padding:\s*var\(--space-md\)/)
   assert.match(css, /\.block \.block:not\(\[data-pad\]\),\s*\.plan-panel \.plan-panel:not\(\[data-pad\]\)[\s\S]*?padding:\s*var\(--space-sm\)/)

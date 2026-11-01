@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { Eye, EyeOff, LogIn } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '../../client/ui/button.tsx'
 import { AuthScreen } from '../AuthScreen.tsx'
@@ -15,6 +16,7 @@ function LoginPage() {
   const search = Route.useSearch()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState(search.error ? 'Sign-in did not finish. Try again.' : '')
   const [pending, setPending] = useState(false)
   const [invalid, setInvalid] = useState(false)
@@ -63,18 +65,28 @@ function LoginPage() {
           <span className="account-label">
             Password <span className="account-note">Required</span>
           </span>
-          <input
-            type="password"
-            name="password"
-            required
-            aria-required="true"
-            minLength={8}
-            autoComplete="current-password"
-            value={password}
-            aria-invalid={invalid || undefined}
-            aria-describedby={describedBy}
-            onChange={(event) => setPassword(event.target.value)}
-          />
+          <span className="account-password">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              name="password"
+              required
+              aria-required="true"
+              minLength={8}
+              autoComplete="current-password"
+              value={password}
+              aria-invalid={invalid || undefined}
+              aria-describedby={describedBy}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+            <button
+              type="button"
+              className="account-reveal"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              onClick={() => setShowPassword((current) => !current)}
+            >
+              {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+            </button>
+          </span>
         </label>
         {error ? (
           <p id="auth-error" className="account-error" role="alert">
@@ -83,6 +95,7 @@ function LoginPage() {
         ) : null}
         <div className="account-actions">
           <Button type="submit" variant="primary" disabled={pending}>
+            <LogIn size={16} aria-hidden="true" />
             Sign in
           </Button>
           <SocialAuthButton
