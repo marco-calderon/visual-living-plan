@@ -6,7 +6,7 @@
   --ink: #18181b;
   --surface: #f4f4f5;
   --hairline: #e4e4e7;
-  --line: #e4e4e7;
+  --line: var(--hairline);
   --blue: #1d4ed8;
   --accent: #1d4ed8;
   --primary: #09090b;

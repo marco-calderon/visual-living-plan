@@ -45,7 +45,7 @@ export const hostToolbarCss = `
   min-height: 3.75rem;
   padding: 8px 16px;
   background: var(--surface);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--hairline);
 }
 .logo-btn {
   width: 36px;
