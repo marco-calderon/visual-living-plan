@@ -1,6 +1,6 @@
 # ADR 0024: One plan store, Elysia on every HTTP route
 
-- Status: Accepted
+- Status: Accepted. The plan tables are one shape as of [0025](0025-one-plan-schema.md)
 - Date: 2026-11-01
 - Updates: the `cloud/` location in [0022](0022-opt-in-cloud-host.md) and [0023](0023-tanstack-start-page.md)
 

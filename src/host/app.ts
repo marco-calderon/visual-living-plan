@@ -106,7 +106,7 @@ async function listHostedPlanRows(env: HostEnv, userId: string): Promise<HostedP
     return listed.results ?? []
   } catch {
     const listed = await env.DB.prepare(
-      'SELECT id, title, mode, closed_at, created_at FROM plans WHERE user_id = ? ORDER BY created_at DESC',
+      'SELECT id, title, mode, ended_at, started_at FROM plans WHERE user_id = ? ORDER BY started_at DESC',
     )
       .bind(userId)
       .all<Omit<HostedPlanRow, 'version_seq' | 'version_title' | 'version_at'>>()
@@ -177,9 +177,9 @@ async function accountSave(request: Request, env: HostEnv, auth: ReturnType<type
 
 async function listOpenPlans(env: HostEnv, userId: string): Promise<Array<{ id: string; title: string; mode: string }>> {
   const listed = await env.DB.prepare(
-    'SELECT id, title, mode FROM plans WHERE user_id = ? AND closed_at IS NULL ORDER BY created_at DESC',
+    'SELECT id, title, mode FROM plans WHERE user_id = ? AND status = ? ORDER BY started_at DESC',
   )
-    .bind(userId)
+    .bind(userId, 'running')
     .all<{ id: string; title: string; mode: string }>()
   return listed.results ?? []
 }
@@ -201,34 +201,38 @@ async function registerPlan(request: Request, env: HostEnv, auth: ReturnType<typ
   if (!body) return text(400, 'Missing plan')
   const tier = normalizeTier(session.user.tier)
   const cloudId = body.cloudId && ID.test(body.cloudId) ? body.cloudId : crypto.randomUUID()
-  const existing = await env.DB.prepare('SELECT id, user_id, token, closed_at FROM plans WHERE id = ?').bind(cloudId).first<{
+  const existing = await env.DB.prepare('SELECT id, user_id, token, status FROM plans WHERE id = ?').bind(cloudId).first<{
     id: string
     user_id: string
     token: string
-    closed_at: number | null
+    status: string
   }>()
   if (existing && existing.user_id !== session.user.id) return text(409, 'That plan belongs to another account.')
   const openRow = await env.DB.prepare(
-    'SELECT COUNT(*) AS n FROM plans WHERE user_id = ? AND closed_at IS NULL AND id != ?',
+    'SELECT COUNT(*) AS n FROM plans WHERE user_id = ? AND status = ? AND id != ?',
   )
-    .bind(session.user.id, cloudId)
+    .bind(session.user.id, 'running', cloudId)
     .first<{ n: number }>()
-  const reattach = Boolean(existing && existing.closed_at == null)
+  const reattach = Boolean(existing && existing.status === 'running')
   if (planCapReached(tier, Number(openRow?.n ?? 0), reattach)) {
     return text(402, `This ${tier} account can host ${PLAN_CAPS[tier]} active plan${PLAN_CAPS[tier] === 1 ? '' : 's'}.`)
   }
   const token = existing?.token ?? randomToken()
   const mode = body.mode === 'review' || body.mode === 'comment' ? body.mode : 'watch'
   const title = body.title?.slice(0, 200) || 'Living plan'
+  const now = Date.now()
   if (existing) {
-    await env.DB.prepare('UPDATE plans SET closed_at = NULL, title = ?, mode = ?, tier = ? WHERE id = ?')
-      .bind(title, mode, tier, cloudId)
+    await env.DB.prepare(
+      `UPDATE plans SET status = 'running', ended_at = NULL, title = ?, mode = ?, heartbeat_at = ?, meta = json_set(COALESCE(meta, '{}'), '$.tier', ?) WHERE id = ?`,
+    )
+      .bind(title, mode, now, tier, cloudId)
       .run()
   } else {
     await env.DB.prepare(
-      'INSERT INTO plans (id, user_id, token, title, mode, tier, closed_at, created_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)',
+      `INSERT INTO plans (id, user_id, token, title, mode, status, plan_path, started_at, ended_at, heartbeat_at, meta)
+       VALUES (?, ?, ?, ?, ?, 'running', NULL, ?, NULL, ?, ?)`,
     )
-      .bind(cloudId, session.user.id, token, title, mode, tier, Date.now())
+      .bind(cloudId, session.user.id, token, title, mode, now, now, JSON.stringify({ tier }))
       .run()
   }
   const stub = env.PLANS.get(env.PLANS.idFromName(cloudId))
@@ -290,7 +294,7 @@ async function forwardPlan(
     if (!account && !bearerHeader(request)) return text(401, 'Sign in required')
     const closed = await planFetch(env, planId, request, '/', actor || 'plan')
     if (!closed.ok && closed.status !== 401) return closed
-    await env.DB.prepare('UPDATE plans SET closed_at = ? WHERE id = ?').bind(Date.now(), planId).run()
+    await env.DB.prepare(`UPDATE plans SET status = 'executed', ended_at = ? WHERE id = ?`).bind(Date.now(), planId).run()
     return Response.json({ ok: true })
   }
   if (request.method === 'PUT' && (rest === '/source' || rest === '/source/')) {

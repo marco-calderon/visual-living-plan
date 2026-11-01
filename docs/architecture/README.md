@@ -94,9 +94,10 @@ D1 is the account database and the published plan documents, not the live plan. 
 |---|---|
 | `user`, `session`, `account`, `verification` | Better Auth identity. `user.tier` is `free`, `pro`, or `business` |
 | `organization`, `member`, `invitation` | Better Auth organizations |
-| `plans` | Catalog row: id, owning user, plan bearer, title, mode, tier, `closed_at` |
-| `user_settings` | Accent, page width, diff theme, code wrap |
-| `plan_versions` | Published markdown. The latest 10 per plan. The 11th drops the oldest |
+| `plans` | Catalog row shared with the local registry: id, user, token, title, mode, status, path, timestamps, and `meta` JSON. Local rows leave `user_id` null. Tier lives in `meta` |
+| `user_settings` | Account appearance in `meta`: accent, page width, diff theme, code wrap |
+| `plan_versions` | Document history. `body` is the markdown. The host keeps the latest 10. Local keeps the chain |
+| `plan_runs`, `plan_events` | Same tables as the local registry. The host leaves runs empty. Events on the host are the Durable Object queue |
 
 Three credentials, and they are not interchangeable ([ADR 0022](decisions/0022-opt-in-cloud-host.md)):
 
@@ -124,7 +125,7 @@ Each cloud plan is one SQLite Durable Object, class `PlanObject`, binding `PLANS
 
 The page and the agent share that object's hibernating WebSockets. A local plan still uses server-sent events on the Bun process. The Durable Object holds the live session. D1 holds the account and the published document versions. Uploading source writes the Durable Object first, then `plan_versions` in D1. A stale revision is HTTP 409.
 
-`close` sets the object closed and sets `plans.closed_at` in D1. An idle alarm closes the object when no socket is open and last seen is older than the tier's idle time.
+`close` sets the object closed and sets `plans.status` to `executed` with `ended_at` in D1. An idle alarm closes the object when no socket is open and last seen is older than the tier's idle time.
 
 ## A plan page
 
@@ -308,7 +309,7 @@ A row overlaps the selected window when it started before the end of the window 
 | `src/planRoutes.ts` | Elysia routes for one plan, at the origin or under `/plans/<id>/` |
 | `src/planHost.ts` | All sessions on the service: register, reattach, close, idle timeout, git snapshot cache, dashboard rows for open sessions |
 | `src/registryService.ts` | The Elysia app: health, plan list, registration, dashboard, archive, and the hosted plan routes |
-| `src/registryStore.ts`, `src/store/` | The local SQLite store: `plans` for private servers, `plan_sessions` for live hosted plans, `plan_events` for submissions, `plan_runs` for finished runs. `migrate.ts` creates the tables, including the copy from the older `processes` table |
+| `src/registryStore.ts`, `src/store/` | The shared SQLite schema, opened with Drizzle on bun locally and with D1 on the host. `plans.meta` holds configuration. `migrate.ts` folds older local tables into that shape |
 | `src/server.ts` | The private one-plan Elysia app used by `--no-registry` |
 | `src/httpServer.ts` | Binds an Elysia app with `Bun.serve` so event streams stay open |
 | `src/localName.ts` | Loopback checks and HTTP origin formatting |
@@ -330,8 +331,8 @@ A row overlaps the selected window when it started before the end of the window 
 
 ## What survives a restart
 
-The service writes each open session to `~/.config/living-plan/registry.sqlite` (`plan_sessions`): plan path, mode, iteration, responses, comments, execution, review, token, cwd, theme config path, and last-seen time. Submissions are rows in `plan_events`. On startup it opens those files again and reattaches the watchers. A missing plan file drops that session. Diagnostic logs are not in the database. They are files under `~/.config/living-plan/logs` and stay on disk across a restart.
+The service writes each open session into `plans` in `~/.config/living-plan/registry.sqlite`. The token, path, and mode are columns. Iteration, responses, comments, execution, review, cwd, and the theme config path are keys in `meta`. Submissions are rows in `plan_events`. On startup it opens those rows again and reattaches the watchers. A missing plan file drops that session. Diagnostic logs are not in the database. They are files under `~/.config/living-plan/logs` and stay on disk across a restart.
 
-`live-plan close`, the idle timeout, and `DELETE /api/plans/<id>` delete that session's `plan_sessions` row and its `plan_events` rows. Stopping the service process does not. The next start restores the sessions whose plan files are still on disk. Finished runs stay in `plan_runs` and are not reopened. Live private servers are rows in `plans`. A database that still has the older `processes` table is copied into `plans` on open. The copied markdown stays at `~/.config/living-plan/plans/<id>.plan.md`.
+`live-plan close`, the idle timeout, and `DELETE /api/plans/<id>` clear that session's token and its `plan_events` rows. A row that is only a session is deleted. A live process row stays until it is pruned. Stopping the service process does not. The next start restores the sessions whose plan files are still on disk. Finished runs stay in `plan_runs` and are not reopened. Live private servers are `plans` rows with a pid in `meta`. A database that still has the older `processes` table, wide columns, or `plan_sessions` is folded into this shape on open. The copied markdown stays at `~/.config/living-plan/plans/<id>.plan.md`.
 
 When the installed package version differs from the version in the lock file, the CLI stops the running service and starts the current one.

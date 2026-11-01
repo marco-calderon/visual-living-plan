@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { PLAN_COLUMNS, PLAN_EVENT_COLUMNS, PLAN_RUN_COLUMNS, PLAN_SESSION_COLUMNS, migratePlanDatabase } from '../src/store/migrate.ts'
-import { EVENT_FIELDS, PLAN_FIELDS, RUN_FIELDS, SESSION_FIELDS } from '../src/store/schema.ts'
+import { getTableColumns } from 'drizzle-orm'
+import { migratePlanDatabase } from '../src/store/migrate.ts'
+import { planEvents, planRuns, plans, planVersions, userSettings } from '../src/store/tables.ts'
 import { openSqliteStore } from '../src/store/sqlite.ts'
 
 function columnNames(db: ReturnType<typeof openSqliteStore>, table: string): string[] {
@@ -21,20 +22,29 @@ function indexNames(db: ReturnType<typeof openSqliteStore>, table: string): stri
     .sort()
 }
 
-test('sqlite tables match the migration column lists', () => {
+function names(table: Parameters<typeof getTableColumns>[0]): string[] {
+  return Object.values(getTableColumns(table))
+    .map((column) => column.name)
+    .sort()
+}
+
+test('sqlite tables match the shared schema', () => {
   const db = openSqliteStore(':memory:')
   try {
     migratePlanDatabase(db)
-    assert.deepEqual(columnNames(db, 'plans'), PLAN_COLUMNS.map((column) => column.name).sort())
-    assert.deepEqual(columnNames(db, 'plan_runs'), PLAN_RUN_COLUMNS.map((column) => column.name).sort())
-    assert.deepEqual(columnNames(db, 'plan_sessions'), PLAN_SESSION_COLUMNS.map((column) => column.name).sort())
-    assert.deepEqual(columnNames(db, 'plan_events'), PLAN_EVENT_COLUMNS.map((column) => column.name).sort())
-    assert.deepEqual(PLAN_FIELDS.map((field) => field.name), PLAN_COLUMNS.map((column) => column.name))
-    assert.deepEqual(RUN_FIELDS.map((field) => field.name), PLAN_RUN_COLUMNS.map((column) => column.name))
-    assert.deepEqual(SESSION_FIELDS.map((field) => field.name), PLAN_SESSION_COLUMNS.map((column) => column.name))
-    assert.deepEqual(EVENT_FIELDS.map((field) => field.name), PLAN_EVENT_COLUMNS.map((column) => column.name))
+    assert.deepEqual(columnNames(db, 'plans'), names(plans))
+    assert.deepEqual(columnNames(db, 'plan_runs'), names(planRuns))
+    assert.deepEqual(columnNames(db, 'plan_versions'), names(planVersions))
+    assert.deepEqual(columnNames(db, 'plan_events'), names(planEvents))
+    assert.deepEqual(columnNames(db, 'user_settings'), names(userSettings))
+    assert.equal(columnNames(db, 'user').includes('email'), true)
+    assert.equal(
+      db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'plan_sessions'`).get(),
+      null,
+    )
     assert.deepEqual(indexNames(db, 'plan_events'), ['plan_events_plan_id_idx', 'plan_events_plan_seq_idx'])
-    assert.deepEqual(indexNames(db, 'plans'), ['plans_started_at_idx', 'plans_status_idx'])
+    assert.ok(indexNames(db, 'plans').includes('plans_started_at_idx'))
+    assert.ok(indexNames(db, 'plans').includes('plans_status_idx'))
     assert.deepEqual(indexNames(db, 'plan_runs'), ['plan_runs_ended_at_idx', 'plan_runs_started_at_idx'])
   } finally {
     db.close()

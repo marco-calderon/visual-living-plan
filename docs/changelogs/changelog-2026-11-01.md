@@ -69,8 +69,9 @@ Plan saving and the hosted APIs live in one place. Local plans use SQLite. Hoste
 
 - The hosted account, plan catalog, published versions, and Durable Object moved from `cloud/` into `src/host`. D1 migrations are `src/migrations`. Deploy from the repository root.
 - The local service stores sessions, submissions, finished runs, and document history in `registry.sqlite` through one SQLite store.
+- Local and D1 now use the same plan tables. A plan row keeps the columns queries filter, and configuration sits in `meta`. Better Auth tables are created locally and left empty. Sign-in stays on the host.
 - Hosted HTTP routes and the Durable Object's plan routes are Elysia. TanStack pages, Better Auth, and the live Durable Object socket stay.
 
 ### Notes
 
-No registry restart needed beyond the usual version check. Redeploy the Worker and apply D1 migrations (`npm run host:migrate` locally, `wrangler d1 migrations apply` in production). A local plan's older `mdx/*.sqlite` history is not copied; the next open saves the current document in `registry.sqlite`.
+No registry restart needed beyond the usual version check. The next local open folds an older registry into the shared tables. Redeploy the Worker and apply D1 migrations, including `0004_one_schema` (`npm run host:migrate` locally, `wrangler d1 migrations apply` in production). A local plan's older `mdx/*.sqlite` history is not copied; the next open saves the current document in `registry.sqlite`.

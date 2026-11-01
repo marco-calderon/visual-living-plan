@@ -24,11 +24,7 @@ export type AccountSettings = {
 
 export const USER_SETTINGS_SQL = `CREATE TABLE IF NOT EXISTS user_settings (
   user_id TEXT PRIMARY KEY,
-  accent TEXT NOT NULL,
-  page_width TEXT NOT NULL,
-  diffs_theme TEXT NOT NULL,
-  wrap_code INTEGER NOT NULL,
-  updated_at TEXT NOT NULL
+  meta TEXT NOT NULL
 )`
 
 export function defaultAccountSettings(): AccountSettings {
@@ -71,7 +67,15 @@ export function mergeAccountSettings(current: AccountSettings, patch: unknown): 
   }
 }
 
-type SettingsRow = { accent: string; page_width: string; diffs_theme: string; wrap_code: number | boolean }
+type SettingsRow = { meta: string }
+
+function settingsFromMeta(meta: string): AccountSettings {
+  try {
+    return mergeAccountSettings(defaultAccountSettings(), JSON.parse(meta) as unknown)
+  } catch {
+    return defaultAccountSettings()
+  }
+}
 
 export async function ensureUserSettings(db: D1Database): Promise<void> {
   await db.prepare(USER_SETTINGS_SQL).run()
@@ -79,33 +83,19 @@ export async function ensureUserSettings(db: D1Database): Promise<void> {
 
 export async function readAccountSettings(db: D1Database, userId: string): Promise<AccountSettings> {
   await ensureUserSettings(db)
-  const row = await db
-    .prepare('SELECT accent, page_width, diffs_theme, wrap_code FROM user_settings WHERE user_id = ?')
-    .bind(userId)
-    .first<SettingsRow>()
-  if (!row) return defaultAccountSettings()
-  return mergeAccountSettings(defaultAccountSettings(), {
-    accent: row.accent,
-    pageWidth: row.page_width,
-    diffsTheme: row.diffs_theme,
-    wrapCode: row.wrap_code,
-  })
+  const row = await db.prepare('SELECT meta FROM user_settings WHERE user_id = ?').bind(userId).first<SettingsRow>()
+  if (!row?.meta) return defaultAccountSettings()
+  return settingsFromMeta(row.meta)
 }
 
 export async function saveAccountSettings(db: D1Database, userId: string, patch: unknown): Promise<AccountSettings> {
   const next = mergeAccountSettings(await readAccountSettings(db, userId), patch)
   await db
     .prepare(
-      `INSERT INTO user_settings (user_id, accent, page_width, diffs_theme, wrap_code, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)
-       ON CONFLICT(user_id) DO UPDATE SET
-         accent = excluded.accent,
-         page_width = excluded.page_width,
-         diffs_theme = excluded.diffs_theme,
-         wrap_code = excluded.wrap_code,
-         updated_at = excluded.updated_at`,
+      `INSERT INTO user_settings (user_id, meta) VALUES (?, ?)
+       ON CONFLICT(user_id) DO UPDATE SET meta = excluded.meta`,
     )
-    .bind(userId, next.accent, next.pageWidth, next.diffsTheme, next.wrapCode ? 1 : 0, new Date().toISOString())
+    .bind(userId, JSON.stringify(next))
     .run()
   return next
 }

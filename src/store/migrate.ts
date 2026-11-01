@@ -1,113 +1,142 @@
-import { insert } from './codec'
-import { planRunInsert, parseStoredRun } from './rows'
-import { RUN_FIELDS } from './schema'
+import { parseStoredRun } from './rows'
+import { emptyMeta, type PlanMeta } from './meta'
+import { emptyGitSnapshot, isPlanMode, type PlanStatus } from '../processRecord'
 import type { SqliteStore } from './sqlite'
 
-type ColumnSpec = {
-  name: string
-  create: string
-  /** SQLite ADD COLUMN clause. Primary key is created with the table, not altered in. */
-  alter: string | null
-}
+const PLAN_SQL = `CREATE TABLE plans (
+  id TEXT PRIMARY KEY,
+  user_id TEXT,
+  token TEXT,
+  title TEXT NOT NULL DEFAULT '',
+  mode TEXT NOT NULL,
+  status TEXT NOT NULL,
+  plan_path TEXT,
+  started_at INTEGER NOT NULL,
+  ended_at INTEGER,
+  heartbeat_at INTEGER NOT NULL,
+  meta TEXT NOT NULL DEFAULT '{}'
+)`
 
-type KnownTable = 'plans' | 'plan_sessions' | 'plan_runs' | 'plan_events' | 'processes'
+const RUN_SQL = `CREATE TABLE plan_runs (
+  run_id TEXT PRIMARY KEY,
+  id TEXT NOT NULL,
+  user_id TEXT,
+  token TEXT,
+  title TEXT NOT NULL DEFAULT '',
+  mode TEXT NOT NULL,
+  status TEXT NOT NULL,
+  plan_path TEXT,
+  started_at INTEGER NOT NULL,
+  ended_at INTEGER,
+  heartbeat_at INTEGER NOT NULL,
+  meta TEXT NOT NULL DEFAULT '{}'
+)`
 
-const SHARED_PLAN_COLUMNS: ColumnSpec[] = [
-  { name: 'pid', create: 'pid INTEGER', alter: 'pid INTEGER' },
-  { name: 'title', create: 'title TEXT NOT NULL', alter: "title TEXT NOT NULL DEFAULT ''" },
-  { name: 'summary', create: 'summary TEXT', alter: 'summary TEXT' },
-  { name: 'agent', create: 'agent TEXT', alter: 'agent TEXT' },
-  { name: 'mode', create: 'mode TEXT NOT NULL', alter: "mode TEXT NOT NULL DEFAULT 'watch'" },
-  { name: 'status', create: 'status TEXT NOT NULL', alter: "status TEXT NOT NULL DEFAULT 'running'" },
-  { name: 'plan_path', create: 'plan_path TEXT NOT NULL', alter: "plan_path TEXT NOT NULL DEFAULT ''" },
-  { name: 'stored_path', create: 'stored_path TEXT', alter: 'stored_path TEXT' },
-  { name: 'directory', create: 'directory TEXT NOT NULL', alter: "directory TEXT NOT NULL DEFAULT ''" },
-  { name: 'cwd', create: 'cwd TEXT NOT NULL', alter: "cwd TEXT NOT NULL DEFAULT ''" },
-  { name: 'url', create: 'url TEXT NOT NULL', alter: "url TEXT NOT NULL DEFAULT ''" },
-  { name: 'host', create: 'host TEXT NOT NULL', alter: "host TEXT NOT NULL DEFAULT ''" },
-  { name: 'port', create: 'port INTEGER NOT NULL', alter: 'port INTEGER NOT NULL DEFAULT 0' },
-  { name: 'started_at', create: 'started_at INTEGER NOT NULL', alter: 'started_at INTEGER NOT NULL DEFAULT 0' },
-  { name: 'ended_at', create: 'ended_at INTEGER', alter: 'ended_at INTEGER' },
-  { name: 'heartbeat_at', create: 'heartbeat_at INTEGER NOT NULL', alter: 'heartbeat_at INTEGER NOT NULL DEFAULT 0' },
-  { name: 'duration_ms', create: 'duration_ms INTEGER NOT NULL DEFAULT 0', alter: 'duration_ms INTEGER NOT NULL DEFAULT 0' },
-  { name: 'pending_count', create: 'pending_count INTEGER NOT NULL DEFAULT 0', alter: 'pending_count INTEGER NOT NULL DEFAULT 0' },
-  { name: 'phase_total', create: 'phase_total INTEGER NOT NULL DEFAULT 0', alter: 'phase_total INTEGER NOT NULL DEFAULT 0' },
-  { name: 'phase_done', create: 'phase_done INTEGER NOT NULL DEFAULT 0', alter: 'phase_done INTEGER NOT NULL DEFAULT 0' },
-  { name: 'interaction_total', create: 'interaction_total INTEGER NOT NULL DEFAULT 0', alter: 'interaction_total INTEGER NOT NULL DEFAULT 0' },
-  { name: 'interaction_done', create: 'interaction_done INTEGER NOT NULL DEFAULT 0', alter: 'interaction_done INTEGER NOT NULL DEFAULT 0' },
-  { name: 'completion_ratio', create: 'completion_ratio INTEGER NOT NULL DEFAULT 0', alter: 'completion_ratio INTEGER NOT NULL DEFAULT 0' },
-  { name: 'completion_state', create: "completion_state TEXT NOT NULL DEFAULT 'idle'", alter: "completion_state TEXT NOT NULL DEFAULT 'idle'" },
-  { name: 'execution_active', create: 'execution_active INTEGER NOT NULL DEFAULT 0', alter: 'execution_active INTEGER NOT NULL DEFAULT 0' },
-  { name: 'execution_step', create: 'execution_step TEXT', alter: 'execution_step TEXT' },
-  { name: 'files_modified', create: 'files_modified INTEGER NOT NULL DEFAULT 0', alter: 'files_modified INTEGER NOT NULL DEFAULT 0' },
-  { name: 'outcome', create: 'outcome TEXT', alter: 'outcome TEXT' },
-  { name: 'git_is_repo', create: 'git_is_repo INTEGER NOT NULL DEFAULT 0', alter: 'git_is_repo INTEGER NOT NULL DEFAULT 0' },
-  { name: 'git_root', create: 'git_root TEXT', alter: 'git_root TEXT' },
-  { name: 'git_branch', create: 'git_branch TEXT', alter: 'git_branch TEXT' },
-  { name: 'git_commit', create: 'git_commit TEXT', alter: 'git_commit TEXT' },
-  { name: 'git_dirty', create: 'git_dirty INTEGER NOT NULL DEFAULT 0', alter: 'git_dirty INTEGER NOT NULL DEFAULT 0' },
-  { name: 'git_ahead', create: 'git_ahead INTEGER NOT NULL DEFAULT 0', alter: 'git_ahead INTEGER NOT NULL DEFAULT 0' },
-  { name: 'git_behind', create: 'git_behind INTEGER NOT NULL DEFAULT 0', alter: 'git_behind INTEGER NOT NULL DEFAULT 0' },
-  { name: 'git_changed_files', create: 'git_changed_files INTEGER NOT NULL DEFAULT 0', alter: 'git_changed_files INTEGER NOT NULL DEFAULT 0' },
-  { name: 'git_paths', create: "git_paths TEXT NOT NULL DEFAULT '[]'", alter: "git_paths TEXT NOT NULL DEFAULT '[]'" },
-  { name: 'git_summary', create: "git_summary TEXT NOT NULL DEFAULT ''", alter: "git_summary TEXT NOT NULL DEFAULT ''" },
-]
+const VERSION_SQL = `CREATE TABLE plan_versions (
+  id TEXT PRIMARY KEY,
+  plan_id TEXT NOT NULL,
+  seq INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  parent_id TEXT,
+  reason TEXT,
+  restored_from_id TEXT,
+  UNIQUE (plan_id, seq)
+)`
 
-/** SQL columns for `plans`. Names match `PLAN_FIELDS`. */
-export const PLAN_COLUMNS: ColumnSpec[] = [{ name: 'id', create: 'id TEXT PRIMARY KEY', alter: null }, ...SHARED_PLAN_COLUMNS]
+const EVENT_SQL = `CREATE TABLE plan_events (
+  id TEXT PRIMARY KEY,
+  plan_id TEXT NOT NULL,
+  seq INTEGER NOT NULL,
+  event TEXT NOT NULL,
+  data TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  delivered_at INTEGER
+)`
 
-/** SQL columns for typed `plan_runs`. `id` is the plan id; `run_id` is the primary key. */
-export const PLAN_RUN_COLUMNS: ColumnSpec[] = [
-  { name: 'run_id', create: 'run_id TEXT PRIMARY KEY', alter: null },
-  { name: 'id', create: 'id TEXT NOT NULL', alter: "id TEXT NOT NULL DEFAULT ''" },
-  ...SHARED_PLAN_COLUMNS,
-]
+const SETTINGS_SQL = `CREATE TABLE user_settings (
+  user_id TEXT PRIMARY KEY,
+  meta TEXT NOT NULL
+)`
 
-export const PLAN_SESSION_COLUMNS: ColumnSpec[] = [
-  { name: 'id', create: 'id TEXT PRIMARY KEY', alter: null },
-  { name: 'token', create: 'token TEXT NOT NULL', alter: "token TEXT NOT NULL DEFAULT ''" },
-  { name: 'plan_path', create: 'plan_path TEXT NOT NULL UNIQUE', alter: "plan_path TEXT NOT NULL DEFAULT ''" },
-  { name: 'mode', create: 'mode TEXT NOT NULL', alter: "mode TEXT NOT NULL DEFAULT 'watch'" },
-  { name: 'iteration', create: 'iteration INTEGER NOT NULL DEFAULT 1', alter: 'iteration INTEGER NOT NULL DEFAULT 1' },
-  { name: 'cwd', create: 'cwd TEXT NOT NULL', alter: "cwd TEXT NOT NULL DEFAULT ''" },
-  { name: 'config_path', create: 'config_path TEXT', alter: 'config_path TEXT' },
-  { name: 'responses_json', create: "responses_json TEXT NOT NULL DEFAULT '{}'", alter: "responses_json TEXT NOT NULL DEFAULT '{}'" },
-  { name: 'execution_json', create: "execution_json TEXT NOT NULL DEFAULT '{}'", alter: "execution_json TEXT NOT NULL DEFAULT '{}'" },
-  { name: 'review_json', create: 'review_json TEXT', alter: 'review_json TEXT' },
-  { name: 'comments_json', create: "comments_json TEXT NOT NULL DEFAULT '[]'", alter: "comments_json TEXT NOT NULL DEFAULT '[]'" },
-  { name: 'started_at', create: 'started_at INTEGER NOT NULL', alter: 'started_at INTEGER NOT NULL DEFAULT 0' },
-  { name: 'last_seen_at', create: 'last_seen_at INTEGER NOT NULL', alter: 'last_seen_at INTEGER NOT NULL DEFAULT 0' },
-]
-
-/** User submissions. `delivered_at` is set when the agent CLI has taken the event. */
-export const PLAN_EVENT_COLUMNS: ColumnSpec[] = [
-  { name: 'id', create: 'id TEXT PRIMARY KEY', alter: null },
-  { name: 'plan_id', create: 'plan_id TEXT NOT NULL', alter: "plan_id TEXT NOT NULL DEFAULT ''" },
-  { name: 'seq', create: 'seq INTEGER NOT NULL', alter: 'seq INTEGER NOT NULL DEFAULT 0' },
-  { name: 'event', create: 'event TEXT NOT NULL', alter: "event TEXT NOT NULL DEFAULT ''" },
-  { name: 'data_json', create: "data_json TEXT NOT NULL", alter: "data_json TEXT NOT NULL DEFAULT '{}'" },
-  { name: 'created_at', create: 'created_at INTEGER NOT NULL', alter: 'created_at INTEGER NOT NULL DEFAULT 0' },
-  { name: 'delivered_at', create: 'delivered_at INTEGER', alter: 'delivered_at INTEGER' },
-]
-
-const COPY_FROM_PROCESSES = `
-  INSERT INTO plans (
-    id, pid, title, summary, agent, mode, status, plan_path, stored_path, directory, cwd,
-    url, host, port, started_at, ended_at, heartbeat_at, duration_ms, pending_count,
-    phase_total, phase_done, interaction_total, interaction_done, completion_ratio, completion_state,
-    execution_active, execution_step, files_modified, outcome,
-    git_is_repo, git_root, git_branch, git_commit, git_dirty, git_ahead, git_behind,
-    git_changed_files, git_paths, git_summary
-  )
-  SELECT
-    id, pid, title, summary, agent, mode, 'running', plan_path, NULL, directory, cwd,
-    url, host, port, started_at, NULL, heartbeat_at, 0, pending_count,
-    0, 0, 0, 0, 0, 'idle',
-    execution_active, execution_step, git_changed_files, NULL,
-    git_is_repo, git_root, git_branch, git_commit, git_dirty, git_ahead, git_behind,
-    git_changed_files, git_paths, git_summary
-  FROM processes
-  WHERE NOT EXISTS (SELECT 1 FROM plans WHERE plans.id = processes.id)
+/** Better Auth tables. Present locally and on D1. Sign-in runs only on the host. */
+const AUTH_SQL = `
+CREATE TABLE IF NOT EXISTS user (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL UNIQUE,
+  emailVerified INTEGER NOT NULL DEFAULT 0,
+  image TEXT,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL,
+  tier TEXT NOT NULL DEFAULT 'free'
+);
+CREATE TABLE IF NOT EXISTS session (
+  id TEXT PRIMARY KEY,
+  expiresAt TEXT NOT NULL,
+  token TEXT NOT NULL UNIQUE,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL,
+  ipAddress TEXT,
+  userAgent TEXT,
+  userId TEXT NOT NULL REFERENCES user (id) ON DELETE CASCADE,
+  activeOrganizationId TEXT
+);
+CREATE INDEX IF NOT EXISTS session_userId ON session (userId);
+CREATE TABLE IF NOT EXISTS account (
+  id TEXT PRIMARY KEY,
+  accountId TEXT NOT NULL,
+  providerId TEXT NOT NULL,
+  userId TEXT NOT NULL REFERENCES user (id) ON DELETE CASCADE,
+  accessToken TEXT,
+  refreshToken TEXT,
+  idToken TEXT,
+  accessTokenExpiresAt TEXT,
+  refreshTokenExpiresAt TEXT,
+  scope TEXT,
+  password TEXT,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS account_userId ON account (userId);
+CREATE TABLE IF NOT EXISTS verification (
+  id TEXT PRIMARY KEY,
+  identifier TEXT NOT NULL,
+  value TEXT NOT NULL,
+  expiresAt TEXT NOT NULL,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS verification_identifier ON verification (identifier);
+CREATE TABLE IF NOT EXISTS organization (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  logo TEXT,
+  createdAt TEXT NOT NULL,
+  metadata TEXT
+);
+CREATE TABLE IF NOT EXISTS member (
+  id TEXT PRIMARY KEY,
+  organizationId TEXT NOT NULL REFERENCES organization (id) ON DELETE CASCADE,
+  userId TEXT NOT NULL REFERENCES user (id) ON DELETE CASCADE,
+  role TEXT NOT NULL,
+  createdAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS member_organizationId ON member (organizationId);
+CREATE INDEX IF NOT EXISTS member_userId ON member (userId);
+CREATE TABLE IF NOT EXISTS invitation (
+  id TEXT PRIMARY KEY,
+  organizationId TEXT NOT NULL REFERENCES organization (id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  role TEXT,
+  status TEXT NOT NULL,
+  expiresAt TEXT NOT NULL,
+  createdAt TEXT NOT NULL,
+  inviterId TEXT NOT NULL REFERENCES user (id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS invitation_organizationId ON invitation (organizationId);
 `
 
 function tableExists(db: SqliteStore, name: string): boolean {
@@ -116,72 +145,373 @@ function tableExists(db: SqliteStore, name: string): boolean {
   )
 }
 
-function columnNames(db: SqliteStore, table: KnownTable): Set<string> {
-  const rows = db.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>()
-  return new Set(rows.map((row) => row.name))
+function columnNames(db: SqliteStore, table: string): Set<string> {
+  return new Set(db.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>().map((row) => row.name))
 }
 
-function createTableSql(table: KnownTable, columns: ColumnSpec[]): string {
-  return `CREATE TABLE ${table} (\n${columns.map((column) => column.create).join(',\n')}\n)`
+function num(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
 
-function ensureTable(db: SqliteStore, table: KnownTable, columns: ColumnSpec[]): void {
-  if (!tableExists(db, table)) {
-    db.exec(createTableSql(table, columns))
-    return
+function text(value: unknown): string | null {
+  return typeof value === 'string' ? value : null
+}
+
+function bit(value: unknown): boolean {
+  return value === 1 || value === true
+}
+
+function jsonValue(value: unknown, fallback: unknown): unknown {
+  if (typeof value !== 'string' || !value) return fallback
+  try {
+    return JSON.parse(value) as unknown
+  } catch {
+    return fallback
   }
-  const present = columnNames(db, table)
-  for (const column of columns) {
-    if (!column.alter || present.has(column.name)) continue
-    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column.alter}`)
-  }
 }
 
-function foldProcesses(db: SqliteStore): void {
-  if (!tableExists(db, 'processes')) return
-  db.transaction(() => {
-    db.prepare(COPY_FROM_PROCESSES).run()
-    db.prepare('DROP TABLE processes').run()
+function stringList(value: unknown): string[] {
+  const parsed = typeof value === 'string' ? jsonValue(value, []) : value
+  return Array.isArray(parsed) ? parsed.filter((entry): entry is string => typeof entry === 'string') : []
+}
+
+function metaFromWide(row: Record<string, unknown>, session?: Record<string, unknown>): PlanMeta {
+  const git = emptyGitSnapshot()
+  git.isRepo = bit(row.git_is_repo)
+  git.root = text(row.git_root)
+  git.branch = text(row.git_branch)
+  git.commit = text(row.git_commit)
+  git.dirty = bit(row.git_dirty)
+  git.ahead = num(row.git_ahead)
+  git.behind = num(row.git_behind)
+  git.changedFiles = num(row.git_changed_files)
+  git.changedPaths = stringList(row.git_paths)
+  git.summary = text(row.git_summary) ?? ''
+  return emptyMeta({
+    pid: typeof row.pid === 'number' ? row.pid : null,
+    summary: text(row.summary),
+    agent: text(row.agent),
+    storedPath: text(row.stored_path),
+    directory: text(row.directory) ?? '',
+    cwd: text(session?.cwd) ?? text(row.cwd) ?? '',
+    url: text(row.url) ?? '',
+    host: text(row.host) ?? '',
+    port: num(row.port),
+    durationMs: num(row.duration_ms),
+    pendingCount: num(row.pending_count),
+    phaseTotal: num(row.phase_total),
+    phaseDone: num(row.phase_done),
+    interactionTotal: num(row.interaction_total),
+    interactionDone: num(row.interaction_done),
+    completionRatio: num(row.completion_ratio),
+    completionState:
+      row.completion_state === 'in_progress' || row.completion_state === 'partial' || row.completion_state === 'complete'
+        ? row.completion_state
+        : 'idle',
+    executionActive: bit(row.execution_active),
+    executionStep: text(row.execution_step),
+    filesModified: num(row.files_modified),
+    outcome: row.outcome === 'approve' || row.outcome === 'deny' || row.outcome === 'iterate' ? row.outcome : null,
+    git,
+    iteration: session ? num(session.iteration, 1) : 1,
+    configPath: session ? text(session.config_path) : null,
+    responses: session ? jsonValue(session.responses_json, {}) : {},
+    execution: session ? jsonValue(session.execution_json, {}) : {},
+    review: session ? jsonValue(session.review_json, null) : null,
+    comments: session ? jsonValue(session.comments_json, []) : [],
+    lastSeenAt: session ? num(session.last_seen_at) : null,
   })
 }
 
-type LegacyRunRow = {
-  run_id: string
-  started_at: number
-  payload: string
+function statusOf(value: unknown): PlanStatus {
+  return value === 'executed' || value === 'interrupted' ? value : 'running'
 }
 
-function migrateLegacyRuns(db: SqliteStore): void {
-  if (!tableExists(db, 'plan_runs')) return
-  const present = columnNames(db, 'plan_runs')
-  if (!present.has('payload') || present.has('title')) return
-  const legacy = db.prepare('SELECT run_id, started_at, payload FROM plan_runs').all<LegacyRunRow>()
-  const parsed = legacy.flatMap((row) => {
-    const record = parseStoredRun(row.payload)
-    return record ? [{ runId: row.run_id, record }] : []
-  })
-  db.transaction(() => {
-    db.exec('ALTER TABLE plan_runs RENAME TO plan_runs_legacy')
-    db.exec(createTableSql('plan_runs', PLAN_RUN_COLUMNS))
-    for (const row of parsed) {
-      insert(db, 'plan_runs', RUN_FIELDS, planRunInsert(row.record, row.runId))
-    }
-    db.exec('DROP TABLE plan_runs_legacy')
-  })
+function insertPlan(db: SqliteStore, row: Record<string, unknown>, session?: Record<string, unknown>): void {
+  const mode = text(session?.mode) ?? text(row.mode) ?? 'watch'
+  db.prepare(
+    `INSERT INTO plans (id, user_id, token, title, mode, status, plan_path, started_at, ended_at, heartbeat_at, meta)
+     VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    text(row.id) ?? text(session?.id),
+    session ? text(session.token) : null,
+    text(row.title) ?? '',
+    isPlanMode(mode) ? mode : 'watch',
+    statusOf(row.status),
+    text(row.plan_path) ?? text(session?.plan_path),
+    num(row.started_at ?? session?.started_at),
+    typeof row.ended_at === 'number' ? row.ended_at : null,
+    num(row.heartbeat_at ?? session?.last_seen_at ?? row.started_at),
+    JSON.stringify(metaFromWide(row, session)),
+  )
 }
 
-/** Create `plans`, add any columns added after an older build, and fold in legacy tables. */
-export function migratePlanDatabase(db: SqliteStore): void {
-  ensureTable(db, 'plans', PLAN_COLUMNS)
+function insertRun(db: SqliteStore, row: Record<string, unknown>): void {
+  const mode = text(row.mode) ?? 'watch'
+  db.prepare(
+    `INSERT INTO plan_runs (run_id, id, user_id, token, title, mode, status, plan_path, started_at, ended_at, heartbeat_at, meta)
+     VALUES (?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    text(row.run_id),
+    text(row.id),
+    text(row.title) ?? '',
+    isPlanMode(mode) ? mode : 'watch',
+    statusOf(row.status),
+    text(row.plan_path),
+    num(row.started_at),
+    typeof row.ended_at === 'number' ? row.ended_at : null,
+    num(row.heartbeat_at ?? row.started_at),
+    JSON.stringify(metaFromWide(row)),
+  )
+}
+
+function createFresh(db: SqliteStore): void {
+  db.exec(PLAN_SQL)
+  db.exec(RUN_SQL)
+  db.exec(VERSION_SQL)
+  db.exec(EVENT_SQL)
+  db.exec(SETTINGS_SQL)
+}
+
+function createIndexes(db: SqliteStore): void {
+  db.exec('CREATE INDEX IF NOT EXISTS plans_plan_path_idx ON plans (plan_path)')
   db.exec('CREATE INDEX IF NOT EXISTS plans_started_at_idx ON plans (started_at)')
   db.exec('CREATE INDEX IF NOT EXISTS plans_status_idx ON plans (status)')
-  foldProcesses(db)
-  ensureTable(db, 'plan_sessions', PLAN_SESSION_COLUMNS)
-  ensureTable(db, 'plan_events', PLAN_EVENT_COLUMNS)
-  db.exec('CREATE INDEX IF NOT EXISTS plan_events_plan_id_idx ON plan_events (plan_id)')
-  db.exec('CREATE INDEX IF NOT EXISTS plan_events_plan_seq_idx ON plan_events (plan_id, seq)')
-  migrateLegacyRuns(db)
-  ensureTable(db, 'plan_runs', PLAN_RUN_COLUMNS)
+  db.exec('CREATE INDEX IF NOT EXISTS plans_user_idx ON plans (user_id)')
   db.exec('CREATE INDEX IF NOT EXISTS plan_runs_started_at_idx ON plan_runs (started_at)')
   db.exec('CREATE INDEX IF NOT EXISTS plan_runs_ended_at_idx ON plan_runs (ended_at)')
+  db.exec('CREATE INDEX IF NOT EXISTS plan_events_plan_id_idx ON plan_events (plan_id)')
+  db.exec('CREATE INDEX IF NOT EXISTS plan_events_plan_seq_idx ON plan_events (plan_id, seq)')
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS plan_versions_plan_seq ON plan_versions (plan_id, seq)')
+  db.exec('CREATE INDEX IF NOT EXISTS plan_versions_plan ON plan_versions (plan_id, seq)')
+}
+
+function foldLegacy(db: SqliteStore): void {
+  const processes = tableExists(db, 'processes') ? db.prepare('SELECT * FROM processes').all<Record<string, unknown>>() : []
+  const widePlans =
+    tableExists(db, 'plans') && columnNames(db, 'plans').has('pid')
+      ? db.prepare('SELECT * FROM plans').all<Record<string, unknown>>()
+      : []
+  const sessions = tableExists(db, 'plan_sessions') ? db.prepare('SELECT * FROM plan_sessions').all<Record<string, unknown>>() : []
+  const sessionById = new Map(sessions.map((row) => [String(row.id), row]))
+  const runColumns = tableExists(db, 'plan_runs') ? columnNames(db, 'plan_runs') : new Set<string>()
+  const wideRuns =
+    runColumns.has('title') && runColumns.has('pid') ? db.prepare('SELECT * FROM plan_runs').all<Record<string, unknown>>() : []
+  const payloadRuns =
+    runColumns.has('payload') && !runColumns.has('meta')
+      ? db.prepare('SELECT run_id, started_at, payload FROM plan_runs').all<{ run_id: string; started_at: number; payload: string }>()
+      : []
+  const eventColumns = tableExists(db, 'plan_events') ? columnNames(db, 'plan_events') : new Set<string>()
+  const events =
+    eventColumns.has('data_json') && !eventColumns.has('data')
+      ? db.prepare('SELECT * FROM plan_events').all<Record<string, unknown>>()
+      : eventColumns.has('data')
+        ? db.prepare('SELECT * FROM plan_events').all<Record<string, unknown>>()
+        : []
+  const snapshots = tableExists(db, 'plan_snapshots') ? db.prepare('SELECT * FROM plan_snapshots').all<Record<string, unknown>>() : []
+  const versionColumns = tableExists(db, 'plan_versions') ? columnNames(db, 'plan_versions') : new Set<string>()
+  const oldVersions = versionColumns.has('source') ? db.prepare('SELECT * FROM plan_versions').all<Record<string, unknown>>() : []
+  const currentVersions =
+    versionColumns.has('body') && !versionColumns.has('source')
+      ? db.prepare('SELECT * FROM plan_versions').all<Record<string, unknown>>()
+      : []
+  const currentPlans =
+    tableExists(db, 'plans') && columnNames(db, 'plans').has('meta') && !columnNames(db, 'plans').has('pid')
+      ? db.prepare('SELECT * FROM plans').all<Record<string, unknown>>()
+      : []
+  const currentRuns =
+    runColumns.has('meta') && !runColumns.has('pid') ? db.prepare('SELECT * FROM plan_runs').all<Record<string, unknown>>() : []
+
+  const drop = [
+    'processes',
+    'plans',
+    'plan_sessions',
+    'plan_runs',
+    'plan_events',
+    'plan_documents',
+    'plan_snapshots',
+    'plan_versions',
+  ]
+  db.transaction(() => {
+    for (const name of drop) {
+      if (tableExists(db, name)) db.exec(`DROP TABLE ${name}`)
+    }
+    createFresh(db)
+    const seen = new Set<string>()
+    for (const row of currentPlans) {
+      db.prepare(
+        `INSERT INTO plans (id, user_id, token, title, mode, status, plan_path, started_at, ended_at, heartbeat_at, meta)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(
+        text(row.id),
+        text(row.user_id),
+        text(row.token),
+        text(row.title) ?? '',
+        text(row.mode) ?? 'watch',
+        statusOf(row.status),
+        text(row.plan_path),
+        num(row.started_at),
+        typeof row.ended_at === 'number' ? row.ended_at : null,
+        num(row.heartbeat_at),
+        typeof row.meta === 'string' ? row.meta : JSON.stringify(row.meta ?? {}),
+      )
+      seen.add(String(row.id))
+    }
+    for (const row of [...widePlans, ...processes]) {
+      const id = String(row.id)
+      if (seen.has(id)) continue
+      seen.add(id)
+      const session = sessionById.get(id)
+      insertPlan(db, row, session)
+      if (session) sessionById.delete(id)
+    }
+    for (const session of sessionById.values()) {
+      insertPlan(db, { id: session.id, title: '', mode: session.mode, status: 'running', plan_path: session.plan_path, started_at: session.started_at, heartbeat_at: session.last_seen_at }, session)
+    }
+    for (const row of currentRuns) {
+      db.prepare(
+        `INSERT INTO plan_runs (run_id, id, user_id, token, title, mode, status, plan_path, started_at, ended_at, heartbeat_at, meta)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(
+        text(row.run_id),
+        text(row.id),
+        text(row.user_id),
+        text(row.token),
+        text(row.title) ?? '',
+        text(row.mode) ?? 'watch',
+        statusOf(row.status),
+        text(row.plan_path),
+        num(row.started_at),
+        typeof row.ended_at === 'number' ? row.ended_at : null,
+        num(row.heartbeat_at),
+        typeof row.meta === 'string' ? row.meta : JSON.stringify(row.meta ?? {}),
+      )
+    }
+    for (const row of wideRuns) insertRun(db, row)
+    for (const row of payloadRuns) {
+      const record = parseStoredRun(row.payload)
+      if (!record) continue
+      insertRun(db, {
+        run_id: row.run_id,
+        id: record.id,
+        title: record.title,
+        mode: record.mode,
+        status: record.status,
+        plan_path: record.planPath,
+        started_at: record.startedAt,
+        ended_at: record.endedAt,
+        heartbeat_at: record.heartbeatAt,
+        pid: record.pid,
+        summary: record.summary,
+        agent: record.agent,
+        stored_path: record.storedPath,
+        directory: record.directory,
+        cwd: record.cwd,
+        url: record.url,
+        host: record.host,
+        port: record.port,
+        duration_ms: record.durationMs,
+        pending_count: record.pendingCount,
+        phase_total: record.phaseTotal,
+        phase_done: record.phaseDone,
+        interaction_total: record.interactionTotal,
+        interaction_done: record.interactionDone,
+        completion_ratio: record.completionRatio,
+        completion_state: record.completionState,
+        execution_active: record.executionActive ? 1 : 0,
+        execution_step: record.executionStep,
+        files_modified: record.filesModified,
+        outcome: record.outcome,
+        git_is_repo: record.git.isRepo ? 1 : 0,
+        git_root: record.git.root,
+        git_branch: record.git.branch,
+        git_commit: record.git.commit,
+        git_dirty: record.git.dirty ? 1 : 0,
+        git_ahead: record.git.ahead,
+        git_behind: record.git.behind,
+        git_changed_files: record.git.changedFiles,
+        git_paths: JSON.stringify(record.git.changedPaths),
+        git_summary: record.git.summary,
+      })
+    }
+    for (const row of events) {
+      db.prepare(
+        `INSERT INTO plan_events (id, plan_id, seq, event, data, created_at, delivered_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ).run(
+        text(row.id),
+        text(row.plan_id),
+        num(row.seq),
+        text(row.event) ?? '',
+        text(row.data) ?? text(row.data_json) ?? '{}',
+        num(row.created_at),
+        typeof row.delivered_at === 'number' ? row.delivered_at : null,
+      )
+    }
+    for (const row of snapshots) {
+      db.prepare(
+        `INSERT INTO plan_versions (id, plan_id, seq, title, body, created_at, parent_id, reason, restored_from_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(
+        text(row.id),
+        text(row.document_id),
+        num(row.seq),
+        text(row.title) ?? '',
+        text(row.body) ?? '',
+        num(row.created_at),
+        text(row.parent_id),
+        text(row.reason),
+        text(row.restored_from_id),
+      )
+    }
+    for (const row of currentVersions) {
+      db.prepare(
+        `INSERT OR IGNORE INTO plan_versions (id, plan_id, seq, title, body, created_at, parent_id, reason, restored_from_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(
+        text(row.id),
+        text(row.plan_id),
+        num(row.seq),
+        text(row.title) ?? '',
+        text(row.body) ?? '',
+        num(row.created_at),
+        text(row.parent_id),
+        text(row.reason),
+        text(row.restored_from_id),
+      )
+    }
+    for (const row of oldVersions) {
+      db.prepare(
+        `INSERT OR IGNORE INTO plan_versions (id, plan_id, seq, title, body, created_at, parent_id, reason, restored_from_id)
+         VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL)`,
+      ).run(text(row.id), text(row.plan_id), num(row.seq), text(row.title) ?? '', text(row.source) ?? '', num(row.created_at))
+    }
+  })
+}
+
+function needsFold(db: SqliteStore): boolean {
+  if (tableExists(db, 'processes') || tableExists(db, 'plan_sessions') || tableExists(db, 'plan_documents') || tableExists(db, 'plan_snapshots')) {
+    return true
+  }
+  if (tableExists(db, 'plans') && columnNames(db, 'plans').has('pid')) return true
+  if (tableExists(db, 'plan_runs')) {
+    const columns = columnNames(db, 'plan_runs')
+    if (columns.has('payload') || columns.has('pid')) return true
+  }
+  if (tableExists(db, 'plan_events') && columnNames(db, 'plan_events').has('data_json') && !columnNames(db, 'plan_events').has('data')) {
+    return true
+  }
+  if (tableExists(db, 'plan_versions') && columnNames(db, 'plan_versions').has('source')) return true
+  return false
+}
+
+/** Create the shared tables, and fold an older local registry into them. */
+export function migratePlanDatabase(db: SqliteStore): void {
+  if (needsFold(db)) foldLegacy(db)
+  if (!tableExists(db, 'plans')) createFresh(db)
+  if (!tableExists(db, 'plan_runs')) db.exec(RUN_SQL)
+  if (!tableExists(db, 'plan_versions')) db.exec(VERSION_SQL)
+  if (!tableExists(db, 'plan_events')) db.exec(EVENT_SQL)
+  if (!tableExists(db, 'user_settings')) db.exec(SETTINGS_SQL)
+  db.exec(AUTH_SQL)
+  createIndexes(db)
 }

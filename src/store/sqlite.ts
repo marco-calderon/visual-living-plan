@@ -9,8 +9,9 @@ export type SqliteStatement = {
   run(...values: unknown[]): { changes: number }
 }
 
-/** One SQLite file. Local plans use this. The hosted catalog uses D1 with the same prepared-statement shape. */
+/** One SQLite file. Local plans use this. The hosted catalog uses D1 with the same tables. */
 export type SqliteStore = {
+  database: Database
   exec(sql: string): void
   prepare(sql: string): SqliteStatement
   transaction<T>(run: () => T): T
@@ -33,6 +34,7 @@ export function openSqliteStore(path: string): SqliteStore {
   if (path !== ':memory:') db.exec('PRAGMA journal_mode = WAL')
 
   return {
+    database: db,
     exec(sql) {
       db.exec(sql)
     },

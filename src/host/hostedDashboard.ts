@@ -5,8 +5,8 @@ export type HostedPlanRow = {
   id: string
   title: string | null
   mode: string
-  closed_at: number | null
-  created_at: number
+  ended_at: number | null
+  started_at: number
   version_seq: number | null
   version_title: string | null
   version_at: number | null
@@ -25,9 +25,9 @@ export function hostedDashboard(
   now = Date.now(),
 ): DashboardPayload {
   const plans: HostedDashboardPlan[] = rows.map((row) => {
-    const running = row.closed_at == null
-    const startedAt = row.created_at
-    const endedAt = row.closed_at
+    const running = row.ended_at == null
+    const startedAt = row.started_at
+    const endedAt = row.ended_at
     const version = row.version_seq == null ? null : row.version_seq
     const record: HostedDashboardPlan = {
       id: row.id,

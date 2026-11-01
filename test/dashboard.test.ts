@@ -222,7 +222,9 @@ test('opening the store keeps legacy process rows in plans and adds session tabl
     const tables = check.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>
     assert.equal(tables.some((table) => table.name === 'plans'), true)
     assert.equal(tables.some((table) => table.name === 'processes'), false)
-    assert.equal(tables.some((table) => table.name === 'plan_sessions'), true)
+    assert.equal(tables.some((table) => table.name === 'plan_sessions'), false)
+    const planColumns = check.prepare('PRAGMA table_info(plans)').all() as Array<{ name: string }>
+    assert.equal(planColumns.some((column) => column.name === 'meta'), true)
     assert.equal(tables.some((table) => table.name === 'plan_runs'), true)
     const runColumns = check.prepare('PRAGMA table_info(plan_runs)').all() as Array<{ name: string }>
     assert.equal(runColumns.some((column) => column.name === 'title'), true)

@@ -32,7 +32,6 @@ const entry = fileURLToPath(new URL('../src/cli.ts', import.meta.url))
 
 test('a published cloud plan keeps the latest 10 documents', async () => {
   const db = new Database(':memory:')
-  db.exec(await readFile(new URL('../src/migrations/0003_plan_versions.sql', import.meta.url), 'utf8'))
   const store = d1Of(db)
   for (let n = 1; n <= PLAN_VERSION_LIMIT + 1; n += 1) {
     const saved = await publishPlanVersion(store, {
@@ -77,18 +76,22 @@ test('a hosted plan is listed when the versions table was missing', async () => 
   const db = new Database(':memory:')
   db.exec(`CREATE TABLE plans (
     id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    token TEXT NOT NULL,
-    title TEXT,
+    user_id TEXT,
+    token TEXT,
+    title TEXT NOT NULL,
     mode TEXT NOT NULL,
-    tier TEXT NOT NULL,
-    closed_at INTEGER,
-    created_at INTEGER NOT NULL
+    status TEXT NOT NULL,
+    plan_path TEXT,
+    started_at INTEGER NOT NULL,
+    ended_at INTEGER,
+    heartbeat_at INTEGER NOT NULL,
+    meta TEXT NOT NULL
   )`)
   const now = Date.UTC(2026, 9, 31, 18, 0, 0)
   db.query(
-    'INSERT INTO plans (id, user_id, token, title, mode, tier, closed_at, created_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)',
-  ).run('rate-limit-rollout', 'user-1', 'token', 'Rate limiting rollout', 'watch', 'pro', now)
+    `INSERT INTO plans (id, user_id, token, title, mode, status, plan_path, started_at, ended_at, heartbeat_at, meta)
+     VALUES (?, ?, ?, ?, ?, 'running', NULL, ?, NULL, ?, ?)`,
+  ).run('rate-limit-rollout', 'user-1', 'token', 'Rate limiting rollout', 'watch', now, now, JSON.stringify({ tier: 'pro' }))
   const store = d1Of(db)
   await ensurePlanVersions(store)
   const before = await store.prepare(LATEST_PLAN_VERSION_SQL).bind('user-1').all<HostedPlanRow>()
@@ -121,8 +124,8 @@ test('the hosted dashboard lists a stored plan the way the local dashboard does'
         id: 'plan1234',
         title: 'Demo',
         mode: 'watch',
-        closed_at: null,
-        created_at: now - 60_000,
+        ended_at: null,
+        started_at: now - 60_000,
         version_seq: 3,
         version_title: 'Demo',
         version_at: now - 1000,
