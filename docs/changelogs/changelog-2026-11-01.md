@@ -75,3 +75,21 @@ Plan saving and the hosted APIs live in one place. Local plans use SQLite. Hoste
 ### Notes
 
 No registry restart needed beyond the usual version check. The next local open folds an older registry into the shared tables. Redeploy the Worker and apply D1 migrations, including `0004_one_schema` (`npm run host:migrate` locally, `wrangler d1 migrations apply` in production). A local plan's older `mdx/*.sqlite` history is not copied; the next open saves the current document in `registry.sqlite`.
+
+## 1.7.13
+
+**PR:** (opened with this change)
+
+**Bump:** patch
+
+### Summary
+
+A diagram on a rendered plan has zoom, pan, and maximize controls again, on the local page and the hosted page.
+
+### Bugs fixed
+
+- Mermaid diagrams on a rendered plan show zoom out, zoom in, reset, and maximize. Drag to pan, and hold Ctrl or Command while scrolling to zoom.
+
+### Notes
+
+No registry restart needed beyond the usual version check.

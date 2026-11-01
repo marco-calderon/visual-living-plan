@@ -74,10 +74,11 @@ function widenEdgeHits(svg: SVGSVGElement): void {
 }
 
 function stampDiagramParts(figure: HTMLElement): void {
-  const scope = figure.dataset.planPart
   const svg = figure.querySelector('svg')
-  if (!scope || !svg) return
+  if (!(svg instanceof SVGSVGElement)) return
   widenEdgeHits(svg)
+  const scope = figure.dataset.planPart
+  if (!scope) return
   const used = new Set<string>()
   let index = 0
   for (const part of svg.querySelectorAll<Element>(PARTS)) {
@@ -109,6 +110,35 @@ function fontOptions(node: HTMLElement): { fontFamily: string; fontFamilyMono: s
 
 let generation = 0
 
+/** Draw one diagram and mount pan, zoom, and maximize controls on it. */
+export function renderMermaidFigure(node: HTMLElement, idPrefix: string): void {
+  const source = sourceOf(node).trim()
+  if (!source) return
+  watchMermaidViewer()
+  releaseMermaidViewer(node)
+  try {
+    const { svg } = render(source, {
+      ...fontOptions(node),
+      idPrefix,
+      responsive: true,
+      autoDirection: false,
+    })
+    node.innerHTML = svg
+    const svgEl = node.querySelector('svg')
+    if (svgEl instanceof SVGSVGElement) {
+      stampDiagramParts(node)
+      attachMermaidViewer(node, svgEl)
+    }
+  } catch {
+    showSource(node, source, 'This diagram could not be drawn.')
+  }
+}
+
+export function clearMermaidFigure(node: HTMLElement): void {
+  collapseMermaidViewer(node)
+  releaseMermaidViewer(node)
+}
+
 function renderDiagrams(root: ParentNode = document): void {
   const nodes = diagramNodes(root)
   if (nodes.length === 0) return
@@ -116,28 +146,7 @@ function renderDiagrams(root: ParentNode = document): void {
 
   for (const [index, node] of nodes.entries()) {
     if (ticket !== generation) return
-    const source = sourceOf(node).trim()
-    if (!source) continue
-    releaseMermaidViewer(node)
-    const idPrefix = `living-plan-diagram-${index}-${ticket}`
-    try {
-      const { svg } = render(source, {
-        ...fontOptions(node),
-        idPrefix,
-        responsive: true,
-        autoDirection: false,
-      })
-      if (ticket !== generation) return
-      node.innerHTML = svg
-      const svgEl = node.querySelector('svg')
-      if (svgEl instanceof SVGSVGElement) {
-        stampDiagramParts(node)
-        attachMermaidViewer(node, svgEl)
-      }
-    } catch {
-      if (ticket !== generation) return
-      showSource(node, source, 'This diagram could not be drawn.')
-    }
+    renderMermaidFigure(node, `living-plan-diagram-${index}-${ticket}`)
   }
 }
 
@@ -153,8 +162,10 @@ function boot(): void {
   })
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', boot, { once: true })
-} else {
-  boot()
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot, { once: true })
+  } else {
+    boot()
+  }
 }
