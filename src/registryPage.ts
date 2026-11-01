@@ -11,20 +11,21 @@ export function renderRegistryPage(): string {
   <title>Running plans · Living Plan</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     :root {
       color-scheme: light;
-      --ink: #18181b;
-      --charcoal: #27272a;
-      --muted: #71717a;
+      --ink: #181e25;
+      --charcoal: #34393f;
+      --muted: #666666;
       --canvas: #ffffff;
-      --surface: #f4f4f5;
+      --surface: #f5f5f5;
       --paper: var(--canvas);
       --panel: var(--surface);
-      --line: #e4e4e7;
-      --accent: #1d4ed8;
-      --primary: #09090b;
+      --line: #e9e9e9;
+      --accent: #0094fc;
+      --primary: #171717;
+      --primary-hover: #242424;
       --on-primary: #ffffff;
       --shadow: none;
       --font-body: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -35,17 +36,18 @@ export function renderRegistryPage(): string {
     @media (prefers-color-scheme: dark) {
       :root {
         color-scheme: dark;
-        --ink: #fafafa;
-        --charcoal: #e4e4e7;
-        --muted: #a1a1aa;
-        --canvas: #0c0c0e;
-        --surface: #18181b;
+        --ink: #ededed;
+        --charcoal: #ededed;
+        --muted: #949494;
+        --canvas: #171717;
+        --surface: #1c1c1c;
         --paper: var(--canvas);
         --panel: var(--surface);
-        --line: #27272a;
-        --accent: #93c5fd;
-        --primary: #fafafa;
-        --on-primary: #0c0c0e;
+        --line: #2c2c2c;
+        --accent: #0094fc;
+        --primary: #ffffff;
+        --primary-hover: #f5f5f5;
+        --on-primary: #171717;
         --shadow: none;
       }
     }

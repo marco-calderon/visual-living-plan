@@ -53,8 +53,8 @@ test('done and not-done stay distinct without color in light and dark', () => {
   assert.doesNotMatch(css, /\.plan-check-item\.is-done \.plan-check\s*\{[^}]*color:\s*var\(--ok\)/)
 
   const dark = css.split(':root[data-theme="dark"]')[1] ?? ''
-  assert.match(dark, /--ok:\s*#86efac/)
-  assert.match(dark, /--on-primary:\s*#0c0c0e/)
+  assert.match(dark, /--ok:\s*#6edb8f/)
+  assert.match(dark, /--on-primary:\s*#171717/)
   assert.match(dark, /--muted:\s*var\(--steel\)/)
-  assert.match(dark, /--ink:\s*#fafafa/)
+  assert.match(dark, /--ink:\s*#ededed/)
 })

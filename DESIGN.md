@@ -20,10 +20,10 @@ For this app, use the documentation family only. Do not paint plan cards as vibr
 ## Colors
 
 ### Brand & Accent
-- **Brand Coral** (`colors.brand-coral`): `#ff5a36`. Signature high-impact accent.
+- **Brand Coral** (`colors.brand-coral`): `#ff502e`. Editorial emphasis only, such as a 2px left rule. Not a button fill. The older `#ff5a36` does not appear on the measured site.
 - **Brand Magenta** (`colors.brand-magenta`): `#e83e8c`.
 - **Brand Blue** (`colors.brand-blue`): `#2563eb`.
-- **Brand Blue Deep** (`colors.brand-blue-deep`): `#1d4ed8`. Form-control activation, link emphasis.
+- **Focus Blue** (`colors.focus-blue`): `#0094fc`. Product focus rings and accent borders. Article links stay brand blue.
 - **Brand Blue 700** (`colors.brand-blue-700`): `#1e40af`. Documentation tag and reference text.
 - **Brand Cyan** (`colors.brand-cyan`): `#67e8f9`.
 - **Brand Blue 200** (`colors.brand-blue-200`): `#dbeafe`. Code badges, info-tag backgrounds.
@@ -31,35 +31,37 @@ For this app, use the documentation family only. Do not paint plan cards as vibr
 
 ### Surface
 - **Canvas White** (`colors.canvas`): `#ffffff`. Primary page background.
-- **Surface** (`colors.surface`): `#f4f4f5`. Card background, distinct from the canvas. Subtle section backgrounds, search-pill rest, sidebar-nav active state.
+- **Surface** (`colors.surface`): `#f5f5f5`. Card background, distinct from the canvas. Subtle section backgrounds, search-pill rest, sidebar-nav active state.
 - **Surface Soft** (`colors.surface-soft`): `#fafafa`. Quieter section divisions.
-- **Hairline** (`colors.hairline`): `#e4e4e7`. 1px input border and primary divider.
+- **Hairline** (`colors.hairline`): `#e9e9e9`. 1px input border and primary divider. Solid form of black at about 9% on white.
 - **Hairline Soft** (`colors.hairline-soft`): `#f0f0f1`. Quieter table-row divider.
 
 ### Text
-- **Ink** (`colors.ink`): `#18181b`. Primary headline and CTA text.
+- **Ink** (`colors.ink`): `#181e25`. Primary headline and prose. The body reset before that class is `#18181b`.
 - **Ink Strong** (`colors.ink-strong`): `#000000`.
 - **Charcoal** (`colors.charcoal`): `#27272a`. Body text.
 - **Slate** (`colors.slate`): `#3f3f46`. Secondary text, metadata.
-- **Steel** (`colors.steel`): `#71717a`. Tertiary text, table headers, sidebar inactive items.
+- **Steel** (`colors.steel`): `#666666`. Secondary and tertiary text, table headers, sidebar inactive items.
 - **Stone** (`colors.stone`): `#a1a1aa`. Muted captions and tab inactive labels.
 - **Muted** (`colors.muted`): `#a1a1aa`. Footer link text.
 
 ### Semantic
 - **Success Background** (`colors.success-bg`): `#dcfce7`.
 - **Success Text** (`colors.success-text`): `#166534`.
-- Error border: `#d45656`.
-- **Primary** (`colors.primary`): `#09090b`. Black pill buttons.
+- **Error** (`colors.error`): `#ef4d3e`. Error text on light labels is `#c9322a` on `#fff4f0`.
+- **Success** (`colors.success`): `#04b54b`. Success text `#0a7a38` on `#dcf5e2`.
+- **Primary** (`colors.primary`): `#171717`. Near-black pill buttons. Hover `#242424`. Active `#000000`.
 - **On primary** (`colors.on-primary`): `#ffffff`.
 - **On dark** (`colors.on-dark`): `#ffffff`.
-- **Footer bg** (`colors.footer-bg`): `#09090b`.
+- **Footer bg** (`colors.footer-bg`): `#171717`.
 
-Dark document (derived; the source pages have no dark palette):
-- Canvas `#0c0c0e`, surface `#18181b` (cards lighter than the page), hairline `#27272a`, ink `#fafafa`, charcoal `#e4e4e7`, steel `#a1a1aa`.
+Dark document, measured on the product theme (`data-product-color-mode=dark`), not an inversion of the light page:
+- Canvas `#171717`, surface `#1c1c1c`, elevated `#262626`, hairline `#2c2c2c`, ink `#ededed`, secondary text `#949494`.
+- The primary pill inverts: `#ffffff` fill, `#171717` label, same 36px height. Links and focus use `#0094fc`.
 
 ## Typography
 
-**DM Sans** (primary). Fallbacks: Inter, Helvetica Neue, Helvetica, Arial. No italic. Emphasis is weight 500/600/700. Code uses a system monospace.
+**DM Sans** for product UI and articles. Fallbacks: Helvetica Neue, Helvetica, Arial. Outfit is the marketing display face and stays off plan and account screens. No italic. Emphasis is weight 500/600/700. Code uses JetBrains Mono.
 
 | Token | Size | Weight | Line Height | Letter Spacing | Use |
 |---|---|---|---|---|---|
@@ -77,7 +79,7 @@ Dark document (derived; the source pages have no dark palette):
 | caption | 13px | 400 | 1.70 | 0 | Captions |
 | caption-bold | 13px | 600 | 1.50 | 0 | Badge labels |
 | micro | 12px | 400 | 1.50 | 0 | Chip labels |
-| button-md | 14px | 600 | 1.40 | 0 | Pill button labels |
+| button-md | 14px | 500 | 1 | 0 | Pill button labels |
 
 Plan titles use heading-sm or card-title, not hero-display. Body uses body-md.
 
@@ -107,21 +109,21 @@ Flat by default. Hairline border, no shadow, on documentation cards. Level 2 sha
 
 ## Components to apply
 
-- **button-primary**: black pill, white text, 8px 12px, rounded-full.
-- **button-secondary**: transparent, ink text, 1px ink border, 8px 12px, pill.
-- **button-tertiary**: canvas fill, hairline border, 8px 12px, pill.
-- **button-danger**: danger-soft fill, danger text, danger border, 8px 12px, pill.
-- **card-base**: canvas was the spec for white cards; this app uses surface (`#f4f4f5`) so the card is visibly different from the white page. 16px radius, 16px padding, 1px hairline. Nested cards pad 12px.
-- **text-input**: canvas fill, hairline border, 8px radius, 40px height. Focus: 2px brand-blue-deep.
+- **button-primary**: `#171717` pill, white text, 36px height, 14px medium, full pill. Hover `#242424`. Active `#000000`. On a dark canvas the fill inverts to white and the label to `#171717`.
+- **button-secondary**: transparent quiet pill, ink text, 1px ink border, 36px height.
+- **button-tertiary**: canvas fill, hairline border, 36px height, pill.
+- **button-danger**: `#fff4f0` fill, `#c9322a` text, `#ef4d3e` border, 36px height, pill.
+- **card-base**: canvas was the spec for white cards; this app uses surface (`#f5f5f5`) so the card is visibly different from the white page. 16px radius, 16px padding, 1px hairline. Nested cards pad 12px.
+- **text-input**: canvas fill, hairline border, 8px radius, 36px height. Focus ring is 2px `#0094fc` and appears on `:focus-visible` with no delay.
 - **badge-success**, **badge-new**, **badge-beta** as specified, pill shaped.
 - Tabs: underline segmented tabs or black pill tabs. Plan/Workflow/Settings can be pill tabs.
 
 ## Do
 
-- Black pill is the primary action.
-- Brand colors stay off body text and off plan cards.
-- Pill buttons only.
-- DM Sans only, plus monospace for code.
+- The near-black pill is the primary action. One primary button per form.
+- Brand coral stays off body text, off plan cards, and off standard buttons.
+- Pill buttons only. Icons inside a button are 16px, `currentColor`, and decorative unless they are the only label.
+- DM Sans on product UI, JetBrains Mono for code. Outfit stays on marketing titles.
 
 ## Don't
 
