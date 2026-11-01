@@ -132,3 +132,24 @@ A diagram on a rendered plan has zoom, pan, and maximize controls again, on the 
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.7.16
+
+**PR:** [#117](https://github.com/marco-calderon/visual-living-plan/pull/117)
+
+**Bump:** patch
+
+### Summary
+
+Sign in and creating an account are separate hosted pages. Sign in asks for email and password. The account page can also ask for a name. Both pages can continue with GitHub or Google.
+
+### Improvements
+
+- Sign in asks for email and password only.
+- Create an account is its own page at `/signup`, with an optional name, and each page links to the other.
+- Sign in and sign up can continue with GitHub or Google. The Worker reads `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET` from its environment. The callbacks are `https://plan.logspace.qzz.io/api/auth/callback/github` and `https://plan.logspace.qzz.io/api/auth/callback/google`.
+- The sign-in page no longer links to the account-free sample. A loopback plan still does not ask for an account.
+
+### Notes
+
+No registry restart needed. `account login` still opens `/login`.

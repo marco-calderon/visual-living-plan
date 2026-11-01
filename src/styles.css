@@ -124,6 +124,19 @@ a:focus-visible,
   font-weight: 600;
 }
 
+.account-label {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+}
+
+.account-note {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--steel);
+}
+
 .account-card input {
   height: 40px;
   border: 1px solid var(--hairline);
@@ -132,6 +145,16 @@ a:focus-visible,
   background: var(--canvas);
   color: var(--ink);
   font: inherit;
+}
+
+.account-card input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+@media (hover: hover) {
+  .account-card input:hover {
+    background: var(--surface);
+  }
 }
 
 .account-actions {

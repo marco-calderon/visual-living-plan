@@ -1,95 +1,83 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Button } from '../../client/ui/button.tsx'
+import { AuthScreen } from '../AuthScreen.tsx'
 import { authClient } from '../authClient.ts'
-import '../hostToolbar.css'
-
-type LoginSearch = { next?: string; cli?: string }
+import { authPath, authSearch, finishAuth, type AuthSearch } from '../authSearch.ts'
+import { SocialAuthButton } from '../SocialAuthButton.tsx'
 
 export const Route = createFileRoute('/login')({
-  validateSearch: (search: Record<string, unknown>): LoginSearch => {
-    const next = typeof search.next === 'string' && search.next.startsWith('/') && !search.next.startsWith('//') ? search.next : undefined
-    const cli = typeof search.cli === 'string' && search.cli ? search.cli : undefined
-    return { ...(next ? { next } : {}), ...(cli ? { cli } : {}) }
-  },
+  validateSearch: (search: Record<string, unknown>): AuthSearch => authSearch(search),
   component: LoginPage,
 })
 
 function LoginPage() {
   const search = Route.useSearch()
-  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
+  const [error, setError] = useState(search.error ? 'Sign-in did not finish. Try again.' : '')
   const [pending, setPending] = useState(false)
+  const [invalid, setInvalid] = useState(false)
+  const describedBy = error ? 'auth-error' : undefined
 
-  async function finish() {
-    if (search.cli) {
-      window.location.assign(`/api/auth/cli-session?redirect=${encodeURIComponent(search.cli)}`)
-      return
-    }
-    window.location.assign(search.next ?? '/dashboard')
-  }
-
-  async function submit(kind: 'sign-in' | 'sign-up') {
+  async function submit() {
     setError('')
+    setInvalid(false)
     setPending(true)
-    const result =
-      kind === 'sign-up'
-        ? await authClient.signUp.email({ email, password, name: name || email })
-        : await authClient.signIn.email({ email, password })
+    const result = await authClient.signIn.email({ email, password })
     setPending(false)
     if (result.error) {
+      setInvalid(true)
       setError(result.error.message || 'Sign-in failed')
       return
     }
-    await finish()
+    finishAuth(search)
   }
 
   return (
-    <>
-      <header className="titlebar">
-        <a className="logo-btn" href="/dashboard" aria-label="Living Plan">
-          <img className="titlebar-logo" src="/favicon.png" alt="" width={29} height={29} />
-        </a>
-        <h1 className="brand">Living Plan</h1>
-      </header>
-      <main className="account-card">
-      <h1>Sign in</h1>
-      <p>The cloud host uses this account. A loopback plan does not.</p>
+    <AuthScreen title="Sign in">
       <form
+        aria-busy={pending}
         onSubmit={(event) => {
           event.preventDefault()
-          void submit('sign-in')
+          void submit()
         }}
       >
         <label>
-          Name
-          <input value={name} autoComplete="name" onChange={(event) => setName(event.target.value)} />
-        </label>
-        <label>
-          Email
+          <span className="account-label">
+            Email <span className="account-note">Required</span>
+          </span>
           <input
             type="email"
+            name="email"
             required
+            aria-required="true"
             autoComplete="username"
             value={email}
+            aria-invalid={invalid || undefined}
+            aria-describedby={describedBy}
             onChange={(event) => setEmail(event.target.value)}
           />
         </label>
         <label>
-          Password
+          <span className="account-label">
+            Password <span className="account-note">Required</span>
+          </span>
           <input
             type="password"
+            name="password"
             required
+            aria-required="true"
             minLength={8}
             autoComplete="current-password"
             value={password}
+            aria-invalid={invalid || undefined}
+            aria-describedby={describedBy}
             onChange={(event) => setPassword(event.target.value)}
           />
         </label>
         {error ? (
-          <p className="account-error" role="alert">
+          <p id="auth-error" className="account-error" role="alert">
             {error}
           </p>
         ) : null}
@@ -97,15 +85,27 @@ function LoginPage() {
           <Button type="submit" variant="primary" disabled={pending}>
             Sign in
           </Button>
-          <Button type="button" variant="secondary" disabled={pending} onClick={() => void submit('sign-up')}>
-            Create account
-          </Button>
+          <SocialAuthButton
+            provider="github"
+            search={search}
+            intent="sign-in"
+            pending={pending}
+            onPending={setPending}
+            onError={setError}
+          />
+          <SocialAuthButton
+            provider="google"
+            search={search}
+            intent="sign-in"
+            pending={pending}
+            onPending={setPending}
+            onError={setError}
+          />
         </div>
       </form>
       <p>
-        <a href="/local">Open the same page without an account</a>
+        <a href={authPath('/signup', search)}>Create an account</a>
       </p>
-    </main>
-    </>
+    </AuthScreen>
   )
 }

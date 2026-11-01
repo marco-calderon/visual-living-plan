@@ -1,7 +1,17 @@
 const PLAN_PAGE = /^\/plans\/([A-Za-z0-9_-]{8,80})\/?$/
 const HISTORY_PAGE = /^\/plans\/([A-Za-z0-9_-]{8,80})\/history\/?$/
 
-const APP_PAGES = new Set(['/', '/login', '/local', '/sample', '/review', '/dashboard', '/account', '/settings'])
+const APP_PAGES = new Set([
+  '/',
+  '/login',
+  '/signup',
+  '/local',
+  '/sample',
+  '/review',
+  '/dashboard',
+  '/account',
+  '/settings',
+])
 
 /** Pages TanStack Start renders. Session, writes, and downloads stay on the Worker. */
 export function tanstackPage(pathname: string, method: string): 'plan' | 'app' | null {

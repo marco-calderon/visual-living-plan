@@ -17,6 +17,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as ReviewRouteImport } from './routes/review'
 import { Route as SampleRouteImport } from './routes/sample'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as PlansPlanIdRouteImport } from './routes/plans.$planId'
 import { Route as PlansPlanIdHistoryRouteImport } from './routes/plans_.$planId.history'
 
@@ -60,6 +61,11 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PlansPlanIdRoute = PlansPlanIdRouteImport.update({
   id: '/plans/$planId',
   path: '/plans/$planId',
@@ -80,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/review': typeof ReviewRoute
   '/sample': typeof SampleRoute
   '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
   '/plans/$planId': typeof PlansPlanIdRoute
   '/plans/$planId/history': typeof PlansPlanIdHistoryRoute
 }
@@ -92,6 +99,7 @@ export interface FileRoutesByTo {
   '/review': typeof ReviewRoute
   '/sample': typeof SampleRoute
   '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
   '/plans/$planId': typeof PlansPlanIdRoute
   '/plans/$planId/history': typeof PlansPlanIdHistoryRoute
 }
@@ -105,6 +113,7 @@ export interface FileRoutesById {
   '/review': typeof ReviewRoute
   '/sample': typeof SampleRoute
   '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
   '/plans/$planId': typeof PlansPlanIdRoute
   '/plans_/$planId/history': typeof PlansPlanIdHistoryRoute
 }
@@ -119,6 +128,7 @@ export interface FileRouteTypes {
     | '/review'
     | '/sample'
     | '/settings'
+    | '/signup'
     | '/plans/$planId'
     | '/plans/$planId/history'
   fileRoutesByTo: FileRoutesByTo
@@ -131,6 +141,7 @@ export interface FileRouteTypes {
     | '/review'
     | '/sample'
     | '/settings'
+    | '/signup'
     | '/plans/$planId'
     | '/plans/$planId/history'
   id:
@@ -143,6 +154,7 @@ export interface FileRouteTypes {
     | '/review'
     | '/sample'
     | '/settings'
+    | '/signup'
     | '/plans/$planId'
     | '/plans_/$planId/history'
   fileRoutesById: FileRoutesById
@@ -156,6 +168,7 @@ export interface RootRouteChildren {
   ReviewRoute: typeof ReviewRoute
   SampleRoute: typeof SampleRoute
   SettingsRoute: typeof SettingsRoute
+  SignupRoute: typeof SignupRoute
   PlansPlanIdRoute: typeof PlansPlanIdRoute
   PlansPlanIdHistoryRoute: typeof PlansPlanIdHistoryRoute
 }
@@ -218,6 +231,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/plans/$planId': {
       id: '/plans/$planId'
       path: '/plans/$planId'
@@ -244,6 +264,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReviewRoute: ReviewRoute,
   SampleRoute: SampleRoute,
   SettingsRoute: SettingsRoute,
+  SignupRoute: SignupRoute,
   PlansPlanIdRoute: PlansPlanIdRoute,
   PlansPlanIdHistoryRoute: PlansPlanIdHistoryRoute,
 }
