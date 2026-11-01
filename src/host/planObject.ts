@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers'
 import { Elysia } from 'elysia'
 import { IDLE_MS } from './access'
+import { replayableRequest } from './replayableRequest'
 import {
   ackEvents,
   actorAllows,
@@ -71,7 +72,7 @@ export class PlanObject extends DurableObject {
 
   async fetch(request: Request): Promise<Response> {
     if (request.headers.get('upgrade')?.toLowerCase() === 'websocket') return this.acceptSocket(request)
-    return this.httpApp().fetch(request)
+    return this.httpApp().fetch(replayableRequest(request))
   }
 
   private async acceptSocket(request: Request): Promise<Response> {

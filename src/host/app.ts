@@ -4,6 +4,7 @@ import { defaultAccountSettings, readAccountSettings, saveAccountSettings } from
 import { createAuth, sessionFromToken, type AuthSession } from './auth'
 import { hostedDashboard, type HostedPlanRow } from './hostedDashboard'
 import { LATEST_PLAN_VERSION_SQL, ensurePlanVersions, listPlanVersions, publishPlanVersion, readPlanVersion } from './planVersions'
+import { replayableRequest } from './replayableRequest'
 import { requestOrigin } from './requestOrigin'
 
 type PlanStub = {
@@ -69,7 +70,7 @@ export function createHostApp(env: HostEnv) {
 export async function handleHostRequest(request: Request, env: HostEnv): Promise<Response> {
   if (!env.BETTER_AUTH_SECRET) return text(500, 'BETTER_AUTH_SECRET is not set.')
   if (request.headers.get('upgrade')?.toLowerCase() === 'websocket') return upgradePlan(request, env)
-  return createHostApp(env).fetch(request)
+  return createHostApp(env).fetch(replayableRequest(request))
 }
 
 async function upgradePlan(request: Request, env: HostEnv): Promise<Response> {
