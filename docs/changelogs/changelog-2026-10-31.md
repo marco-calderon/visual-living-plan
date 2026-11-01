@@ -1,5 +1,23 @@
 # Changelog — 2026-10-31
 
+## 1.7.3
+
+**PR:** (link once opened)
+
+**Bump:** patch
+
+### Summary
+
+Settings has a back button in the title bar. It returns to the previous page.
+
+### Improvements
+
+- The hosted settings page and the local plan Settings tab show a back button with a left arrow at the top left of the title bar. It follows the previous history entry.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
+
 ## 1.7.2
 
 **PR:** [#103](https://github.com/marco-calderon/visual-living-plan/pull/103)

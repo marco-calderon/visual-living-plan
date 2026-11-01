@@ -25,6 +25,7 @@ import { buildPlanToc, renderPlanTocHtml } from './planToc'
 import { planToExpectedGraph, withPlannedWorkflow } from './workflow'
 import { changelogSectionHtml, type ChangelogRelease } from './changelog'
 import { appearanceSettingsHtml } from './appearanceSettings'
+import { historyBackButtonHtml } from './hostToolbar'
 import { planPageStyles } from './planPageStyles'
 
 export type RenderTheme = {
@@ -434,6 +435,8 @@ function clientScript(
     document.querySelectorAll('[data-tab-panel]').forEach((panel) => {
       panel.hidden = panel.getAttribute('data-tab-panel') !== target;
     });
+    const historyBack = document.querySelector('[data-history-back]');
+    if (historyBack instanceof HTMLElement) historyBack.hidden = target !== 'settings';
     try { localStorage.setItem('living-plan-tab', target || 'plan'); } catch {}
     if (target !== 'workflow') window.livingPlanPendingWorkflowFocus = null;
     if (target === 'workflow') {
@@ -449,6 +452,7 @@ function clientScript(
       else activateTab(tab);
     });
   });
+  document.querySelector('[data-history-back]')?.addEventListener('click', () => { history.back() });
 
   document.addEventListener('click', (event) => {
     const target = event.target;
@@ -1399,6 +1403,7 @@ export function renderPlanPage(options: {
 </head>
 <body class="${showReviewBar ? 'has-review-bar ' : ''}layout-${layoutMode}" data-plan-mode="${escapeHtml(mode)}">
   <header class="titlebar">
+    ${historyBackButtonHtml(true)}
     <div class="plan-details" data-plan-details>
       <button type="button" class="logo-btn" data-plan-details-toggle aria-expanded="false" aria-controls="plan-card" aria-label="${pendingCount > 0 ? `Plan details, ${pendingCount} pending` : 'Plan details'}">
         <img class="titlebar-logo" src="/favicon.png" alt="" width="29" height="29" />

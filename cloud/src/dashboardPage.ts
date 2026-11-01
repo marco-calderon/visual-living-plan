@@ -8,7 +8,7 @@ import {
 } from '../../src/appearanceSettings'
 import { renderDashboardDocument } from '../../src/dashboardDocument'
 import { DIFFS_THEME_PRESETS } from '../../src/diffsTheme'
-import { accountMenuHtml, hostToolbarCss, renderHostToolbar } from '../../src/hostToolbar'
+import { accountMenuHtml, historyBackButtonHtml, historyBackScript, hostToolbarCss, renderHostToolbar } from '../../src/hostToolbar'
 
 function escapeHtml(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;')
@@ -239,6 +239,7 @@ export function renderSettingsPage(
   ${renderHostToolbar({
     title: 'Settings',
     logoHref: '/dashboard',
+    startHtml: historyBackButtonHtml(),
     endHtml: accountMenuHtml(account.name || account.email),
   })}
   <main class="settings-page">
@@ -248,6 +249,7 @@ export function renderSettingsPage(
     </div>
   </main>
   ${appearanceSettingsScript('/api/account/settings')}
+  ${historyBackScript()}
   ${chromeJs(assets)}
   ${SIGN_OUT_SCRIPT}
 </body>

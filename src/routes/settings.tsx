@@ -107,7 +107,7 @@ function SettingsPage() {
 
   return (
     <>
-      <HostBar title="Settings" label={label} themeUrl={THEME_URL} />
+      <HostBar title="Settings" label={label} themeUrl={THEME_URL} historyBack />
       <main className="settings-page">
         <div className="settings-stack">
           <section className="block settings-section" data-account-section="" data-host-panel="cloud">
