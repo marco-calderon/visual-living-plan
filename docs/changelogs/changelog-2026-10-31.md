@@ -1,6 +1,6 @@
 # Changelog — 2026-10-31
 
-## 1.7.5
+## 1.7.6
 
 **PR:** [#108](https://github.com/marco-calderon/visual-living-plan/pull/108)
 
@@ -17,6 +17,24 @@ The title bar shows the Living Plan mark again.
 ### Notes
 
 No registry restart needed. The local plan page uses the same `/favicon.png` mark.
+
+## 1.7.5
+
+**PR:** [#106](https://github.com/marco-calderon/visual-living-plan/pull/106)
+
+**Bump:** patch
+
+### Summary
+
+Code fences and diff hunks on a rendered plan are syntax highlighted.
+
+### Bugs fixed
+
+- A fenced code block and a diff hunk on the local plan page and the hosted plan page use Pierre token colors. Keywords, strings, and names are no longer one plain monospace color.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
 
 ## 1.7.4
 
