@@ -694,22 +694,66 @@ function clientScript(
     return '';
   }
 
+  function followTocLink(tocLink) {
+    const kind = tocLink.getAttribute('data-toc');
+    const ref = tocLink.getAttribute('data-toc-target') || '';
+    setTocOpen(false);
+    if (kind === 'workflow') focusWorkflowPage();
+    else if (kind === 'workflow-step' && ref) focusWorkflowStep(ref);
+    else if (ref) focusPlanRef(ref);
+  }
+
+  // iPad taps the label or icon. WebKit treats :hover as the gesture and skips click.
+  let tocPress = null;
+  let tocPointerLink = null;
+  let tocPointerAt = 0;
+  function tocLinkFrom(event) {
+    const target = event.target;
+    if (!(target instanceof Element)) return null;
+    return target.closest('#plan-toc a[data-toc]');
+  }
+  document.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse' || !event.isPrimary || event.button !== 0) {
+      tocPress = null;
+      return;
+    }
+    const link = tocLinkFrom(event);
+    tocPress = link ? { id: event.pointerId, x: event.clientX, y: event.clientY, link: link } : null;
+  }, true);
+  document.addEventListener('pointerup', (event) => {
+    const press = tocPress;
+    tocPress = null;
+    if (!press || event.pointerId !== press.id) return;
+    const dx = event.clientX - press.x;
+    const dy = event.clientY - press.y;
+    if (dx * dx + dy * dy > 100) return;
+    const link = tocLinkFrom(event);
+    if (!link || link !== press.link) return;
+    event.preventDefault();
+    tocPointerLink = link;
+    tocPointerAt = Date.now();
+    followTocLink(link);
+  }, true);
+  document.addEventListener('pointercancel', (event) => {
+    if (tocPress && event.pointerId === tocPress.id) tocPress = null;
+  }, true);
+
   document.addEventListener('click', (event) => {
-    if (event.defaultPrevented || event.button !== 0) return;
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const target = event.target;
     if (!(target instanceof Element)) return;
     const tocLink = target.closest('#plan-toc a[data-toc]');
     if (tocLink) {
-      const kind = tocLink.getAttribute('data-toc');
-      const ref = tocLink.getAttribute('data-toc-target') || '';
       event.preventDefault();
-      setTocOpen(false);
-      if (kind === 'workflow') focusWorkflowPage();
-      else if (kind === 'workflow-step' && ref) focusWorkflowStep(ref);
-      else if (ref) focusPlanRef(ref);
+      if (event.button !== 0) return;
+      if (tocPointerLink === tocLink && Date.now() - tocPointerAt < 700) {
+        tocPointerLink = null;
+        return;
+      }
+      followTocLink(tocLink);
       return;
     }
+    if (event.defaultPrevented || event.button !== 0) return;
     const workflowJump = target.closest('[data-workflow-jump]');
     if (workflowJump) {
       if (document.documentElement.dataset.comments === 'on') return;

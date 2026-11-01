@@ -89,6 +89,10 @@ test('contents list the plan sections and the workflow page', () => {
   assert.match(page, /data-toc="workflow"/)
   assert.match(page, /data-toc="workflow-step"[^>]*data-toc-target="later"/)
   assert.match(page, /data-toc-toggle/)
+  assert.match(page, /\.plan-toc a \* \{ pointer-events: none; \}/)
+  assert.match(page, /\.plan-toc a \{[^}]*cursor: pointer;[^}]*touch-action: manipulation;/)
+  assert.match(page, /@media \(hover: hover\) and \(pointer: fine\) \{\n {2}\.plan-toc a:hover \{ color: var\(--ink\); \}\n\}/)
+  assert.match(page, /pointerType === 'mouse'/)
 })
 
 test('the sample plan outlines phases and workflow steps', () => {
@@ -174,9 +178,9 @@ note -> blocked
   assert.equal(items.find((item) => item.kind === 'workflow-step' && item.target === 'blocked')?.tracksProgress, true)
 })
 
-async function openPlan(width: number, height = 800): Promise<{ page: Page; close: () => Promise<void> }> {
+async function openPlan(width: number, height = 800, touch = false): Promise<{ page: Page; close: () => Promise<void> }> {
   const browser = await chromium.launch({ args: ['--no-sandbox'] })
-  const page = await browser.newPage({ viewport: { width, height } })
+  const page = await browser.newPage({ viewport: { width, height }, hasTouch: touch })
   await page.emulateMedia({ reducedMotion: 'reduce' })
   const errors: string[] = []
   page.on('pageerror', (error) => {
@@ -314,6 +318,75 @@ test('a narrow viewport opens contents as a sidebar without resizing the column'
     assert.equal(await page.locator('[data-tab-target="workflow"]').getAttribute('aria-selected'), 'true')
     const stayed = await box(page, '.shell')
     assert.ok(Math.abs(stayed.width - before.width) < 1)
+  } finally {
+    await close()
+  }
+})
+
+/** Touch pointer events only. Does not synthesize a click, which is what iPad skips. */
+async function fingerTap(page: Page, selector: string, moveY = 0): Promise<number> {
+  return page.locator(selector).evaluate((node, deltaY) => {
+    const label = node.querySelector('.plan-toc-label') ?? node
+    const rect = label.getBoundingClientRect()
+    const x = rect.left + rect.width / 2
+    const y = rect.top + rect.height / 2
+    let clicks = 0
+    const count = () => {
+      clicks += 1
+    }
+    node.addEventListener('click', count)
+    const base = {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      pointerId: 7,
+      pointerType: 'touch' as const,
+      isPrimary: true,
+      button: 0,
+      clientX: x,
+      clientY: y,
+    }
+    label.dispatchEvent(new PointerEvent('pointerdown', { ...base, buttons: 1 }))
+    label.dispatchEvent(new PointerEvent('pointerup', { ...base, buttons: 0, clientY: y + deltaY }))
+    node.removeEventListener('click', count)
+    return clicks
+  }, moveY)
+}
+
+test('a touch on a contents row navigates on an iPad-sized screen', { timeout: 30_000 }, async () => {
+  const { page, close } = await openPlan(1366, 1024, true)
+  try {
+    assert.equal(await page.locator('#plan-toc').evaluate((node) => node.hasAttribute('inert')), false)
+    assert.equal(
+      await page.locator('#plan-toc a[data-toc="section"][data-toc-target="later"] .plan-toc-label').evaluate((node) => getComputedStyle(node).pointerEvents),
+      'none',
+    )
+    const before = await page.evaluate(() => history.length)
+    const clicks = await fingerTap(page, '#plan-toc a[data-toc="section"][data-toc-target="later"]')
+    assert.equal(clicks, 0)
+    await page.waitForURL(/#plan-later$/)
+    assert.equal(await page.evaluate(() => history.length), before + 1)
+
+    const slid = await fingerTap(page, '#plan-toc a[data-toc="section"][data-toc-target="design"]', 48)
+    assert.equal(slid, 0)
+    assert.match(page.url(), /#plan-later$/)
+
+    await page.locator('#plan-toc a[data-toc="section"][data-toc-target="design"]').tap()
+    await page.waitForURL(/#plan-design$/)
+    assert.equal(await page.evaluate(() => history.length), before + 2)
+
+    await page.setViewportSize({ width: 820, height: 1180 })
+    await page.waitForFunction(() => {
+      const nav = document.getElementById('plan-toc')
+      return nav && getComputedStyle(nav).getPropertyValue('--toc-dock').trim() !== '1' && nav.dataset.open !== 'true'
+    })
+    await page.locator('.plan-toc-toggle').tap()
+    await page.waitForFunction(() => document.getElementById('plan-toc')?.dataset.open === 'true')
+    const drawerClicks = await fingerTap(page, '#plan-toc a[data-toc="workflow"]')
+    assert.equal(drawerClicks, 0)
+    await page.waitForURL(/#workflow$/)
+    await page.waitForFunction(() => document.getElementById('plan-toc')?.dataset.open === 'false')
+    assert.equal(await page.locator('[data-tab-target="workflow"]').getAttribute('aria-selected'), 'true')
   } finally {
     await close()
   }
