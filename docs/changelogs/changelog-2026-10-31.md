@@ -1,5 +1,23 @@
 # Changelog — 2026-10-31
 
+## 1.7.5
+
+**PR:** (opening)
+
+**Bump:** patch
+
+### Summary
+
+The title bar shows the Living Plan mark again.
+
+### Bugs fixed
+
+- The hosted title bar logo is the circle mark. A request for `/favicon.png` no longer returns the page HTML, which the browser drew as a broken image.
+
+### Notes
+
+No registry restart needed. The local plan page uses the same `/favicon.png` mark.
+
 ## 1.7.4
 
 **PR:** [#105](https://github.com/marco-calderon/visual-living-plan/pull/105)
