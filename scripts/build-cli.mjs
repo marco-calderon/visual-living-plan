@@ -54,6 +54,7 @@ run(process.execPath, [tsc, '-p', join(root, 'tsconfig.json')])
 
 // 3. Favicon next to the compiled CLI
 copyFileSync(join(root, 'src/favicon.png'), join(root, 'dist/favicon.png'))
+copyFileSync(join(root, 'src/planPage.css'), join(root, 'dist/planPage.css'))
 
 // 4. Client bundle
 run(process.execPath, [vite, 'build', '--config', join(root, 'vite.client.config.ts')])

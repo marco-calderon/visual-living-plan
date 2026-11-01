@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import type { ClientAssets } from './assets'
 import type { ExecutionState } from './execution'
 import { planSourceFlags, renderPlanStaticHtml } from './planMdx/source'
@@ -25,7 +26,8 @@ import { buildPlanToc, renderPlanTocHtml } from './planToc'
 import { planToExpectedGraph, withPlannedWorkflow } from './workflow'
 import { changelogSectionHtml, type ChangelogRelease } from './changelog'
 import { appearanceSettingsHtml } from './appearanceSettings'
-import { planPageStyles } from './planPageStyles'
+
+const planPageStyles = readFileSync(new URL('./planPage.css', import.meta.url), 'utf8')
 
 export type RenderTheme = {
   accent: string
