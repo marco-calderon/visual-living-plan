@@ -25,7 +25,6 @@ function HistoryPage() {
     <>
       <HostBar title={history.title} label={history.name} />
       <main className="host-page">
-        <p className="kicker">Living Plan</p>
         <section className="card">
           <h1>{history.title}</h1>
           <p>The latest 10 published versions of this plan. Publishing another drops the oldest.</p>

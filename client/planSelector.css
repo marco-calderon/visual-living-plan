@@ -126,7 +126,7 @@ body.plan-grab-armed .mermaid-diagram.is-maximized .mermaid-control {
 .plan-agent-tray {
   pointer-events: auto;
   position: relative;
-  width: min(26.25rem, calc(100vw - 8rem));
+  width: min(26.25rem, calc(100% - 8rem));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -313,7 +313,7 @@ button.plan-agent-toggle {
 
 .plan-agent-send:disabled {
   opacity: 0.55;
-  cursor: default;
+  cursor: not-allowed;
 }
 
 .plan-agent-status {
@@ -327,7 +327,7 @@ button.plan-agent-toggle {
 .plan-agent-status.is-working { color: var(--accent); }
 .plan-agent-status.is-implemented { color: var(--ok); }
 .plan-agent-status.is-errored { color: var(--danger); }
-.plan-agent-status.is-issues { color: var(--warn, #b45309); }
+.plan-agent-status.is-issues { color: var(--warn); }
 
 @media (prefers-reduced-motion: reduce) {
   .plan-agent-panel,
@@ -610,7 +610,7 @@ button.plan-agent-toggle {
 
 .plan-comment-error {
   margin: 0;
-  color: var(--danger, #b42318);
+  color: var(--danger);
   font: 500 0.75rem/1.3 var(--font-body);
 }
 
@@ -660,14 +660,14 @@ button.plan-agent-toggle {
 
 .plan-popover.plan-card,
 .plan-popover.processes-panel {
-  width: min(29rem, calc(100vw - 2rem));
+  width: 29rem;
   max-width: min(29rem, calc(100vw - 2rem));
   max-height: min(70vh, 640px);
   overflow: auto;
 }
 
 .plan-popover.processes-panel {
-  width: min(380px, calc(100vw - 2rem));
+  width: 380px;
   max-width: min(380px, calc(100vw - 2rem));
   padding: 0.85rem;
 }

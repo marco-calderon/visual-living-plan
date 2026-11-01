@@ -95,8 +95,7 @@ export function appearanceSettingsHtml(input: AppearanceSettingsInput): string {
   const diffsPresets = input.diffsThemes?.length ? input.diffsThemes : DIFFS_THEME_PRESETS
   const currentDiffs = diffsThemePreset(diffsThemeId)
   const wrapCode = input.wrapCode === true
-  return `<section class="block settings-section" data-section>
-          <div class="settings-kicker">Appearance</div>
+  return `        <section class="block settings-section" data-section>
           <h3>Accent color</h3>
           <p class="settings-copy">${escapeHtml(input.accentCopy ?? 'Pick one of eight presets tuned for light and dark mode, or set a custom hex. Changes save to the theme config and update the page live.')}</p>
           <div class="settings-preview">
@@ -114,7 +113,6 @@ export function appearanceSettingsHtml(input: AppearanceSettingsInput): string {
           <p class="settings-meta">${input.accentNote}</p>
         </section>
         <section class="block settings-section" data-section>
-          <div class="settings-kicker">Layout</div>
           <h3>Page width</h3>
           <p class="settings-copy">Choose the document column. Default, wide, and full apply to Plan, Workflow, and Settings. Full uses the available width.</p>
           <div class="width-choices" role="radiogroup" aria-label="Page width">
@@ -123,7 +121,6 @@ export function appearanceSettingsHtml(input: AppearanceSettingsInput): string {
           <p class="settings-meta">${input.widthNote}</p>
         </section>
         <section class="block settings-section" data-section>
-          <div class="settings-kicker">Code &amp; diffs</div>
           <div class="code-wrap-setting">
             <div class="code-wrap-copy">
               <h3 id="code-wrap-label">Wrap text in code</h3>

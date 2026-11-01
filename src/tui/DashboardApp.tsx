@@ -365,7 +365,7 @@ function DashboardScreen({
         </ScrollView>
 
         <Text style={{ color: palette.muted }}>
-          p running plans · d dashboard · ↑↓ or jk · o open · r refresh · 1 2 3 period · f filter · q quit
+          p running plans    d dashboard    ↑↓ or jk    o open    r refresh    1 2 3 period    f filter    q quit
         </Text>
         <Text style={{ color: palette.muted }}>{registryUrl}</Text>
 

@@ -1,43 +1,16 @@
-.dashboard {
-  --ink: #18181b;
-  --charcoal: #27272a;
-  --muted: #71717a;
-  --canvas: #ffffff;
-  --surface: #f4f4f5;
-  --panel: var(--surface);
-  --line: #e4e4e7;
-  --accent: #1d4ed8;
-  --primary: #09090b;
-  --on-primary: #ffffff;
-  --accent-soft: #dbeafe;
-  --good: #166534;
-  --good-soft: #dcfce7;
-  --warn: #9a3412;
-  --warn-soft: #ffedd5;
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  margin: 0;
-  padding: 24px 32px 64px;
-  color: var(--charcoal);
+/* Hallmark · checked: 2026-11-01 · genre: modern-minimal (inferred) · shape: app screen
+ * built: the project · redesign: polish · v2.0.0 */
+html,
+body {
+  overflow-x: clip;
 }
 
-@media (prefers-color-scheme: dark) {
-  .dashboard {
-    --ink: #fafafa;
-    --charcoal: #e4e4e7;
-    --muted: #a1a1aa;
-    --canvas: #0c0c0e;
-    --surface: #18181b;
-    --panel: var(--surface);
-    --line: #27272a;
-    --accent: #93c5fd;
-    --primary: #fafafa;
-    --on-primary: #0c0c0e;
-    --accent-soft: rgba(147, 197, 253, 0.14);
-    --good: #86efac;
-    --good-soft: rgba(134, 239, 172, 0.12);
-    --warn: #fdba74;
-    --warn-soft: rgba(253, 186, 116, 0.12);
-  }
+.dashboard {
+  --panel: var(--surface);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  margin: 0;
+  padding: var(--space-xl) var(--space-xxl) var(--space-section);
+  color: var(--charcoal);
 }
 
 .dashboard .dash-section {
@@ -122,9 +95,8 @@
 .dashboard .stat span {
   display: block;
   color: var(--muted);
-  font-size: 0.78rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .dashboard .stat strong {
@@ -167,9 +139,7 @@
 }
 
 .dashboard th {
-  font-size: 0.75rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-size: 13px;
   color: var(--muted);
   font-weight: 600;
 }
@@ -246,6 +216,11 @@
 
 .dashboard a.action:hover {
   text-decoration: underline;
+}
+
+.dashboard a.action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .dashboard .empty {

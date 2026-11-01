@@ -1,4 +1,4 @@
-.settings-page {
+:root {
   color-scheme: light;
   --brand-blue: #2563eb;
   --brand-blue-deep: #1d4ed8;
@@ -15,12 +15,12 @@
   --line: var(--hairline);
   --muted: var(--steel);
   --accent: var(--brand-blue-deep);
+  --danger: #d45656;
+  --switch-track: var(--hairline);
+  --swatch-edge: rgba(0, 0, 0, 0.12);
+  --sample-bg: #ffffff;
+  --sample-fg: #0a0a0a;
   --radius: 16px;
-  --space-sm: 12px;
-  --space-md: 16px;
-  --space-xl: 24px;
-  --space-xxl: 32px;
-  --space-section: 64px;
   --font-display: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -35,6 +35,14 @@
   --accent-hover-shadow: none;
   --code-inline-bg: var(--brand-blue-200);
   --focus: var(--brand-blue-deep);
+}
+
+.settings-page {
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-xl: 24px;
+  --space-xxl: 32px;
+  --space-section: 64px;
   width: min(720px, calc(100% - var(--space-xxl) * 2));
   margin: var(--space-xxl) auto var(--space-section);
   color: var(--charcoal);
@@ -44,7 +52,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .settings-page {
+  :root {
     color-scheme: dark;
     --canvas: #0c0c0e;
     --surface: #18181b;
@@ -55,6 +63,8 @@
     --primary: #fafafa;
     --on-primary: #0c0c0e;
     --accent: #93c5fd;
+    --danger: #fca5a5;
+    --switch-track: #3f3f46;
     --accent-soft: rgba(147, 197, 253, 0.14);
     --accent-hover-border: #93c5fd;
     --code-inline-bg: rgba(147, 197, 253, 0.16);
@@ -115,10 +125,8 @@ body.layout-full .settings-page {
 }
 
 .settings-page .settings-kicker {
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--accent);
+  font-size: 13px;
+  color: var(--steel);
   font-weight: 600;
   margin: 0 0 0.35rem;
 }
@@ -214,7 +222,7 @@ body.layout-full .settings-page {
   flex: 0 0 auto;
   border-radius: 999px;
   background: var(--swatch, var(--accent));
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+  box-shadow: inset 0 0 0 1px var(--swatch-edge);
 }
 
 .settings-page .theme-swatch:hover {
@@ -273,7 +281,7 @@ body.layout-full .settings-page {
 }
 
 .settings-page .settings-error:not(:empty) {
-  color: #be123c;
+  color: var(--danger);
   font-weight: 600;
 }
 
@@ -340,7 +348,6 @@ body.layout-full .settings-page {
 }
 
 .settings-page .plan-switch {
-  --switch-track: #e4e4e7;
   --switch-thumb: var(--canvas);
   position: relative;
   box-sizing: border-box;
@@ -401,7 +408,6 @@ body.layout-full .settings-page {
 
 @media (prefers-color-scheme: dark) {
   .settings-page .plan-switch {
-    --switch-track: #3f3f46;
     --switch-thumb: var(--ink);
   }
 
@@ -561,8 +567,8 @@ body.layout-full .settings-page {
   gap: 0.22rem;
   padding: 0.45rem 0.5rem;
   border-radius: 8px;
-  background: var(--sample-bg, #fff);
-  color: var(--sample-fg, #0a0a0a);
+  background: var(--sample-bg);
+  color: var(--sample-fg);
   font-family: var(--font-mono);
   font-size: 0.62rem;
   line-height: 1.35;

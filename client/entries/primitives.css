@@ -1,3 +1,5 @@
+/* Hallmark · checked: 2026-11-01 · genre: modern-minimal (inferred) · shape: app screen
+ * built: the project · redesign: polish · v2.0.0 */
 /* Document tokens. Light and dark follow html[data-theme]. */
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap");
 
@@ -70,6 +72,12 @@
   --pulse: rgba(29, 78, 216, 0.35);
   --node-bg: var(--surface);
   --node-shadow: none;
+  --success-bg: #dcfce7;
+  --success-text: #166534;
+  --warning-bg: #fef3c7;
+  --warning-text: #92400e;
+  --code-chip-bg: var(--brand-blue-200);
+  --code-chip-fg: var(--brand-blue-700);
 }
 
 :root[data-theme="dark"] {
@@ -114,6 +122,12 @@
   --pulse: rgba(147, 197, 253, 0.4);
   --node-bg: var(--surface);
   --node-shadow: none;
+  --success-bg: rgba(134, 239, 172, 0.16);
+  --success-text: #86efac;
+  --warning-bg: rgba(251, 191, 36, 0.16);
+  --warning-text: #fbbf24;
+  --code-chip-bg: rgba(147, 197, 253, 0.16);
+  --code-chip-fg: #93c5fd;
 }
 
 .plan-ui {
@@ -178,7 +192,7 @@
   background: var(--surface-soft);
   border: 1px solid var(--line);
   border-radius: 14px;
-  padding: 0.85rem 1rem;
+  padding: 0.85rem var(--space-md);
 }
 
 .plan-box[data-surface="inset"] {
@@ -190,8 +204,8 @@
 
 .plan-box[data-pad="none"] { padding: 0; }
 .plan-box[data-pad="sm"] { padding: 0.7rem 0.8rem; }
-.plan-box[data-pad="md"] { padding: 1.15rem 1.25rem; }
-.plan-box[data-pad="lg"] { padding: 1.4rem 1.5rem; }
+.plan-box[data-pad="md"] { padding: 1.15rem var(--space-lg); }
+.plan-box[data-pad="lg"] { padding: 1.4rem var(--space-xl); }
 
 .plan-hstack,
 .plan-vstack,
@@ -323,13 +337,11 @@
 
 .plan-kicker,
 .plan-phase-status {
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.72rem;
+  font-size: 12px;
   font-weight: 700;
 }
 
-.plan-kicker { color: var(--accent-2); }
+.plan-kicker { color: var(--muted); }
 .plan-phase-status {
   display: inline-flex;
   align-items: center;
@@ -511,10 +523,10 @@ a.plan-step-label:hover {
 }
 
 .plan-rich p,
-.plan-document > p { margin: 0 0 0.75rem; }
+.plan-document > p { margin: 0 0 var(--space-sm); }
 
 .plan-rich :is(ul, ol),
-.plan-document > :is(ul, ol) { margin: 0 0 0.75rem; padding-left: 1.2rem; }
+.plan-document > :is(ul, ol) { margin: 0 0 var(--space-sm); padding-left: 1.2rem; }
 
 .plan-document > blockquote {
   margin: 0 0 0.85rem;
@@ -602,11 +614,9 @@ a.plan-step-label:hover {
 .plan-phase[data-status="blocked"] .plan-phase-status { color: var(--danger); }
 
 .plan-callout-label {
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.72rem;
+  font-size: 12px;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--steel);
 }
 
 .plan-callout[data-kind="risk"] .plan-callout-label,
@@ -716,7 +726,6 @@ a.plan-step-label:hover {
 .plan-radio-indicator[data-starting-style],
 .plan-radio-indicator[data-ending-style] {
   opacity: 0;
-  transform: scale(0.25);
 }
 
 .plan-ui .plan-choice-card input[type="radio"] {
@@ -785,7 +794,7 @@ a.plan-step-label:hover {
 .plan-checkbox {
   display: flex;
   align-items: flex-start;
-  gap: 0.75rem;
+  gap: var(--space-sm);
   width: 100%;
   min-width: 0;
   margin: 0;
@@ -803,7 +812,7 @@ a.plan-step-label:hover {
 }
 
 .plan-checkbox:has(input:disabled) {
-  cursor: default;
+  cursor: not-allowed;
   opacity: 0.72;
 }
 
@@ -861,7 +870,6 @@ a.plan-step-label:hover {
 .plan-checkbox-indicator[data-starting-style],
 .plan-checkbox-indicator[data-ending-style] {
   opacity: 0;
-  transform: scale(0.25);
 }
 
 .plan-ui .plan-checkbox-control input[type="checkbox"] {
@@ -881,7 +889,7 @@ a.plan-step-label:hover {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 1rem;
+  gap: var(--space-md);
 }
 
 .plan-form-immediate .plan-title {
@@ -899,7 +907,7 @@ a.plan-step-label:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: var(--space-sm);
   min-width: 0;
 }
 
@@ -934,7 +942,7 @@ a.plan-step-label:hover {
 
 .plan-stepper-button:active:not(:disabled) { transform: scale(0.97); }
 
-.plan-stepper-button:disabled { opacity: 0.55; cursor: default; }
+.plan-stepper-button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .plan-stepper-button:focus-visible {
   outline: 2px solid var(--accent);
@@ -983,7 +991,7 @@ a.plan-step-label:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: var(--space-xs);
   border: 1px solid var(--line);
   border-radius: 8px;
   min-height: 40px;
@@ -1000,7 +1008,7 @@ a.plan-step-label:hover {
 }
 .plan-select-trigger:disabled {
   opacity: 0.55;
-  cursor: default;
+  cursor: not-allowed;
 }
 .plan-select-icon {
   display: inline-flex;
@@ -1026,13 +1034,12 @@ a.plan-step-label:hover {
 .plan-select-popup[data-starting-style],
 .plan-select-popup[data-ending-style] {
   opacity: 0;
-  transform: scale(0.95);
 }
 .plan-select-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: var(--space-xs);
   padding: 0.45rem 0.65rem;
   border-radius: 8px;
   cursor: default;
@@ -1055,7 +1062,7 @@ a.plan-step-label:hover {
   background: var(--canvas);
   color: var(--ink);
   border-radius: 9999px;
-  padding: 8px 12px;
+  padding: var(--space-xs) var(--space-sm);
   font: inherit;
   font-size: 14px;
   font-weight: 600;
@@ -1072,7 +1079,7 @@ a.plan-step-label:hover {
 .plan-workflow-step:active {
   transform: scale(0.97);
 }
-.plan-btn:disabled { opacity: 0.55; cursor: default; }
+.plan-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .plan-form-actions {
   display: flex;
@@ -1094,17 +1101,12 @@ a.plan-step-label:hover {
   align-items: center;
   padding: 2px 6px;
   border-radius: 4px;
-  background: var(--brand-blue-200);
-  color: var(--brand-blue-700);
+  background: var(--code-chip-bg);
+  color: var(--code-chip-fg);
   font-size: 12px;
   font-weight: 500;
   line-height: 1.5;
   white-space: nowrap;
-}
-
-:root[data-theme="dark"] .plan-chip {
-  background: rgba(147, 197, 253, 0.16);
-  color: #93c5fd;
 }
 
 .plan-pill {
@@ -1123,14 +1125,14 @@ a.plan-step-label:hover {
 
 .plan-pill[data-tone="success"] {
   border-color: transparent;
-  background: #dcfce7;
-  color: #166534;
+  background: var(--success-bg);
+  color: var(--success-text);
 }
 
 .plan-pill[data-tone="warning"] {
   border-color: transparent;
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--warning-bg);
+  color: var(--warning-text);
 }
 
 .plan-pill[data-tone="danger"] {
@@ -1139,15 +1141,6 @@ a.plan-step-label:hover {
   color: var(--danger);
 }
 
-:root[data-theme="dark"] .plan-pill[data-tone="success"] {
-  background: rgba(134, 239, 172, 0.16);
-  color: #86efac;
-}
-
-:root[data-theme="dark"] .plan-pill[data-tone="warning"] {
-  background: rgba(251, 191, 36, 0.16);
-  color: #fbbf24;
-}
 
 .plan-ui :is(.plan-btn, .plan-workflow-step):focus-visible {
   outline: 2px solid var(--accent);
@@ -1294,12 +1287,12 @@ a.plan-step-label:hover {
 .vlp-workflow-edge-label { fill: var(--ink); }
 
 .vlp-chart {
-  margin: 0 0 1rem;
+  margin: 0 0 var(--space-md);
   color: var(--ink);
 }
 
 .vlp-chart figcaption {
-  margin: 0 0 0.5rem;
+  margin: 0 0 var(--space-xs);
   font-family: var(--font-display);
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -1346,7 +1339,7 @@ a.plan-step-label:hover {
 
 .mermaid-diagram .mermaid {
   margin: 0;
-  padding: 0.85rem 1rem;
+  padding: 0.85rem var(--space-md);
   white-space: pre-wrap;
   color: var(--muted);
 }

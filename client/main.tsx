@@ -101,7 +101,7 @@ function ExecutionApp() {
     <div className="execution-shell">
       <div className="execution-banner">
         <div>
-          <div className="execution-kicker">{kicker}</div>
+          <div className="execution-kicker" role="status">{kicker}</div>
           <h2>{heading}</h2>
           {detail ? <p>{detail}</p> : null}
           {hasPlanSteps ? (
