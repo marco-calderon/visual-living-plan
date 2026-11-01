@@ -1,19 +1,9 @@
 import { PLAN_CAPS, allows, normalizeTier, planCapReached } from './access'
 import { defaultAccountSettings, readAccountSettings, saveAccountSettings } from './accountSettings'
 import { createAuth, sessionFromToken, type AuthSession } from './auth'
-import {
-  cloudAccountRoute,
-  renderAccountPage,
-  renderPlansDashboard,
-  renderSettingsPage,
-  renderVersionHistory,
-  settingsChromeFromManifest,
-} from './dashboardPage'
 import { hostedDashboard, type HostedPlanRow } from './hostedDashboard'
 import { LATEST_PLAN_VERSION_SQL, ensurePlanVersions, listPlanVersions, publishPlanVersion, readPlanVersion } from './planVersions'
-import { renderLoginPage } from './loginPage'
 import { PlanObject } from './planObject'
-import { renderCloudPage, type CloudPageAssets } from './page'
 import { requestOrigin } from './requestOrigin'
 export { PlanObject }
 
@@ -35,9 +25,6 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (!env.BETTER_AUTH_SECRET) return text(500, 'BETTER_AUTH_SECRET is not set.')
     const url = new URL(request.url)
-    if (url.pathname.startsWith('/client/') || url.pathname === '/favicon.png') {
-      return env.ASSETS.fetch(request)
-    }
     const origin = requestOrigin(request, env.PUBLIC_URL)
     const auth = createAuth(env, origin)
 
@@ -48,34 +35,6 @@ export default {
     if (url.pathname === '/api/account' && request.method === 'GET') return accountRead(request, env, auth)
     if (url.pathname === '/api/account/settings' && request.method === 'PUT') return accountSave(request, env, auth)
     if (url.pathname === '/api/account/dashboard' && request.method === 'GET') return accountDashboardApi(request, env, auth, origin)
-    const surface = cloudAccountRoute(url.pathname)
-    if (surface === 'redirect') return Response.redirect(new URL('/dashboard', request.url).toString(), 302)
-    if (surface === 'dashboard') return signedInHtml(request, env, auth, async (session) => renderPlansDashboard({
-      email: session.user.email,
-      name: session.user.name || session.user.email,
-      tier: normalizeTier(session.user.tier),
-    }, settingsChromeFromManifest(await readClientManifest(env, request))))
-    if (surface === 'account') return signedInHtml(request, env, auth, (session) => renderAccountPage({
-      email: session.user.email,
-      name: session.user.name || session.user.email,
-      tier: normalizeTier(session.user.tier),
-    }))
-    if (surface === 'settings') return signedInHtml(request, env, auth, async (session) => renderSettingsPage(await readAccountSettings(env.DB, session.user.id), {
-      email: session.user.email,
-      name: session.user.name || session.user.email,
-      tier: normalizeTier(session.user.tier),
-    }, settingsChromeFromManifest(await readClientManifest(env, request))))
-    if (url.pathname === '/login') {
-      const cli = url.searchParams.get('cli') ?? ''
-      if (cli && !isLoopback(cli)) return text(400, 'The sign-in callback must be on this machine.')
-      return html(
-        renderLoginPage({
-          google: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET),
-          github: Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET),
-          cli,
-        }),
-      )
-    }
     if (url.pathname === '/api/plans' && request.method === 'POST') return registerPlan(request, env, auth, origin)
     if (url.pathname === '/api/health') return Response.json({ ok: true })
 
@@ -86,22 +45,10 @@ export default {
     if (rest === '/share' && request.method === 'GET') return sharePlan(request, env, auth, origin, planId)
     if (rest.startsWith('/view/')) return acceptViewer(request, env, planId, rest.slice('/view/'.length))
     if (rest === '/document' && request.method === 'GET') return planDocument(request, env, auth, planId, 'latest')
-    if (rest === '/history' && request.method === 'GET') return planHistory(request, env, auth, planId)
     const versionMatch = /^\/versions\/(\d+)$/.exec(rest)
     if (versionMatch && request.method === 'GET') return planDocument(request, env, auth, planId, Number(versionMatch[1]))
     return forwardPlan(request, env, auth, planId, rest)
   },
-}
-
-async function signedInHtml(
-  request: Request,
-  env: Env,
-  auth: ReturnType<typeof createAuth>,
-  render: (session: AuthSession) => string | Promise<string>,
-): Promise<Response> {
-  const session = await readSession(auth, request, env.DB)
-  if (!session) return Response.redirect(new URL('/login', request.url).toString(), 302)
-  return html(await render(session))
 }
 
 async function accountDashboardApi(
@@ -310,32 +257,6 @@ async function forwardPlan(
   const viewer = await viewerFor(request, env, planId)
   const account = Boolean(session && row && row.user_id === session.user.id)
   const actor = account ? 'account' : viewer ? 'viewer' : ''
-  const page = request.method === 'GET' && (rest === '/' || rest === '')
-  if (page) {
-    const loaded = await loadHostedPlan(request, env, planId)
-    if (loaded instanceof Response) return loaded
-    const assets = await loadAssets(env, request)
-    return html(
-      renderCloudPage({
-        basePath: `/plans/${planId}`,
-        title: loaded.title,
-        source: loaded.source,
-        mode: loaded.mode,
-        responses: loaded.responses,
-        comments: loaded.comments,
-        review: loaded.review,
-        accent: loaded.accent,
-        pageWidth: loaded.pageWidth,
-        diffsTheme: loaded.diffsTheme,
-        wrapCode: loaded.wrapCode,
-        owner: loaded.owner,
-        email: loaded.email,
-        name: loaded.name,
-        settings: loaded.settings,
-        assets,
-      }),
-    )
-  }
   if (request.method === 'DELETE') {
     if (!account && !bearerHeader(request)) return text(401, 'Sign in required')
     const closed = await planFetch(env, planId, request, '/', actor || 'plan')
@@ -382,7 +303,7 @@ async function loadHostedPlan(request: Request, env: Env, planId: string): Promi
   const viewer = await viewerFor(request, env, planId)
   const account = Boolean(session && row && row.user_id === session.user.id)
   const actor = account ? 'account' : viewer ? 'viewer' : ''
-  if (!actor) return html(signInRequired(planId), 401)
+  if (!actor) return text(401, 'Sign in required')
   const viewResponse = await planFetch(env, planId, request, '/view', actor)
   if (!viewResponse.ok) return viewResponse
   const view = (await viewResponse.json()) as {
@@ -488,14 +409,7 @@ async function versionsForPlan(env: Env, planId: string): Promise<Array<{ seq: n
   return versions
 }
 
-async function planHistory(request: Request, env: Env, auth: ReturnType<typeof createAuth>, planId: string): Promise<Response> {
-  if (!(await planOwner(request, env, auth, planId))) return text(401, 'Sign in required')
-  const versions = await versionsForPlan(env, planId)
-  const title = versions[0]?.title ?? 'Living plan'
-  return html(renderVersionHistory({ title, planId, versions }))
-}
-
-/** Version list for the Start history page. The standalone Worker still returns HTML from planHistory. */
+/** Version list for the Start history page. */
 export async function hostedPlanVersions(request: Request, env: Env, planId: string): Promise<Response> {
   const origin = requestOrigin(request, env.PUBLIC_URL)
   const auth = createAuth(env, origin)
@@ -518,43 +432,6 @@ async function planFetch(env: Env, planId: string, request: Request, path: strin
   const target = new URL(path, 'https://plan.internal')
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD'
   return stub.fetch(new Request(target, hasBody ? { method: request.method, headers, body: request.body } : { method: request.method, headers }))
-}
-
-async function readClientManifest(
-  env: Env,
-  request: Request,
-): Promise<Record<string, { file: string; css?: string[]; isEntry?: boolean; name?: string }> | null> {
-  try {
-    const manifestResponse = await env.ASSETS.fetch(new Request(new URL('/client/.vite/manifest.json', request.url)))
-    if (!manifestResponse.ok) return null
-    return (await manifestResponse.json()) as Record<string, { file: string; css?: string[]; isEntry?: boolean; name?: string }>
-  } catch {
-    return null
-  }
-}
-
-async function loadAssets(env: Env, request: Request): Promise<CloudPageAssets> {
-  const empty: CloudPageAssets = {
-    planMdxHref: null,
-    planMdxCss: [],
-    selectorHref: null,
-    selectorCss: [],
-    chromeHref: null,
-    chromeCss: [],
-  }
-  const manifest = await readClientManifest(env, request)
-  if (!manifest) return empty
-  const plan = manifest['client/planMdx.tsx'] ?? Object.values(manifest).find((entry) => entry.name === 'planMdx')
-  const selector = manifest['client/PlanSelector.tsx'] ?? Object.values(manifest).find((entry) => entry.name === 'selector')
-  const chrome = settingsChromeFromManifest(manifest)
-  return {
-    planMdxHref: plan ? `/client/${plan.file}` : null,
-    planMdxCss: (plan?.css ?? []).map((file) => `/client/${file}`),
-    selectorHref: selector ? `/client/${selector.file}` : null,
-    selectorCss: (selector?.css ?? []).map((file) => `/client/${file}`),
-    chromeHref: chrome.chromeHref,
-    chromeCss: chrome.chromeCss,
-  }
 }
 
 async function readSession(auth: ReturnType<typeof createAuth>, request: Request, db: D1Database): Promise<AuthSession | null> {
@@ -624,15 +501,6 @@ function isLoopback(value: string): boolean {
   }
 }
 
-function signInRequired(planId: string): string {
-  const next = encodeURIComponent(`/plans/${planId}/`)
-  return `<!doctype html><meta charset="utf-8" /><title>Sign in · Living Plan</title><p>Sign in to open this plan.</p><p><a href="/login?next=${next}">Sign in</a></p>`
-}
-
 function text(status: number, message: string): Response {
   return new Response(message, { status, headers: { 'content-type': 'text/plain; charset=utf-8' } })
-}
-
-function html(body: string, status = 200): Response {
-  return new Response(body, { status, headers: { 'content-type': 'text/html; charset=utf-8' } })
 }

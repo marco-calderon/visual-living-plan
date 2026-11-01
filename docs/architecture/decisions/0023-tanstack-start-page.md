@@ -23,4 +23,4 @@ TanStack Start is the web application. It lives at the repository root, on the s
 
 `src/entry.ts` exports the Durable Object and delegates session requests to the Worker fetch. `npm run host` runs the application on local workerd, including D1 and the Durable Object. Apply migrations with `npm run host:migrate`. Production still sets `BETTER_AUTH_SECRET` as a secret. The value in `wrangler.jsonc` is for that local process only.
 
-The string documents in `cloud/` remain for a Worker started from `cloud/` alone. The application entry does not use them for page requests.
+The Worker does not return HTML for `/`, `/review`, `/login`, `/dashboard`, `/account`, `/settings`, `/plans/:id`, or `/plans/:id/history`. Those pages are Start routes. `cloud/` keeps the session, plan APIs, Durable Object, and auth that those routes and the CLI call.
