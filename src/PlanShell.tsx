@@ -3,8 +3,8 @@ import { Button } from '../client/ui/button.tsx'
 import { hostToolbarCss } from './hostToolbar.ts'
 import { planSourceFlags } from './planMdx/source.ts'
 import { buildPlanToc, renderPlanTocHtml } from './planToc.ts'
-import { planPageStyles } from './planPageStyles.ts'
 import { bindPlanChrome } from './bindPlanChrome.ts'
+import './planPage.css'
 import { themeBootstrapScript } from './themeBootstrap.ts'
 
 const PLAN_ICON =
@@ -102,7 +102,7 @@ export function PlanShell({
   return (
     <>
       <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
-      <style>{`${hostToolbarCss}\n${planPageStyles}`}</style>
+      <style>{hostToolbarCss}</style>
       <header className="titlebar">
         <div className="plan-details" data-plan-details>
           <button
