@@ -1,8 +1,174 @@
 # Architecture
 
-Visual Living Plan is a local HTTP service plus a browser page. An agent writes one `.plan.md` file. A person opens a URL on that service to watch status and submit choices, forms, questions, approvals, and reviews. The agent hears those submissions on an event stream.
+Visual Living Plan is two hosts and one plan page. An agent writes one `.plan.md` file. A person opens a URL to watch status and submit choices, forms, questions, approvals, and reviews. The agent hears those submissions on an event stream.
 
-Read [the decisions](decisions/README.md) for why it is shaped this way. Read [the project context](../context.md) before changing the code.
+The default host is a Bun process on this machine. `--cloud` is a separate host: a TanStack Start application and a Cloudflare Worker. Both hosts leave MDX compilation in the browser.
+
+Read [the decisions](decisions/README.md) for why it is shaped this way. Read [the project context](../context.md) before changing the code. Worker setup is [cloud/README.md](../../cloud/README.md).
+
+## How the app is put together
+
+```mermaid
+flowchart TB
+  subgraph machine ["This machine — the default"]
+    CLI["live-plan CLI"]
+    Bun["Bun service<br/>127.0.0.1:9477"]
+    Sqlite[("registry.sqlite")]
+    CLI -->|"serve, events, review"| Bun
+    Bun --> Sqlite
+  end
+
+  subgraph hosted ["Opt-in — serve --cloud"]
+    Start["TanStack Start<br/>pages at the repo root"]
+    Worker["Worker in cloud/<br/>auth, APIs, sockets"]
+    D1[("D1 living-plan")]
+    DO["PlanObject<br/>one SQLite Durable Object"]
+    Start -->|"server functions"| Worker
+    Worker --> D1
+    Worker --> DO
+  end
+
+  Person["Browser"] --> Bun
+  Person --> Start
+  CLI -.->|"account login, then --cloud"| Worker
+```
+
+| Host | Process | What it keeps | When it runs |
+|---|---|---|---|
+| Local loopback | Bun, Elysia, `127.0.0.1:9477` | Every plan on this machine, in `~/.config/living-plan/registry.sqlite` | `serve` and `review` start it. `npm run dev` is this CLI |
+| Web application | TanStack Start, Vite, `src/entry.ts` | HTML for `/dashboard`, `/login`, `/plans/:id`, and the other pages | `npm run host` on local workerd, port 3000. Production is the same Worker |
+| Worker session | `cloud/src/worker.ts` | Better Auth, the plan catalog, plan APIs, WebSockets | Every request the Start router does not claim, including upgrades |
+| Private server | One Elysia process, its own port | One plan, no registry row | `--no-registry` only |
+
+`dashboard`, `tui`, `logs`, and `lan` stay on the local service even when a plan is hosted in the cloud.
+
+## The web application
+
+TanStack Start lives at the repository root. There is no `app/` directory. `vite.config.ts` loads the Cloudflare Vite plugin, the Start plugin, and React. `wrangler.jsonc` sets `main` to `src/entry.ts`. That file exports the `PlanObject` Durable Object and is the Worker entry.
+
+`src/entry.ts` decides who answers:
+
+```mermaid
+flowchart TD
+  Req["Request"] --> Upgrade{"WebSocket upgrade?"}
+  Upgrade -->|yes| Worker["cloud/src/worker.ts"]
+  Upgrade -->|no| Favicon{"/favicon.png"}
+  Favicon -->|yes| Icon["Asset, or the built-in mark"]
+  Favicon -->|no| Page{"GET or HEAD of a page route?"}
+  Page -->|yes| Start["TanStack Start handler"]
+  Page -->|no| Worker
+  Start -->|"loadPlan, loadAccount, loadHistory"| Worker
+```
+
+Page routes, from `src/pageRoutes.ts` and `src/routes/`:
+
+| Route | File | What it does |
+|---|---|---|
+| `/`, `/review` | `index.tsx`, `review.tsx` | Redirect to `/dashboard` |
+| `/login` | `login.tsx` | Email and password, and Google or GitHub when those secrets exist. A `cli` search param finishes `account login` |
+| `/dashboard` | `dashboard.tsx` | This account's hosted plans |
+| `/account` | `account.tsx` | Name, email, tier |
+| `/settings` | `settings.tsx` | Appearance stored in D1 |
+| `/plans/:id` | `plans.$planId.tsx` | The plan page. `PlanShell` |
+| `/plans/:id/history` | `plans_.$planId.history.tsx` | Published versions of that plan |
+| `/local` | `local.tsx` | The sample plan in `PlanShell`, with no account and no Durable Object |
+| `/sample` | `sample.tsx` | Signs in, opens the sample on the account, redirects to `/plans/:id` |
+
+`/plans/:id/` is rewritten to `/plans/:id` before Start sees it. Other page paths lose a trailing slash the same way. `/client/...` on this Worker is 404. The Start bundle imports the plan client itself. The Worker does not return a second HTML copy of these pages. `cloud/` keeps the session, the plan APIs, the Durable Object, and auth.
+
+Server functions in `src/planFns.ts` call back into `cloud/src/worker.ts` with the incoming cookie. The route never talks to D1 or the Durable Object on its own.
+
+`npm run dev` is still the local Bun CLI. `npm run host` is this application on local workerd, including D1 and the Durable Object. Apply the local migrations with `npm run host:migrate`. The library bundle the Bun service serves from `/client/` is built by `vite.client.config.ts` (`npm run build:client`).
+
+## The Worker, D1, and Better Auth
+
+`cloud/src/worker.ts` owns everything that is not a page: `/api/auth/*`, `/api/account`, `/api/plans`, `/api/health`, plan writes, the viewer link, document downloads, and WebSocket upgrades. It refuses to start when `BETTER_AUTH_SECRET` is missing. The value in `wrangler.jsonc` is for local workerd. Production sets the secret with Wrangler.
+
+Better Auth (`cloud/src/auth.ts`) uses the D1 binding `DB`. Email and password are always on. Google and GitHub are added when both id and secret are set. The `bearer` and `organization` plugins are on. D1 rejects `Date` and boolean bindings, so `bindableD1` turns a `Date` into an ISO string and a boolean into `0` or `1` before `bind`.
+
+The CLI stores the raw session token from sign-in. Better Auth's bearer plugin does not turn that token back into a session, so `getSession` only sees a browser cookie. `sessionFromToken` reads `session` joined to `user` in D1.
+
+D1 is the account database, not the live plan. Migrations live in `cloud/migrations/`.
+
+| Table | Role |
+|---|---|
+| `user`, `session`, `account`, `verification` | Better Auth identity. `user.tier` is `free`, `pro`, or `business` |
+| `organization`, `member`, `invitation` | Better Auth organizations |
+| `plans` | Catalog row: id, owning user, plan bearer, title, mode, tier, `closed_at` |
+| `user_settings` | Accent, page width, diff theme, code wrap |
+| `plan_versions` | Published markdown. The latest 10 per plan. The 11th drops the oldest |
+
+Three credentials, and they are not interchangeable ([ADR 0022](decisions/0022-opt-in-cloud-host.md)):
+
+```mermaid
+flowchart LR
+  Account["Account session<br/>cookie or bearer"] -->|"register, dashboard, settings"| D1["D1"]
+  PlanBearer["Plan bearer<br/>cloud.json only"] -->|"upload source, agent socket"| DO["PlanObject"]
+  Viewer["Viewer cookie<br/>GET /plans/:id/view/:sig"] -->|"read and submit"| DO
+```
+
+The account bearer is not written into the plan file. The plan bearer is not written there either. The CLI writes `cloudId` into the frontmatter and keeps the plan bearer in `~/.config/living-plan/cloud.json`. `GET /plans/:id/view/:sig` checks an HMAC of the plan id and sets the viewer cookie, then redirects to the plan page.
+
+Open plans, sockets, and idle time follow `user.tier`. Free is 1 plan, 2 sockets, and 1 hour. Pro is 10, 4, and 6 hours. Business is 50, 50, and 6 hours. Reattaching a plan does not take another slot. There is no billing screen.
+
+## Durable Objects
+
+Each cloud plan is one SQLite Durable Object, class `PlanObject`, binding `PLANS`. Wrangler migration `v1` creates that class. The id is `cloudId`, not a hash of the file path.
+
+`cloud/src/planObject.ts` accepts the WebSocket, enforces the socket cap, and runs an alarm for idle close. The SQL is `cloud/src/planRoom.ts`, on `this.ctx.storage.sql`.
+
+| Stored in the object | What it is |
+|---|---|
+| `meta` | Token, title, mode, tier, source, revision, responses, comments, review, execution, closed flag, last seen |
+| `events` | Submissions. `delivered_at` is set when the agent acks |
+
+The page and the agent share that object's hibernating WebSockets. A local plan still uses server-sent events on the Bun process. The Durable Object holds the live session. D1 holds the account and the published document versions. Uploading source writes the Durable Object first, then `plan_versions` in D1. A stale revision is HTTP 409.
+
+`close` sets the object closed and sets `plans.closed_at` in D1. An idle alarm closes the object when no socket is open and last seen is older than the tier's idle time.
+
+## A plan page
+
+The plan file is MDX. Neither host compiles it into the HTML it sends. A Worker request cannot eval generated code, and the Bun page is the same client on purpose ([ADR 0020](decisions/0020-mdx-plan-page.md), [ADR 0023](decisions/0023-tanstack-start-page.md)). That client is `client/planMdx.tsx`.
+
+```mermaid
+sequenceDiagram
+  participant Browser
+  participant Start as TanStack /plans/:id
+  participant Worker
+  participant D1
+  participant DO as PlanObject
+  Browser->>Start: GET /plans/:id
+  Start->>Worker: hostedPlanPage
+  Worker->>D1: session and plans.user_id
+  Worker->>DO: GET /view
+  DO-->>Worker: source, mode, responses, comments, review
+  Worker-->>Start: page JSON
+  Start-->>Browser: PlanShell and JSON script living-plan-mdx
+  Note over Browser: compile MDX, mount #plan-mdx-root
+  Browser->>DO: WebSocket /plans/:id/api/events
+```
+
+On the cloud host, `src/routes/plans.$planId.tsx` loads that JSON through `loadPlan`, then renders `PlanShell` (`src/PlanShell.tsx`). The shell is the title bar, the plan and workflow tabs, the contents list, and an empty `#plan-mdx-root`. It sets `window.__LIVE_PLAN_BASE__` to `/plans/<id>`, `window.__LIVE_PLAN_HOST__` to `cloud`, and `window.__LIVE_PLAN_TRANSPORT__` to `websocket`. After layout it imports `client/planMdx.tsx`, `client/main.tsx` (the workflow canvas), and `client/chrome/mountChrome.tsx`. A cloud host also imports the plan selector. A plan that contains a code fence imports the highlighter.
+
+The route puts three JSON scripts on the page: `#living-plan-mdx` (source, title, responses), `#living-plan-comments`, and `#living-plan-review`. The workflow panel gets `#living-plan-bootstrap` when the loader built an execution snapshot.
+
+`client/planMdx.tsx` reads `#living-plan-mdx`. `planSourceToMdx` strips frontmatter and rejects `{% tags %}` and YAML entry fences. `compilePlanMdx` runs `@mdx-js/mdx` `compile` in the page (`outputFormat: function-body`), with remark plugins for mermaid and pipe tables and a recma plugin that maps plan tags onto React components. `run` evaluates that function body with `react/jsx-runtime`. The module renders into `#plan-mdx-root`. Choice, form, questions, and approve post to `/api/interactions/:id` under `__LIVE_PLAN_BASE__`. A later `plan` or `reload` event compiles again.
+
+The local Bun page does not use `PlanShell`. `src/render.ts` writes the same mount points and the same `#living-plan-mdx` script into an HTML string, then loads the prebuilt module from `/client/`. The browser compile is the same function. Events on that host are SSE, because the page does not set `__LIVE_PLAN_TRANSPORT__`.
+
+```mermaid
+sequenceDiagram
+  participant Browser
+  participant Bun as Bun service
+  participant Session as planSession
+  Browser->>Bun: GET /plans/:id/
+  Bun->>Session: source and session
+  Bun-->>Browser: HTML from renderPlanPage
+  Note over Browser: the /client bundle compiles MDX into #plan-mdx-root
+  Browser->>Bun: SSE /plans/:id/api/events
+```
+
+`/local` is the third surface: `PlanShell` around the rate-limit sample, `host="local"`, no base path, no account, and no Durable Object. It still compiles in the browser.
 
 ## How the pieces talk
 
@@ -152,13 +318,16 @@ A row overlaps the selected window when it started before the end of the window 
 | `src/cli.ts` | Client of the service. `serve` registers and prints that plan's undelivered submissions. `events`, `wait`, `watch`, and `review` read the same stream. `logs` prints the diagnostic files under `~/.config/living-plan/logs`. `dashboard` opens `/dashboard`. `tui` reads `/api/processes` and `/api/dashboard`, and leaves the service running when it exits. `--cloud` uses the signed-in host instead |
 | `src/cloudStore.ts`, `src/cloudClient.ts`, `src/cloudCommand.ts`, `src/cloudWatch.ts`, `src/cloudFrontmatter.ts` | Account session and plan bearers in `cloud.json`, frontmatter `cloudId`, upload, and the file watcher for `--cloud` |
 | `src/agentEvents.ts` | SSE reader for a local plan, WebSocket reader for a cloud plan, ack helper, and `planApiUrl` used by the CLI |
-| `cloud/` | The Worker session: Better Auth on D1, one SQLite Durable Object per plan, and the plan APIs |
-| `src/routes/`, `src/entry.ts` | The web application. TanStack Start on that Worker. Every page is a route here, and the session stays in `cloud/` |
+| `src/entry.ts`, `src/pageRoutes.ts` | Worker entry. Pages go to TanStack Start. Auth, plan APIs, and WebSockets go to `cloud/` |
+| `src/routes/`, `src/PlanShell.tsx`, `src/planFns.ts` | The web application. Start routes, the plan shell, and the server functions that call the Worker |
+| `cloud/` | Better Auth on D1, the plan catalog, published versions, and one SQLite Durable Object per plan |
+| `vite.config.ts`, `wrangler.jsonc` | The Start app and its Worker bindings. `vite.client.config.ts` is the `/client/` bundle the Bun service serves |
 | `src/dashboard.ts`, `src/dashboardPage.ts`, `src/tui/` | Period summary, the dashboard page, and the terminal view of the same read |
 | `src/planArchive.ts` | Copy a plan file into the registry home and serve that copy |
 | `src/parse.ts`, `src/planMdx/outline.ts` | Parse MDX plan components for the session model (interactions, workflow, progress). `{% tags %}` and YAML entry fences are rejected ([ADR 0021](decisions/0021-mdx-plan-entries.md)) |
 | `src/planMdx/`, `src/planSnapshots.ts`, `client/planMdx.tsx`, `client/entries/`, `client/mdx/` | The plan column. The page compiles MDX and renders the React entries, Pele diagrams, ELK workflow, and TanStack charts. Source history is plan snapshots. The page shows the current file version on the description card and does not list or restore snapshots |
-| `src/render.ts`, `client/` | The plan shell: title bar, dashboard navigation, settings, review, comments. API calls are prefixed with the plan's base path |
+| `src/render.ts` | HTML shell for a plan on the Bun service: the same mount points `PlanShell` renders for a cloud plan |
+| `client/planMdx.tsx`, `client/mdx/` | Browser MDX compile and the React plan. Used by `PlanShell` and by the `/client/` bundle |
 
 ## What survives a restart
 

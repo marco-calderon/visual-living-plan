@@ -10,7 +10,7 @@ The agent owns a `.plan.md` file. Humans open a browser URL to:
 
 Works for local agents (file + localhost URL) and is shaped so a cloud agent can host the same server and share the URL.
 
-Architecture and the decisions behind it: [docs/architecture](docs/architecture/README.md). Context for working in this repo: [docs/context.md](docs/context.md).
+How the app is structured, with diagrams for the local Bun service, the TanStack Start app, the Worker, and plan-page rendering: [docs/architecture/README.md](docs/architecture/README.md). Decisions sit beside that page. Context for working in this repo: [docs/context.md](docs/context.md).
 
 ## Quick start
 
