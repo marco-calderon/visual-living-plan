@@ -65,8 +65,8 @@ Page routes, from `src/pageRoutes.ts` and `src/routes/`:
 | Route | File | What it does |
 |---|---|---|
 | `/`, `/review` | `index.tsx`, `review.tsx` | Redirect to `/dashboard` |
-| `/login` | `login.tsx` | Email and password, or GitHub. A `cli` search param finishes `account login`. Links to `/signup` |
-| `/signup` | `signup.tsx` | Email, password, an optional name, or GitHub. The same `next` and `cli` search params carry over. Links to `/login` |
+| `/login` | `login.tsx` | Email and password, or GitHub and Google. A `cli` search param finishes `account login`. Links to `/signup` |
+| `/signup` | `signup.tsx` | Email, password, an optional name, or GitHub and Google. The same `next` and `cli` search params carry over. Links to `/login` |
 | `/dashboard` | `dashboard.tsx` | This account's hosted plans |
 | `/account` | `account.tsx` | Name, email, tier |
 | `/settings` | `settings.tsx` | Appearance stored in D1 |

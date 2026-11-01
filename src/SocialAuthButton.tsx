@@ -2,7 +2,10 @@ import { Button } from '../client/ui/button.tsx'
 import { authClient } from './authClient.ts'
 import { authPath, authReturnPath, finishAuth, type AuthSearch } from './authSearch.ts'
 
-type GithubAuthButtonProps = {
+type SocialProvider = 'github' | 'google'
+
+type SocialAuthButtonProps = {
+  provider: SocialProvider
   search: AuthSearch
   intent: 'sign-in' | 'sign-up'
   pending: boolean
@@ -10,22 +13,28 @@ type GithubAuthButtonProps = {
   onError: (message: string) => void
 }
 
-/** Secondary pill that starts GitHub OAuth. The Worker reads the client id and secret from its environment. */
-export function GithubAuthButton({ search, intent, pending, onPending, onError }: GithubAuthButtonProps) {
+const NAME: Record<SocialProvider, string> = {
+  github: 'GitHub',
+  google: 'Google',
+}
+
+/** Secondary pill that starts GitHub or Google OAuth. The Worker reads each client id and secret from its environment. */
+export function SocialAuthButton({ provider, search, intent, pending, onPending, onError }: SocialAuthButtonProps) {
   const page = intent === 'sign-up' ? '/signup' : '/login'
+  const label = `Continue with ${NAME[provider]}`
 
   async function start() {
     onError('')
     onPending(true)
     const result = await authClient.signIn.social({
-      provider: 'github',
+      provider,
       callbackURL: authReturnPath(search),
       errorCallbackURL: authPath(page, search),
       requestSignUp: intent === 'sign-up',
     })
     if (result.error) {
       onPending(false)
-      onError(result.error.message || 'GitHub sign-in failed')
+      onError(result.error.message || `${NAME[provider]} sign-in failed`)
       return
     }
     if (!result.data?.url) {
@@ -36,7 +45,7 @@ export function GithubAuthButton({ search, intent, pending, onPending, onError }
 
   return (
     <Button type="button" variant="secondary" disabled={pending} onClick={() => void start()}>
-      Continue with GitHub
+      {label}
     </Button>
   )
 }

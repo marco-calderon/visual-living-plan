@@ -4,7 +4,7 @@ import { Button } from '../../client/ui/button.tsx'
 import { AuthScreen } from '../AuthScreen.tsx'
 import { authClient } from '../authClient.ts'
 import { authPath, authSearch, finishAuth, type AuthSearch } from '../authSearch.ts'
-import { GithubAuthButton } from '../GithubAuthButton.tsx'
+import { SocialAuthButton } from '../SocialAuthButton.tsx'
 
 export const Route = createFileRoute('/login')({
   validateSearch: (search: Record<string, unknown>): AuthSearch => authSearch(search),
@@ -15,7 +15,7 @@ function LoginPage() {
   const search = Route.useSearch()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState(search.error ? 'GitHub sign-in did not finish. Try again.' : '')
+  const [error, setError] = useState(search.error ? 'Sign-in did not finish. Try again.' : '')
   const [pending, setPending] = useState(false)
   const [invalid, setInvalid] = useState(false)
   const describedBy = error ? 'auth-error' : undefined
@@ -85,7 +85,16 @@ function LoginPage() {
           <Button type="submit" variant="primary" disabled={pending}>
             Sign in
           </Button>
-          <GithubAuthButton
+          <SocialAuthButton
+            provider="github"
+            search={search}
+            intent="sign-in"
+            pending={pending}
+            onPending={setPending}
+            onError={setError}
+          />
+          <SocialAuthButton
+            provider="google"
             search={search}
             intent="sign-in"
             pending={pending}

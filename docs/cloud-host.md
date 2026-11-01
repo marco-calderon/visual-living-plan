@@ -30,7 +30,7 @@ Migrations are `src/migrations`. `npm run host:migrate` applies them to the loca
 npx wrangler secret put PUBLIC_URL
 ```
 
-Email and password sign-in works without anything else. The sign-in and sign-up pages also offer GitHub. With `PUBLIC_URL` set to `https://plan.logspace.qzz.io`, Better Auth sends GitHub to `https://plan.logspace.qzz.io/api/auth/callback/github`. For Google, the callback is `https://<host>/api/auth/callback/google`. Then:
+Email and password sign-in works without anything else. The sign-in and sign-up pages also offer GitHub and Google. With `PUBLIC_URL` set to `https://plan.logspace.qzz.io`, Better Auth sends GitHub to `https://plan.logspace.qzz.io/api/auth/callback/github` and Google to `https://plan.logspace.qzz.io/api/auth/callback/google`. Then:
 
 ```bash
 npx wrangler secret put GOOGLE_CLIENT_ID
