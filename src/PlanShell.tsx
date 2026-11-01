@@ -95,7 +95,9 @@ export function PlanShell({
       void import('../client/chrome/mountChrome.tsx')
       if (host === 'cloud') void import('../client/PlanSelector.tsx')
     }
-    if (planSourceFlags(source).code) void import('../client/highlight.tsx')
+    const sourceFlags = planSourceFlags(source)
+    if (sourceFlags.mermaid) void import('../client/mermaid.ts')
+    if (sourceFlags.code) void import('../client/highlight.tsx')
     return () => media.removeEventListener('change', applyTheme)
   }, [accent, basePath, diffsTheme, host, mode, pageWidth, source, transport, wrapCode])
 

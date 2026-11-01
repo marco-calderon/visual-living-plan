@@ -113,3 +113,22 @@ Dashboard, plan, settings, account, and login screens follow the same canvas, in
 ### Notes
 
 No registry restart needed. The title bar keeps its class and the dark hairline.
+
+## 1.7.15
+
+**PR:** [#115](https://github.com/marco-calderon/visual-living-plan/pull/115)
+
+**Bump:** patch
+
+### Summary
+
+A diagram on a rendered plan has zoom, pan, and maximize controls again, on the local page and the hosted page.
+
+### Bugs fixed
+
+- Mermaid diagrams on a rendered plan show zoom out, zoom in, reset, and maximize. Drag to pan, and hold Ctrl or Command while scrolling to zoom.
+- The diagram toolbar has its own surface so it stays separate from the diagram.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
