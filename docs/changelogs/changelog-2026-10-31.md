@@ -1,6 +1,6 @@
 # Changelog — 2026-10-31
 
-## 1.7.6
+## 1.7.7
 
 **PR:** [#107](https://github.com/marco-calderon/visual-living-plan/pull/107)
 
@@ -17,6 +17,24 @@ Settings has a back button above the page content. It returns to the previous pa
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.7.6
+
+**PR:** [#108](https://github.com/marco-calderon/visual-living-plan/pull/108)
+
+**Bump:** patch
+
+### Summary
+
+The title bar shows the Living Plan mark again.
+
+### Bugs fixed
+
+- The hosted title bar logo is the circle mark. A request for `/favicon.png` no longer returns the page HTML, which the browser drew as a broken image.
+
+### Notes
+
+No registry restart needed. The local plan page uses the same `/favicon.png` mark.
 
 ## 1.7.5
 
