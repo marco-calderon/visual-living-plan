@@ -1,4 +1,5 @@
 import { useLayoutEffect } from 'react'
+import { Button } from '../client/ui/button.tsx'
 import './hostToolbar.css'
 
 type HostWindow = Window & { __LIVE_PLAN_THEME_URL__?: string }
@@ -25,9 +26,9 @@ export function HostBar({ title, label, logoHref = '/dashboard', themeUrl }: Hos
       <h1 className="brand">{title}</h1>
       <div className="chrome-tools">
         <div className="account-menu" data-account-menu="" data-label={label}>
-          <button type="button" className="titlebar-user" aria-haspopup="menu" aria-expanded="false">
+          <Button type="button" variant="secondary" className="titlebar-user" aria-haspopup="menu" aria-expanded="false">
             {label}
-          </button>
+          </Button>
         </div>
       </div>
     </header>

@@ -293,7 +293,7 @@ body.layout-full .settings-page {
   background: transparent;
   color: var(--ink);
   border-radius: 999px;
-  padding: 0.45rem 1.05rem;
+  padding: 8px 12px;
   font: inherit;
   font-size: 14px;
   font-weight: 600;

@@ -9,6 +9,8 @@
   --line: #e4e4e7;
   --blue: #1d4ed8;
   --accent: #1d4ed8;
+  --primary: #09090b;
+  --on-primary: #ffffff;
   --accent-soft: #dbeafe;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
@@ -21,6 +23,8 @@
     --surface: #18181b;
     --hairline: #27272a;
     --blue: #93c5fd;
+    --primary: #fafafa;
+    --on-primary: #0c0c0e;
   }
 }
 
@@ -81,21 +85,19 @@ a {
   gap: 8px;
 }
 
-.account-card button,
 .pill {
   height: 40px;
   border: 0;
   border-radius: 9999px;
   padding: 0 20px;
-  background: #09090b;
-  color: #fff;
+  background: var(--primary);
+  color: var(--on-primary);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
 }
 
-.pill.secondary,
-.account-card button.secondary {
+.pill.secondary {
   background: transparent;
   color: var(--ink);
   border: 1px solid var(--hairline);

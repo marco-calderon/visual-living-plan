@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Button } from '../ui/button.tsx'
 import { Box } from './Box'
 import { anchorId, keyedEntries, partitionEntries } from './planEntry'
 import { cx } from './styles'
@@ -70,9 +71,9 @@ export function Workflow({
           </VStack>
         ) : null}
         <div>
-          <button type="button" className="plan-btn" data-entry-action="open-workflow" onClick={onOpenDiagram}>
+          <Button type="button" data-entry-action="open-workflow" onClick={onOpenDiagram}>
             Open workflow diagram
-          </button>
+          </Button>
         </div>
       </VStack>
     </Box>

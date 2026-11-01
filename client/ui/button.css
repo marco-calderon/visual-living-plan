@@ -1,0 +1,67 @@
+.plan-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--hairline, #e4e4e7);
+  background: var(--canvas, #ffffff);
+  color: var(--ink, #18181b);
+  border-radius: 9999px;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    transform 160ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+
+.plan-btn:hover:not(:disabled) {
+  background: var(--surface, #f4f4f5);
+}
+
+.plan-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.plan-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.plan-btn:focus-visible {
+  outline: 2px solid var(--accent, #1d4ed8);
+  outline-offset: 2px;
+}
+
+.plan-btn-primary,
+.plan-btn-primary:hover:not(:disabled) {
+  background: var(--primary, #09090b);
+  border-color: var(--primary, #09090b);
+  color: var(--on-primary, #ffffff);
+}
+
+.plan-btn-secondary {
+  background: transparent;
+  border-color: var(--ink, #18181b);
+  color: var(--ink, #18181b);
+}
+
+.plan-btn-danger {
+  background: var(--danger-soft, #fef2f2);
+  border-color: var(--danger-border, #d45656);
+  color: var(--danger, #d45656);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-btn {
+    transition: background-color 150ms ease, border-color 150ms ease;
+  }
+
+  .plan-btn:active {
+    transform: none;
+  }
+}

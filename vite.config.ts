@@ -24,6 +24,7 @@ export default defineConfig({
       '@base-ui/react/radio-group',
       '@base-ui/react/select',
       '@base-ui/react/number-field',
+      '@base-ui/react/button',
       'use-sync-external-store/shim/index.js',
       'use-sync-external-store/shim/with-selector.js',
       'lucide-react',

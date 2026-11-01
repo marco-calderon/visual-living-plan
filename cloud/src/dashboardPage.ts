@@ -56,7 +56,7 @@ const APPEARANCE_WIDTHS = [
 function accountNav(current: 'dashboard' | 'account' | 'settings'): string {
   const link = (href: string, label: string) =>
     `<a href="${href}"${href === `/${current}` ? ' aria-current="page"' : ''}>${label}</a>`
-  return `<p class="nav">${link('/dashboard', 'Dashboard')}${link('/account', 'Account')}${link('/settings', 'Settings')}<button class="secondary" type="button" data-sign-out>Sign out</button></p>`
+  return `<p class="nav">${link('/dashboard', 'Dashboard')}${link('/account', 'Account')}${link('/settings', 'Settings')}<button class="plan-btn plan-btn-secondary" type="button" data-sign-out>Sign out</button></p>`
 }
 
 function accountShell(title: string, body: string, label: string, scripts = ''): string {

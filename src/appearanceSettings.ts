@@ -362,9 +362,9 @@ h1 {
 .nav { display: flex; gap: var(--space-sm); align-items: center; flex-wrap: wrap; margin: 0 0 var(--space-md); }
 .nav a { color: var(--accent); font-size: 14px; font-weight: 600; text-decoration: none; }
 .nav a[aria-current="page"] { text-decoration: underline; }
-.nav button.secondary {
-  height: 40px;
-  padding: 11px var(--space-xl);
+.nav button.secondary,
+.nav .plan-btn-secondary {
+  padding: 8px 12px;
   border: 1px solid var(--ink);
   border-radius: 9999px;
   background: transparent;
@@ -507,7 +507,7 @@ export const appearanceSettingsCss = `
   background: transparent;
   color: var(--ink);
   border-radius: 999px;
-  padding: 0.45rem 1.05rem;
+  padding: 8px 12px;
   font: inherit;
   font-size: 14px;
   font-weight: 600;

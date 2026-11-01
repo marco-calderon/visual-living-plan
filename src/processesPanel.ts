@@ -22,7 +22,7 @@ export const PROCESSES_PANEL_STYLES = `
   background: var(--panel-strong);
   color: var(--ink);
   border-radius: 999px;
-  padding: 0.45rem 0.85rem;
+  padding: 8px 12px;
   font: inherit;
   font-weight: 600;
   cursor: pointer;

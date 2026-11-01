@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react'
+import { Button } from '../ui/button.tsx'
 import { Box } from './Box'
 import { HStack } from './HStack'
 import { anchorId } from './planEntry'
@@ -73,26 +74,26 @@ export function Approve({ id, prompt, children, note, approved, locked, classNam
           </VStack>
         </label>
         <HStack gap="sm" wrap>
-          <button
+          <Button
             type="button"
-            className="plan-btn plan-btn-danger"
+            variant="danger"
             disabled={disabled}
             data-approve-id={id}
             data-approved="false"
             onClick={() => decide(false)}
           >
             Deny
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="plan-btn plan-btn-primary"
+            variant="primary"
             disabled={disabled}
             data-approve-id={id}
             data-approved="true"
             onClick={() => decide(true)}
           >
             Approve
-          </button>
+          </Button>
         </HStack>
         <p className="plan-state" data-state-for={id}>{state}</p>
       </VStack>

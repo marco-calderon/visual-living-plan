@@ -228,10 +228,6 @@
   margin-top: 16px;
 }
 
-.plan-data-table-pager .plan-btn {
-  padding: 8px 16px;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .plan-data-table-sort,
   .plan-data-table-pager .plan-btn {
