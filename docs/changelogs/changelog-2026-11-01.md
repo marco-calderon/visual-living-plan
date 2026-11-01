@@ -89,6 +89,7 @@ A diagram on a rendered plan has zoom, pan, and maximize controls again, on the 
 ### Bugs fixed
 
 - Mermaid diagrams on a rendered plan show zoom out, zoom in, reset, and maximize. Drag to pan, and hold Ctrl or Command while scrolling to zoom.
+- The diagram toolbar has its own surface so it stays separate from the diagram.
 
 ### Notes
 
