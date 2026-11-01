@@ -11,7 +11,8 @@ export function dashboardDocumentCss(): string {
       --surface: #f4f4f5;
       --paper: var(--canvas);
       --panel: var(--surface);
-      --line: #e4e4e7;
+      --hairline: #e4e4e7;
+      --line: var(--hairline);
       --accent: #1d4ed8;
       --primary: #09090b;
       --on-primary: #ffffff;
@@ -34,7 +35,8 @@ export function dashboardDocumentCss(): string {
         --surface: #18181b;
         --paper: var(--canvas);
         --panel: var(--surface);
-        --line: #27272a;
+        --hairline: #27272a;
+        --line: var(--hairline);
         --accent: #93c5fd;
         --primary: #fafafa;
         --on-primary: #0c0c0e;

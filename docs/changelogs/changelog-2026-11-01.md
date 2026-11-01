@@ -75,3 +75,21 @@ Plan saving and the hosted APIs live in one place. Local plans use SQLite. Hoste
 ### Notes
 
 No registry restart needed beyond the usual version check. The next local open folds an older registry into the shared tables. Redeploy the Worker and apply D1 migrations, including `0004_one_schema` (`npm run host:migrate` locally, `wrangler d1 migrations apply` in production). A local plan's older `mdx/*.sqlite` history is not copied; the next open saves the current document in `registry.sqlite`.
+
+## 1.7.13
+
+**PR:** (link once known)
+
+**Bump:** patch
+
+### Summary
+
+The line under the title bar stays the gray hairline in dark mode.
+
+### Bugs fixed
+
+- In dark mode, the line under the Settings title and account menu uses the dark hairline (`#27272a`) instead of the light divider.
+
+### Notes
+
+No registry restart needed.

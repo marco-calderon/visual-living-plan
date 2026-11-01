@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { createIdleExecutionState } from '../src/execution.ts'
+import { hostToolbarCss } from '../src/hostToolbar.ts'
 import { parsePlan } from '../src/parse.ts'
 import { renderPlanPage } from '../src/render.ts'
 import { defaultThemeConfig, themePayload } from '../src/theme.ts'
@@ -218,6 +220,17 @@ test('the description card shows the file version and not a snapshot list', () =
   assert.doesNotMatch(bar, /<button[^>]*data-file-version/)
   assert.doesNotMatch(html, /<h2>Snapshots<\/h2>/)
   assert.doesNotMatch(html, /plan-snapshots/)
+})
+
+test('the host title bar uses the dark hairline', () => {
+  assert.match(hostToolbarCss, /\.titlebar\s*\{[^}]*border-bottom:\s*1px solid var\(--hairline\);/)
+  const file = readFileSync(new URL('../src/hostToolbar.css', import.meta.url), 'utf8')
+  assert.match(file, /\.titlebar\s*\{[^}]*border-bottom:\s*1px solid var\(--hairline\);/)
+  const styles = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+  assert.match(styles, /--line:\s*var\(--hairline\)/)
+  const dark = styles.split('@media (prefers-color-scheme: dark)')[1] ?? ''
+  assert.match(dark, /--hairline:\s*#27272a/)
+  assert.doesNotMatch(dark, /--line:\s*#e4e4e7/)
 })
 
 test('a loopback plan explains that an account is not required', () => {
