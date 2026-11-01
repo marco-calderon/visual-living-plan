@@ -96,7 +96,7 @@ No registry restart needed.
 
 ## 1.7.14
 
-**PR:** (link added when the pull request opens)
+**PR:** [#116](https://github.com/marco-calderon/visual-living-plan/pull/116)
 
 **Bump:** patch
 
