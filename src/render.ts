@@ -7,6 +7,7 @@ import type { PlanSnapshotRecord } from './planSnapshots'
 import type { PlanMode } from './processRecord'
 import { clientLogScript } from './clientLog'
 import { faviconLink } from './favicon'
+import { webManifestHead } from './webManifest'
 import { PROCESSES_PANEL_STYLES, processesPanelMarkup, processesPanelScript } from './processesPanel'
 import { accentCssCustomProperties, PAGE_WIDTH_OPTIONS, type PageWidth } from './theme'
 import {
@@ -1434,6 +1435,7 @@ export function renderPlanPage(options: {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   ${faviconLink}
+  ${webManifestHead}
   <script>${THEME_BOOTSTRAP}</script>
   <title>${escapeHtml(plan.title)} · Living Plan</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />

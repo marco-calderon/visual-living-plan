@@ -1,4 +1,5 @@
 import { faviconLink } from './favicon'
+import { webManifestHead } from './webManifest'
 
 /** Index of every plan the registry knows about. Each card opens that plan's site. */
 export function renderRegistryPage(): string {
@@ -8,6 +9,7 @@ export function renderRegistryPage(): string {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   ${faviconLink}
+  ${webManifestHead}
   <title>Running plans · Living Plan</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

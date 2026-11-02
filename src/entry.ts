@@ -5,6 +5,7 @@ import { faviconFromAsset } from './favicon.ts'
 import { planIdFromPath, tanstackPage } from './pageRoutes.ts'
 import shellWorkerSource from './shellWorker.js?raw'
 import { SHELL_WORKER_PATH, shellWorkerResponse } from './shellWorkerResponse.ts'
+import { WEB_MANIFEST_PATH, webManifestResponse } from './webManifest.ts'
 
 export { PlanObject }
 
@@ -18,6 +19,7 @@ export default {
       return new Response(null, { status: 404 })
     }
     if (!upgrade && url.pathname === SHELL_WORKER_PATH) return shellWorkerResponse(shellWorkerSource)
+    if (!upgrade && url.pathname === WEB_MANIFEST_PATH) return webManifestResponse()
     if (!upgrade && url.pathname === '/favicon.png') return serveFavicon(request, env)
     const page = upgrade ? null : tanstackPage(url.pathname, request.method)
     if (!page) return handleHostRequest(request, env)

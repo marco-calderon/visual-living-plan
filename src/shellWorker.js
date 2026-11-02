@@ -2,8 +2,8 @@
 
 // src/shellCache.ts
 var SHELL_CACHE_PREFIX = "visual-living-plan-shell-";
-var SHELL_CACHE_VERSION = "1.10.2";
-var SHELL_CACHE_NAME = "visual-living-plan-shell-1.10.2";
+var SHELL_CACHE_VERSION = "1.11.0";
+var SHELL_CACHE_NAME = "visual-living-plan-shell-1.11.0";
 var ASSET_EXTENSION = /\.(?:js|mjs|css|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|wasm)$/i;
 var PLAN_NETWORK = /^\/plans\/[^/]+\/(?:api|view|share|document|versions)(?:\/|$)/;
 function classifyShellRequest(request, origin) {
@@ -119,7 +119,7 @@ async function networkFirstDocument(request, deps) {
   }
 }
 function isAssetPath(path) {
-  if (path === "/favicon.png")
+  if (path === "/favicon.png" || path === "/manifest.webmanifest")
     return true;
   if (path.startsWith("/client/") || path.startsWith("/assets/"))
     return true;

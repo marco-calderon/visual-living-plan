@@ -61,6 +61,7 @@ export function safeRedirectPath(value: string | null): string {
 export function lanProtectedRequest(method: string, pathname: string): boolean {
   if (pathname === '/lan' || pathname.startsWith('/lan/')) return false
   if (pathname === '/api/health' || pathname === '/favicon.png' || pathname === '/sw.js') return false
+  if (pathname === '/manifest.webmanifest') return false
   if (pathname === '/api/logs' || pathname.startsWith('/client/') || pathname.startsWith('/assets/')) return false
   if (pathname === '/api/processes' || pathname === '/api/plans') return method === 'GET'
   if (pathname.startsWith('/api/processes/')) return false

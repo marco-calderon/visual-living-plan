@@ -1,11 +1,12 @@
 import { clientLogScript } from './clientLog'
 import { renderDashboardDocument } from './dashboardDocument'
 import { faviconLink } from './favicon'
+import { webManifestHead } from './webManifest'
 
 /** Control dashboard for plans that are running and plans that have finished. */
 export function renderDashboardPage(): string {
   return renderDashboardDocument({
-    headExtra: faviconLink,
+    headExtra: `${faviconLink}\n  ${webManifestHead}`,
     footScript: `<script>${clientLogScript('/api/logs')}</script>`,
   })
 }

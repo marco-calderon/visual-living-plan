@@ -137,3 +137,21 @@ Code blocks and diffs show the lines that are in the source, and labels in a pla
 ### Notes
 
 No registry restart needed beyond the usual version check. The shell cache name is 1.10.2.
+
+## 1.11.0
+
+**PR:** [#126](https://github.com/marco-calderon/visual-living-plan/pull/126)
+
+**Bump:** minor
+
+### Summary
+
+Living Plan can be installed as an app from the browser's install prompt. The hosted app and the local plan service both offer it.
+
+### New features
+
+- Both hosts serve a web app manifest. Every page links it, so Chrome, Edge, and other browsers show the install option on HTTPS or loopback. The installed app opens the dashboard in its own window, uses the Living Plan mark, and matches the light or dark title bar color.
+
+### Notes
+
+The new service version replaces the running registry through the usual version check. The new shell cache name replaces the 1.10.2 cache. A plan opened over plain HTTP on the local network is not installable.

@@ -15,9 +15,9 @@
 export const SHELL_CACHE_PREFIX = 'visual-living-plan-shell-'
 
 /** Keep both equal to package.json `version`. test/shellCache.test.ts checks them. */
-export const SHELL_CACHE_VERSION = '1.10.2'
+export const SHELL_CACHE_VERSION = '1.11.0'
 
-export const SHELL_CACHE_NAME = 'visual-living-plan-shell-1.10.2'
+export const SHELL_CACHE_NAME = 'visual-living-plan-shell-1.11.0'
 
 export type ShellKind = 'asset' | 'document' | 'network'
 
@@ -147,7 +147,7 @@ async function networkFirstDocument(request: Request, deps: ShellRuntime): Promi
 }
 
 function isAssetPath(path: string): boolean {
-  if (path === '/favicon.png') return true
+  if (path === '/favicon.png' || path === '/manifest.webmanifest') return true
   if (path.startsWith('/client/') || path.startsWith('/assets/')) return true
   return ASSET_EXTENSION.test(path)
 }
