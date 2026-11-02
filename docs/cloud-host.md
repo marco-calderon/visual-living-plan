@@ -14,13 +14,18 @@ npx wrangler login
 npx wrangler d1 create living-plan
 ```
 
-Copy the printed `database_id` into `database_id` in `wrangler.jsonc`. Then:
+`wrangler.jsonc` already names this deployment's database (`living-plan`, id `cd368c54-8c6c-4144-89c0-cef49f2c7a39`). On another account, copy the printed `database_id` into `database_id` in `wrangler.jsonc`. Then:
 
 ```bash
 npx wrangler d1 migrations apply living-plan --remote
 npx wrangler secret put BETTER_AUTH_SECRET
+npx vite build
 npx wrangler deploy
 ```
+
+`vite build` writes the deploy config to `dist/server/wrangler.json`, and `wrangler deploy` picks it up through `.wrangler/deploy/config.json`. Running `wrangler deploy` without the build fails to resolve the TanStack Start entry.
+
+`wrangler.jsonc` lists `BETTER_AUTH_SECRET` under `secrets.required` and has no `vars`, so a deploy never replaces a production secret with a plain value. For local workerd (`npm run host`), copy `.dev.vars.example` to `.dev.vars`. That file is ignored by git.
 
 Migrations are `src/migrations`. `npm run host:migrate` applies them to the local workerd database.
 
