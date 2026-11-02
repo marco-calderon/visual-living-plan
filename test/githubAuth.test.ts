@@ -39,3 +39,11 @@ test('GitHub and Google OAuth read the Worker secrets and use this host callback
   assert.equal(getBaseURL(origin, '/api/auth') + '/callback/google', `${origin}/api/auth/callback/google`)
   void google.$context.catch(() => undefined)
 })
+
+test('GitHub and Google can link to the current account when the emails match', () => {
+  const auth = createAuth(env({ github: true, google: true }), origin)
+  assert.equal(auth.options.account?.accountLinking?.enabled, true)
+  assert.deepEqual(auth.options.account?.accountLinking?.trustedProviders, ['github', 'google'])
+  assert.equal(auth.options.account?.accountLinking?.allowDifferentEmails, undefined)
+  void auth.$context.catch(() => undefined)
+})

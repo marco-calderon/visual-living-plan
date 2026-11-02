@@ -69,7 +69,7 @@ Page routes, from `src/pageRoutes.ts` and `src/routes/`:
 | `/signup` | `signup.tsx` | Email, password, an optional name, or GitHub and Google. The same `next` and `cli` search params carry over. Links to `/login` |
 | `/dashboard` | `dashboard.tsx` | This account's hosted plans |
 | `/account` | `account.tsx` | Name, email, tier |
-| `/settings` | `settings.tsx` | Appearance stored in D1 |
+| `/settings` | `settings.tsx` | Appearance stored in D1. Links GitHub or Google to this account |
 | `/plans/:id` | `plans.$planId.tsx` | The plan page. `PlanShell` |
 | `/plans/:id/history` | `plans_.$planId.history.tsx` | Published versions of that plan |
 | `/local` | `local.tsx` | The sample plan in `PlanShell`, with no account and no Durable Object |
@@ -85,7 +85,7 @@ Server functions in `src/planFns.ts` call back into `src/host/app.ts` with the i
 
 `src/host/app.ts` is the Elysia app for everything that is not a page: `/api/auth/*`, `/api/account`, `/api/plans`, `/api/health`, plan writes, the viewer link, document downloads, and WebSocket upgrades. It refuses to start when `BETTER_AUTH_SECRET` is missing. The value in `wrangler.jsonc` is for local workerd. Production sets the secret with Wrangler. An upgrade is forwarded to the Durable Object before Elysia copies the response, so the Workers socket stays on that response.
 
-Better Auth (`src/host/auth.ts`) uses the D1 binding `DB`. Email and password are always on. Google and GitHub are added when both id and secret are set. The `bearer` and `organization` plugins are on. D1 rejects `Date` and boolean bindings, so `bindableD1` turns a `Date` into an ISO string and a boolean into `0` or `1` before `bind`.
+Better Auth (`src/host/auth.ts`) uses the D1 binding `DB`. Email and password are always on. Google and GitHub are added when both id and secret are set. Hosted settings can link either provider to the signed-in account. Linking stays on, GitHub and Google are trusted providers, and the provider email has to match the account. The `bearer` and `organization` plugins are on. D1 rejects `Date` and boolean bindings, so `bindableD1` turns a `Date` into an ISO string and a boolean into `0` or `1` before `bind`.
 
 The CLI stores the raw session token from sign-in. Better Auth's bearer plugin does not turn that token back into a session, so `getSession` only sees a browser cookie. `sessionFromToken` reads `session` joined to `user` in D1.
 

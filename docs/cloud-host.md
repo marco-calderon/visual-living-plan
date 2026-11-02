@@ -45,7 +45,7 @@ Run `npx wrangler d1 migrations apply living-plan --remote` again after you upda
 
 ## Signed-in pages
 
-TanStack Start serves `/dashboard`, `/account`, `/settings`, `/login`, `/signup`, `/plans/:id`, and `/plans/:id/history`. `/` and `/review` redirect to `/dashboard`. The Worker does not return those documents. Elysia in `src/host/app.ts` serves the account and plan APIs those pages call, including `GET /api/account`, `GET /api/account/dashboard`, and `PUT /api/account/settings`, plus plan writes, the viewer link, and the Durable Object. A loopback plan keeps writing the theme file beside that plan and does not ask for an account. `/local` stays that sample, with no sign-in.
+TanStack Start serves `/dashboard`, `/account`, `/settings`, `/login`, `/signup`, `/plans/:id`, and `/plans/:id/history`. `/` and `/review` redirect to `/dashboard`. The Worker does not return those documents. Elysia in `src/host/app.ts` serves the account and plan APIs those pages call, including `GET /api/account`, `GET /api/account/dashboard`, and `PUT /api/account/settings`, plus plan writes, the viewer link, and the Durable Object. `/settings` can link GitHub or Google to the current account. The provider email has to match, and a provider that is already linked stays disabled. A loopback plan keeps writing the theme file beside that plan and does not ask for an account. `/local` stays that sample, with no sign-in and no provider links.
 
 When an agent publishes a plan (`serve --cloud`, `review --cloud`, or a later file upload), the host stores that markdown in D1. It keeps the latest 10 versions and drops the oldest on the 11th. The dashboard links to the current plan file and the version list. Loopback publish writes the same machine's `registry.sqlite`.
 

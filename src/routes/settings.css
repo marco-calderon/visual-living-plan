@@ -144,6 +144,13 @@ body.layout-full .settings-page {
   line-height: 1.5;
 }
 
+.settings-page .settings-provider-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin: 0;
+}
+
 .settings-page .settings-copy code,
 .settings-page .settings-meta code {
   font-family: var(--font-mono);

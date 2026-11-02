@@ -49,6 +49,12 @@ export function createAuth(env: AuthEnv, baseURL: string) {
     baseURL,
     trustedOrigins: [baseURL],
     emailAndPassword: { enabled: true },
+    account: {
+      accountLinking: {
+        enabled: true,
+        trustedProviders: ['github', 'google'],
+      },
+    },
     socialProviders: {
       ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
         ? { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } }

@@ -6,6 +6,7 @@ import { CodeWrapSwitch } from '../../client/chrome/CodeWrapSwitch.tsx'
 import { Button } from '../../client/ui/button.tsx'
 import { DIFFS_THEME_PRESETS, diffsThemePreset, type DiffsThemeSample } from '../diffsTheme.ts'
 import { HostBar } from '../HostBar.tsx'
+import { LinkedProviders } from '../LinkedProviders.tsx'
 import { loadAccount } from '../planFns.ts'
 import './settings.css'
 
@@ -25,6 +26,10 @@ type AppearancePartial = {
 }
 
 export const Route = createFileRoute('/settings')({
+  validateSearch: (search: Record<string, unknown>): { error?: string } => {
+    const error = typeof search.error === 'string' && search.error ? search.error : undefined
+    return error ? { error } : {}
+  },
   loader: async () => {
     const result = await loadAccount()
     if (!result.ok) {
@@ -83,6 +88,7 @@ function SettingsBackButton() {
 
 function SettingsPage() {
   const account = Route.useLoaderData()
+  const search = Route.useSearch()
   const settings = account.settings
   const label = account.user.name || account.user.email
   const currentDiffs = diffsThemePreset(settings.diffsTheme)
@@ -139,6 +145,8 @@ function SettingsPage() {
               {error}
             </p>
           </section>
+
+          <LinkedProviders linkError={search.error} />
 
           <section className="block settings-section">
             <h3>Accent color</h3>

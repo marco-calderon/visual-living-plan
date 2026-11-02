@@ -141,7 +141,7 @@ No registry restart needed beyond the usual version check.
 
 ### Summary
 
-Sign in and creating an account are separate hosted pages. Sign in asks for email and password. The account page can also ask for a name. Both pages can continue with GitHub or Google.
+Sign in and creating an account are separate hosted pages. Sign in asks for email and password. The account page can also ask for a name. Both pages can continue with GitHub or Google. Hosted settings can link either provider to the current account.
 
 ### Improvements
 
@@ -149,6 +149,7 @@ Sign in and creating an account are separate hosted pages. Sign in asks for emai
 - Create an account is its own page at `/signup`, with an optional name, and each page links to the other.
 - Sign in and sign up can continue with GitHub or Google. The Worker reads `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET` from its environment. The callbacks are `https://plan.logspace.qzz.io/api/auth/callback/github` and `https://plan.logspace.qzz.io/api/auth/callback/google`.
 - The sign-in page no longer links to the account-free sample. A loopback plan still does not ask for an account.
+- Hosted settings can link GitHub or Google to the signed-in account. A provider that is already linked stays disabled. The provider email has to match this account. A loopback plan does not show those controls.
 
 ### Notes
 

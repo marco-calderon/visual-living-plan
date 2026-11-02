@@ -240,4 +240,8 @@ test('a loopback plan explains that an account is not required', () => {
   assert.match(html, /An account is not required/)
   assert.match(html, /__LIVE_PLAN_HOST__ = "local"/)
   assert.doesNotMatch(html, /data-host-panel="cloud"/)
+  assert.doesNotMatch(html, /data-linked-providers/)
+  assert.doesNotMatch(html, /Sign-in providers/)
+  assert.doesNotMatch(html, /Link GitHub/)
+  assert.doesNotMatch(html, /Link Google/)
 })
