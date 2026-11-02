@@ -98,7 +98,7 @@ No registry restart needed beyond the usual version check. A plan opened over pl
 
 ## 1.10.1
 
-**PR:** pending
+**PR:** [#124](https://github.com/marco-calderon/visual-living-plan/pull/124)
 
 **Bump:** patch
 
