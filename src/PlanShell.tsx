@@ -1,3 +1,4 @@
+import { FileText, Workflow } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '../client/ui/button.tsx'
 import { hostToolbarCss } from './hostToolbar.ts'
@@ -6,11 +7,6 @@ import { buildPlanToc, renderPlanTocHtml } from './planToc.ts'
 import { bindPlanChrome } from './bindPlanChrome.ts'
 import './planPage.css'
 import { themeBootstrapScript } from './themeBootstrap.ts'
-
-const PLAN_ICON =
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>'
-const WORKFLOW_ICON =
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/></svg>'
 
 export type PlanShellProps = {
   title: string
@@ -138,8 +134,9 @@ export function PlanShell({
               aria-selected={tab === 'plan'}
               aria-label="Plan"
               onClick={() => setTab('plan')}
-              dangerouslySetInnerHTML={{ __html: PLAN_ICON }}
-            />
+            >
+              <FileText size={16} aria-hidden="true" />
+            </button>
             <button
               type="button"
               className="tab-btn"
@@ -148,8 +145,9 @@ export function PlanShell({
               aria-selected={tab === 'workflow'}
               aria-label="Workflow"
               onClick={() => setTab('workflow')}
-              dangerouslySetInnerHTML={{ __html: WORKFLOW_ICON }}
-            />
+            >
+              <Workflow size={16} aria-hidden="true" />
+            </button>
           </div>
           {accountLabel ? (
             <div className="account-menu" data-account-menu="" data-label={accountLabel}>
