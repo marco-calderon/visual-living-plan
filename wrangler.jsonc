@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "visual-living-plan",
+  "account_id": "989c1a32b23f46d91839c0e4daf38acc",
   "compatibility_date": "2026-10-23",
   "compatibility_flags": ["nodejs_compat"],
   "main": "src/entry.ts",
