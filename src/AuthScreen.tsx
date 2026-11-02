@@ -1,10 +1,10 @@
-import type { ReactNode } from 'react'
-import './hostToolbar.css'
+import type { ReactNode } from "react";
+import "./hostToolbar.css";
 
 type AuthScreenProps = {
-  title: string
-  children: ReactNode
-}
+  title: string;
+  children: ReactNode;
+};
 
 /** Title bar and column shared by the hosted sign-in and sign-up pages. */
 export function AuthScreen({ title, children }: AuthScreenProps) {
@@ -18,9 +18,8 @@ export function AuthScreen({ title, children }: AuthScreenProps) {
       </header>
       <main className="account-card">
         <h1>{title}</h1>
-        <p>The cloud host uses this account. A loopback plan does not.</p>
         {children}
       </main>
     </>
-  )
+  );
 }

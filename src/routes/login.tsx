@@ -1,39 +1,39 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { Eye, EyeOff, LogIn } from 'lucide-react'
-import { useState } from 'react'
-import { Button } from '../../client/ui/button.tsx'
-import { AuthScreen } from '../AuthScreen.tsx'
-import { authClient } from '../authClient.ts'
-import { authPath, authSearch, finishAuth, type AuthSearch } from '../authSearch.ts'
-import { SocialAuthButton } from '../SocialAuthButton.tsx'
+import { createFileRoute } from "@tanstack/react-router";
+import { Eye, EyeOff, LogIn } from "lucide-react";
+import { useState } from "react";
+import { Button } from "../../client/ui/button.tsx";
+import { AuthScreen } from "../AuthScreen.tsx";
+import { authClient } from "../authClient.ts";
+import { authPath, authSearch, finishAuth, type AuthSearch } from "../authSearch.ts";
+import { SocialAuthButton } from "../SocialAuthButton.tsx";
 
-export const Route = createFileRoute('/login')({
+export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>): AuthSearch => authSearch(search),
   component: LoginPage,
-})
+});
 
 function LoginPage() {
-  const search = Route.useSearch()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState(search.error ? 'Sign-in did not finish. Try again.' : '')
-  const [pending, setPending] = useState(false)
-  const [invalid, setInvalid] = useState(false)
-  const describedBy = error ? 'auth-error' : undefined
+  const search = Route.useSearch();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState(search.error ? "Sign-in did not finish. Try again." : "");
+  const [pending, setPending] = useState(false);
+  const [invalid, setInvalid] = useState(false);
+  const describedBy = error ? "auth-error" : undefined;
 
   async function submit() {
-    setError('')
-    setInvalid(false)
-    setPending(true)
-    const result = await authClient.signIn.email({ email, password })
-    setPending(false)
+    setError("");
+    setInvalid(false);
+    setPending(true);
+    const result = await authClient.signIn.email({ email, password });
+    setPending(false);
     if (result.error) {
-      setInvalid(true)
-      setError(result.error.message || 'Sign-in failed')
-      return
+      setInvalid(true);
+      setError(result.error.message || "Sign-in failed");
+      return;
     }
-    finishAuth(search)
+    finishAuth(search);
   }
 
   return (
@@ -41,8 +41,8 @@ function LoginPage() {
       <form
         aria-busy={pending}
         onSubmit={(event) => {
-          event.preventDefault()
-          void submit()
+          event.preventDefault();
+          void submit();
         }}
       >
         <label>
@@ -67,7 +67,7 @@ function LoginPage() {
           </span>
           <span className="account-password">
             <input
-              type={showPassword ? 'text' : 'password'}
+              type={showPassword ? "text" : "password"}
               name="password"
               required
               aria-required="true"
@@ -81,10 +81,14 @@ function LoginPage() {
             <button
               type="button"
               className="account-reveal"
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-label={showPassword ? "Hide password" : "Show password"}
               onClick={() => setShowPassword((current) => !current)}
             >
-              {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+              {showPassword ? (
+                <EyeOff size={16} aria-hidden="true" />
+              ) : (
+                <Eye size={16} aria-hidden="true" />
+              )}
             </button>
           </span>
         </label>
@@ -116,10 +120,10 @@ function LoginPage() {
             onError={setError}
           />
         </div>
+        <div>
+          Not account yet? <a href={authPath("/signup", search)}>Sign up instead</a>
+        </div>
       </form>
-      <p>
-        <a href={authPath('/signup', search)}>Create an account</a>
-      </p>
     </AuthScreen>
-  )
+  );
 }

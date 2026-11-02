@@ -1,38 +1,38 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
-import { Button } from '../../client/ui/button.tsx'
-import { AuthScreen } from '../AuthScreen.tsx'
-import { authClient } from '../authClient.ts'
-import { authPath, authSearch, finishAuth, type AuthSearch } from '../authSearch.ts'
-import { SocialAuthButton } from '../SocialAuthButton.tsx'
+import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { Button } from "../../client/ui/button.tsx";
+import { AuthScreen } from "../AuthScreen.tsx";
+import { authClient } from "../authClient.ts";
+import { authPath, authSearch, finishAuth, type AuthSearch } from "../authSearch.ts";
+import { SocialAuthButton } from "../SocialAuthButton.tsx";
 
-export const Route = createFileRoute('/signup')({
+export const Route = createFileRoute("/signup")({
   validateSearch: (search: Record<string, unknown>): AuthSearch => authSearch(search),
   component: SignupPage,
-})
+});
 
 function SignupPage() {
-  const search = Route.useSearch()
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState(search.error ? 'Sign-in did not finish. Try again.' : '')
-  const [pending, setPending] = useState(false)
-  const [invalid, setInvalid] = useState(false)
-  const describedBy = error ? 'auth-error' : undefined
+  const search = Route.useSearch();
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState(search.error ? "Sign-in did not finish. Try again." : "");
+  const [pending, setPending] = useState(false);
+  const [invalid, setInvalid] = useState(false);
+  const describedBy = error ? "auth-error" : undefined;
 
   async function submit() {
-    setError('')
-    setInvalid(false)
-    setPending(true)
-    const result = await authClient.signUp.email({ email, password, name: name.trim() || email })
-    setPending(false)
+    setError("");
+    setInvalid(false);
+    setPending(true);
+    const result = await authClient.signUp.email({ email, password, name: name.trim() || email });
+    setPending(false);
     if (result.error) {
-      setInvalid(true)
-      setError(result.error.message || 'Could not create the account')
-      return
+      setInvalid(true);
+      setError(result.error.message || "Could not create the account");
+      return;
     }
-    finishAuth(search)
+    finishAuth(search);
   }
 
   return (
@@ -40,8 +40,8 @@ function SignupPage() {
       <form
         aria-busy={pending}
         onSubmit={(event) => {
-          event.preventDefault()
-          void submit()
+          event.preventDefault();
+          void submit();
         }}
       >
         <label>
@@ -115,10 +115,10 @@ function SignupPage() {
             onError={setError}
           />
         </div>
+        <div>
+          Already have an account? <a href="/login">Sign in instead</a>
+        </div>
       </form>
-      <p>
-        <a href={authPath('/login', search)}>Sign in</a>
-      </p>
     </AuthScreen>
-  )
+  );
 }
