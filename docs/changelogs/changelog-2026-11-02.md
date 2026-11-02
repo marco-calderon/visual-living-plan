@@ -118,3 +118,22 @@ Offline answers, comments, and the title bar status work as 1.10.0 intended on t
 ### Notes
 
 The new service version replaces the running registry through the usual version check. The new shell cache name replaces the 1.10.0 cache.
+
+## 1.10.2
+
+**PR:** [#127](https://github.com/marco-calderon/visual-living-plan/pull/127)
+
+**Bump:** patch
+
+### Summary
+
+Code blocks and diffs show the lines that are in the source, and labels in a plan step sit apart from the paragraph under them.
+
+### Bugs fixed
+
+- The newline that ends the last line of a code block or a diff is not drawn as an empty row. A blank line that is part of the source still shows.
+- Pills and chips at the start of a plan step have space before the paragraph under them.
+
+### Notes
+
+No registry restart needed beyond the usual version check. The shell cache name is 1.10.2.
