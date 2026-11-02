@@ -31,12 +31,13 @@ export interface HostEnv {
 
 const ID = /^[A-Za-z0-9_-]{8,80}$/
 
-function authFor(env: HostEnv, request: Request) {
+function createAuthFor(env: HostEnv, request: Request) {
   return createAuth(env, requestOrigin(request, env.PUBLIC_URL))
 }
 
 /** HTTP routes for the hosted app. WebSocket upgrades stay outside this app so the Durable Object socket is not copied into a new Response. Ahead-of-time compilation is off because Workers reject `new Function`. */
-export function createHostApp(env: HostEnv) {
+export function createHostApp(env: HostEnv, options: { auth?: (request: Request) => ReturnType<typeof createAuth> } = {}) {
+  const authFor = options.auth ?? ((request: Request) => createAuthFor(env, request))
   return new Elysia({ strictPath: true, aot: false })
     .onBeforeHandle((context) => {
       rehydrateRequest(context)
@@ -46,27 +47,27 @@ export function createHostApp(env: HostEnv) {
       return text(500, error instanceof Error ? error.message : 'Unknown error')
     })
     .get('/api/health', () => ({ ok: true }))
-    .get('/api/account', ({ request }) => accountRead(request, env, authFor(env, request)))
-    .put('/api/account/settings', ({ request }) => accountSave(request, env, authFor(env, request)))
+    .get('/api/account', ({ request }) => accountRead(request, env, authFor(request)))
+    .put('/api/account/settings', ({ request }) => accountSave(request, env, authFor(request)))
     .get('/api/account/dashboard', ({ request }) =>
-      accountDashboardApi(request, env, authFor(env, request), requestOrigin(request, env.PUBLIC_URL)),
+      accountDashboardApi(request, env, authFor(request), requestOrigin(request, env.PUBLIC_URL)),
     )
-    .post('/api/plans', ({ request }) => registerPlan(request, env, authFor(env, request), requestOrigin(request, env.PUBLIC_URL)))
-    .get('/api/auth/cli-session', ({ request }) => cliSession(request, env, authFor(env, request), new URL(request.url)))
+    .post('/api/plans', ({ request }) => registerPlan(request, env, authFor(request), requestOrigin(request, env.PUBLIC_URL)))
+    .get('/api/auth/cli-session', ({ request }) => cliSession(request, env, authFor(request), new URL(request.url)))
     .get('/plans/:planId/share', ({ request, params }) =>
-      sharePlan(request, env, authFor(env, request), requestOrigin(request, env.PUBLIC_URL), params.planId),
+      sharePlan(request, env, authFor(request), requestOrigin(request, env.PUBLIC_URL), params.planId),
     )
     .get('/plans/:planId/view/:sig', ({ request, params }) => acceptViewer(request, env, params.planId, params.sig))
     .get('/plans/:planId/document', ({ request, params }) =>
-      planDocument(request, env, authFor(env, request), params.planId, 'latest'),
+      planDocument(request, env, authFor(request), params.planId, 'latest'),
     )
     .get('/plans/:planId/versions/:seq', ({ request, params }) =>
-      planDocument(request, env, authFor(env, request), params.planId, Number(params.seq)),
+      planDocument(request, env, authFor(request), params.planId, Number(params.seq)),
     )
-    .all('/plans/:planId', ({ request, params }) => forwardPlan(request, env, authFor(env, request), params.planId, '/'))
+    .all('/plans/:planId', ({ request, params }) => forwardPlan(request, env, authFor(request), params.planId, '/'))
     .all('/plans/:planId/*', ({ request, params }) => {
       const rest = params['*'] ? `/${params['*']}` : '/'
-      return forwardPlan(request, env, authFor(env, request), params.planId, rest)
+      return forwardPlan(request, env, authFor(request), params.planId, rest)
     })
 }
 
@@ -75,7 +76,7 @@ export async function handleHostRequest(request: Request, env: HostEnv): Promise
   if (request.headers.get('upgrade')?.toLowerCase() === 'websocket') return upgradePlan(request, env)
   const url = new URL(request.url)
   if (url.pathname.startsWith('/api/auth/') && !url.pathname.startsWith('/api/auth/cli-session')) {
-    return authFor(env, request).handler(request)
+    return createAuthFor(env, request).handler(request)
   }
   return createHostApp(env).fetch(request)
 }
@@ -85,7 +86,7 @@ async function upgradePlan(request: Request, env: HostEnv): Promise<Response> {
   const planMatch = /^\/plans\/([A-Za-z0-9_-]{8,80})(\/.*)?$/.exec(url.pathname)
   if (!planMatch?.[1]) return text(404, 'Not found')
   const rest = planMatch[2] && planMatch[2] !== '/' ? planMatch[2] : '/'
-  return forwardPlan(request, env, authFor(env, request), planMatch[1], rest)
+  return forwardPlan(request, env, createAuthFor(env, request), planMatch[1], rest)
 }
 
 async function accountDashboardApi(
@@ -301,8 +302,9 @@ async function forwardPlan(
   const actor = account ? 'account' : viewer ? 'viewer' : ''
   if (request.method === 'DELETE') {
     if (!account && !bearerHeader(request)) return text(401, 'Sign in required')
-    const closed = await planFetch(env, planId, request, '/', actor || 'plan')
-    if (!closed.ok && closed.status !== 401) return closed
+    // The owner closes with the account. Anyone else must hold the plan bearer, which the object checks.
+    const closed = await planFetch(env, planId, request, '/', account ? 'account' : '')
+    if (!closed.ok) return closed
     await env.DB.prepare(`UPDATE plans SET status = 'executed', ended_at = ? WHERE id = ?`).bind(Date.now(), planId).run()
     return Response.json({ ok: true })
   }
@@ -467,13 +469,15 @@ export async function hostedPlanVersions(request: Request, env: HostEnv, planId:
 }
 
 async function planFetch(env: HostEnv, planId: string, request: Request, path: string, actor: string): Promise<Response> {
+  const target = new URL(path, 'https://plan.internal')
+  // Routes under /internal/ are for this Worker only. They do not check a caller.
+  if (isInternalPath(target.pathname)) return text(404, 'Not found')
   const headers = new Headers(request.headers)
   headers.delete('x-living-plan-actor')
   if (actor) headers.set('x-living-plan-actor', actor)
   const stub = env.PLANS.get(env.PLANS.idFromName(planId))
-  const target = new URL(path, 'https://plan.internal').toString()
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD'
-  return stub.fetch(new Request(target, hasBody ? { method: request.method, headers, body: request.body } : { method: request.method, headers }))
+  return stub.fetch(new Request(target.toString(), hasBody ? { method: request.method, headers, body: request.body } : { method: request.method, headers }))
 }
 
 async function readSession(auth: ReturnType<typeof createAuth>, request: Request, db: D1Database): Promise<AuthSession | null> {
@@ -522,6 +526,17 @@ function timingSafe(expected: string, actual: string): boolean {
   let diff = 0
   for (let index = 0; index < left.length; index += 1) diff |= (left[index] ?? 0) ^ (right[index] ?? 0)
   return diff === 0
+}
+
+function isInternalPath(pathname: string): boolean {
+  let decoded: string
+  try {
+    decoded = decodeURIComponent(pathname)
+  } catch {
+    return true
+  }
+  const path = new URL(decoded.toLowerCase(), 'https://plan.internal').pathname
+  return path === '/internal' || path.startsWith('/internal/')
 }
 
 function bearerHeader(request: Request): boolean {
