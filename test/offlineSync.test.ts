@@ -15,16 +15,22 @@ import {
   type PlanSql,
 } from '../src/host/planRoom.ts'
 import {
+  OWNED_PLAN_CAP,
   SOURCE_BODY_CAP,
+  WARM_INTERVAL_MS,
   applyLiveToPlan,
+  catalogFromOwned,
   catalogRows,
   commentPartReady,
   commentRowsFromSnapshot,
+  dashboardAccountDecision,
   inspectMutation,
+  isAccountNetworkFailure,
   mergeAgentDocument,
   offlineStatusText,
   planRowFromSnapshot,
   plansToEvict,
+  plansToWarm,
   settingsWinner,
   type PlanRow,
 } from '../src/offlineSync.ts'
@@ -191,6 +197,72 @@ test('live plan data and catalog rows stay free of the source body', () => {
     ],
     'open',
   ), ['d'])
+  assert.deepEqual(plansToEvict(
+    [
+      { id: 'open', openedAt: 5 },
+      { id: 'owned-old', openedAt: 1 },
+      { id: 'a', openedAt: 4 },
+      { id: 'b', openedAt: 3 },
+      { id: 'c', openedAt: 2 },
+      { id: 'd', openedAt: 0 },
+    ],
+    'open',
+    4,
+    ['owned-old'],
+  ), ['d'])
+  assert.deepEqual(plansToEvict(
+    [
+      { id: 'gone', openedAt: 9 },
+      { id: 'open', openedAt: 1 },
+    ],
+    'open',
+    4,
+    [],
+    ['gone'],
+  ), ['gone'])
+  const owned = Array.from({ length: OWNED_PLAN_CAP + 2 }, (_, index) => `p${String(index).padStart(2, '0')}`)
+  const evicted = plansToEvict(
+    owned.map((id, index) => ({ id, openedAt: index })),
+    'p00',
+    4,
+    owned,
+  )
+  assert.deepEqual(evicted, ['p50', 'p51'])
+  const now = 1_000_000
+  assert.deepEqual(plansToWarm(
+    [
+      { id: 'new', versionKey: '5/', recency: 5 },
+      { id: 'same', versionKey: '2/', recency: 4 },
+      { id: 'stale', versionKey: '3/', recency: 3 },
+      { id: 'old', versionKey: '1/', recency: 1 },
+    ],
+    [
+      { id: 'same', versionKey: '2/', warmedAt: now - 1000 },
+      { id: 'stale', versionKey: '3/', warmedAt: now - WARM_INTERVAL_MS - 1 },
+    ],
+    now,
+  ), ['new', 'stale', 'old'])
+  const many = Array.from({ length: OWNED_PLAN_CAP + 1 }, (_, index) => ({
+    id: `w${String(index).padStart(2, '0')}`,
+    versionKey: '1/',
+    recency: OWNED_PLAN_CAP - index,
+  }))
+  const warm = plansToWarm(many, [], now)
+  assert.equal(warm.length, OWNED_PLAN_CAP)
+  assert.equal(warm[0], 'w00')
+  assert.equal(warm.includes('w50'), false)
+  const listed = catalogFromOwned(
+    [{ id: 'p1', title: 'Owned' }],
+    [{ id: 'p1', heartbeatAt: 9, storedPath: 'plans/p1.md', status: 'running' }],
+  )
+  assert.equal(listed[0]?.versionKey, '9/plans/p1.md')
+  assert.equal(dashboardAccountDecision({ ok: false, networkFailure: false, hasStored: true }), 'login')
+  assert.equal(dashboardAccountDecision({ ok: null, networkFailure: true, hasStored: true }), 'stored')
+  assert.equal(dashboardAccountDecision({ ok: null, networkFailure: true, hasStored: false }), 'error')
+  assert.equal(dashboardAccountDecision({ ok: true, networkFailure: false, hasStored: false }), 'account')
+  assert.equal(isAccountNetworkFailure(new TypeError('Failed to fetch'), true), true)
+  assert.equal(isAccountNetworkFailure(new Error('nope'), true), false)
+  assert.equal(isAccountNetworkFailure(new Error('nope'), false), true)
   assert.equal(offlineStatusText({ available: true, offline: true, pending: 2, failed: 0 }), 'Offline · 2 pending')
   assert.equal(offlineStatusText({ available: false, offline: true, pending: 2, failed: 1 }), null)
   assert.equal(settingsWinner({ updatedAt: 5, accent: 'old' }, { updatedAt: 4, accent: 'new' }).accent, 'old')
