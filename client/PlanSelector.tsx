@@ -20,6 +20,7 @@ import {
   type PlanPart,
 } from './planParts.ts'
 import { UnaddressedMark } from './UnaddressedMark.tsx'
+import { planContext, postPlanMutation, startOfflineEngine } from './offline/engine.ts'
 import { subscribePlanEvents } from './planEvents.ts'
 import './planSelector.css'
 
@@ -272,26 +273,18 @@ export function PlanSelector() {
   }, [enabled, replyReveal])
 
   async function approvePlan() {
-    const response = await fetch(apiPath('/api/review'), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ decision: 'approve' }),
-    })
-    if (!response.ok) setError('Could not approve')
+    const response = await postPlanMutation('review', apiPath('/api/review'), { decision: 'approve' })
+    if (!response.ok && !response.queued) setError(response.text || 'Could not approve')
   }
 
   async function sendTrayMessage(text: string) {
     setSending(true)
     setError('')
     try {
-      const response = await fetch(apiPath('/api/comments'), {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ partId: 'review:message', kind: 'message', text }),
-      })
-      if (!response.ok) throw new Error((await response.text()) || 'Could not send the message')
-      const body = (await response.json()) as { comment?: PlanComment }
-      if (body.comment) commitComments((current) => upsert(current, body.comment as PlanComment))
+      const response = await postPlanMutation('comment', apiPath('/api/comments'), { partId: 'review:message', kind: 'message', text })
+      if (!response.ok && !response.queued) throw new Error(response.text || 'Could not send the message')
+      const body = response.body as { comment?: PlanComment } | null
+      if (body?.comment) commitComments((current) => upsert(current, body.comment as PlanComment))
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not send the message')
       throw cause
@@ -306,13 +299,9 @@ export function PlanSelector() {
       return
     }
     const next = mode === 'watch' ? 'comment' : 'watch'
-    const response = await fetch(apiPath('/api/mode'), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ mode: next }),
-    })
-    if (!response.ok) {
-      setError('Could not change mode')
+    const response = await postPlanMutation('mode', apiPath('/api/mode'), { mode: next })
+    if (!response.ok && !response.queued) {
+      setError(response.text || 'Could not change mode')
       return
     }
     setMode(next)
@@ -526,20 +515,16 @@ export function PlanSelector() {
     setSending(true)
     setError('')
     try {
-      const response = await fetch(apiPath('/api/comments'), {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          partId: locked.partId,
-          kind: locked.kind,
-          blockId: blockIdFromPart(locked.partId),
-          excerpt: locked.excerpt,
-          text,
-        }),
+      const response = await postPlanMutation('comment', apiPath('/api/comments'), {
+        partId: locked.partId,
+        kind: locked.kind,
+        blockId: blockIdFromPart(locked.partId),
+        excerpt: locked.excerpt,
+        text,
       })
-      if (!response.ok) throw new Error((await response.text()) || 'Could not send the comment')
-      const body = (await response.json()) as { comment?: PlanComment }
-      if (body.comment) commitComments((current) => upsert(current, body.comment as PlanComment))
+      if (!response.ok && !response.queued) throw new Error(response.text || 'Could not send the comment')
+      const body = response.body as { comment?: PlanComment } | null
+      if (body?.comment) commitComments((current) => upsert(current, body.comment as PlanComment))
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not send the comment')
       throw cause
@@ -549,13 +534,28 @@ export function PlanSelector() {
   }
 
   async function address(id: string) {
-    const response = await fetch(apiPath(`/api/comments/${encodeURIComponent(id)}/address`), {
-      method: 'POST',
-    })
-    if (!response.ok) return
-    const body = (await response.json()) as { comment?: PlanComment }
-    if (body.comment) commitComments((current) => upsert(current, body.comment as PlanComment))
+    const response = await postPlanMutation('address', apiPath(`/api/comments/${encodeURIComponent(id)}/address`), {})
+    if (!response.ok && !response.queued) return
+    const body = response.body as { comment?: PlanComment } | null
+    if (body?.comment) commitComments((current) => upsert(current, body.comment as PlanComment))
   }
+
+  useEffect(() => {
+    const context = planContext()
+    let stop = () => {}
+    void startOfflineEngine().then((engine) => {
+      if (!engine?.available) return
+      const paint = () => {
+        if (!engine.hydrated) return
+        const rows = engine.comments(context.id)
+        if (rows.length === 0 && !engine.plan(context.id)) return
+        commitComments(() => rows.map((row) => row.comment as PlanComment))
+      }
+      paint()
+      stop = engine.subscribe(paint)
+    })
+    return () => stop()
+  }, [])
 
   const overlay = open ? locked : hover
   const heading = locked?.excerpt.trim() || (locked ? locked.kind.replaceAll('-', ' ') : 'Comment')

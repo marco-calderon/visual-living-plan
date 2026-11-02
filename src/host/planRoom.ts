@@ -1,3 +1,11 @@
+import {
+  inspectMutation,
+  readBaseRevision,
+  rememberMutation,
+  type IdempotencyRecord,
+  type PlanSnapshot,
+  type UserMutationKind,
+} from '../offlineSync'
 import { allows, normalizeTier, SOCKET_CAPS, type Tier } from './access'
 
 export type PlanRows = { toArray(): Array<Record<string, unknown>> }
@@ -247,11 +255,12 @@ export function submitComment(sql: PlanSql, body: unknown): { outbound: Outbound
   const partId = String(payload.partId ?? '').trim()
   const text = String(payload.text ?? '').trim()
   if (!partId || !text) throw new PlanRoomError(400, 'Missing comment')
+  const blockId = String(payload.blockId ?? '').slice(0, 80)
   const comment = {
     id: randomId('cmt_'),
     partId,
     kind: String(payload.kind ?? 'part').slice(0, 40) || 'part',
-    blockId: String(payload.blockId ?? '').slice(0, 80) || undefined,
+    ...(blockId ? { blockId } : {}),
     excerpt: String(payload.excerpt ?? '').replace(/\s+/g, ' ').trim().slice(0, 180),
     text: text.slice(0, 4000),
     createdAt: Date.now(),
@@ -312,9 +321,70 @@ export function updateMode(sql: PlanSql, body: unknown): { outbound: Outbound[];
 
 export function putExecution(sql: PlanSql, body: unknown): { outbound: Outbound[]; body: unknown } {
   requireOpen(sql)
-  setMeta(sql, 'execution', JSON.stringify(body ?? { active: false }))
+  const previous = jsonMeta<{ active?: boolean }>(sql, 'execution', { active: false })
+  const next = (body ?? { active: false }) as { active?: boolean }
+  setMeta(sql, 'execution', JSON.stringify(next))
+  if (Boolean(previous.active) !== Boolean(next.active)) bumpRevision(sql)
   touchPlan(sql)
   return { outbound: [{ event: 'execution', data: body }], body: { ok: true, execution: body } }
+}
+
+export function planSnapshot(sql: PlanSql): PlanSnapshot {
+  const view = planView(sql)
+  const execution = view.execution as { active?: boolean } | null
+  return {
+    revision: view.revision,
+    source: view.source,
+    title: view.title,
+    mode: view.mode,
+    responses: view.responses,
+    comments: view.comments,
+    review: view.review,
+    locked: Boolean(execution?.active),
+  }
+}
+
+export function commitUserMutation(
+  sql: PlanSql,
+  input: { kind: UserMutationKind; key: string | null; body: unknown },
+  apply: (body: unknown) => { outbound: Outbound[]; body: unknown },
+): { status: number; body: unknown; outbound: Outbound[] } {
+  requireOpen(sql)
+  const view = planView(sql)
+  const execution = view.execution as { active?: boolean } | null
+  const decision = inspectMutation({
+    kind: input.kind,
+    key: input.key,
+    body: input.body,
+    baseRevision: readBaseRevision(input.body),
+    currentRevision: view.revision,
+    executionActive: Boolean(execution?.active),
+    source: view.source,
+    records: readMutations(sql),
+  })
+  if (decision.action === 'replay') return { status: 200, body: decision.result, outbound: [] }
+  if (decision.action === 'reject') {
+    return { status: 409, body: { error: decision.message, revision: view.revision }, outbound: [] }
+  }
+  const result = apply(decision.body)
+  if (decision.key) writeMutations(sql, rememberMutation(readMutations(sql), decision.key, decision.body, result.body))
+  touchPlan(sql)
+  return { status: 200, body: result.body, outbound: result.outbound }
+}
+
+function bumpRevision(sql: PlanSql): number {
+  const next = Number(meta(sql, 'revision') ?? '0') + 1
+  setMeta(sql, 'revision', String(next))
+  return next
+}
+
+function readMutations(sql: PlanSql): IdempotencyRecord[] {
+  const stored = jsonMeta<IdempotencyRecord[]>(sql, 'idempotency', [])
+  return Array.isArray(stored) ? stored : []
+}
+
+function writeMutations(sql: PlanSql, records: IdempotencyRecord[]): void {
+  setMeta(sql, 'idempotency', JSON.stringify(records))
 }
 
 export function ackEvents(sql: PlanSql, ids: string[]): { delivered: string[] } {

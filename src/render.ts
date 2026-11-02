@@ -1467,6 +1467,7 @@ export function renderPlanPage(options: {
     </div>
     <h1 class="brand" id="plan-title">${escapeHtml(plan.title)}</h1>
     <div class="chrome-tools">
+      <p class="offline-state" data-offline-state hidden></p>
       <div class="tabs" role="tablist" aria-label="Living Plan views">
         ${tabButton('plan', 'Plan', true)}
         ${tabButton('workflow', 'Workflow', false)}

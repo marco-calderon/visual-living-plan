@@ -49,14 +49,22 @@ export function CodeWrapSwitch({ initialChecked }: CodeWrapSwitchProps) {
     setChecked(next)
     publishWrapCode(next)
     try {
-      const response = await fetch(themePutUrl(), {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ wrapCode: next }),
-      })
-      if (!response.ok) {
-        const text = await response.text()
-        throw new Error(text || 'Failed to save settings')
+      const { planContext, startOfflineEngine } = await import('../offline/engine.ts')
+      const engine = await startOfflineEngine()
+      if (engine?.available) {
+        const context = planContext()
+        const scope = (window as Window & { __LIVE_PLAN_THEME_URL__?: string }).__LIVE_PLAN_THEME_URL__ ? 'account' : `local:${context.id}`
+        await engine.saveSettings(scope, { wrapCode: next, url: themePutUrl() })
+      } else {
+        const response = await fetch(themePutUrl(), {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ wrapCode: next, updatedAt: Date.now() }),
+        })
+        if (!response.ok) {
+          const text = await response.text()
+          throw new Error(text || 'Failed to save settings')
+        }
       }
       if (request.current !== id) return
       window.showPlanToast?.(next ? 'Code wraps' : 'Code scrolls')

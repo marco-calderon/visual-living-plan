@@ -78,6 +78,9 @@ function toStored(snapshot: PlanSessionSnapshot): StoredPlanSession {
     commentsJson: JSON.stringify(snapshot.comments),
     startedAt: snapshot.startedAt,
     lastSeenAt: snapshot.lastSeenAt,
+    syncRevision: snapshot.revision,
+    syncMutationsJson: JSON.stringify(snapshot.idempotency),
+    themeUpdatedAt: snapshot.themeUpdatedAt,
   }
 }
 
@@ -141,6 +144,9 @@ export async function createPlanHost(options: {
       review: row.reviewJson ? parseJson<ReviewResult | null>(row.reviewJson, null) : null,
       comments: parseJson<PlanComment[]>(row.commentsJson, []),
       events: options.store.listEvents(row.id),
+      revision: row.syncRevision,
+      idempotency: row.syncMutationsJson ? parseJson(row.syncMutationsJson, []) : [],
+      themeUpdatedAt: row.themeUpdatedAt,
       onChange: persist,
     })
     sessions.set(session.id, session)
@@ -236,6 +242,9 @@ export async function createPlanHost(options: {
       review: stored?.reviewJson ? parseJson(stored.reviewJson, null) : null,
       comments: stored ? parseJson<PlanComment[]>(stored.commentsJson, []) : undefined,
       events: options.store.listEvents(id),
+      revision: stored?.syncRevision,
+      idempotency: stored?.syncMutationsJson ? parseJson(stored.syncMutationsJson, []) : [],
+      themeUpdatedAt: stored?.themeUpdatedAt,
       onChange: persist,
     })
     sessions.set(session.id, session)

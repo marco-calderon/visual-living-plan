@@ -45,11 +45,17 @@ export const Route = createFileRoute('/settings')({
 })
 
 async function saveHostedAppearance(partial: AppearancePartial): Promise<boolean> {
+  const { startOfflineEngine } = await import('../../client/offline/engine.ts')
+  const engine = await startOfflineEngine()
+  if (engine?.available) {
+    await engine.saveSettings('account', { ...partial, url: THEME_URL })
+    return true
+  }
   const response = await fetch(THEME_URL, {
     method: 'PUT',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(partial),
+    body: JSON.stringify({ ...partial, updatedAt: Date.now() }),
   })
   return response.ok
 }

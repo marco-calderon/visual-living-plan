@@ -83,7 +83,7 @@ test('static assets load from the cache after the first response', async () => {
   assert.equal(runtime.fetches.length, 1)
 })
 
-test('a cached document loads from the cache and refreshes in the background', async () => {
+test('a document comes from the network while online and from the cache when that fetch fails', async () => {
   const runtime = memoryRuntime()
   const first = await handleShellFetch(document('/local'), runtime.deps)
   assert.equal(await first?.text(), '<html>one</html>')
@@ -91,8 +91,7 @@ test('a cached document loads from the cache and refreshes in the background', a
 
   runtime.pages.set('/local', '<html>two</html>')
   const second = await handleShellFetch(document('/local'), runtime.deps)
-  assert.equal(await second?.text(), '<html>one</html>')
-  await runtime.settled()
+  assert.equal(await second?.text(), '<html>two</html>')
   assert.equal(runtime.fetches.length, 2)
 
   runtime.fetch = () => {

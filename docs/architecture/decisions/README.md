@@ -29,5 +29,6 @@ Decisions are numbered in the order they were made. Superseded decisions stay he
 | [0023](0023-tanstack-start-page.md) | 2026-10-30 | Accepted | TanStack Start is the web application; the browser still compiles MDX |
 | [0024](0024-one-plan-store.md) | 2026-11-01 | Accepted; plan tables updated by 0025 | One SQLite store for local plans and D1 for hosted plans; Elysia on every HTTP route |
 | [0025](0025-one-plan-schema.md) | 2026-11-01 | Accepted | One plan schema for the local registry and D1, with configuration in `meta` |
+| [0026](0026-browser-offline-store.md) | 2026-11-02 | Accepted | The browser keeps a device copy of the open plan; the registry, D1, and the Durable Object stay the authority |
 
-Add the next decision as `0026-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.
+Add the next decision as `0027-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.
