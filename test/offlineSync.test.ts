@@ -18,6 +18,7 @@ import {
   SOURCE_BODY_CAP,
   applyLiveToPlan,
   catalogRows,
+  commentPartReady,
   commentRowsFromSnapshot,
   inspectMutation,
   mergeAgentDocument,
@@ -83,6 +84,71 @@ test('a stale revision, a locked form, and a missing part are rejected once', ()
   assert.match(message(inspectMutation({ ...base, currentRevision: 1, executionActive: true })), /Execution is active/)
   assert.match(message(inspectMutation({ ...base, currentRevision: 1, source: 'other' })), /gone/)
   assert.equal(inspectMutation({ ...base, key: null, baseRevision: null, body: { partId: 'missing', text: 'Hello' } }).action, 'apply')
+})
+
+test('a comment on a rendered plan part is ready while its block is in the source', () => {
+  const source = [
+    '# Rollout',
+    '',
+    'Intro prose.',
+    '',
+    '<phase id="design" title="Design" status="done">',
+    'Body',
+    '</phase>',
+    '',
+    "<choice id='fail-mode' prompt='If Redis is down?'>",
+    '<option id="open" label="Fail open" />',
+    '</choice>',
+    '',
+    '<callout title="No id" kind="note">',
+    'Note',
+    '</callout>',
+  ].join('\n')
+  // Part ids as the page stamps them (data-plan-part).
+  for (const partId of [
+    'choice:fail-mode/prompt',
+    'phase:design/paragraph:1',
+    'phase:design',
+    'markdown:0/heading:1',
+    'callout:2/paragraph:1',
+    'review:message',
+  ]) {
+    assert.equal(commentPartReady(source, partId), true, partId)
+  }
+  for (const partId of ['choice:removed/prompt', 'form:fail-mode/field:1', 'phase:desig/paragraph:1', 'choice:/prompt', '']) {
+    assert.equal(commentPartReady(source, partId), false, partId)
+  }
+  const base = {
+    kind: 'comment' as const,
+    key: 'k3',
+    body: { partId: 'choice:fail-mode/prompt', text: 'Hello', baseRevision: 0 },
+    baseRevision: 0,
+    currentRevision: 0,
+    executionActive: false,
+    source,
+    records: [],
+  }
+  assert.equal(inspectMutation(base).action, 'apply')
+  assert.match(message(inspectMutation({ ...base, body: { ...base.body, partId: 'choice:removed/prompt' } })), /gone/)
+})
+
+test('the local session accepts an offline comment on a rendered plan part', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'living-plan-offline-'))
+  const planPath = join(home, 'demo.plan.md')
+  await writeFile(
+    planPath,
+    '# Demo\n\n<choice id="fail-mode" prompt="If Redis is down?">\n<option id="open" label="Fail open">\nAllow traffic.\n</option>\n</choice>\n',
+  )
+  const session = await openPlanSession({ id: 'plan5678', token: 'token', planPath, mode: 'watch' })
+  const request = new Request('http://127.0.0.1/', { headers: { 'idempotency-key': 'comment-part-1' } })
+  const created = session.submitComment(
+    { partId: 'choice:fail-mode/prompt', kind: 'prompt', text: 'Prefer fail open', baseRevision: 0 },
+    request,
+  ) as { comment: { id: string } }
+  assert.ok(created.comment.id)
+  assert.equal(session.snapshot().events.filter((event) => event.event === 'comment').length, 1)
+  await session.close()
+  await rm(home, { recursive: true, force: true })
 })
 
 test('agent source replaces an older browser copy and a large body is not stored', () => {

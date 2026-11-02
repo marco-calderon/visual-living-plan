@@ -73,6 +73,8 @@ const MIME: Record<string, string> = {
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.woff2': 'font/woff2',
+  // The browser SQLite store compiles this with streaming only when it is served as wasm.
+  '.wasm': 'application/wasm',
 }
 
 export type PlanSessionSnapshot = {

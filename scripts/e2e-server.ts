@@ -28,6 +28,8 @@ const server = await startLivingPlanServer({
 })
 
 console.log(`e2e ${mode} ${server.url}`)
+// Specs that act as the agent edit this copy of the plan.
+console.log(`e2e plan ${planPath}`)
 
 async function shutdown(): Promise<void> {
   await server.close()

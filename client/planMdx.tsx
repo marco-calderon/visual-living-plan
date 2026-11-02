@@ -20,7 +20,7 @@ import { Phase } from './entries/Phase.tsx'
 import { Questions } from './entries/Questions.tsx'
 import './entries/primitives.css'
 import { subscribePlanEvents } from './planEvents.ts'
-import { planContext, startOfflineEngine } from './offline/engine.ts'
+import { planContext, postPlanMutation, startOfflineEngine } from './offline/engine.ts'
 import { stampPlanParts } from './stampPlanParts.ts'
 
 type PlanWindow = Window & {
@@ -79,7 +79,7 @@ function compileMdx(source: string): Promise<PlanModule> {
 }
 
 async function postInteraction(response: InteractionResponse): Promise<void> {
-  const { postPlanMutation } = await import('./offline/engine.ts')
+  // A static import: a lazy chunk is only fetched on the first answer, so it is missing from the shell cache when that answer is made offline.
   const result = await postPlanMutation('interaction', apiPath(`/api/interactions/${encodeURIComponent(response.id)}`), response)
   if (!result.ok && !result.queued) throw new Error(result.text || 'Could not send')
 }
