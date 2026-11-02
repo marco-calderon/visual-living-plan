@@ -1,4 +1,6 @@
 import { createRoot } from 'react-dom/client'
+import { registerServiceWorker } from '../src/registerServiceWorker.ts'
+import { startOfflineEngine } from './offline/engine.ts'
 import { useEffect, useMemo, useState } from 'react'
 import { ExecutionCanvas } from './ExecutionCanvas'
 import type { ExecutionState } from '../src/execution.ts'
@@ -127,6 +129,8 @@ function ExecutionApp() {
 }
 
 if (typeof document !== 'undefined') {
+  registerServiceWorker()
+  void startOfflineEngine()
   const root = document.getElementById('execution-root')
   if (root) createRoot(root).render(<ExecutionApp />)
 }

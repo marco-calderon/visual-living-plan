@@ -52,7 +52,9 @@ TanStack Start lives at the repository root. There is no `app/` directory. `vite
 flowchart TD
   Req["Request"] --> Upgrade{"WebSocket upgrade?"}
   Upgrade -->|yes| Worker["src/host/app.ts"]
-  Upgrade -->|no| Favicon{"/favicon.png"}
+  Upgrade -->|no| Shell{"/sw.js"}
+  Shell -->|yes| Script["Shell service worker"]
+  Shell -->|no| Favicon{"/favicon.png"}
   Favicon -->|yes| Icon["Asset, or the built-in mark"]
   Favicon -->|no| Page{"GET or HEAD of a page route?"}
   Page -->|yes| Start["TanStack Start handler"]
@@ -80,6 +82,10 @@ Page routes, from `src/pageRoutes.ts` and `src/routes/`:
 Server functions in `src/planFns.ts` call back into `src/host/app.ts` with the incoming cookie. The route never talks to D1 or the Durable Object on its own.
 
 `npm run dev` is still the local Bun CLI. `npm run host` is this application on local workerd, including D1 and the Durable Object. Apply the local migrations with `npm run host:migrate`. The library bundle the Bun service serves from `/client/` is built by `vite.client.config.ts` (`npm run build:client`).
+
+The browser keeps a versioned shell cache, `visual-living-plan-shell-<package version>`. `src/client.tsx` is the hosted client entry. TanStack Start serves it instead of the package default, and it registers `/sw.js`. The local plan bundle (`client/main.tsx`) registers the same worker for the loopback page. The hosted Worker and the Bun service both serve that script. The worker stores same-origin static assets (`/assets/`, `/client/`, scripts, styles, images, and fonts) and serves those from the cache. HTML documents are requested from the network and stored only as a fallback for when that fetch fails, so a cached page is not a second copy of the plan while the host is reachable. `/api/`, auth, server functions, plan JSON, websockets, and downloads stay on the network and are not stored. Document keys include a hash of the cookie, so one account's page is not reused for another. The next deploy bumps the package version, the worker script changes, and `activate` deletes the previous shell cache.
+
+On a secure origin (`https`, `localhost`, `127.0.0.1`, or `[::1]`) the page also opens an OPFS database, `living-plan.sqlite`, through TanStack DB ([ADR 0026](decisions/0026-browser-offline-store.md)). Collections hold the open plan, comments, hosted dashboard summaries, and appearance. Submissions go through an IndexedDB outbox with an `Idempotency-Key` and `baseRevision`. The local session and the Durable Object honor that key: the same key and body return the original result, and a different body is `409`. An agent edit bumps the revision and replaces the source. A person's submission does not bump it, so a queue can replay in order. The title bar shows offline, a pending count, or one failed write. Plain HTTP on the LAN has no OPFS and no service worker, so those pages stay on the network. The registry, D1, and the Durable Object remain the authority. The browser file does not store the plan bearer, the account token, or the LAN secret.
 
 ## The Worker, D1, and Better Auth
 
@@ -319,7 +325,9 @@ A row overlaps the selected window when it started before the end of the window 
 | `src/cli.ts` | Client of the service. `serve` registers and prints that plan's undelivered submissions. `events`, `wait`, `watch`, and `review` read the same stream. `logs` prints the diagnostic files under `~/.config/living-plan/logs`. `dashboard` opens `/dashboard`. `tui` reads `/api/processes` and `/api/dashboard`, and leaves the service running when it exits. `--cloud` uses the signed-in host instead |
 | `src/cloudStore.ts`, `src/cloudClient.ts`, `src/cloudCommand.ts`, `src/cloudWatch.ts`, `src/cloudFrontmatter.ts` | Account session and plan bearers in `cloud.json`, frontmatter `cloudId`, upload, and the file watcher for `--cloud` |
 | `src/agentEvents.ts` | SSE reader for a local plan, WebSocket reader for a cloud plan, ack helper, and `planApiUrl` used by the CLI |
-| `src/entry.ts`, `src/pageRoutes.ts` | Worker entry. Pages go to TanStack Start. Auth, plan APIs, and WebSockets go to `src/host` |
+| `src/entry.ts`, `src/pageRoutes.ts` | Worker entry. Pages go to TanStack Start. Auth, plan APIs, and WebSockets go to `src/host`. `GET /sw.js` is the shell worker |
+| `src/client.tsx`, `src/shellCache.ts`, `client/main.tsx` | Browser shell cache. The hosted client entry and the local plan bundle register it |
+| `src/offlineSync.ts`, `client/offline/` | Device copy of the open plan. OPFS collections, the submission outbox, and the snapshot contract shared by the local session and the Durable Object |
 | `src/routes/`, `src/PlanShell.tsx`, `src/planFns.ts` | The web application. Start routes, the plan shell, and the server functions that call the Worker |
 | `src/host/`, `src/migrations/` | Better Auth on D1, the plan catalog, published versions, Elysia routes, and one SQLite Durable Object per plan |
 | `vite.config.ts`, `wrangler.jsonc` | The Start app and its Worker bindings. `vite.client.config.ts` is the `/client/` bundle the Bun service serves |

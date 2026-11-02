@@ -3,6 +3,8 @@ import { handleHostRequest, type HostEnv } from './host/app.ts'
 import { PlanObject } from './host/planObject.ts'
 import { faviconFromAsset } from './favicon.ts'
 import { planIdFromPath, tanstackPage } from './pageRoutes.ts'
+import shellWorkerSource from './shellWorker.js?raw'
+import { SHELL_WORKER_PATH, shellWorkerResponse } from './shellWorkerResponse.ts'
 
 export { PlanObject }
 
@@ -15,6 +17,7 @@ export default {
     if (!upgrade && url.pathname.startsWith('/client/')) {
       return new Response(null, { status: 404 })
     }
+    if (!upgrade && url.pathname === SHELL_WORKER_PATH) return shellWorkerResponse(shellWorkerSource)
     if (!upgrade && url.pathname === '/favicon.png') return serveFavicon(request, env)
     const page = upgrade ? null : tanstackPage(url.pathname, request.method)
     if (!page) return handleHostRequest(request, env)

@@ -539,6 +539,13 @@ html.js .plan-card[data-closed] {
   align-items: center;
   gap: 0.65rem;
 }
+.offline-state {
+  margin: 0;
+  color: var(--muted, #71717a);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.offline-state[hidden] { display: none; }
 .facts {
   display: flex;
   flex-wrap: wrap;

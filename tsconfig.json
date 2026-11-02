@@ -17,7 +17,9 @@
   "exclude": [
     "src/routes",
     "src/entry.ts",
+    "src/client.tsx",
     "src/router.tsx",
+    "src/shellWorker.ts",
     "src/routeTree.gen.ts",
     "src/PlanShell.tsx",
     "src/HostBar.tsx",

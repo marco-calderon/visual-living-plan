@@ -15,7 +15,9 @@ import {
 import { Button } from '../../client/ui/button.tsx'
 import { HostBar } from '../HostBar.tsx'
 import { loadAccount } from '../planFns.ts'
-import type { PlanRecord } from '../processRecord.ts'
+import { emptyGitSnapshot, type PlanRecord } from '../processRecord.ts'
+import { startOfflineEngine } from '../../client/offline/engine.ts'
+import type { CatalogRow } from '../offlineSync.ts'
 import './dashboard.css'
 
 const LEDE =
@@ -82,8 +84,27 @@ function DashboardPage() {
         if (cancelled) return
         setPayload(next)
         setError('')
+        const engine = await startOfflineEngine()
+        engine?.rememberCatalog(
+          next.plans.map((plan) => ({
+            id: plan.id,
+            title: plan.title,
+            mode: plan.mode,
+            status: plan.status,
+            versionLabel: plan.outcome ?? '',
+          })),
+        )
       } catch {
-        if (!cancelled) setError('Could not read the dashboard.')
+        if (cancelled) return
+        const engine = await startOfflineEngine()
+        const saved = engine?.catalog() ?? []
+        if (saved.length === 0) {
+          setError('Could not read the dashboard.')
+          return
+        }
+        const plans = saved.map(catalogPlan)
+        setPayload({ summary: catalogSummary(period, plans), plans })
+        setError('')
       }
     }
     void load()
@@ -213,6 +234,62 @@ function DashboardPage() {
       </main>
     </>
   )
+}
+
+function catalogPlan(row: CatalogRow): DashboardPlan {
+  const status = row.status === 'executed' || row.status === 'interrupted' ? row.status : 'running'
+  const mode = row.mode === 'comment' || row.mode === 'review' ? row.mode : 'watch'
+  const outcome = row.versionLabel === 'approve' || row.versionLabel === 'deny' || row.versionLabel === 'iterate' ? row.versionLabel : null
+  return {
+    id: row.id,
+    pid: 0,
+    title: row.title,
+    summary: null,
+    agent: null,
+    mode,
+    planPath: '',
+    directory: '',
+    cwd: '',
+    url: `/plans/${row.id}`,
+    host: '',
+    port: 0,
+    startedAt: 0,
+    heartbeatAt: 0,
+    pendingCount: 0,
+    executionActive: false,
+    executionStep: null,
+    git: emptyGitSnapshot(),
+    status,
+    storedPath: null,
+    endedAt: null,
+    durationMs: 0,
+    phaseTotal: 0,
+    phaseDone: 0,
+    interactionTotal: 0,
+    interactionDone: 0,
+    completionRatio: 0,
+    completionState: 'idle',
+    filesModified: 0,
+    outcome,
+    historyUrl: `/plans/${row.id}/history`,
+  }
+}
+
+function catalogSummary(period: DashboardPeriod, plans: DashboardPlan[]): DashboardSummary {
+  return {
+    period,
+    label: 'Saved on this device',
+    from: 0,
+    to: Date.now(),
+    plans: plans.length,
+    started: 0,
+    running: plans.filter((plan) => plan.status === 'running').length,
+    executed: plans.filter((plan) => plan.status === 'executed').length,
+    interrupted: plans.filter((plan) => plan.status === 'interrupted').length,
+    filesModified: 0,
+    durationMs: 0,
+    folders: 0,
+  }
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

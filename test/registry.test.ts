@@ -142,6 +142,9 @@ test('registry store round-trips sessions and finished runs', async () => {
       commentsJson: '[]',
       startedAt: 1_700_000_000_000,
       lastSeenAt: 1_700_000_000_500,
+      syncRevision: 0,
+      syncMutationsJson: '[]',
+      themeUpdatedAt: 0,
     }
     store.saveSession(session)
     assert.deepEqual(store.getSession(session.id), session)

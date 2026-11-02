@@ -1,4 +1,5 @@
 import { faviconResponse } from './favicon'
+import { readShellWorkerSource, shellWorkerResponse } from './shellWorkerResponse'
 import { HttpError, jsonBody } from './http'
 import { acceptClientLog, readLogs } from './serviceLog'
 import { readClientAsset, type PlanSession } from './planSession'
@@ -84,6 +85,7 @@ export function registerPlanRoutes(app: any, options: PlanRouteOptions): any {
   }
 
   app.get('/favicon.png', () => faviconResponse())
+  app.get('/sw.js', () => shellWorkerResponse(readShellWorkerSource()))
 
   return app
     .get(route('/client/*'), (context: RouteContext) => {
@@ -93,6 +95,7 @@ export function registerPlanRoutes(app: any, options: PlanRouteOptions): any {
     .get(options.hosted ? '/plans/:id/' : '/', (context: RouteContext) => sessionFor(idOf(context)).page())
     .get(route('/api/plan'), (context: RouteContext) => sessionFor(idOf(context)).planPayload())
     .get(route('/api/plan-mdx'), (context: RouteContext) => sessionFor(idOf(context)).planMdxPayload())
+    .get(route('/api/snapshot'), (context: RouteContext) => sessionFor(idOf(context)).offlineSnapshot())
     .post(route('/api/plan-mdx/restore'), (context: RouteContext) => {
       const body = jsonBody(context.body, true) as { snapshotId?: unknown }
       if (typeof body.snapshotId !== 'string' || !body.snapshotId) {
@@ -123,20 +126,20 @@ export function registerPlanRoutes(app: any, options: PlanRouteOptions): any {
     })
     .post(route('/api/interactions/:interactionId'), (context: RouteContext) => {
       const interactionId = context.params?.interactionId ?? ''
-      return sessionFor(idOf(context)).submitInteraction(interactionId, context.body)
+      return sessionFor(idOf(context)).submitInteraction(interactionId, context.body, context.request)
     })
-    .post(route('/api/comments'), (context: RouteContext) => sessionFor(idOf(context)).submitComment(context.body))
+    .post(route('/api/comments'), (context: RouteContext) => sessionFor(idOf(context)).submitComment(context.body, context.request))
     .post(route('/api/comments/:commentId/address'), (context: RouteContext) =>
-      sessionFor(idOf(context)).addressComment(context.params?.commentId ?? '', context.body),
+      sessionFor(idOf(context)).addressComment(context.params?.commentId ?? '', context.body, context.request),
     )
     .post(route('/api/comments/:commentId/reply'), (context: RouteContext) =>
-      sessionFor(idOf(context)).replyToComment(context.params?.commentId ?? '', context.body),
+      sessionFor(idOf(context)).replyToComment(context.params?.commentId ?? '', context.body, context.request),
     )
     .post(route('/api/comments/:commentId/addressing'), (context: RouteContext) =>
-      sessionFor(idOf(context)).markAddressing(context.params?.commentId ?? ''),
+      sessionFor(idOf(context)).markAddressing(context.params?.commentId ?? '', context.request),
     )
-    .post(route('/api/review'), (context: RouteContext) => sessionFor(idOf(context)).submitReview(context.body))
-    .post(route('/api/mode'), (context: RouteContext) => sessionFor(idOf(context)).updateMode(context.body))
+    .post(route('/api/review'), (context: RouteContext) => sessionFor(idOf(context)).submitReview(context.body, context.request))
+    .post(route('/api/mode'), (context: RouteContext) => sessionFor(idOf(context)).updateMode(context.body, context.request))
     .get(route('/api/logs'), async (context: RouteContext) => {
       const session = sessionFor(idOf(context))
       session.touch()

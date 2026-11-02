@@ -60,7 +60,7 @@ export function safeRedirectPath(value: string | null): string {
 /** Plan pages, plan APIs, and the dashboard. The agent stream keeps its bearer check instead. */
 export function lanProtectedRequest(method: string, pathname: string): boolean {
   if (pathname === '/lan' || pathname.startsWith('/lan/')) return false
-  if (pathname === '/api/health' || pathname === '/favicon.png') return false
+  if (pathname === '/api/health' || pathname === '/favicon.png' || pathname === '/sw.js') return false
   if (pathname === '/api/logs' || pathname.startsWith('/client/') || pathname.startsWith('/assets/')) return false
   if (pathname === '/api/processes' || pathname === '/api/plans') return method === 'GET'
   if (pathname.startsWith('/api/processes/')) return false

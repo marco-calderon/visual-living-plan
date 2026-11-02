@@ -161,4 +161,11 @@ export const hostToolbarCss = `
   .plan-menu-popup[data-starting-style],
   .plan-menu-popup[data-ending-style] { transform: none; }
 }
+.offline-state {
+  margin: 0;
+  color: var(--muted, #71717a);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.offline-state[hidden] { display: none; }
 `

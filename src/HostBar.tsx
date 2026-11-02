@@ -25,6 +25,7 @@ export function HostBar({ title, label, logoHref = '/dashboard', themeUrl }: Hos
       </a>
       <h1 className="brand">{title}</h1>
       <div className="chrome-tools">
+        <p className="offline-state" data-offline-state="" hidden />
         <div className="account-menu" data-account-menu="" data-label={label}>
           <Button type="button" variant="secondary" className="titlebar-user" aria-haspopup="menu" aria-expanded="false">
             {label}

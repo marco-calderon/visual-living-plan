@@ -14,6 +14,8 @@ import {
   planView,
   PlanRoomError,
   putBlob,
+  commitUserMutation,
+  planSnapshot,
   putExecution,
   putSource,
   socketLimit,
@@ -28,6 +30,7 @@ import {
   type Outbound,
   type PlanSql,
 } from './planRoom'
+import type { UserMutationKind } from '../offlineSync'
 
 type SqlExec = {
   exec(query: string, ...bindings: unknown[]): { toArray(): Array<Record<string, unknown>> }
@@ -151,38 +154,35 @@ export class PlanObject extends DurableObject {
       })
       .post('/api/interactions/:id', async ({ request, params }) => {
         if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'submit')) return text(401, 'Sign in required')
-        const result = submitInteraction(sql, params.id, await request.json())
-        this.publish(result.outbound)
-        return Response.json(result.body)
+        return this.userWrite(request, sql, 'interaction', (body) => submitInteraction(sql, params.id, body))
       })
       .post('/api/comments', async ({ request }) => {
         if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'submit')) return text(401, 'Sign in required')
-        const result = submitComment(sql, await request.json())
-        this.publish(result.outbound)
-        return Response.json(result.body)
+        return this.userWrite(request, sql, 'comment', (body) => submitComment(sql, body))
       })
       .post('/api/comments/:id/reply', ({ request, params }) => this.commentAction(request, sql, params.id, 'reply'))
       .post('/api/comments/:id/address', ({ request, params }) => this.commentAction(request, sql, params.id, 'address'))
       .post('/api/comments/:id/addressing', ({ request, params }) => this.commentAction(request, sql, params.id, 'addressing'))
       .post('/api/review', async ({ request }) => {
         if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'submit')) return text(401, 'Sign in required')
-        const result = submitReview(sql, await request.json())
-        this.publish(result.outbound)
-        return Response.json(result.body)
+        return this.userWrite(request, sql, 'review', (body) => submitReview(sql, body))
       })
       .post('/api/mode', async ({ request }) => {
         if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'upload') && !actorAllows(actorOf(request), authorizationOf(request), sql, 'submit')) {
           return text(401, 'Sign in required')
         }
-        const result = updateMode(sql, await request.json())
-        this.publish(result.outbound)
-        return Response.json(result.body)
+        return this.userWrite(request, sql, 'mode', (body) => updateMode(sql, body))
       })
       .put('/api/execution', async ({ request }) => {
         if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'upload')) return text(401, 'Sign in required')
         const result = putExecution(sql, await request.json())
         this.publish(result.outbound)
         return Response.json(result.body)
+      })
+      .get('/api/snapshot', ({ request }) => {
+        if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'read')) return text(401, 'Sign in required')
+        touchPlan(sql)
+        return Response.json(planSnapshot(sql))
       })
       .get('/api/plan-mdx', ({ request }) => {
         if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'read')) return text(401, 'Sign in required')
@@ -211,6 +211,18 @@ export class PlanObject extends DurableObject {
     return Response.json({ ok: true })
   }
 
+  private async userWrite(
+    request: Request,
+    sql: PlanSql,
+    kind: UserMutationKind,
+    apply: (body: unknown) => { outbound: Outbound[]; body: unknown },
+  ): Promise<Response> {
+    const body = await readJson(request)
+    const result = commitUserMutation(sql, { kind, key: idempotencyKey(request), body }, apply)
+    this.publish(result.outbound)
+    return Response.json(result.body, { status: result.status })
+  }
+
   private async commentAction(request: Request, sql: PlanSql, commentId: string, action: string): Promise<Response> {
     if (
       !actorAllows(request.headers.get('x-living-plan-actor'), request.headers.get('authorization'), sql, 'submit') &&
@@ -218,13 +230,26 @@ export class PlanObject extends DurableObject {
     ) {
       return text(401, 'Sign in required')
     }
-    const result =
-      action === 'reply'
-        ? replyToComment(sql, commentId, await request.json())
-        : addressComment(sql, commentId, action === 'address' ? await request.json() : {})
-    this.publish(result.outbound)
-    return Response.json(result.body)
+    const kind: UserMutationKind = action === 'reply' ? 'reply' : action === 'address' ? 'address' : 'addressing'
+    return this.userWrite(request, sql, kind, (body) =>
+      action === 'reply' ? replyToComment(sql, commentId, body) : addressComment(sql, commentId, action === 'address' ? body : {}),
+    )
   }
+}
+
+async function readJson(request: Request): Promise<unknown> {
+  const textBody = await request.text()
+  if (!textBody.trim()) return {}
+  try {
+    return JSON.parse(textBody) as unknown
+  } catch {
+    return {}
+  }
+}
+
+function idempotencyKey(request: Request): string | null {
+  const key = request.headers.get('idempotency-key')?.trim()
+  return key || null
 }
 
 function text(status: number, message: string): Response {
