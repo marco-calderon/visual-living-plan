@@ -1,23 +1,39 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "visual-living-plan",
+  "account_id": "989c1a32b23f46d91839c0e4daf38acc",
   "compatibility_date": "2026-10-23",
   "compatibility_flags": ["nodejs_compat"],
   "main": "src/entry.ts",
-  // Local workerd only. Production sets BETTER_AUTH_SECRET with `wrangler secret put`.
-  "vars": {
-    "BETTER_AUTH_SECRET": "local-dev-secret-at-least-32-characters"
+  // Set in production with `wrangler secret put`. Local workerd reads them from `.dev.vars`
+  // (copy `.dev.vars.example`). PUBLIC_URL and the OAuth client ids/secrets are optional.
+  "secrets": {
+    "required": ["BETTER_AUTH_SECRET"]
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "living-plan",
-      "database_id": "00000000-0000-0000-0000-000000000001",
+      "database_id": "cd368c54-8c6c-4144-89c0-cef49f2c7a39",
       "migrations_dir": "src/migrations"
     }
   ],
   "durable_objects": {
     "bindings": [{ "name": "PLANS", "class_name": "PlanObject" }]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PlanObject"] }]
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PlanObject"] }],
+  "observability": {
+    "enabled": true
+  },
+  // Preview deployments for pull requests (`wrangler preview` in Workers Builds).
+  // They share the production D1 database. PUBLIC_URL is left unset so auth uses
+  // the preview's own origin instead of sending sign-in back to production.
+  "previews": {
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_id": "cd368c54-8c6c-4144-89c0-cef49f2c7a39"
+      }
+    ]
+  }
 }
