@@ -24,5 +24,16 @@
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PlanObject"] }],
   "observability": {
     "enabled": true
+  },
+  // Preview deployments for pull requests (`wrangler preview` in Workers Builds).
+  // They share the production D1 database. PUBLIC_URL is left unset so auth uses
+  // the preview's own origin instead of sending sign-in back to production.
+  "previews": {
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_id": "cd368c54-8c6c-4144-89c0-cef49f2c7a39"
+      }
+    ]
   }
 }
