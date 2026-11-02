@@ -155,3 +155,23 @@ Living Plan can be installed as an app from the browser's install prompt. The ho
 ### Notes
 
 The new service version replaces the running registry through the usual version check. The new shell cache name replaces the 1.10.2 cache. A plan opened over plain HTTP on the local network is not installable.
+
+## 1.12.0
+
+**PR:** not opened yet
+
+**Bump:** minor
+
+### Summary
+
+A signed-in person can open the dashboard and read their own plans with no network, including plans they have not opened on this device.
+
+### New features
+
+- The installed app opens the dashboard. The app shell is saved when it is installed, and a plan that is not on this device yet explains that and links back to the dashboard.
+- While online, this device keeps the account, each dashboard period, and up to 50 of this account's plans. Offline, the dashboard shows when that copy was saved. History and the plan file wait for a connection.
+- Signing out clears the on-device plans and cached pages. If changes have not been sent, the page asks before discarding them.
+
+### Notes
+
+No registry restart needed beyond the usual version check. The new shell cache name replaces the 1.11.0 cache. A plan opened over plain HTTP on the local network stays on the network. The registry, the hosted database, and the plan room remain the source of truth.
