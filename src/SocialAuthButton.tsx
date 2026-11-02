@@ -1,5 +1,6 @@
 import { Button } from '../client/ui/button.tsx'
 import { authClient } from './authClient.ts'
+import { OAuthMark } from './OAuthMark.tsx'
 import { authPath, authReturnPath, finishAuth, type AuthSearch } from './authSearch.ts'
 
 type SocialProvider = 'github' | 'google'
@@ -18,7 +19,7 @@ const NAME: Record<SocialProvider, string> = {
   google: 'Google',
 }
 
-/** Secondary pill that starts GitHub or Google OAuth. The Worker reads each client id and secret from its environment. */
+/** Quiet pill that starts GitHub or Google OAuth. The Worker reads each client id and secret from its environment. */
 export function SocialAuthButton({ provider, search, intent, pending, onPending, onError }: SocialAuthButtonProps) {
   const page = intent === 'sign-up' ? '/signup' : '/login'
   const label = `Continue with ${NAME[provider]}`
@@ -44,7 +45,8 @@ export function SocialAuthButton({ provider, search, intent, pending, onPending,
   }
 
   return (
-    <Button type="button" variant="secondary" disabled={pending} onClick={() => void start()}>
+    <Button type="button" variant="tertiary" disabled={pending} onClick={() => void start()}>
+      <OAuthMark provider={provider} />
       {label}
     </Button>
   )

@@ -98,6 +98,7 @@ function LoginPage() {
             <LogIn size={16} aria-hidden="true" />
             Sign in
           </Button>
+          <p className="account-divider">or</p>
           <SocialAuthButton
             provider="github"
             search={search}

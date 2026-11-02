@@ -34,6 +34,10 @@ body {
   --danger: #c9322a;
   --danger-soft: #fff4f0;
   --danger-border: #ef4d3e;
+  --oauth-google-blue: #4285f4;
+  --oauth-google-green: #34a853;
+  --oauth-google-yellow: #fbbc05;
+  --oauth-google-red: #ea4335;
   --shadow-popover: 0 4px 6px rgba(0, 0, 0, 0.08);
   --font-body: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -61,6 +65,7 @@ body {
     --steel: #949494;
     --muted: var(--steel);
     --surface: #1c1c1c;
+    --elevated: #262626;
     --hairline: #2c2c2c;
     --line: var(--hairline);
     --blue: #0094fc;
@@ -221,8 +226,39 @@ a:focus-visible,
   gap: var(--space-xs);
 }
 
+.account-divider {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-sm);
+  margin: var(--space-xxs) 0;
+  color: var(--steel);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.account-divider::before,
+.account-divider::after {
+  content: '';
+  height: 1px;
+  background: var(--hairline);
+}
+
 .account-actions .plan-btn {
   width: 100%;
+}
+
+@media (prefers-color-scheme: dark) {
+  .account-actions .plan-btn:not(.plan-btn-primary) {
+    background: var(--elevated);
+    border-color: var(--elevated);
+  }
+
+  .account-actions .plan-btn:not(.plan-btn-primary):hover:not(:disabled) {
+    background: var(--elevated);
+    border-color: var(--steel);
+  }
 }
 
 .pill {
