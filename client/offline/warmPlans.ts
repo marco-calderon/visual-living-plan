@@ -153,16 +153,16 @@ async function warmOne(engine: OfflineHandle, id: string): Promise<void> {
   const basePath = `/plans/${id}`
   try {
     const snapshotResponse = await fetch(`${basePath}/api/snapshot`, { cache: 'no-store', credentials: 'include' })
-    if (!snapshotResponse.ok) return
-    const snapshot = (await snapshotResponse.json()) as PlanSnapshot
-    engine.storePlanSnapshot(id, basePath, snapshot)
-    const page = await fetch(basePath, { credentials: 'include', headers: { accept: 'text/html' } })
-    await page.text()
-    if (!page.ok) return
-    if (typeof navigator !== 'undefined' && navigator.serviceWorker && !navigator.serviceWorker.controller) return
+    if (snapshotResponse.ok) {
+      engine.storePlanSnapshot(id, basePath, (await snapshotResponse.json()) as PlanSnapshot)
+      const page = await fetch(basePath, { credentials: 'include', headers: { accept: 'text/html' } })
+      await page.text()
+    }
+    // Any answer from the host counts as an attempt, so a failing plan waits WARM_INTERVAL_MS
+    // instead of being fetched again on every 4 s dashboard poll.
     engine.markWarmed(id, row?.versionKey ?? '', Date.now())
   } catch {
-    // The next online dashboard refresh tries this plan again.
+    // Network failure: the next online dashboard refresh tries this plan again.
   }
 }
 
