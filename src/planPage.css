@@ -221,7 +221,6 @@ body.layout-full { --page-column: 100%; }
   max-width: 100%;
   min-width: 0;
   margin: 0 auto;
-  padding: calc(var(--titlebar-offset) + var(--space-md)) 0 7rem;
   position: relative;
   z-index: 1;
   overflow-x: clip;
