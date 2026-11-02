@@ -38,7 +38,7 @@ No registry restart needed beyond the usual version check.
 
 ## 1.9.0
 
-**PR:** (link once known)
+**PR:** [#121](https://github.com/marco-calderon/visual-living-plan/pull/121)
 
 **Bump:** minor
 
