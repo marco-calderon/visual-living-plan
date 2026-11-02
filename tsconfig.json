@@ -24,6 +24,7 @@
     "src/bindPlanChrome.ts",
     "src/planFns.ts",
     "src/authClient.ts",
+    "src/LinkSocialAccounts.tsx",
     "src/cloudflare.d.ts",
     "src/host"
   ]

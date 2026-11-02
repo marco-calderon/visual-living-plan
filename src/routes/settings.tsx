@@ -6,8 +6,16 @@ import { CodeWrapSwitch } from '../../client/chrome/CodeWrapSwitch.tsx'
 import { Button } from '../../client/ui/button.tsx'
 import { DIFFS_THEME_PRESETS, diffsThemePreset, type DiffsThemeSample } from '../diffsTheme.ts'
 import { HostBar } from '../HostBar.tsx'
+import { LinkSocialAccounts } from '../LinkSocialAccounts.tsx'
 import { loadAccount } from '../planFns.ts'
 import './settings.css'
+
+type SettingsSearch = { error?: string }
+
+function settingsSearch(search: Record<string, unknown>): SettingsSearch {
+  const error = typeof search.error === 'string' && /^[a-z0-9_]+$/.test(search.error) ? search.error : undefined
+  return error ? { error } : {}
+}
 
 const WIDTHS = [
   { id: 'default', label: 'Default' },
@@ -25,6 +33,7 @@ type AppearancePartial = {
 }
 
 export const Route = createFileRoute('/settings')({
+  validateSearch: (search: Record<string, unknown>): SettingsSearch => settingsSearch(search),
   loader: async () => {
     const result = await loadAccount()
     if (!result.ok) {
@@ -83,6 +92,7 @@ function SettingsBackButton() {
 
 function SettingsPage() {
   const account = Route.useLoaderData()
+  const search = Route.useSearch()
   const settings = account.settings
   const label = account.user.name || account.user.email
   const currentDiffs = diffsThemePreset(settings.diffsTheme)
@@ -139,6 +149,8 @@ function SettingsPage() {
               {error}
             </p>
           </section>
+
+          <LinkSocialAccounts email={account.user.email} accounts={account.accounts ?? []} errorCode={search.error} />
 
           <section className="block settings-section">
             <h3>Accent color</h3>

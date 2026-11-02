@@ -41,6 +41,8 @@ npx wrangler secret put GITHUB_CLIENT_SECRET
 
 Leave Cloudflare Access off this hostname. Access can gate a separate staging hostname for your team. It is not the product login.
 
+A signed-in email account links GitHub or Google from Settings. Each control starts Better Auth's account linking and returns to `/settings`. The provider is attached only when its email matches the signed-in account. A provider that is already linked stays disabled. A loopback plan does not show this section.
+
 Run `npx wrangler d1 migrations apply living-plan --remote` again after you update the Worker. Account settings use the `user_settings` table. Published plan documents use the `plan_versions` table.
 
 ## Signed-in pages

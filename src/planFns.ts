@@ -11,6 +11,7 @@ export type AccountPayload = {
     diffsTheme: string
     wrapCode: boolean
   }
+  accounts: Array<{ providerId: string }>
   plans: Array<{ id: string; title: string; mode: string }>
 }
 
