@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { File, PatchDiff, type FileContents } from '@pierre/diffs/react'
+import { codeForDisplay, patchText } from './codeForDisplay'
 import { DEFAULT_DIFFS_THEME, diffsThemePair } from '../src/diffsTheme'
 
 type DiffsThemePair = { light: string; dark: string }
@@ -69,22 +70,6 @@ export type CodeBlockProps = {
   diff?: boolean
 }
 
-function patchText(code: string, language: string): string {
-  let body = code.endsWith('\n') ? code : `${code}\n`
-  if (!/^diff --git /m.test(body) && !/^---[ \t]+\S/m.test(body)) {
-    const name = language ? `snippet.${language}` : 'snippet'
-    body = `--- a/${name}\n+++ b/${name}\n${body}`
-  }
-  if (/^diff --git /m.test(body)) return body
-  return body.replace(/^---[ \t]+(\S+)\n\+\+\+[ \t]+(\S+)/gm, (full, oldPath: string, newPath: string) => {
-    const oldName = oldPath.replace(/^[ab]\//, '')
-    const newName = newPath.replace(/^[ab]\//, '')
-    const left = oldName === '/dev/null' ? newName : oldName
-    const right = newName === '/dev/null' ? oldName : newName
-    return `diff --git a/${left} b/${right}\n${full}`
-  })
-}
-
 function renumber(node: HTMLElement, start: number): void {
   const root = node.shadowRoot ?? node
   for (const gutter of root.querySelectorAll<HTMLElement>('[data-line-index]')) {
@@ -99,15 +84,16 @@ export function CodeBlock({ code, language, startingLineNumber, diff = false }: 
   const named = language.trim()
   const theme = useDiffsThemePair()
   const wrap = useWrapCode()
+  const displayed = useMemo(() => codeForDisplay(code), [code])
   const file = useMemo<FileContents>(
     () => ({
       name: named ? `snippet.${named}` : 'snippet',
-      contents: code,
+      contents: displayed,
       lang: named || 'text',
     }),
-    [code, named],
+    [displayed, named],
   )
-  const patch = useMemo(() => patchText(code, named), [code, named])
+  const patch = useMemo(() => patchText(displayed, named), [displayed, named])
   const fileOptions = useMemo(
     () => ({
       ...appearance(wrap),

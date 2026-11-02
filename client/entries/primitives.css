@@ -529,6 +529,11 @@ a.plan-step-label:hover {
 .plan-rich p,
 .plan-document > p { margin: 0 0 var(--space-sm); }
 
+/* Pills and chips are inline. The paragraph under them has no top margin, so it sat on the labels. */
+.plan-rich > :is(.plan-pill, .plan-chip) + p {
+  margin-top: var(--space-sm);
+}
+
 .plan-rich :is(ul, ol),
 .plan-document > :is(ul, ol) { margin: 0 0 var(--space-sm); padding-left: 1.2rem; }
 

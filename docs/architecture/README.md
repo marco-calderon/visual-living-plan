@@ -91,7 +91,7 @@ On a secure origin (`https`, `localhost`, `127.0.0.1`, or `[::1]`) the page also
 
 ## The Worker, D1, and Better Auth
 
-`src/host/app.ts` is the Elysia app for everything that is not a page: `/api/auth/*`, `/api/account`, `/api/plans`, `/api/health`, plan writes, the viewer link, document downloads, and WebSocket upgrades. It refuses to start when `BETTER_AUTH_SECRET` is missing. The value in `wrangler.jsonc` is for local workerd. Production sets the secret with Wrangler. An upgrade is forwarded to the Durable Object before Elysia copies the response, so the Workers socket stays on that response.
+`src/host/app.ts` is the Elysia app for everything that is not a page: `/api/auth/*`, `/api/account`, `/api/plans`, `/api/health`, plan writes, the viewer link, document downloads, and WebSocket upgrades. It refuses to start when `BETTER_AUTH_SECRET` is missing. `wrangler.jsonc` marks it a required secret. Local workerd reads it from `.dev.vars` (copy `.dev.vars.example`). Production sets it with `wrangler secret put`. An upgrade is forwarded to the Durable Object before Elysia copies the response, so the Workers socket stays on that response.
 
 Better Auth (`src/host/auth.ts`) uses the D1 binding `DB`. Email and password are always on. Google and GitHub are added when both id and secret are set. The `bearer` and `organization` plugins are on. D1 rejects `Date` and boolean bindings, so `bindableD1` turns a `Date` into an ISO string and a boolean into `0` or `1` before `bind`.
 

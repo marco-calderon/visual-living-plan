@@ -5,6 +5,7 @@ cloud/wrangler.jsonc
 *.plan.html
 .DS_Store
 .env
+.dev.vars
 .env.*
 !.env.example
 *.log
