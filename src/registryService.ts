@@ -9,6 +9,7 @@ import { bindElysia } from './httpServer'
 import { archivePlanFile, archivedPlanPath, isPathInside } from './planArchive'
 import { createPlanHost, type PlanHost } from './planHost'
 import { registerPlanRoutes } from './planRoutes'
+import { guardRequest } from './requestGuard'
 import { readClientAsset } from './planSession'
 import { authorizeLan, cookieValue, currentPeer, grantLanEntry, LAN_COOKIE } from './lanAccess'
 import { readLanEnabled, readLanSecret } from './lanConfig'
@@ -220,6 +221,17 @@ export async function startRegistryServer(options: {
         set.headers['cache-control'] = 'no-store'
         const url = new URL(request.url)
         const peer = options.resolvePeer ? (options.resolvePeer(request) ?? '') : currentPeer()
+        const guard = guardRequest({
+          method: request.method,
+          host: request.headers.get('host'),
+          origin: request.headers.get('origin'),
+          peer,
+          bindHost: host,
+        })
+        if (guard.action === 'deny') {
+          set.status = 403
+          return { error: guard.reason }
+        }
         const decision = authorizeLan({
           enabled: lanEnabled,
           secret: lanSecret,

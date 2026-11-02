@@ -1,16 +1,16 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { faviconBase64 } from './faviconBase64.ts'
+import { faviconBase64 } from './faviconBase64'
 
-function embeddedFavicon(): Uint8Array {
+function embeddedFavicon(): Uint8Array<ArrayBuffer> {
   const binary = atob(faviconBase64.replace(/\s/g, ''))
   const bytes = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
   return bytes
 }
 
-function faviconFromFile(): Uint8Array | undefined {
+function faviconFromFile(): Uint8Array<ArrayBuffer> | undefined {
   const moduleUrl = import.meta.url
   if (!moduleUrl) return undefined
   try {

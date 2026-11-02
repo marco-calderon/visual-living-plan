@@ -24,5 +24,6 @@ export function planCapReached(tier: Tier, openPlans: number, reattach: boolean)
 export function allows(actor: Actor | null, action: 'register' | 'read' | 'submit' | 'upload' | 'agent' | 'close'): boolean {
   if (action === 'register') return actor === 'account'
   if (action === 'read' || action === 'submit') return actor === 'account' || actor === 'viewer'
+  if (action === 'close') return actor === 'account' || actor === 'plan'
   return actor === 'plan'
 }

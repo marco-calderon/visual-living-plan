@@ -4,7 +4,9 @@ import { HttpError } from './http'
 import { bindElysia } from './httpServer'
 import { installServiceLogCapture, recordUnexpectedError } from './serviceLog'
 import { formatHttpOrigin } from './localName'
+import { currentPeer } from './lanAccess'
 import { registerPlanRoutes } from './planRoutes'
+import { guardRequest } from './requestGuard'
 import { openPlanSession, type PlanSession } from './planSession'
 import type { PlanMode } from './processRecord'
 import type { InteractionResponse, ReviewResult } from './types'
@@ -86,8 +88,19 @@ export async function startLivingPlanServer(options: {
 
   const app = registerPlanRoutes(
     new Elysia({ strictPath: true })
-      .onBeforeHandle(({ set }) => {
+      .onBeforeHandle(({ request, set }) => {
         set.headers['cache-control'] = 'no-store'
+        const guard = guardRequest({
+          method: request.method,
+          host: request.headers.get('host'),
+          origin: request.headers.get('origin'),
+          peer: currentPeer(),
+          bindHost: host,
+        })
+        if (guard.action === 'deny') {
+          set.status = 403
+          return { error: guard.reason }
+        }
       })
       .onError(({ code, error, set, request }) => {
         if (error instanceof HttpError) {
