@@ -50,6 +50,21 @@ A signed-in email account links GitHub or Google from Settings. Each control sta
 
 Run `npx wrangler d1 migrations apply living-plan --remote` again after you update the Worker. Account settings use the `user_settings` table. Published plan documents use the `plan_versions` table.
 
+## Workers Builds
+
+The Worker deploys from GitHub through Workers Builds (Worker → Settings → Build). Use these settings:
+
+| Setting | Value |
+|---|---|
+| Production branch | `main` |
+| Build command | `npx vite build` |
+| Deploy command | `npx wrangler deploy` |
+| Non-production branch deploy command | `npx wrangler versions upload` |
+
+A pull request then gets a preview version and never replaces production. Workers Builds does not run D1 migrations. Apply them with the command above when a change adds one.
+
+`wrangler.jsonc` pins `account_id`, so the build's Worker lookup always runs in this account. When a build fails with "The name in your wrangler.json file (visual-living-plan) must match the name of your Worker" and the name is correct, the Git connection points at a Worker that no longer exists. Add the build variable `WRANGLER_LOG=debug` to see the expected and actual Worker tags. Disconnect and reconnect the repository under Settings → Build to fix it.
+
 ## Signed-in pages
 
 TanStack Start serves `/dashboard`, `/account`, `/settings`, `/login`, `/signup`, `/plans/:id`, and `/plans/:id/history`. `/` and `/review` redirect to `/dashboard`. The Worker does not return those documents. Elysia in `src/host/app.ts` serves the account and plan APIs those pages call, including `GET /api/account`, `GET /api/account/dashboard`, and `PUT /api/account/settings`, plus plan writes, the viewer link, and the Durable Object. A loopback plan keeps writing the theme file beside that plan and does not ask for an account. `/local` stays that sample, with no sign-in.
