@@ -4,18 +4,20 @@
  * The cache name ends with the package version. A deploy that bumps the version
  * ships a new worker, and activate deletes every previous shell cache.
  *
- * Static assets are cache-first. HTML documents are served from the cache on a
- * later visit, then refreshed in the background. API, auth, server functions,
- * sessions, and plan JSON stay on the network. A document is stored under a
- * hash of the request cookie so one account's page is not reused for another.
+ * Static assets are cache-first. HTML documents come from the network while it
+ * is reachable, and from the cache only when that fetch fails. The cached
+ * document is the shell. Plan rows live in the browser database, not in that
+ * HTML. API, auth, server functions, sessions, and plan JSON stay on the
+ * network. A document is stored under a hash of the request cookie so one
+ * account's page is not reused for another.
  */
 
 export const SHELL_CACHE_PREFIX = 'visual-living-plan-shell-'
 
 /** Keep both equal to package.json `version`. test/shellCache.test.ts checks them. */
-export const SHELL_CACHE_VERSION = '1.9.0'
+export const SHELL_CACHE_VERSION = '1.10.0'
 
-export const SHELL_CACHE_NAME = 'visual-living-plan-shell-1.9.0'
+export const SHELL_CACHE_NAME = 'visual-living-plan-shell-1.10.0'
 
 export type ShellKind = 'asset' | 'document' | 'network'
 
@@ -118,7 +120,7 @@ export function handleShellFetch(request: Request, deps: ShellRuntime): Promise<
   const kind = classifyShellRequest(request, deps.origin)
   if (kind === 'network') return null
   if (kind === 'asset') return cacheFirstAsset(request, deps)
-  return revalidateDocument(request, deps)
+  return networkFirstDocument(request, deps)
 }
 
 async function cacheFirstAsset(request: Request, deps: ShellRuntime): Promise<Response> {
@@ -130,21 +132,18 @@ async function cacheFirstAsset(request: Request, deps: ShellRuntime): Promise<Re
   return response
 }
 
-async function revalidateDocument(request: Request, deps: ShellRuntime): Promise<Response> {
+async function networkFirstDocument(request: Request, deps: ShellRuntime): Promise<Response> {
   const cache = await deps.caches.open(deps.cacheName)
   const key = await documentCacheRequest(request)
-  const cached = await cache.match(key)
-  const refresh = Promise.resolve()
-    .then(() => deps.fetch(request))
-    .then(async (response) => {
-      if (shouldStoreDocument(response)) await cache.put(key, response.clone())
-      return response
-    })
-  if (cached) {
-    deps.waitUntil?.(refresh.then(() => undefined).catch(() => undefined))
-    return cached
+  try {
+    const response = await deps.fetch(request)
+    if (shouldStoreDocument(response)) await cache.put(key, response.clone())
+    return response
+  } catch (error) {
+    const cached = await cache.match(key)
+    if (cached) return cached
+    throw error
   }
-  return refresh
 }
 
 function isAssetPath(path: string): boolean {

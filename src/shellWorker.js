@@ -2,8 +2,8 @@
 
 // src/shellCache.ts
 var SHELL_CACHE_PREFIX = "visual-living-plan-shell-";
-var SHELL_CACHE_VERSION = "1.9.0";
-var SHELL_CACHE_NAME = "visual-living-plan-shell-1.9.0";
+var SHELL_CACHE_VERSION = "1.10.0";
+var SHELL_CACHE_NAME = "visual-living-plan-shell-1.10.0";
 var ASSET_EXTENSION = /\.(?:js|mjs|css|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|wasm)$/i;
 var PLAN_NETWORK = /^\/plans\/[^/]+\/(?:api|view|share|document|versions)(?:\/|$)/;
 function classifyShellRequest(request, origin) {
@@ -91,7 +91,7 @@ function handleShellFetch(request, deps) {
     return null;
   if (kind === "asset")
     return cacheFirstAsset(request, deps);
-  return revalidateDocument(request, deps);
+  return networkFirstDocument(request, deps);
 }
 async function cacheFirstAsset(request, deps) {
   const cache = await deps.caches.open(deps.cacheName);
@@ -103,24 +103,20 @@ async function cacheFirstAsset(request, deps) {
     await cache.put(request, response.clone());
   return response;
 }
-async function revalidateDocument(request, deps) {
+async function networkFirstDocument(request, deps) {
   const cache = await deps.caches.open(deps.cacheName);
   const key = await documentCacheRequest(request);
-  const cached = await cache.match(key);
-  const refresh = Promise.resolve().then(() => deps.fetch(request)).then(async (response) => {
+  try {
+    const response = await deps.fetch(request);
     if (shouldStoreDocument(response))
       await cache.put(key, response.clone());
     return response;
-  });
-  if (cached) {
-    deps.waitUntil?.(refresh.then(() => {
-      return;
-    }).catch(() => {
-      return;
-    }));
-    return cached;
+  } catch (error) {
+    const cached = await cache.match(key);
+    if (cached)
+      return cached;
+    throw error;
   }
-  return refresh;
 }
 function isAssetPath(path) {
   if (path === "/favicon.png")

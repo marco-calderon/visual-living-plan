@@ -76,3 +76,22 @@ The hosted app and the local plan page keep a versioned copy of the app shell. H
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.10.0
+
+**PR:** [#123](https://github.com/marco-calderon/visual-living-plan/pull/123)
+
+**Bump:** minor
+
+### Summary
+
+The plan page keeps a copy of the open plan on this device. Answers, comments, and reviews queue while the network is down and send once when it returns. The hosted app and the local plan page both do this.
+
+### New features
+
+- A browser database stores the open plan, comments, hosted dashboard summaries, and appearance. The title bar shows when the page is offline, how many writes are waiting, or that one write failed.
+- Submissions are sent once. Repeating the same write does not add a second event. An edit from the agent replaces the on-device plan.
+
+### Notes
+
+No registry restart needed beyond the usual version check. A plan opened over plain HTTP on the local network stays on the network. The registry, the hosted database, and the plan room remain the source of truth.

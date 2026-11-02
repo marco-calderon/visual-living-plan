@@ -20,6 +20,7 @@ import { Phase } from './entries/Phase.tsx'
 import { Questions } from './entries/Questions.tsx'
 import './entries/primitives.css'
 import { subscribePlanEvents } from './planEvents.ts'
+import { planContext, startOfflineEngine } from './offline/engine.ts'
 import { stampPlanParts } from './stampPlanParts.ts'
 
 type PlanWindow = Window & {
@@ -78,12 +79,9 @@ function compileMdx(source: string): Promise<PlanModule> {
 }
 
 async function postInteraction(response: InteractionResponse): Promise<void> {
-  const result = await fetch(apiPath(`/api/interactions/${encodeURIComponent(response.id)}`), {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(response),
-  })
-  if (!result.ok) throw new Error((await result.text()) || 'Could not send')
+  const { postPlanMutation } = await import('./offline/engine.ts')
+  const result = await postPlanMutation('interaction', apiPath(`/api/interactions/${encodeURIComponent(response.id)}`), response)
+  if (!result.ok && !result.queued) throw new Error(result.text || 'Could not send')
 }
 
 function blockClass(className?: string): string {
@@ -149,6 +147,25 @@ function PlanMdxApp() {
   tocCursor.current.ids = headingIds
 
   useEffect(() => {
+    let stopStore = () => {}
+    const context = planContext()
+    void startOfflineEngine().then((engine) => {
+      if (!engine?.available) return
+      const paint = () => {
+        const row = engine.plan(context.id)
+        if (!row?.source || row.sourceOmitted) return
+        setBoot((current) => ({
+          ...current,
+          source: row.source,
+          title: row.title,
+          responses: row.responses as Boot['responses'],
+          locked: row.locked,
+        }))
+      }
+      paint()
+      stopStore = engine.subscribe(paint)
+      void engine.syncPlan()
+    })
     const apply = (next: Partial<Boot>) => setBoot((current) => ({ ...current, ...next }))
     const stopPlan = subscribePlanEvents('plan', (event) => {
       try {
@@ -165,16 +182,40 @@ function PlanMdxApp() {
       }
     })
     const stopReload = subscribePlanEvents('reload', () => {
-      void fetch(apiPath('/api/plan-mdx'), { cache: 'no-store' })
-        .then((response) => (response.ok ? response.json() : null))
-        .then((payload: Boot | null) => {
-          if (payload && typeof payload.source === 'string') setBoot(payload)
-        })
-        .catch(() => undefined)
+      void startOfflineEngine().then(async (engine) => {
+        if (engine?.available) {
+          await engine.syncPlan()
+          return
+        }
+        const response = await fetch(apiPath('/api/plan-mdx'), { cache: 'no-store' }).catch(() => null)
+        if (!response?.ok) return
+        const payload = (await response.json()) as Boot
+        if (typeof payload.source === 'string') setBoot(payload)
+      })
     })
+    const forward = (type: string) =>
+      subscribePlanEvents(type, (event) => {
+        void startOfflineEngine().then((engine) => {
+          if (!engine?.available) return
+          try {
+            engine.noteLive(type, JSON.parse(event.data) as unknown)
+          } catch {
+            // The page still applies the event itself.
+          }
+        })
+      })
+    const stopForwardPlan = forward('plan')
+    const stopForwardMode = forward('mode')
+    const stopForwardExecution = forward('execution')
+    const stopForwardComment = forward('comment')
     return () => {
+      stopStore()
       stopPlan()
       stopReload()
+      stopForwardPlan()
+      stopForwardMode()
+      stopForwardExecution()
+      stopForwardComment()
     }
   }, [])
 

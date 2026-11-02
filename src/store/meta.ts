@@ -1,3 +1,4 @@
+import type { IdempotencyRecord } from '../offlineSync'
 import {
   emptyGitSnapshot,
   type CompletionState,
@@ -39,6 +40,9 @@ export type PlanMeta = {
   comments: unknown
   tier: string | null
   lastSeenAt: number | null
+  syncRevision: number
+  syncMutations: IdempotencyRecord[]
+  themeUpdatedAt: number
 }
 
 /** Account appearance. Local rows stay empty. */
@@ -81,6 +85,9 @@ export function emptyMeta(patch: Partial<PlanMeta> = {}): PlanMeta {
     comments: [],
     tier: null,
     lastSeenAt: null,
+    syncRevision: 0,
+    syncMutations: [],
+    themeUpdatedAt: 0,
     ...rest,
     git: { ...emptyGitSnapshot(), ...(git ?? {}) },
   }
@@ -154,6 +161,9 @@ export function keepProgress(current: PlanMeta, incoming: PlanMeta): PlanMeta {
     comments: current.comments,
     tier: current.tier,
     lastSeenAt: current.lastSeenAt,
+    syncRevision: current.syncRevision,
+    syncMutations: current.syncMutations,
+    themeUpdatedAt: current.themeUpdatedAt,
   }
 }
 
@@ -168,8 +178,12 @@ export function readMeta(value: unknown): PlanMeta {
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return emptyMeta()
   const record = parsed as Partial<PlanMeta>
-  return emptyMeta({
+  const meta = emptyMeta({
     ...record,
     git: record.git ? { ...emptyGitSnapshot(), ...record.git } : emptyGitSnapshot(),
   })
+  if (typeof meta.syncRevision !== 'number' || !Number.isFinite(meta.syncRevision)) meta.syncRevision = 0
+  if (!Array.isArray(meta.syncMutations)) meta.syncMutations = []
+  if (typeof meta.themeUpdatedAt !== 'number' || !Number.isFinite(meta.themeUpdatedAt)) meta.themeUpdatedAt = 0
+  return meta
 }

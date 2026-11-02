@@ -34,6 +34,13 @@
   display: block;
   border-radius: 50%;
 }
+.offline-state {
+  margin: 0;
+  color: var(--muted, #71717a);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.offline-state[hidden] { display: none; }
 .brand {
   flex: 0 0 auto;
   margin: 0;

@@ -20,6 +20,7 @@ export type AccountSettings = {
   pageWidth: PageWidth
   diffsTheme: string
   wrapCode: boolean
+  updatedAt?: number
 }
 
 export const USER_SETTINGS_SQL = `CREATE TABLE IF NOT EXISTS user_settings (
@@ -55,16 +56,21 @@ function readWrap(value: unknown): boolean {
   return value === true || value === 1 || value === 'true' || value === '1' || value === 'on'
 }
 
-/** Keep the current account settings and apply only valid fields from a request. */
+/** Keep the current account settings and apply only valid fields from a request. An older updatedAt is ignored. */
 export function mergeAccountSettings(current: AccountSettings, patch: unknown): AccountSettings {
   if (!patch || typeof patch !== 'object') return current
   const record = patch as Record<string, unknown>
-  return {
+  const incomingAt = typeof record.updatedAt === 'number' && Number.isFinite(record.updatedAt) ? record.updatedAt : 0
+  if (incomingAt > 0 && (current.updatedAt ?? 0) > incomingAt) return current
+  const next: AccountSettings = {
     accent: record.accent === undefined ? current.accent : (normalizeAccent(record.accent) ?? current.accent),
     pageWidth: record.pageWidth === undefined ? current.pageWidth : isPageWidth(record.pageWidth) ? record.pageWidth : current.pageWidth,
     diffsTheme: record.diffsTheme === undefined ? current.diffsTheme : isDiffsTheme(record.diffsTheme) ? record.diffsTheme : current.diffsTheme,
     wrapCode: record.wrapCode === undefined ? current.wrapCode : readWrap(record.wrapCode),
   }
+  if (incomingAt > 0) next.updatedAt = incomingAt
+  else if (current.updatedAt) next.updatedAt = current.updatedAt
+  return next
 }
 
 type SettingsRow = { meta: string }

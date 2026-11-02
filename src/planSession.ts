@@ -5,6 +5,15 @@ import { basename, dirname, extname, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { clientDistDir, loadClientAssets, type ClientAssets } from './assets'
 import { html, HttpError, jsonBody } from './http'
+import {
+  inspectMutation,
+  readBaseRevision,
+  readUpdatedAt,
+  rememberMutation,
+  type IdempotencyRecord,
+  type PlanSnapshot,
+  type UserMutationKind,
+} from './offlineSync'
 import { diffSections } from './diff'
 import { createIdleExecutionState, type ExecutionState } from './execution'
 import { collectSectionSources, parsePlan } from './parse'
@@ -79,6 +88,9 @@ export type PlanSessionSnapshot = {
   review: ReviewResult | null
   comments: PlanComment[]
   events: PlanSubmissionEvent[]
+  revision: number
+  idempotency: IdempotencyRecord[]
+  themeUpdatedAt: number
   startedAt: number
   lastSeenAt: number
 }
@@ -104,7 +116,8 @@ export type PlanSession = {
   touch: () => void
   snapshot: () => PlanSessionSnapshot
   setMode: (mode: PlanMode, iteration?: number) => void
-  updateMode: (body: unknown) => unknown
+  updateMode: (body: unknown, request?: Request) => unknown
+  offlineSnapshot: () => PlanSnapshot
   page: () => Response
   planMdxPayload: () => {
     source: string
@@ -131,12 +144,12 @@ export type PlanSession = {
   stopExecution: () => unknown
   browserEvents: (request: Request) => Response
   agentEvents: (request: Request) => Response
-  submitInteraction: (interactionId: string, body: unknown) => unknown
-  submitComment: (body: unknown) => unknown
-  addressComment: (commentId: string, body?: unknown) => unknown
-  replyToComment: (commentId: string, body: unknown) => unknown
-  markAddressing: (commentId: string) => unknown
-  submitReview: (body: unknown) => unknown
+  submitInteraction: (interactionId: string, body: unknown, request?: Request) => unknown
+  submitComment: (body: unknown, request?: Request) => unknown
+  addressComment: (commentId: string, body?: unknown, request?: Request) => unknown
+  replyToComment: (commentId: string, body: unknown, request?: Request) => unknown
+  markAddressing: (commentId: string, request?: Request) => unknown
+  submitReview: (body: unknown, request?: Request) => unknown
   acknowledgeEvents: (body: unknown) => { ok: true; delivered: string[] }
   close: () => Promise<void>
   waitForInteraction: (id: string, timeoutMs?: number) => Promise<InteractionResponse>
@@ -183,6 +196,9 @@ export async function openPlanSession(options: {
   review?: ReviewResult | null
   comments?: PlanComment[]
   events?: PlanSubmissionEvent[]
+  revision?: number
+  idempotency?: IdempotencyRecord[]
+  themeUpdatedAt?: number
   onChange?: (snapshot: PlanSessionSnapshot) => void
 }): Promise<PlanSession> {
   const id = options.id
@@ -233,8 +249,23 @@ export async function openPlanSession(options: {
       title: plan.title,
       responses,
       locked: Boolean(execution.active),
+      revision,
       snapshots: mdxStore?.list() ?? [],
       headSnapshotId: mdxStore?.head()?.headSnapshotId ?? null,
+    }
+  }
+
+  function offlineSnapshot(): PlanSnapshot {
+    touch()
+    return {
+      revision,
+      source,
+      title: plan.title,
+      mode,
+      responses,
+      comments: comments.map((comment) => ({ ...comment })),
+      review: reviewResult ?? null,
+      locked: Boolean(execution.active),
     }
   }
 
@@ -251,6 +282,37 @@ export async function openPlanSession(options: {
     data: structuredClone(event.data),
   }))
   let agentSeq = eventLog.reduce((max, event) => Math.max(max, event.seq), 0)
+  let revision = options.revision ?? 0
+  let idempotency: IdempotencyRecord[] = [...(options.idempotency ?? [])]
+  let themeUpdatedAt = options.themeUpdatedAt ?? 0
+
+  function guarded(
+    kind: UserMutationKind,
+    body: unknown,
+    request: Request | undefined,
+    locks: boolean,
+  ): { body: unknown; replay?: unknown; key: string | null } {
+    const key = request?.headers.get('idempotency-key')?.trim() || null
+    const decision = inspectMutation({
+      kind,
+      key,
+      body,
+      baseRevision: readBaseRevision(body),
+      currentRevision: revision,
+      executionActive: locks && Boolean(execution.active),
+      source,
+      records: idempotency,
+    })
+    if (decision.action === 'replay') return { body: {}, replay: decision.result, key }
+    if (decision.action === 'reject') throw new HttpError(409, decision.message)
+    return { body: decision.body, key }
+  }
+
+  function note(key: string | null, body: unknown, result: unknown): void {
+    if (!key) return
+    idempotency = rememberMutation(idempotency, key, body, result)
+    persist()
+  }
 
   function eventKey(event: PlanSubmissionEvent['event'], data: unknown): string | null {
     if (!data || typeof data !== 'object') return null
@@ -352,6 +414,9 @@ export async function openPlanSession(options: {
       review: reviewResult ?? null,
       comments: comments.map((comment) => ({ ...comment })),
       events: eventLog.map((event) => ({ ...event })),
+      revision,
+      idempotency: idempotency.map((record) => ({ ...record })),
+      themeUpdatedAt,
       startedAt,
       lastSeenAt,
     }
@@ -456,6 +521,7 @@ export async function openPlanSession(options: {
     }
     const wasActive = execution.active
     const willBeActive = Boolean(next.active)
+    if (wasActive !== willBeActive) revision += 1
     const action = !wasActive && willBeActive ? 'started' : wasActive && !willBeActive ? 'stopped' : wasActive ? 'updated' : undefined
     if (action) {
       const label = action === 'started' ? 'Execution started' : action === 'stopped' ? 'Execution stopped' : 'Execution updated'
@@ -486,6 +552,7 @@ export async function openPlanSession(options: {
   async function reloadFromDisk(): Promise<void> {
     const nextSource = await readFile(planPath, 'utf8')
     if (nextSource === source) return
+    revision += 1
     const nextPlan = parsePlan(nextSource, planPath, id)
     const nextSections = collectSectionSources(nextPlan)
     diffs = diffSections(previousSections, nextSections)
@@ -638,9 +705,9 @@ export async function openPlanSession(options: {
     }
   }
 
-  function themeView(): ReturnType<typeof themePayload> {
+  function themeView(): ReturnType<typeof themePayload> & { updatedAt: number } {
     touch()
-    return currentTheme()
+    return { ...currentTheme(), updatedAt: themeUpdatedAt }
   }
 
   async function updateTheme(body: unknown): Promise<unknown> {
@@ -657,6 +724,10 @@ export async function openPlanSession(options: {
     const hasFullWidth = payload.fullWidth !== undefined
     const hasDiffsTheme = payload.diffsTheme !== undefined
     const hasWrapCode = payload.wrapCode !== undefined
+    const incomingAt = readUpdatedAt(payload)
+    if (incomingAt != null && themeUpdatedAt > incomingAt) {
+      return { ok: true, theme: themeView() }
+    }
     if (!hasAccent && !hasPageWidth && !hasFullWidth && !hasDiffsTheme && !hasWrapCode) {
       throw new HttpError(400, 'Provide accent, pageWidth, diffsTheme, and/or wrapCode.')
     }
@@ -690,7 +761,9 @@ export async function openPlanSession(options: {
       wrapCode = payload.wrapCode
     }
     const view = await applyTheme({ accent, pageWidth, diffsTheme, wrapCode }, true)
-    return { ok: true, theme: view }
+    themeUpdatedAt = incomingAt ?? Date.now()
+    persist()
+    return { ok: true, theme: { ...view, updatedAt: themeUpdatedAt } }
   }
 
   function executionPayload(): ExecutionState {
@@ -769,9 +842,11 @@ export async function openPlanSession(options: {
     )
   }
 
-  function submitInteraction(interactionId: string, body: unknown): unknown {
+  function submitInteraction(interactionId: string, body: unknown, request?: Request): unknown {
     touch()
-    const payload = jsonBody(body, true) as InteractionResponse
+    const gate = guarded('interaction', body, request, true)
+    if (gate.replay) return gate.replay
+    const payload = jsonBody(gate.body, true) as InteractionResponse
     if (!plan.interactionIds.includes(interactionId)) {
       throw new HttpError(404, `Unknown interaction id: ${interactionId}`)
     }
@@ -781,16 +856,20 @@ export async function openPlanSession(options: {
     } catch (error) {
       throw new HttpError(409, error instanceof Error ? error.message : 'Interaction locked')
     }
-    return {
+    const result = {
       ok: true,
       response: payload,
       pendingInteractionIds: pendingInteractionIds(),
     }
+    note(gate.key, gate.body, result)
+    return result
   }
 
-  function submitComment(body: unknown): unknown {
+  function submitComment(body: unknown, request?: Request): unknown {
     touch()
-    const payload = jsonBody(body, true) as {
+    const gate = guarded('comment', body, request, true)
+    if (gate.replay) return gate.replay
+    const payload = jsonBody(gate.body, true) as {
       partId?: unknown
       kind?: unknown
       blockId?: unknown
@@ -818,12 +897,16 @@ export async function openPlanSession(options: {
     pushEvent('comment', comment)
     broadcast('comment', comment)
     persist()
-    return { ok: true, comment }
+    const result = { ok: true, comment }
+    note(gate.key, gate.body, result)
+    return result
   }
 
-  function addressComment(commentId: string, body?: unknown): unknown {
+  function addressComment(commentId: string, body?: unknown, request?: Request): unknown {
     touch()
-    const payload = jsonBody(body, false) as { outcome?: unknown }
+    const gate = guarded('address', body ?? {}, request, true)
+    if (gate.replay) return gate.replay
+    const payload = jsonBody(gate.body, false) as { outcome?: unknown }
     const outcome = payload.outcome
     if (outcome != null && outcome !== 'implemented' && outcome !== 'errored' && outcome !== 'issues') {
       throw new HttpError(400, 'Invalid outcome')
@@ -835,12 +918,16 @@ export async function openPlanSession(options: {
     comment.addressingAt = null
     broadcast('comment', { ...comment, replies: comment.replies?.map((reply) => ({ ...reply })) })
     persist()
-    return { ok: true, comment }
+    const result = { ok: true, comment }
+    note(gate.key, gate.body, result)
+    return result
   }
 
-  function replyToComment(commentId: string, body: unknown): unknown {
+  function replyToComment(commentId: string, body: unknown, request?: Request): unknown {
     touch()
-    const payload = jsonBody(body, true) as { text?: unknown }
+    const gate = guarded('reply', body, request, true)
+    if (gate.replay) return gate.replay
+    const payload = jsonBody(gate.body, true) as { text?: unknown }
     const text = String(payload.text ?? '').trim()
     if (!text || text.length > 4000) throw new HttpError(400, 'Missing reply')
     const comment = comments.find((entry) => entry.id === commentId)
@@ -853,11 +940,15 @@ export async function openPlanSession(options: {
     comment.replies = [...(comment.replies ?? []), reply]
     broadcast('comment', { ...comment, replies: comment.replies.map((entry) => ({ ...entry })) })
     persist()
-    return { ok: true, comment, reply }
+    const result = { ok: true, comment, reply }
+    note(gate.key, gate.body, result)
+    return result
   }
 
-  function markAddressing(commentId: string): unknown {
+  function markAddressing(commentId: string, request?: Request): unknown {
     touch()
+    const gate = guarded('addressing', {}, request, true)
+    if (gate.replay) return gate.replay
     const comment = comments.find((entry) => entry.id === commentId)
     if (!comment) throw new HttpError(404, 'Unknown comment')
     if (!comment.addressedAt && !comment.addressingAt) {
@@ -865,7 +956,9 @@ export async function openPlanSession(options: {
       broadcast('comment', { ...comment })
       persist()
     }
-    return { ok: true, comment }
+    const result = { ok: true, comment }
+    note(gate.key, gate.body, result)
+    return result
   }
 
   function acknowledgeEvents(body: unknown): { ok: true; delivered: string[] } {
@@ -886,17 +979,21 @@ export async function openPlanSession(options: {
     return { ok: true, delivered }
   }
 
-  function submitReview(body: unknown): unknown {
+  function submitReview(body: unknown, request?: Request): unknown {
     touch()
+    const gate = guarded('review', body, request, true)
+    if (gate.replay) return gate.replay
     if (mode !== 'review') throw new HttpError(400, 'Server is not in review mode')
-    const payload = jsonBody(body, true) as { decision: ReviewDecision; note?: string }
+    const payload = jsonBody(gate.body, true) as { decision: ReviewDecision; note?: string }
     if (!['approve', 'deny', 'iterate'].includes(payload.decision)) throw new HttpError(400, 'Invalid decision')
     try {
       fulfillReview(payload.decision, payload.note)
     } catch (error) {
       throw new HttpError(409, error instanceof Error ? error.message : 'Review locked')
     }
-    return { ok: true, review: reviewResult }
+    const result = { ok: true, review: reviewResult }
+    note(gate.key, gate.body, result)
+    return result
   }
 
   function setMode(nextMode: PlanMode, nextIteration?: number): void {
@@ -907,13 +1004,17 @@ export async function openPlanSession(options: {
     persist()
   }
 
-  function updateMode(body: unknown): unknown {
+  function updateMode(body: unknown, request?: Request): unknown {
     touch()
-    const payload = jsonBody(body, true) as { mode?: unknown }
+    const gate = guarded('mode', body, request, false)
+    if (gate.replay) return gate.replay
+    const payload = jsonBody(gate.body, true) as { mode?: unknown }
     const next = payload.mode
     if (next !== 'watch' && next !== 'comment' && next !== 'review') throw new HttpError(400, 'Invalid mode')
     setMode(next)
-    return { ok: true, mode }
+    const result = { ok: true, mode }
+    note(gate.key, gate.body, result)
+    return result
   }
 
   const watcher = watch(planPath, { persistent: true }, () => {
@@ -978,6 +1079,7 @@ export async function openPlanSession(options: {
     snapshot,
     setMode,
     updateMode,
+    offlineSnapshot,
     page,
     planMdxPayload,
     restoreMdxSnapshot,

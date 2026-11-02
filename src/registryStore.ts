@@ -23,6 +23,9 @@ export type StoredPlanSession = {
   commentsJson: string
   startedAt: number
   lastSeenAt: number
+  syncRevision?: number
+  syncMutationsJson?: string
+  themeUpdatedAt?: number
 }
 
 /** Inclusive window. A finished run overlaps when it started at or before `to` and ended at or after `from`. */
@@ -54,9 +57,9 @@ type PlanRow = typeof plans.$inferSelect
 
 const runningProcess = and(eq(plans.status, 'running'), sql`json_extract(${plans.meta}, '$.pid') IS NOT NULL`)
 
-function parsed(value: string, fallback: unknown): unknown {
+function parsed<T>(value: string, fallback: T): T {
   try {
-    return JSON.parse(value) as unknown
+    return JSON.parse(value) as T
   } catch {
     return fallback
   }
@@ -142,6 +145,9 @@ function toSession(row: PlanRow): StoredPlanSession | undefined {
     commentsJson: JSON.stringify(meta.comments ?? []),
     startedAt: row.startedAt,
     lastSeenAt: meta.lastSeenAt ?? row.heartbeatAt,
+    syncRevision: meta.syncRevision,
+    syncMutationsJson: JSON.stringify(meta.syncMutations ?? []),
+    themeUpdatedAt: meta.themeUpdatedAt,
   }
 }
 
@@ -156,6 +162,9 @@ function sessionMeta(current: PlanMeta, session: StoredPlanSession): PlanMeta {
     review: session.reviewJson ? parsed(session.reviewJson, null) : null,
     comments: parsed(session.commentsJson, []),
     lastSeenAt: session.lastSeenAt,
+    syncRevision: session.syncRevision ?? current.syncRevision,
+    syncMutations: session.syncMutationsJson ? parsed(session.syncMutationsJson, current.syncMutations) : current.syncMutations,
+    themeUpdatedAt: session.themeUpdatedAt ?? current.themeUpdatedAt,
   }
 }
 

@@ -125,6 +125,7 @@ export function PlanShell({
           {title}
         </h1>
         <div className="chrome-tools">
+          <p className="offline-state" data-offline-state="" hidden />
           <div className="tabs" role="tablist" aria-label="Living Plan views">
             <button
               type="button"
