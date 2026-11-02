@@ -95,3 +95,26 @@ The plan page keeps a copy of the open plan on this device. Answers, comments, a
 ### Notes
 
 No registry restart needed beyond the usual version check. A plan opened over plain HTTP on the local network stays on the network. The registry, the hosted database, and the plan room remain the source of truth.
+
+## 1.10.1
+
+**PR:** pending
+
+**Bump:** patch
+
+### Summary
+
+Offline answers, comments, and the title bar status work as 1.10.0 intended on the local plan page and the hosted app.
+
+### Bugs fixed
+
+- The first answer made with no network is queued. It no longer fails with "Could not send" because a script was missing from the offline cache.
+- A comment on a plan section is accepted. Before, every such comment was refused as "The plan part is gone", even online.
+- A write that reaches the host is no longer counted as failed in the title bar, and the page no longer throws an error after each submission.
+- A write queued before an agent edit is refused as a conflict. It no longer depends on whether the page saw the edit before the queue sent it.
+- With no network, the page keeps comments on or off as last set on this device.
+- The local plan service serves the browser database file as `application/wasm`.
+
+### Notes
+
+The new service version replaces the running registry through the usual version check. The new shell cache name replaces the 1.10.0 cache.

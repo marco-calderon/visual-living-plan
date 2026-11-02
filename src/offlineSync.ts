@@ -144,11 +144,27 @@ export function rememberMutation(
   return next.slice(-200)
 }
 
-/** A tray message is not a document part. A quoted part must still be in the source. */
+const BLOCK_TAGS = new Set(['phase', 'callout', 'choice', 'approve', 'form', 'questions', 'checklist', 'workflow'])
+
+/**
+ * A tray message is not a document part. A quoted part must still be in the source.
+ * A part id is `<kind>:<block>/<child>...` (see planPartScope). The block is checked by its
+ * `<kind id="...">` tag. Prose (`markdown:<n>`) and blocks without an id are scoped by position,
+ * which the source cannot confirm, so those are accepted.
+ */
 export function commentPartReady(source: string, partId: string): boolean {
   if (!partId) return false
   if (partId.startsWith('review:')) return true
-  return source.includes(partId)
+  const head = partId.split('/')[0] ?? ''
+  const colon = head.indexOf(':')
+  if (colon <= 0) return source.includes(partId)
+  const kind = head.slice(0, colon)
+  const id = head.slice(colon + 1)
+  if (!id) return false
+  if (kind === 'markdown' || /^\d+$/.test(id)) return true
+  if (!BLOCK_TAGS.has(kind)) return source.includes(id)
+  const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`<${kind}\\b[^>]*\\bid\\s*=\\s*["']${escaped}["']`).test(source)
 }
 
 /** Agent source replaces the browser copy when the server revision has moved or the text differs. */

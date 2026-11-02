@@ -35,6 +35,16 @@ type SyncWrite = {
 
 const SCHEMA = 1
 
+type QueuedMutation = {
+  kind: UserMutationKind
+  path: string
+  body: unknown
+  basePath: string
+  planId: string
+  /** Plan revision when the person acted. Missing on writes queued before this field existed. */
+  baseRevision?: number
+}
+
 export async function openBrowserStore(): Promise<OfflineHandle> {
   const database = await openBrowserWASQLiteOPFSDatabase({ databaseName: 'living-plan.sqlite' })
   const coordinator = new BrowserCollectionCoordinator({ dbName: 'living-plan' })
@@ -79,7 +89,7 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
     collections: { plans, comments, catalog, settings },
     mutationFns: {
       submit: async ({ transaction, idempotencyKey }) => {
-        const meta = transaction.metadata as { kind: UserMutationKind; path: string; body: unknown; basePath: string; planId: string }
+        const meta = transaction.metadata as QueuedMutation
         const result = await sendMutation(meta, idempotencyKey)
         results.set(idempotencyKey, result)
         return result
@@ -93,16 +103,15 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
     for (const listener of listeners) listener()
   }
 
-  async function sendMutation(
-    meta: { kind: UserMutationKind; path: string; body: unknown; basePath: string; planId: string },
-    idempotencyKey: string,
-  ): Promise<unknown> {
+  async function sendMutation(meta: QueuedMutation, idempotencyKey: string): Promise<unknown> {
     const plan = plans.get(meta.planId)
     if (meta.kind === 'comment') {
       const partId = String((meta.body as { partId?: unknown } | null)?.partId ?? '')
       if (plan && !commentPartReady(plan.source, partId)) throw new NonRetriableError('The plan part is gone')
     }
-    const body = { ...(meta.body && typeof meta.body === 'object' ? (meta.body as Record<string, unknown>) : {}), baseRevision: plan?.revision ?? 0 }
+    // The revision the person saw when they acted, so an agent edit made while offline is a conflict.
+    const baseRevision = meta.baseRevision ?? plan?.revision ?? 0
+    const body = { ...(meta.body && typeof meta.body === 'object' ? (meta.body as Record<string, unknown>) : {}), baseRevision }
     for (;;) {
       let response: Response
       try {
@@ -280,11 +289,20 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
     submit: async ({ kind, path, body }) => {
       const context = planContext()
       const idempotencyKey = crypto.randomUUID()
+      const metadata: QueuedMutation = {
+        kind,
+        path,
+        body,
+        basePath: context.basePath,
+        planId: context.id,
+        baseRevision: plans.get(context.id)?.revision,
+      }
+      // autoCommit stays off: mutate() would commit, and the commit() below would then throw.
       const transaction = executor.createOfflineTransaction({
         mutationFnName: 'submit',
-        autoCommit: true,
+        autoCommit: false,
         idempotencyKey,
-        metadata: { kind, path, body, basePath: context.basePath, planId: context.id },
+        metadata,
       })
       transaction.mutate(() => {
         rememberOptimistic(plans, comments, context.id, kind, body, idempotencyKey)

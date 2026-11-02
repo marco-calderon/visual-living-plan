@@ -547,8 +547,15 @@ export function PlanSelector() {
       if (!engine?.available) return
       const paint = () => {
         if (!engine.hydrated) return
+        const plan = engine.plan(context.id)
+        // Offline, the page came from the shell cache and its mode can be older than the device copy.
+        const stored = plan?.mode
+        if (!navigator.onLine && (stored === 'watch' || stored === 'comment' || stored === 'review') && stored !== modeRef.current) {
+          setMode(stored)
+          setCommentsOn(stored !== 'watch')
+        }
         const rows = engine.comments(context.id)
-        if (rows.length === 0 && !engine.plan(context.id)) return
+        if (rows.length === 0 && !plan) return
         commitComments(() => rows.map((row) => row.comment as PlanComment))
       }
       paint()

@@ -15,7 +15,7 @@ OPFS and service workers exist only in a secure context. Loopback and HTTPS qual
 
 On a secure origin the page opens one OPFS database, `living-plan.sqlite`, with TanStack DB. Collections are the open plan, comments, hosted dashboard summaries, and appearance. The plan body is capped and older source bodies are evicted. The outbox is never evicted. Compiled MDX is not stored.
 
-Submissions use `@tanstack/offline-transactions`. Each attempt sends `Idempotency-Key` and the plan row's `baseRevision`. The local session stores the ledger in `plans.meta`. The Durable Object stores it in its meta key `idempotency`. The same key and body return the stored result and do not append another event. A different body is `409`. `401` waits. `409` stops that attempt and shows a failure.
+Submissions use `@tanstack/offline-transactions`. Each attempt sends `Idempotency-Key` and `baseRevision`, the plan row's revision when the person made the write (stored with the queued write, not read again at send time). The local session stores the ledger in `plans.meta`. The Durable Object stores it in its meta key `idempotency`. The same key and body return the stored result and do not append another event. A different body is `409`. `401` waits. `409` stops that attempt and shows a failure.
 
 An agent write (source or an execution-active change) bumps the revision and replaces the source. A person's submission does not bump the revision, so later queued writes still match. While online, HTML comes from the network. The shell cache is the fallback when that fetch fails. Plan JSON stays out of the cache.
 
