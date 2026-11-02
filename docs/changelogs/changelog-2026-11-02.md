@@ -118,3 +118,21 @@ Offline answers, comments, and the title bar status work as 1.10.0 intended on t
 ### Notes
 
 The new service version replaces the running registry through the usual version check. The new shell cache name replaces the 1.10.0 cache.
+
+## 1.11.0
+
+**PR:** pending
+
+**Bump:** minor
+
+### Summary
+
+Living Plan can be installed as an app from the browser's install prompt. The hosted app and the local plan service both offer it.
+
+### New features
+
+- Both hosts serve a web app manifest. Every page links it, so Chrome, Edge, and other browsers show the install option on HTTPS or loopback. The installed app opens the dashboard in its own window, uses the Living Plan mark, and matches the light or dark title bar color.
+
+### Notes
+
+The new service version replaces the running registry through the usual version check. The new shell cache name replaces the 1.10.1 cache. A plan opened over plain HTTP on the local network is not installable.
