@@ -38,7 +38,7 @@ The service and the private server are Elysia apps. Route handlers live in `src/
 | `client/` | React Flow canvas. It reads `window.__LIVE_PLAN_BASE__` and calls `/api/...` under that prefix |
 | `src/host/` | Worker session for `--cloud`: Better Auth, D1 plan rows, Elysia routes, and one SQLite Durable Object per plan |
 | `src/migrations/` | D1 migrations for accounts, settings, and published plan versions |
-| `src/routes/`, `src/entry.ts` | The web application on that Worker. TanStack Start. The browser still compiles the plan MDX |
+| `src/routes/`, `src/entry.ts`, `src/client.tsx` | The web application on that Worker. TanStack Start. `src/client.tsx` is the browser entry and registers the shell cache. The browser still compiles the plan MDX |
 | `test/` | Node test runner via `npm test` |
 | `examples/rate-limit.plan.md` | The fixture plan used by service tests |
 

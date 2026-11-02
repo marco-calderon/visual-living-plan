@@ -78,6 +78,7 @@ Each bullet is one change under one heading. Omit a heading that has no bullets.
 
 - [ ] Semver matches the change (patch / minor / major).
 - [ ] `package.json` `version` updated; lockfile version matches.
+- [ ] `SHELL_CACHE_VERSION` and `SHELL_CACHE_NAME` in `src/shellCache.ts` use that version, then `npm run build:shell-worker` so the served worker replaces the previous cache.
 - [ ] `docs/changelogs/changelog-yyyy-mm-dd.md` added or appended from the template.
 - [ ] PR description mentions the version and points at the changelog.
 - [ ] No unrelated layout or registry work mixed into the bump commit.

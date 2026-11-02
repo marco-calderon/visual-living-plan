@@ -52,9 +52,22 @@ if (!existsSync(tsc) || !existsSync(vite)) {
 // 2. TypeScript → dist/
 run(process.execPath, [tsc, '-p', join(root, 'tsconfig.json')])
 
-// 3. Favicon next to the compiled CLI
+// 3. Favicon, plan CSS, and the browser shell worker next to the compiled CLI
+run('bun', [
+  'build',
+  join(root, 'src/shellWorker.ts'),
+  '--outfile',
+  join(root, 'src/shellWorker.js'),
+  '--target',
+  'browser',
+  '--format',
+  'esm',
+  '--banner',
+  '// Generated from src/shellWorker.ts. Do not edit.',
+])
 copyFileSync(join(root, 'src/favicon.png'), join(root, 'dist/favicon.png'))
 copyFileSync(join(root, 'src/planPage.css'), join(root, 'dist/planPage.css'))
+copyFileSync(join(root, 'src/shellWorker.js'), join(root, 'dist/shellWorker.js'))
 
 // 4. Client bundle
 run(process.execPath, [vite, 'build', '--config', join(root, 'vite.client.config.ts')])

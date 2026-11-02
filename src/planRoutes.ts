@@ -1,4 +1,5 @@
 import { faviconResponse } from './favicon'
+import { readShellWorkerSource, shellWorkerResponse } from './shellWorkerResponse'
 import { HttpError, jsonBody } from './http'
 import { acceptClientLog, readLogs } from './serviceLog'
 import { readClientAsset, type PlanSession } from './planSession'
@@ -84,6 +85,7 @@ export function registerPlanRoutes(app: any, options: PlanRouteOptions): any {
   }
 
   app.get('/favicon.png', () => faviconResponse())
+  app.get('/sw.js', () => shellWorkerResponse(readShellWorkerSource()))
 
   return app
     .get(route('/client/*'), (context: RouteContext) => {

@@ -35,3 +35,21 @@ A signed-in hosted email account can link GitHub and Google from Settings. The p
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.9.0
+
+**PR:** (link once known)
+
+**Bump:** minor
+
+### Summary
+
+The hosted app and the local plan page keep a versioned copy of the app shell. HTML, JavaScript, CSS, and other static assets load from that cache. Plan APIs, auth, and account JSON stay on the network.
+
+### New features
+
+- A service worker caches the app shell for the hosted app and the local plan page. The cache name is the package version, so the next deploy drops the previous cache. One account's cached page is not reused for another.
+
+### Notes
+
+No registry restart needed beyond the usual version check.
