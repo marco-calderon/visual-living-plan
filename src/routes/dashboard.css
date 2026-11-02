@@ -206,6 +206,13 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.dashboard .action.is-offline {
+  color: var(--muted);
+  cursor: not-allowed;
+  margin-right: 0.7rem;
+  white-space: nowrap;
+}
+
 .dashboard a.action {
   color: var(--accent);
   font-weight: 600;
