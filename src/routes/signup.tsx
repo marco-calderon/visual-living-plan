@@ -97,6 +97,7 @@ function SignupPage() {
           <Button type="submit" variant="primary" disabled={pending}>
             Create account
           </Button>
+          <p className="account-divider">or</p>
           <SocialAuthButton
             provider="github"
             search={search}
