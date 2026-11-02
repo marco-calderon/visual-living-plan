@@ -121,7 +121,7 @@ The new service version replaces the running registry through the usual version 
 
 ## 1.10.2
 
-**PR:** (opened with this release)
+**PR:** [#127](https://github.com/marco-calderon/visual-living-plan/pull/127)
 
 **Bump:** patch
 
