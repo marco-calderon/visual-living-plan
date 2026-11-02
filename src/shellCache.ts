@@ -15,9 +15,9 @@
 export const SHELL_CACHE_PREFIX = 'visual-living-plan-shell-'
 
 /** Keep both equal to package.json `version`. test/shellCache.test.ts checks them. */
-export const SHELL_CACHE_VERSION = '1.10.1'
+export const SHELL_CACHE_VERSION = '1.10.2'
 
-export const SHELL_CACHE_NAME = 'visual-living-plan-shell-1.10.1'
+export const SHELL_CACHE_NAME = 'visual-living-plan-shell-1.10.2'
 
 export type ShellKind = 'asset' | 'document' | 'network'
 
