@@ -1,6 +1,7 @@
 import { betterAuth } from 'better-auth'
 import { bearer } from 'better-auth/plugins/bearer'
 import { organization } from 'better-auth/plugins/organization'
+import { accountLinkingConfig } from '../accountLinking'
 import type { Tier } from './access'
 
 export type AuthEnv = {
@@ -49,6 +50,12 @@ export function createAuth(env: AuthEnv, baseURL: string) {
     baseURL,
     trustedOrigins: [baseURL],
     emailAndPassword: { enabled: true },
+    account: {
+      accountLinking: accountLinkingConfig({
+        github: Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET),
+        google: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET),
+      }),
+    },
     socialProviders: {
       ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
         ? { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } }

@@ -17,3 +17,21 @@ The Plan and Workflow controls on the plan title bar use Lucide icons.
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 1.8.0
+
+**PR:** pending
+
+**Bump:** minor
+
+### Summary
+
+A signed-in hosted email account can link GitHub and Google from Settings. The provider email has to match the account.
+
+### New features
+
+- Settings shows Link GitHub and Link Google. A provider that is already linked stays disabled. A different provider email is not attached. A loopback plan does not show this section.
+
+### Notes
+
+No registry restart needed beyond the usual version check.

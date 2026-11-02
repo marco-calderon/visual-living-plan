@@ -120,6 +120,16 @@ body.layout-full .settings-page {
   gap: var(--space-md);
 }
 
+.settings-page .settings-link-actions {
+  display: grid;
+  gap: var(--space-xs);
+  margin: 0 0 1rem;
+}
+
+.settings-page .settings-link-actions .plan-btn {
+  width: 100%;
+}
+
 .settings-page .block {
   background: var(--surface);
   border: 1px solid var(--hairline);

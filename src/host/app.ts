@@ -2,6 +2,7 @@ import { Elysia } from 'elysia'
 import { PLAN_CAPS, allows, normalizeTier, planCapReached } from './access'
 import { defaultAccountSettings, readAccountSettings, saveAccountSettings } from './accountSettings'
 import { createAuth, sessionFromToken, type AuthSession } from './auth'
+import { listLinkedAccounts } from './linkedAccounts'
 import { hostedDashboard, type HostedPlanRow } from './hostedDashboard'
 import { LATEST_PLAN_VERSION_SQL, ensurePlanVersions, listPlanVersions, publishPlanVersion, readPlanVersion } from './planVersions'
 import { rehydrateRequest } from './rehydrateRequest'
@@ -170,6 +171,7 @@ async function accountRead(request: Request, env: HostEnv, auth: ReturnType<type
       tier: normalizeTier(session.user.tier),
     },
     settings,
+    accounts: await listLinkedAccounts(env.DB, session.user.id),
     plans: await listOpenPlans(env, session.user.id),
   })
 }
