@@ -114,6 +114,12 @@ export function planToken(sql: PlanSql): string {
   return token
 }
 
+/** False for an object that was never registered, such as a production plan opened on a Worker Preview. */
+export function planHosted(sql: PlanSql): boolean {
+  migratePlan(sql)
+  return meta(sql, 'token') !== null
+}
+
 export function touchPlan(sql: PlanSql): void {
   setMeta(sql, 'last_seen', String(Date.now()))
 }

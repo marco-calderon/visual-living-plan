@@ -9,6 +9,7 @@ import {
   closePlan,
   initPlan,
   migratePlan,
+  planHosted,
   pendingEvents,
   planTier,
   planView,
@@ -74,6 +75,8 @@ export class PlanObject extends DurableObject {
   }
 
   async fetch(request: Request): Promise<Response> {
+    // An object that was never registered has no tables. Create them before any route reads one.
+    migratePlan(this.sql())
     if (request.headers.get('upgrade')?.toLowerCase() === 'websocket') return this.acceptSocket(request)
     return this.httpApp().fetch(request)
   }
@@ -85,6 +88,7 @@ export class PlanObject extends DurableObject {
     const authorization = request.headers.get('authorization')
     const action = url.pathname.endsWith('/api/agent-events') ? 'agent' : 'read'
     if (!actorAllows(actor, authorization, sql, action)) return text(401, 'Sign in required')
+    if (!planHosted(sql)) return text(404, 'Plan not found on this host.')
     if (this.ctx.getWebSockets().length >= socketLimit(sql)) {
       return text(403, `This plan is at its ${planTier(sql)} connection limit (${socketLimit(sql)}).`)
     }
@@ -130,6 +134,7 @@ export class PlanObject extends DurableObject {
       })
       .get('/view', ({ request }) => {
         if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'read')) return text(401, 'Sign in required')
+        if (!planHosted(sql)) return text(404, 'Plan not found on this host.')
         touchPlan(sql)
         return Response.json(planView(sql))
       })

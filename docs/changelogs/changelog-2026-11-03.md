@@ -145,7 +145,7 @@ Adds `@tanstack/react-query`. No registry restart needed beyond the usual versio
 
 ## 1.14.0
 
-**PR:** not opened yet
+**PR:** #140
 
 **Bump:** minor
 
@@ -165,3 +165,26 @@ Every hosted plan is behind its owner's account. Signed view links no longer ope
 ### Notes
 
 No registry restart needed beyond the usual version check. The shell cache name is 1.14.0. Links shared before this release stop working. Sharing with other accounts is a follow-up ([ADR 0028](../architecture/decisions/0028-owner-only-hosted-plans.md)).
+
+## 1.14.1
+
+**PR:** #137
+
+**Bump:** patch
+
+### Summary
+
+Plans open on Worker Preview deployments, previews keep their own database apart from production, and a plan with no stored content says so instead of failing with a database error.
+
+### Bugs fixed
+
+- Worker Previews now have the plan storage binding. Before, every plan page on a preview failed with error 1101.
+- Opening a plan whose storage is empty, such as a production plan on a preview, returns "Plan not found on this host." instead of `no such table: meta: SQLITE_ERROR`.
+
+### Improvements
+
+- Worker Previews use their own D1 database, `living-plan-preview`. Accounts, plans, and settings made on a preview no longer land in production, and production plans no longer show on a preview's dashboard.
+
+### Notes
+
+No registry restart needed beyond the usual version check. The shell cache name is 1.14.1. Sign up once on a preview, then publish a plan to the preview's URL to check how it renders there. Apply new migrations to `living-plan-preview` as well as `living-plan`.
