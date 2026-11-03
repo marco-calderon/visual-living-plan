@@ -67,3 +67,26 @@ Settings work offline and sync when the network returns, and submitting a form i
 
 No registry restart needed beyond the usual version check. The shell cache name is 1.13.1.
 
+
+## 1.13.2
+
+**PR:** not opened yet
+
+**Bump:** patch
+
+### Summary
+
+A signed-in device keeps its plans ready for offline reading from any page, and the dashboard shows its saved copy before the network answers.
+
+### Improvements
+
+- Plans are saved to the device from any signed-in page, not only the dashboard. This also runs every minute, when the network returns, and when the app's service worker takes over the page.
+- Plan pages are saved only after the service worker controls the page, so the first visit no longer fetches pages that are never cached.
+- A catalog change that arrives while plans are being saved is picked up when that run ends, instead of being skipped.
+- The dashboard paints the copy saved on this device first, then replaces it with the fresh one.
+
+### Notes
+
+No registry restart needed beyond the usual version check. The shell cache name is 1.13.2.
+
+- New example: `examples/cloud-showcase.plan.md`, a tour of a plan published on the hosted service.

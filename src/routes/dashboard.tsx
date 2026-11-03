@@ -95,10 +95,21 @@ function DashboardPage() {
   useEffect(() => {
     let cancelled = false
     let timer = 0
+    let fresh = false
+    /** Show this device's saved copy right away, before the network answers. */
+    async function paintStored() {
+      const engine = await startOfflineEngine()
+      const saved = engine?.dashboard(period)
+      if (cancelled || fresh || !saved) return
+      setPayload(saved.payload as DashboardBody)
+      setError('')
+      if (!navigator.onLine) setOfflineAt(saved.savedAt)
+    }
     async function load() {
       const engine = await startOfflineEngine()
       const result = await refreshDeviceDashboards(engine, { period, force: true })
       if (cancelled) return
+      fresh = true
       if ('missing' in result) {
         setPayload(null)
         setOfflineAt(null)
@@ -110,6 +121,7 @@ function DashboardPage() {
       setOfflineAt(result.offline ? result.savedAt : null)
       setOnline(navigator.onLine)
     }
+    void paintStored()
     void load()
     function startPolling() {
       window.clearInterval(timer)
