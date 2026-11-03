@@ -142,3 +142,26 @@ Plans on the hosted dashboard no longer disappear and come back between refreshe
 ### Notes
 
 Adds `@tanstack/react-query`. No registry restart needed beyond the usual version check. The shell cache name is 1.13.4.
+
+## 1.14.0
+
+**PR:** not opened yet
+
+**Bump:** minor
+
+### Summary
+
+Every hosted plan is behind its owner's account. Signed view links no longer open a plan without signing in.
+
+### Bugs fixed
+
+- A signed view link (`/plans/<id>/view/<signature>`) let anyone who had it read a plan and submit on it with no account, for as long as the plan existed. It now clears its cookie and sends the visitor to sign in.
+
+### Improvements
+
+- Only the account that owns a plan can open it, submit on it, or connect to it. A signed-out visitor is sent to sign in. A different signed-in account gets "This plan belongs to another account."
+- `serve --cloud` opens the plain plan URL. Sign in once in that browser.
+
+### Notes
+
+No registry restart needed beyond the usual version check. The shell cache name is 1.14.0. Links shared before this release stop working. Sharing with other accounts is a follow-up ([ADR 0028](../architecture/decisions/0028-owner-only-hosted-plans.md)).

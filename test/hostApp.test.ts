@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { Database } from 'bun:sqlite'
 import { Elysia } from 'elysia'
-import { createHostApp, handleHostRequest, type HostEnv } from '../src/host/app.ts'
+import { createHostApp, handleHostRequest, hostedPlanPage, type HostEnv } from '../src/host/app.ts'
 import { rehydrateRequest } from '../src/host/rehydrateRequest.ts'
 
 function env(): HostEnv {
@@ -59,8 +59,7 @@ test('a JSON route can read the body after Elysia parses it', async () => {
 })
 
 /** Enough of D1 for Better Auth to pass its schema check and reach the origin middleware. */
-function authDatabase(): D1Database {
-  const sqlite = new Database(':memory:')
+function authDatabase(sqlite = new Database(':memory:')): D1Database {
   sqlite.exec(readFileSync(new URL('../src/migrations/0001_auth.sql', import.meta.url), 'utf8'))
   const statementFor = (sql: string) => {
     const statement = sqlite.prepare(sql)
@@ -132,4 +131,63 @@ test('account creation reads the JSON body before the database adapter runs', as
       ),
     /Failed to initialize database adapter/,
   )
+})
+
+test('only the owning account opens a hosted plan', async () => {
+  const sqlite = new Database(':memory:')
+  const db = authDatabase(sqlite)
+  const now = new Date().toISOString()
+  const later = new Date(Date.now() + 60 * 60 * 1000).toISOString()
+  for (const id of ['owner', 'other']) {
+    sqlite.run('INSERT INTO user (id, name, email, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)', [id, id, `${id}@example.com`, now, now])
+    sqlite.run('INSERT INTO session (id, expiresAt, token, createdAt, updatedAt, userId) VALUES (?, ?, ?, ?, ?, ?)', [
+      `session-${id}`,
+      later,
+      `${id}-token`,
+      now,
+      now,
+      id,
+    ])
+  }
+  sqlite.run(`INSERT INTO plans (id, user_id, token, mode, tier, created_at) VALUES ('plan1234', 'owner', 'plan-token', 'watch', 'free', 0)`)
+  const actors: string[] = []
+  const hostEnv: HostEnv = {
+    ...env(),
+    DB: db,
+    PLANS: {
+      idFromName: () => 'id',
+      get: () => ({
+        fetch: async (request: Request) => {
+          const actor = request.headers.get('x-living-plan-actor') ?? ''
+          actors.push(actor)
+          if (!actor) return new Response('Sign in required', { status: 401 })
+          return Response.json({ title: 'Demo', source: '# Demo\n', mode: 'watch', responses: {}, comments: [], review: null, theme: null })
+        },
+      }),
+    },
+  }
+  const page = (headers: Record<string, string>) =>
+    hostedPlanPage(new Request('https://plans.example/plans/plan1234/', { headers }), hostEnv, 'plan1234')
+
+  assert.equal((await page({})).status, 401)
+  assert.equal((await page({ cookie: 'living_plan_view=plan1234.old-signature' })).status, 401)
+  assert.equal((await page({ authorization: 'Bearer other-token' })).status, 403)
+  assert.equal((await page({ authorization: 'Bearer owner-token' })).status, 200)
+
+  const app = createHostApp(hostEnv)
+  const submit = await app.fetch(
+    new Request('https://plans.example/plans/plan1234/api/comments', {
+      method: 'POST',
+      headers: { authorization: 'Bearer other-token', 'content-type': 'application/json' },
+      body: '{}',
+    }),
+  )
+  assert.equal(submit.status, 401)
+  assert.deepEqual(actors, ['account', ''])
+
+  const oldLink = await app.fetch(new Request('https://plans.example/plans/plan1234/view/old-signature'))
+  assert.equal(oldLink.status, 302)
+  assert.equal(oldLink.headers.get('location'), '/plans/plan1234/')
+  assert.match(oldLink.headers.get('set-cookie') ?? '', /living_plan_view=;.*Max-Age=0/)
+  assert.equal((await app.fetch(new Request('https://plans.example/plans/plan1234/share'))).status, 401)
 })
