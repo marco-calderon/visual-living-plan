@@ -118,7 +118,7 @@ No registry restart needed beyond the usual version check. The shell cache name 
 
 ## 1.13.4
 
-**PR:** not opened yet
+**PR:** #138
 
 **Bump:** patch
 
