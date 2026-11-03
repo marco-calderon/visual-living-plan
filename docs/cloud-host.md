@@ -61,7 +61,16 @@ The Worker deploys from GitHub through Workers Builds (Worker → Settings → B
 | Deploy command | `npx wrangler deploy` |
 | Non-production branch deploy command | `npx wrangler preview` |
 
-A pull request then gets a Worker Preview and never replaces production. Previews use the `previews` block in `wrangler.jsonc` and the same D1 database. They inherit the production `PUBLIC_URL`. `TRUSTED_ORIGINS` lists comma-separated origin patterns (the preview host pattern and `https://*.plan.logspace.qzz.io`), so a request on a matching origin keeps that origin, and email and password sign-in stays on the preview's own origin. GitHub and Google sign-in only work on the production domain, where those callbacks are registered. If a preview reports that `BETTER_AUTH_SECRET` is not set, run `npx wrangler preview secret put BETTER_AUTH_SECRET` with a value different from production's. Workers Builds does not run D1 migrations. Apply them with the command above when a change adds one.
+A pull request then gets a Worker Preview and never replaces production. Previews use the `previews` block in `wrangler.jsonc`. Nothing a Preview writes reaches production:
+
+- **D1:** Previews use their own database, `living-plan-preview` (id `8032bdc3-3b3e-4381-9b9c-a93837d244c8`). Accounts, plan rows, settings, and saved versions there are separate from production, so sign up once on a Preview.
+- **Durable Objects:** Cloudflare gives each Preview its own empty plan storage. The `previews` block declares the `PLANS` binding again because Previews do not inherit it. Without it every plan page in a Preview fails with error 1101.
+
+To check a rendered plan on a Preview, publish one to it: `live-plan account login --url <preview URL>`, then `live-plan serve <file> --cloud`. Previews share `living-plan-preview` and its rows. Each one still starts with empty plan storage, so a plan published to one Preview says "Plan not found on this host." on another.
+
+When a change adds a migration, apply it to both databases: `npx wrangler d1 migrations apply living-plan --remote` and `npx wrangler d1 migrations apply living-plan-preview --remote`. If wrangler cannot find `living-plan-preview` by name, run the second command with `-c` pointing at a config whose top-level `d1_databases` names it, with `migrations_dir` set to `src/migrations`.
+
+Previews inherit the production `PUBLIC_URL`. `TRUSTED_ORIGINS` lists comma-separated origin patterns (the preview host pattern and `https://*.plan.logspace.qzz.io`), so a request on a matching origin keeps that origin, and email and password sign-in stays on the preview's own origin. GitHub and Google sign-in only work on the production domain, where those callbacks are registered. If a preview reports that `BETTER_AUTH_SECRET` is not set, run `npx wrangler preview secret put BETTER_AUTH_SECRET` with a value different from production's. Workers Builds does not run D1 migrations.
 
 `wrangler.jsonc` pins `account_id`, so the build's Worker lookup always runs in this account. When a build fails with "The name in your wrangler.json file (visual-living-plan) must match the name of your Worker" and the name is correct, the Git connection points at a Worker that no longer exists. Add the build variable `WRANGLER_LOG=debug` to see the expected and actual Worker tags. Disconnect and reconnect the repository under Settings → Build to fix it.
 

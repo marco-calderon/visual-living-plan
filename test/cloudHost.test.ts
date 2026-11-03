@@ -16,7 +16,9 @@ import {
   ackEvents,
   initPlan,
   pendingEvents,
+  planHosted,
   putSource,
+  touchPlan,
   StaleRevision,
   submitInteraction,
   type PlanSql,
@@ -328,6 +330,15 @@ test('plan room stores a submission until it is acked', () => {
   const id = String((sent.outbound[0]?.data as { id: string }).id)
   ackEvents(sql, [id])
   assert.equal(pendingEvents(sql).length, 0)
+})
+
+test('a plan room that was never registered reports not hosted instead of a SQL error', () => {
+  const db = new Database(':memory:')
+  const sql = sqlOf(db)
+  assert.equal(planHosted(sql), false)
+  touchPlan(sql)
+  initPlan(sql, { token: 'plan-token', title: 'Demo', mode: 'watch', tier: 'free', source: '# Demo\n' })
+  assert.equal(planHosted(sql), true)
 })
 
 test('tier caps and viewer access', () => {
