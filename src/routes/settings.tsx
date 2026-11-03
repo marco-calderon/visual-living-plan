@@ -4,7 +4,7 @@ import { useLayoutEffect, useState, type CSSProperties } from 'react'
 import { ACCENT_CHOICES } from '../host/accountSettings.ts'
 import { CodeWrapSwitch } from '../../client/chrome/CodeWrapSwitch.tsx'
 import { Button } from '../../client/ui/button.tsx'
-import { DIFFS_THEME_PRESETS, diffsThemePreset, type DiffsThemeSample } from '../diffsTheme.ts'
+import { DiffsThemePicker } from '../../client/chrome/DiffsThemePicker.tsx'
 import { HostBar } from '../HostBar.tsx'
 import { LinkSocialAccounts } from '../LinkSocialAccounts.tsx'
 import { loadAccount } from '../planFns.ts'
@@ -60,33 +60,6 @@ async function saveHostedAppearance(partial: AppearancePartial): Promise<boolean
   return response.ok
 }
 
-function sampleStyle(sample: DiffsThemeSample): CSSProperties {
-  return {
-    '--sample-bg': sample.bg,
-    '--sample-fg': sample.fg,
-    '--sample-comment': sample.comment,
-    '--sample-string': sample.string,
-    '--sample-keyword': sample.keyword,
-    '--sample-function': sample.function,
-    '--sample-added': sample.added,
-    '--sample-deleted': sample.deleted,
-  } as CSSProperties
-}
-
-function DiffSample({ sample, mode }: { sample: DiffsThemeSample; mode: 'Light' | 'Dark' }) {
-  return (
-    <div className="diffs-theme-sample" style={sampleStyle(sample)} aria-hidden="true" title={mode}>
-      <span className="tok-comment">{`// ${mode}`}</span>
-      <span>
-        <span className="tok-keyword">const</span> <span className="tok-fn">n</span> = <span className="tok-string">'ok'</span>
-      </span>
-      <span>
-        <span className="tok-added">+ keep</span> <span className="tok-deleted">- drop</span>
-      </span>
-    </div>
-  )
-}
-
 function SettingsBackButton() {
   return (
     <button type="button" className="settings-back" data-history-back="" onClick={() => history.back()}>
@@ -101,10 +74,8 @@ function SettingsPage() {
   const search = Route.useSearch()
   const settings = account.settings
   const label = account.user.name || account.user.email
-  const currentDiffs = diffsThemePreset(settings.diffsTheme)
   const [error, setError] = useState('')
   const [picker, setPicker] = useState(settings.accent)
-  const [diffsOpen, setDiffsOpen] = useState(false)
   const [saving, setSaving] = useState(false)
 
   useLayoutEffect(() => {
@@ -249,66 +220,12 @@ function SettingsPage() {
               </div>
             </div>
             <p className="settings-meta">{SAVED}</p>
-            <h3>Pierre theme</h3>
+            <h3>Syntax theme</h3>
             <p className="settings-copy">
-              Choose the Pierre syntax theme used for code blocks and diffs. Light and dark samples follow the page
-              color mode.
+              Choose the theme for code blocks and diffs in each color mode. Only the chosen themes load.
             </p>
-            <div className="settings-accordion" data-open={diffsOpen ? 'true' : 'false'}>
-              <button
-                type="button"
-                className="settings-accordion-trigger"
-                id="diffs-theme-toggle"
-                aria-expanded={diffsOpen}
-                aria-controls="diffs-theme-panel"
-                onClick={() => setDiffsOpen((open) => !open)}
-              >
-                <span className="settings-accordion-trigger-copy">
-                  <strong>Diff theme</strong>
-                  <span>
-                    Current: <strong>{currentDiffs.label}</strong>
-                  </span>
-                </span>
-                <svg className="settings-accordion-chevron" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-                  <path
-                    fill="currentColor"
-                    d="M5.2 7.5a.9.9 0 0 1 1.27-.05L10 10.74l3.53-3.29a.9.9 0 0 1 1.22 1.32l-4.14 3.86a.9.9 0 0 1-1.22 0L5.25 8.77a.9.9 0 0 1-.05-1.27z"
-                  />
-                </svg>
-              </button>
-              <div className="settings-accordion-panel" id="diffs-theme-panel" inert={!diffsOpen}>
-                <div className="settings-accordion-panel-inner">
-                  <div className="settings-accordion-body">
-                    <div className="diffs-theme-grid" role="radiogroup" aria-label="Pierre diff themes">
-                      {DIFFS_THEME_PRESETS.map((preset) => (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          className="diffs-theme-option"
-                          aria-label={`${preset.label} theme`}
-                          aria-checked={preset.id === currentDiffs.id}
-                          title={preset.description}
-                          onClick={() => {
-                            if (preset.id === currentDiffs.id) return
-                            void save({ diffsTheme: preset.id })
-                          }}
-                        >
-                          <div className="diffs-theme-samples">
-                            <DiffSample sample={preset.lightSample} mode="Light" />
-                            <DiffSample sample={preset.darkSample} mode="Dark" />
-                          </div>
-                          <span className="diffs-theme-option-meta">
-                            <strong>{preset.label}</strong>
-                            <span>{preset.description}</span>
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                    <p className="settings-meta diffs-note">{SAVED}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <DiffsThemePicker value={settings.diffsTheme} onSelect={(next) => void save({ diffsTheme: next })} />
+            <p className="settings-meta diffs-note">{SAVED}</p>
           </section>
         </div>
       </main>

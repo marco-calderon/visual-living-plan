@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client'
 import { toast, Toaster } from 'sonner'
 import { AccountMenu } from './AccountMenu.tsx'
 import { CodeWrapSwitch } from './CodeWrapSwitch.tsx'
+import { DiffsThemePicker } from './DiffsThemePicker.tsx'
 import { PlanDetails } from './PlanDetails.tsx'
 import { PlansMenu } from './PlansMenu.tsx'
 import { SettingsAccordion } from './SettingsAccordion.tsx'
@@ -60,6 +61,15 @@ function mountAccordions() {
   })
 }
 
+function mountDiffsThemePicker() {
+  const host = document.querySelector('[data-diffs-theme-picker]')
+  if (!(host instanceof HTMLElement) || host.dataset.pickerMounted === 'true') return
+  host.dataset.pickerMounted = 'true'
+  const value = host.getAttribute('data-value') || document.documentElement.dataset.diffsTheme || undefined
+  host.replaceChildren()
+  createRoot(host).render(<DiffsThemePicker value={value} />)
+}
+
 function mountCodeWrap() {
   const host = document.querySelector('[data-code-wrap]')
   if (!(host instanceof HTMLElement)) return
@@ -108,6 +118,7 @@ if (typeof document !== 'undefined') {
   mountPlans()
   mountPlanDetails()
   mountAccordions()
+  mountDiffsThemePicker()
   mountCodeWrap()
   mountAccountMenu()
   mountToaster()
