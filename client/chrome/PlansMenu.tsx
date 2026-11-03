@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { containerFolderName } from '../../src/processesPanel.ts'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/Popover.tsx'
 
@@ -186,28 +187,23 @@ function ProcessCard({ record, selfId }: { record: PlanProcess; selfId: string |
   )
 }
 
-export function PlansMenu({ selfId }: { selfId: string | null }) {
-  const [payload, setPayload] = useState<PlansPayload>({ processes: [] })
+const OFFLINE_PAYLOAD: PlansPayload = { status: 'offline', processes: [], selfId: null, registryUrl: null }
 
-  useEffect(() => {
-    let cancelled = false
-    async function refresh() {
-      try {
-        const response = await fetch('/api/processes', { cache: 'no-store' })
-        if (!response.ok) throw new Error('Request failed')
-        const next = (await response.json()) as PlansPayload
-        if (!cancelled) setPayload(next)
-      } catch {
-        if (!cancelled) setPayload({ status: 'offline', processes: [], selfId: null, registryUrl: null })
-      }
-    }
-    void refresh()
-    const timer = window.setInterval(() => void refresh(), 4000)
-    return () => {
-      cancelled = true
-      window.clearInterval(timer)
-    }
-  }, [])
+async function readProcesses(): Promise<PlansPayload> {
+  const response = await fetch('/api/processes', { cache: 'no-store' })
+  if (!response.ok) throw new Error('Request failed')
+  return (await response.json()) as PlansPayload
+}
+
+export function PlansMenu({ selfId }: { selfId: string | null }) {
+  // Polls every 4 s while the tab is visible. React Query pauses it while the tab is hidden.
+  const running = useQuery({
+    queryKey: ['processes'],
+    queryFn: readProcesses,
+    refetchInterval: 4000,
+    networkMode: 'always',
+  })
+  const payload: PlansPayload = running.isError ? OFFLINE_PAYLOAD : (running.data ?? { processes: [] })
 
   const processes = Array.isArray(payload.processes) ? payload.processes : []
   const registryUrl = safeUrl(payload.registryUrl || '')

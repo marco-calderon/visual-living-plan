@@ -1,3 +1,4 @@
+import { useMutation } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { Switch } from '../ui/Switch.tsx'
 
@@ -28,9 +29,31 @@ function publishWrapCode(on: boolean): void {
   window.dispatchEvent(new CustomEvent('living-plan-theme', { detail: { wrapCode: on } }))
 }
 
+/** Save through the device store when it is open, so an offline change is sent later. */
+async function saveWrapCode(next: boolean): Promise<void> {
+  const { planContext, startOfflineEngine } = await import('../offline/engine.ts')
+  const engine = await startOfflineEngine()
+  if (engine?.available) {
+    const context = planContext()
+    const scope = (window as Window & { __LIVE_PLAN_THEME_URL__?: string }).__LIVE_PLAN_THEME_URL__ ? 'account' : `local:${context.id}`
+    await engine.saveSettings(scope, { wrapCode: next, url: themePutUrl() })
+    return
+  }
+  const response = await fetch(themePutUrl(), {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ wrapCode: next, updatedAt: Date.now() }),
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || 'Failed to save settings')
+  }
+}
+
 export function CodeWrapSwitch({ initialChecked }: CodeWrapSwitchProps) {
   const [checked, setChecked] = useState(initialChecked)
   const request = useRef(0)
+  const save = useMutation({ mutationFn: saveWrapCode })
 
   useEffect(() => {
     const sync = (event: Event) => {
@@ -49,23 +72,7 @@ export function CodeWrapSwitch({ initialChecked }: CodeWrapSwitchProps) {
     setChecked(next)
     publishWrapCode(next)
     try {
-      const { planContext, startOfflineEngine } = await import('../offline/engine.ts')
-      const engine = await startOfflineEngine()
-      if (engine?.available) {
-        const context = planContext()
-        const scope = (window as Window & { __LIVE_PLAN_THEME_URL__?: string }).__LIVE_PLAN_THEME_URL__ ? 'account' : `local:${context.id}`
-        await engine.saveSettings(scope, { wrapCode: next, url: themePutUrl() })
-      } else {
-        const response = await fetch(themePutUrl(), {
-          method: 'PUT',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ wrapCode: next, updatedAt: Date.now() }),
-        })
-        if (!response.ok) {
-          const text = await response.text()
-          throw new Error(text || 'Failed to save settings')
-        }
-      }
+      await save.mutateAsync(next)
       if (request.current !== id) return
       window.showPlanToast?.(next ? 'Code wraps' : 'Code scrolls')
     } catch (error) {

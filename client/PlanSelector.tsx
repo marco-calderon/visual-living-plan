@@ -20,7 +20,8 @@ import {
   type PlanPart,
 } from './planParts.ts'
 import { UnaddressedMark } from './UnaddressedMark.tsx'
-import { planContext, postPlanMutation, startOfflineEngine } from './offline/engine.ts'
+import { planContext, startOfflineEngine } from './offline/engine.ts'
+import { sendPlanMutation } from './queryClient.tsx'
 import { subscribePlanEvents } from './planEvents.ts'
 import './planSelector.css'
 
@@ -273,7 +274,7 @@ export function PlanSelector() {
   }, [enabled, replyReveal])
 
   async function approvePlan() {
-    const response = await postPlanMutation('review', apiPath('/api/review'), { decision: 'approve' })
+    const response = await sendPlanMutation('review', apiPath('/api/review'), { decision: 'approve' })
     if (!response.ok && !response.queued) setError(response.text || 'Could not approve')
   }
 
@@ -281,7 +282,7 @@ export function PlanSelector() {
     setSending(true)
     setError('')
     try {
-      const response = await postPlanMutation('comment', apiPath('/api/comments'), { partId: 'review:message', kind: 'message', text })
+      const response = await sendPlanMutation('comment', apiPath('/api/comments'), { partId: 'review:message', kind: 'message', text })
       if (!response.ok && !response.queued) throw new Error(response.text || 'Could not send the message')
       const body = response.body as { comment?: PlanComment } | null
       if (body?.comment) commitComments((current) => upsert(current, body.comment as PlanComment))
@@ -299,7 +300,7 @@ export function PlanSelector() {
       return
     }
     const next = mode === 'watch' ? 'comment' : 'watch'
-    const response = await postPlanMutation('mode', apiPath('/api/mode'), { mode: next })
+    const response = await sendPlanMutation('mode', apiPath('/api/mode'), { mode: next })
     if (!response.ok && !response.queued) {
       setError(response.text || 'Could not change mode')
       return
@@ -515,7 +516,7 @@ export function PlanSelector() {
     setSending(true)
     setError('')
     try {
-      const response = await postPlanMutation('comment', apiPath('/api/comments'), {
+      const response = await sendPlanMutation('comment', apiPath('/api/comments'), {
         partId: locked.partId,
         kind: locked.kind,
         blockId: blockIdFromPart(locked.partId),
@@ -534,7 +535,7 @@ export function PlanSelector() {
   }
 
   async function address(id: string) {
-    const response = await postPlanMutation('address', apiPath(`/api/comments/${encodeURIComponent(id)}/address`), {})
+    const response = await sendPlanMutation('address', apiPath(`/api/comments/${encodeURIComponent(id)}/address`), {})
     if (!response.ok && !response.queued) return
     const body = response.body as { comment?: PlanComment } | null
     if (body?.comment) commitComments((current) => upsert(current, body.comment as PlanComment))

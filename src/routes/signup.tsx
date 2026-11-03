@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "../../client/ui/button.tsx";
 import { AuthScreen } from "../AuthScreen.tsx";
+import { useMutation } from "@tanstack/react-query";
 import { authClient } from "../authClient.ts";
 import { authPath, authSearch, finishAuth, type AuthSearch } from "../authSearch.ts";
 import { SocialAuthButton } from "../SocialAuthButton.tsx";
@@ -17,16 +18,19 @@ function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(search.error ? "Sign-in did not finish. Try again." : "");
-  const [pending, setPending] = useState(false);
+  // Social buttons report their own redirect as pending. The email form is a mutation.
+  const [socialPending, setPending] = useState(false);
+  const emailAuth = useMutation({ mutationFn: () => authClient.signUp.email({ email, password, name: name.trim() || email }) });
+  const pending = socialPending || emailAuth.isPending;
   const [invalid, setInvalid] = useState(false);
   const describedBy = error ? "auth-error" : undefined;
 
   async function submit() {
     setError("");
     setInvalid(false);
-    setPending(true);
-    const result = await authClient.signUp.email({ email, password, name: name.trim() || email });
-    setPending(false);
+    const result = await emailAuth.mutateAsync().catch((cause: unknown) => ({
+      error: { message: cause instanceof Error ? cause.message : "" },
+    }));
     if (result.error) {
       setInvalid(true);
       setError(result.error.message || "Could not create the account");

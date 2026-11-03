@@ -20,8 +20,9 @@ import { Phase } from './entries/Phase.tsx'
 import { Questions } from './entries/Questions.tsx'
 import './entries/primitives.css'
 import { subscribePlanEvents } from './planEvents.ts'
-import { currentOfflineHandle, planContext, postPlanMutation, startOfflineEngine } from './offline/engine.ts'
+import { currentOfflineHandle, planContext, startOfflineEngine } from './offline/engine.ts'
 import { stampPlanParts } from './stampPlanParts.ts'
+import { sendPlanMutation, sharedQueryClient } from './queryClient.tsx'
 
 type PlanWindow = Window & {
   __LIVE_PLAN_BASE__?: string
@@ -80,7 +81,7 @@ function compileMdx(source: string): Promise<PlanModule> {
 
 async function postInteraction(response: InteractionResponse): Promise<void> {
   // A static import: a lazy chunk is only fetched on the first answer, so it is missing from the shell cache when that answer is made offline.
-  const result = await postPlanMutation('interaction', apiPath(`/api/interactions/${encodeURIComponent(response.id)}`), response)
+  const result = await sendPlanMutation('interaction', apiPath(`/api/interactions/${encodeURIComponent(response.id)}`), response)
   if (!result.ok && !result.queued) throw new Error(result.text || 'Could not send')
 }
 
@@ -227,6 +228,12 @@ function PlanChecklist(props: { className?: string }) {
   return <Checklist {...props} className={blockClass(props.className)} />
 }
 
+async function readPlanMdx(): Promise<Boot> {
+  const response = await fetch(apiPath('/api/plan-mdx'), { cache: 'no-store' })
+  if (!response.ok) throw new Error('Request failed')
+  return (await response.json()) as Boot
+}
+
 function PlanMdxApp() {
   const [boot, setBoot] = useState<Boot>(readBoot)
   const [content, setContent] = useState<ReactNode>(null)
@@ -290,10 +297,10 @@ function PlanMdxApp() {
           await engine.syncPlan()
           return
         }
-        const response = await fetch(apiPath('/api/plan-mdx'), { cache: 'no-store' }).catch(() => null)
-        if (!response?.ok) return
-        const payload = (await response.json()) as Boot
-        if (typeof payload.source === 'string') setBoot(payload)
+        const payload = await sharedQueryClient()
+          .fetchQuery({ queryKey: ['plan-mdx', apiPath('')], queryFn: readPlanMdx, staleTime: 0 })
+          .catch(() => null)
+        if (payload && typeof payload.source === 'string') setBoot(payload)
       })
     })
     const forward = (type: string) =>

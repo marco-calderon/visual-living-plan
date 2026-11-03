@@ -1,3 +1,4 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, isRedirect, redirect, useNavigate } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import type { DashboardPeriod, DashboardSummary } from '../dashboard.ts'
@@ -51,8 +52,18 @@ type Shift = 'enter' | 'forward' | 'back' | 'filter' | 'quiet'
 
 const DASHBOARD_POLL_MS = 4000
 
-function pageVisible(): boolean {
-  return typeof document === 'undefined' || document.visibilityState !== 'hidden'
+type DashboardResult = { body: DashboardBody; savedAt: number; offline: boolean }
+
+function dashboardKey(period: DashboardPeriod) {
+  return ['account-dashboard', period] as const
+}
+
+/** Network first, then this device's copy. Throws only when neither is there. */
+async function readDashboard(period: DashboardPeriod): Promise<DashboardResult> {
+  const engine = await startOfflineEngine()
+  const result = await refreshDeviceDashboards(engine, { period, force: true })
+  if ('missing' in result) throw new Error('Could not read the dashboard.')
+  return { body: result.body as DashboardBody, savedAt: result.savedAt, offline: result.offline }
 }
 
 export const Route = createFileRoute('/dashboard')({
@@ -91,82 +102,58 @@ function DashboardPage() {
   const navigate = useNavigate()
   const period = search.period ?? 'day'
   const [filter, setFilter] = useState<DashboardFilter>('all')
-  const [payload, setPayload] = useState<DashboardBody | null>(null)
-  const [error, setError] = useState('')
   const [shift, setShift] = useState<Shift>('enter')
-  const [reload, setReload] = useState(0)
-  const [offlineAt, setOfflineAt] = useState<number | null>(null)
   const [online, setOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine))
+  const queryClient = useQueryClient()
+
+  // Polls every 4 s while the tab is visible and online. React Query pauses the interval while the
+  // tab is hidden and refreshes once when it is shown again. A failed refresh keeps the last rows.
+  const dashboard = useQuery({
+    queryKey: dashboardKey(period),
+    queryFn: () => readDashboard(period),
+    refetchInterval: () => (navigator.onLine ? DASHBOARD_POLL_MS : false),
+    // The query reads this device's copy itself when the network is down.
+    networkMode: 'always',
+  })
 
   useEffect(() => {
     let cancelled = false
-    let timer = 0
-    let fresh = false
     /** Show this device's saved copy right away, before the network answers. */
-    async function paintStored() {
-      const engine = await startOfflineEngine()
+    void startOfflineEngine().then((engine) => {
       const saved = engine?.dashboard(period)
-      if (cancelled || fresh || !saved) return
-      setPayload(saved.payload as DashboardBody)
-      setError('')
-      if (!navigator.onLine) setOfflineAt(saved.savedAt)
-    }
-    async function load() {
-      const engine = await startOfflineEngine()
-      const result = await refreshDeviceDashboards(engine, { period, force: true })
-      if (cancelled) return
-      fresh = true
-      if ('missing' in result) {
-        // Keep the rows on screen when one refresh fails. Only a different period's rows are cleared.
-        setPayload((current) => (current && current.summary.period === period ? current : null))
-        setOfflineAt(null)
-        setError('Could not read the dashboard.')
-        return
-      }
-      setPayload(result.body as DashboardBody)
-      setError('')
-      setOfflineAt(result.offline ? result.savedAt : null)
-      setOnline(navigator.onLine)
-    }
-    void paintStored()
-    void load()
-    /** Poll only while this tab is on screen and online. A hidden tab sends no dashboard requests. */
-    function startPolling() {
-      window.clearInterval(timer)
-      if (!navigator.onLine || !pageVisible()) return
-      timer = window.setInterval(() => {
-        void load()
-      }, DASHBOARD_POLL_MS)
-    }
-    function onOnline() {
-      if (pageVisible()) void load()
-      startPolling()
-    }
-    function onOffline() {
-      window.clearInterval(timer)
-      void load()
-    }
-    function onVisibility() {
-      if (!pageVisible()) {
-        window.clearInterval(timer)
-        return
-      }
-      // Coming back: one refresh right away, then the interval again.
-      void load()
-      startPolling()
-    }
-    startPolling()
-    window.addEventListener('online', onOnline)
-    window.addEventListener('offline', onOffline)
-    document.addEventListener('visibilitychange', onVisibility)
+      if (cancelled || !saved || queryClient.getQueryData(dashboardKey(period))) return
+      // updatedAt 0 keeps it stale, so the network read in flight still replaces it.
+      queryClient.setQueryData<DashboardResult>(
+        dashboardKey(period),
+        { body: saved.payload as DashboardBody, savedAt: saved.savedAt, offline: !navigator.onLine },
+        { updatedAt: 0 },
+      )
+    })
     return () => {
       cancelled = true
-      window.clearInterval(timer)
+    }
+  }, [period, queryClient])
+
+  useEffect(() => {
+    function onOnline() {
+      setOnline(true)
+    }
+    function onOffline() {
+      setOnline(false)
+      // Switch to this device's copy and its "Offline" line right away.
+      void queryClient.refetchQueries({ queryKey: ['account-dashboard'] })
+    }
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+    return () => {
       window.removeEventListener('online', onOnline)
       window.removeEventListener('offline', onOffline)
-      document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [period, reload])
+  }, [queryClient])
+
+  const payload = dashboard.data?.body ?? null
+  const error = dashboard.isError ? 'Could not read the dashboard.' : ''
+  const offlineAt = !dashboard.isError && dashboard.data?.offline ? dashboard.data.savedAt : null
 
   useEffect(() => {
     if (!payload || shift === 'quiet') return
@@ -220,7 +207,7 @@ function DashboardPage() {
                 className="titlebar-action"
                 onClick={() => {
                   setShift('filter')
-                  setReload((value) => value + 1)
+                  void dashboard.refetch()
                 }}
               >
                 Refresh
