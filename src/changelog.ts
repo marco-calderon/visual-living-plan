@@ -172,8 +172,7 @@ function shippedCopy(release: ChangelogRelease): string {
   return `Shipped in ${file}, from ${escapeHtml(first)} through ${escapeHtml(last)}.`
 }
 
-/** Settings block for the newest changelog. Empty string when there is nothing to show. */
-export function changelogSectionHtml(release: ChangelogRelease): string {
+function changelogHtml(release: ChangelogRelease): string {
   const cards = release.classified
     ? [
         card('bugs', 'Bugs fixed', release.bugs),
@@ -182,12 +181,44 @@ export function changelogSectionHtml(release: ChangelogRelease): string {
         release.changes.length ? card('changes', 'Changes', release.changes) : '',
       ].join('')
     : card('changes', 'Changes', release.changes)
-  return `<section class="block settings-section" data-section data-changelog>
-          <h3>Changelog</h3>
-          <p class="settings-copy">${shippedCopy(release)}</p>
-          <div class="release-cards">
-            ${cards}
-          </div>
-          <p class="settings-meta">Read from <code>docs/changelogs/${escapeHtml(release.fileName)}</code>.</p>
+  return `<div class="settings-version-changelog" data-changelog>
+            <h4 class="settings-kicker">Changelog</h4>
+            <p class="settings-copy">${shippedCopy(release)}</p>
+            <div class="release-cards">
+              ${cards}
+            </div>
+            <p class="settings-meta">Read from <code>docs/changelogs/${escapeHtml(release.fileName)}</code>.</p>
+          </div>`
+}
+
+/**
+ * Settings card with the package version and the newest changelog.
+ * Sits last in Settings. Empty string when there is nothing to show.
+ */
+export function versionSectionHtml(version: string | null | undefined, release: ChangelogRelease | null | undefined): string {
+  if (!version && !release) return ''
+  const versionLine = version
+    ? `<p class="settings-copy">Living Plan <strong data-app-version>${escapeHtml(version)}</strong></p>`
+    : ''
+  return `<section class="block settings-section" data-section data-version-section>
+          <h3>Version</h3>
+          ${versionLine}
+          ${release ? changelogHtml(release) : ''}
         </section>`
+}
+
+/** Settings card for the newest changelog alone. */
+export function changelogSectionHtml(release: ChangelogRelease): string {
+  return versionSectionHtml(null, release)
+}
+
+/** `version` from the package.json next to a source or dist entry file. */
+export function loadPackageVersion(entryFile: string): string | null {
+  try {
+    const raw = readFileSync(join(resolve(dirname(entryFile), '..'), 'package.json'), 'utf8')
+    const version = (JSON.parse(raw) as { version?: unknown }).version
+    return typeof version === 'string' && version ? version : null
+  } catch {
+    return null
+  }
 }
