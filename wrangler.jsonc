@@ -32,8 +32,13 @@
   },
   // Preview deployments for pull requests (`wrangler preview` in Workers Builds).
   // They share the production D1 database and inherit the PUBLIC_URL secret.
-  // `vars` is not inherited, so TRUSTED_ORIGINS is set again here.
+  // `vars` and Durable Object bindings are not inherited, so both are set again here.
+  // Each Preview gets its own empty PlanObject storage, so it cannot open plans
+  // whose content lives in production's objects.
   "previews": {
+    "durable_objects": {
+      "bindings": [{ "name": "PLANS", "class_name": "PlanObject" }]
+    },
     "vars": {
       "TRUSTED_ORIGINS": "https://*-visual-living-plan.mcalderon-code.workers.dev,https://*.plan.logspace.qzz.io"
     },
