@@ -27,6 +27,7 @@
     "src/planFns.ts",
     "src/authClient.ts",
     "src/LinkSocialAccounts.tsx",
+    "src/hostedRelease.ts",
     "src/SocialAuthButton.tsx",
     "src/cloudflare.d.ts",
     "src/host"

@@ -18,7 +18,7 @@ import { diffSections } from './diff'
 import { createIdleExecutionState, type ExecutionState } from './execution'
 import { collectSectionSources, parsePlan } from './parse'
 import { recordLog } from './serviceLog'
-import { loadLatestChangelog } from './changelog'
+import { loadLatestChangelog, loadPackageVersion } from './changelog'
 import { defaultRegistryHome } from './configHome'
 import { openPlanSnapshots, type PlanSnapshotStore } from './planSnapshots'
 import { registryDatabasePath } from './registryLock'
@@ -651,6 +651,7 @@ export async function openPlanSession(options: {
         basePath,
         selfId,
         changelog: loadLatestChangelog(fileURLToPath(import.meta.url)),
+        appVersion: loadPackageVersion(fileURLToPath(import.meta.url)),
         mdxSnapshots: mdxStore?.list() ?? [],
         mdxHeadSnapshotId: mdxStore?.head()?.headSnapshotId ?? null,
       }),

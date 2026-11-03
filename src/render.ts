@@ -25,7 +25,7 @@ import type {
 } from './types'
 import { buildPlanToc, renderPlanTocHtml } from './planToc'
 import { planToExpectedGraph, withPlannedWorkflow } from './workflow'
-import { changelogSectionHtml, type ChangelogRelease } from './changelog'
+import { versionSectionHtml, type ChangelogRelease } from './changelog'
 import { appearanceSettingsHtml } from './appearanceSettings'
 
 const planPageStyles = readFileSync(new URL('./planPage.css', import.meta.url), 'utf8')
@@ -1342,6 +1342,8 @@ export function renderPlanPage(options: {
   comments?: PlanComment[]
   /** Newest changelog, already parsed. Omit to hide the release block. */
   changelog?: ChangelogRelease | null
+  /** Package version shown in the Version card at the bottom of Settings. */
+  appVersion?: string | null
   /** Append-only source history for the MDX page. */
   mdxSnapshots?: PlanSnapshotRecord[]
   mdxHeadSnapshotId?: string | null
@@ -1498,7 +1500,6 @@ export function renderPlanPage(options: {
     </section>
     <section class="tab-panel" data-tab-panel="settings" role="tabpanel" hidden>
       <main class="settings-stack">
-        ${options.changelog ? changelogSectionHtml(options.changelog) : ''}
         <section class="block settings-section" data-host-panel="local" data-plan-host="local">
           <h3>Local plan</h3>
           <p class="settings-copy">This plan is on loopback. Appearance stays in the theme file on this machine. An account is not required.</p>
@@ -1516,6 +1517,7 @@ export function renderPlanPage(options: {
           wrapNote: `Saved to <code>${savedTo}</code> as <code>theme.wrapCode</code>.`,
           diffsNote: `Saved to <code>${savedTo}</code> as <code>theme.diffsTheme</code>.`,
         })}
+        ${versionSectionHtml(options.appVersion, options.changelog)}
       </main>
     </section>
   </div>

@@ -622,3 +622,90 @@ body.layout-full .settings-page {
 .settings-page .diffs-note {
   margin-top: 0.85rem;
 }
+
+/* Version card: last in Settings. Mirrors the release styles in planPage.css. */
+.settings-page .settings-version {
+  --release-improvements: #ff502e;
+  --release-features: #0a7a38;
+  display: grid;
+  min-width: 0;
+}
+@media (prefers-color-scheme: dark) {
+  .settings-page .settings-version {
+    --release-improvements: #fdba74;
+    --release-features: #6edb8f;
+  }
+}
+:root[data-theme="dark"] .settings-page .settings-version {
+  --release-improvements: #fdba74;
+  --release-features: #6edb8f;
+}
+.settings-page .settings-version-changelog {
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--hairline);
+}
+.settings-page .settings-version h4.settings-kicker {
+  font-family: var(--font-display);
+}
+.settings-page .release-cards {
+  display: grid;
+  gap: 0.7rem;
+  margin-bottom: var(--space-md);
+}
+.settings-page .release-card {
+  display: grid;
+  grid-template-columns: 8.5rem minmax(0, 1fr);
+  column-gap: 0.9rem;
+  align-items: start;
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  background: var(--control-solid);
+  padding: 0.95rem var(--space-md) var(--space-md);
+  min-width: 0;
+}
+.settings-page .release-stat { display: grid; align-content: start; gap: 0.15rem; }
+.settings-page .release-card .settings-kicker { margin: 0; }
+.settings-page .release-count {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 2.6rem;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  color: var(--ink);
+}
+.settings-page .release-card[data-empty="true"] .release-count { color: var(--muted); }
+.settings-page .release-card[data-kind="bugs"]:not([data-empty="true"]) .release-count { color: var(--danger); }
+.settings-page .release-card[data-kind="improvements"]:not([data-empty="true"]) .release-count { color: var(--release-improvements); }
+.settings-page .release-card[data-kind="features"]:not([data-empty="true"]) .release-count { color: var(--release-features); }
+.settings-page .release-card[data-kind="changes"] .release-count { color: var(--accent); }
+.settings-page .release-list {
+  list-style: disc;
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.5rem;
+}
+.settings-page .release-list li {
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--charcoal);
+}
+.settings-page .release-list li::marker { color: var(--muted); }
+.settings-page .release-list code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--code-inline-bg);
+  border-radius: 6px;
+  padding: 0.05rem 0.3rem;
+}
+.settings-page .release-empty {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+@media (max-width: 640px) {
+  .settings-page .release-card { grid-template-columns: minmax(0, 1fr); row-gap: 0.6rem; }
+}
