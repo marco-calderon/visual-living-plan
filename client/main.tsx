@@ -48,8 +48,9 @@ function ExecutionApp() {
     let cancelled = false
 
     async function load() {
-      const response = await fetch(apiPath('/api/execution'))
-      if (!response.ok) return
+      // Offline the fetch rejects. The canvas keeps the state it already has.
+      const response = await fetch(apiPath('/api/execution')).catch(() => null)
+      if (!response?.ok) return
       const data = (await response.json()) as ExecutionState
       if (!cancelled) setExecution(data)
     }

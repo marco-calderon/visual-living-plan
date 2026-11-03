@@ -40,15 +40,14 @@ if (inServiceWorker(globalThis)) {
       const cache = await scope.caches.open(SHELL_CACHE_NAME)
       await precacheShell(new URL('/precache-manifest.json', scope.location.origin).href, {
         fetch: (url) => scope.fetch(new Request(url, { cache: 'no-store' })),
-        addAll: async (urls) => {
-          if (cache.addAll) {
-            await cache.addAll(urls)
+        add: async (url) => {
+          if (cache.add) {
+            await cache.add(new Request(url))
             return
           }
-          await Promise.all(urls.map(async (url) => {
-            const response = await scope.fetch(new Request(url))
-            await cache.put(new Request(url), response)
-          }))
+          const response = await scope.fetch(new Request(url))
+          if (!response.ok) throw new Error(`precache ${response.status}`)
+          await cache.put(new Request(url), response)
         },
       })
       await scope.skipWaiting()

@@ -67,6 +67,10 @@ export type CatalogRow = {
   /** `heartbeatAt/storedPath` from the last dashboard row. Absent on older device rows. */
   versionKey?: string
   warmedAt?: number
+  /** Last HTTP failure while warming. Not a saved copy. Retried after `WARM_INTERVAL_MS`. */
+  failedAt?: number
+  /** Shell cache the document was written to. A new cache name makes the plan due. */
+  cacheName?: string
   recency?: number
 }
 
@@ -316,12 +320,48 @@ export function plansToEvict(
   return rows.map((row) => row.id).filter((id) => !kept.has(id))
 }
 
-/** Most recent owned plans that are new, changed, or last warmed longer ago than the interval. */
+type WarmRecord = {
+  id: string
+  versionKey?: string
+  warmedAt?: number
+  failedAt?: number
+  cacheName?: string
+}
+
+/**
+ * Saved means this shell cache holds the document. A failed attempt is not saved.
+ * An empty `shellCacheName` skips the cache check so older callers keep their meaning.
+ */
+export function warmRecordSaved(row: Pick<WarmRecord, 'warmedAt' | 'cacheName'> | undefined, shellCacheName = ''): boolean {
+  if (row?.warmedAt == null) return false
+  if (shellCacheName && (row.cacheName ?? '') !== shellCacheName) return false
+  return true
+}
+
+/** Minimum gap between two "the tab became active" syncs, so focus and visibility firing together cost one sync. */
+export const ACTIVATION_SYNC_GAP_MS = 30 * 1000
+
+export function activationSyncDue(lastAt: number, now: number, gap = ACTIVATION_SYNC_GAP_MS): boolean {
+  return lastAt <= 0 || now - lastAt >= gap
+}
+
+/**
+ * Pages that keep the account's own plans on the device. Sign-in pages have no account yet,
+ * and a local plan page has no hosted account at all.
+ */
+export function ownedPlanSyncAllowed(pathname: string, host: string | undefined): boolean {
+  if (host === 'local') return false
+  const path = pathname.replace(/\/+$/, '') || '/'
+  return path !== '/login' && path !== '/signup'
+}
+
+/** Most recent owned plans that are new, changed, in a different shell cache, or last tried longer ago than the interval. */
 export function plansToWarm(
   owned: readonly WarmPlan[],
-  warmed: readonly { id: string; versionKey?: string; warmedAt?: number }[],
+  warmed: readonly WarmRecord[],
   now: number,
   cap = OWNED_PLAN_CAP,
+  shellCacheName = '',
 ): string[] {
   const ranked = owned
     .filter((plan) => plan.id)
@@ -336,7 +376,14 @@ export function plansToWarm(
       due.push(plan.id)
       continue
     }
-    if (now - (last.warmedAt ?? 0) >= WARM_INTERVAL_MS) due.push(plan.id)
+    if (shellCacheName && (last.cacheName ?? '') !== shellCacheName) {
+      due.push(plan.id)
+      continue
+    }
+    const warmedFresh = last.warmedAt != null && now - last.warmedAt < WARM_INTERVAL_MS
+    const failedFresh = last.failedAt != null && now - last.failedAt < WARM_INTERVAL_MS
+    if (warmedFresh || failedFresh) continue
+    due.push(plan.id)
   }
   return due
 }
@@ -390,6 +437,8 @@ export function catalogFromOwned(
       versionLabel: outcome || old?.versionLabel || '',
       versionKey,
       warmedAt: old?.warmedAt,
+      failedAt: old?.failedAt,
+      cacheName: old?.cacheName,
       recency,
     }
   })

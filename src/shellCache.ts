@@ -19,9 +19,9 @@
 export const SHELL_CACHE_PREFIX = 'visual-living-plan-shell-'
 
 /** Keep both equal to package.json `version`. test/shellCache.test.ts checks them. */
-export const SHELL_CACHE_VERSION = '1.13.0'
+export const SHELL_CACHE_VERSION = '1.13.1'
 
-export const SHELL_CACHE_NAME = 'visual-living-plan-shell-1.13.0'
+export const SHELL_CACHE_NAME = 'visual-living-plan-shell-1.13.1'
 
 /** One document cache per device. The worker cannot see which account is signed in. */
 export const DOCUMENT_CACHE_MARKER = 'device'
@@ -31,8 +31,9 @@ export const PRECACHE_BATCH = 16
 export type ShellKind = 'asset' | 'document' | 'network'
 
 export type ShellCacheStore = {
-  match(request: Request): Promise<Response | undefined>
+  match(request: Request, options?: { ignoreVary?: boolean }): Promise<Response | undefined>
   put(request: Request, response: Response): Promise<void>
+  add?(request: Request): Promise<void>
   addAll?(urls: readonly string[]): Promise<void>
   keys?(): Promise<readonly Request[]>
   delete?(request: Request): Promise<boolean>
@@ -54,8 +55,9 @@ export type ShellRuntime = {
 
 export type PrecacheClient = {
   fetch: (url: string) => Promise<Response>
-  addAll: (urls: readonly string[]) => Promise<void>
-  batchSize?: number
+  add: (url: string) => Promise<void>
+  /** How many assets to fetch at once. One failure skips that file only. */
+  concurrency?: number
 }
 
 export type ForgetDocumentsMessage = {
@@ -164,11 +166,13 @@ export async function precacheShell(manifestUrl: string, deps: PrecacheClient): 
   } catch {
     return
   }
-  const urls = precacheAssetUrls(manifest)
-  const size = deps.batchSize && deps.batchSize > 0 ? deps.batchSize : PRECACHE_BATCH
-  const batches: string[][] = []
-  for (let index = 0; index < urls.length; index += size) batches.push(urls.slice(index, index + size))
-  await Promise.allSettled(batches.map((batch) => deps.addAll(batch)))
+  // The icon is served by the Worker, not from assets/, so the build manifest does not list it.
+  const urls = [...new Set(['/favicon.png', ...precacheAssetUrls(manifest)])]
+  const size = deps.concurrency && deps.concurrency > 0 ? deps.concurrency : PRECACHE_BATCH
+  for (let index = 0; index < urls.length; index += size) {
+    const slice = urls.slice(index, index + size)
+    await Promise.allSettled(slice.map((url) => deps.add(url)))
+  }
 }
 
 export function isForgetDocumentsMessage(value: unknown): value is ForgetDocumentsMessage {
@@ -247,11 +251,16 @@ export function handleShellFetch(request: Request, deps: ShellRuntime): Promise<
 
 async function cacheFirstAsset(request: Request, deps: ShellRuntime): Promise<Response> {
   const cache = await deps.caches.open(deps.cacheName)
-  const cached = await cache.match(request)
+  // Assets are content-hashed. A `Vary: Origin` response would otherwise miss for module scripts, which send Origin.
+  const cached = await cache.match(request, { ignoreVary: true })
   if (cached) return cached
-  const response = await deps.fetch(request)
-  if (shouldStoreAsset(response)) await cache.put(request, response.clone())
-  return response
+  try {
+    const response = await deps.fetch(request)
+    if (shouldStoreAsset(response)) await cache.put(request, response.clone())
+    return response
+  } catch {
+    return new Response(null, { status: 504 })
+  }
 }
 
 async function networkFirstDocument(request: Request, deps: ShellRuntime): Promise<Response> {

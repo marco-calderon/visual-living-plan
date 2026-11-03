@@ -2,8 +2,8 @@
 
 // src/shellCache.ts
 var SHELL_CACHE_PREFIX = "visual-living-plan-shell-";
-var SHELL_CACHE_VERSION = "1.13.0";
-var SHELL_CACHE_NAME = "visual-living-plan-shell-1.13.0";
+var SHELL_CACHE_VERSION = "1.13.1";
+var SHELL_CACHE_NAME = "visual-living-plan-shell-1.13.1";
 var DOCUMENT_CACHE_MARKER = "device";
 var PRECACHE_BATCH = 16;
 var ASSET_EXTENSION = /\.(?:js|mjs|css|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|wasm)$/i;
@@ -116,12 +116,12 @@ async function precacheShell(manifestUrl, deps) {
   } catch {
     return;
   }
-  const urls = precacheAssetUrls(manifest);
-  const size = deps.batchSize && deps.batchSize > 0 ? deps.batchSize : PRECACHE_BATCH;
-  const batches = [];
-  for (let index = 0;index < urls.length; index += size)
-    batches.push(urls.slice(index, index + size));
-  await Promise.allSettled(batches.map((batch) => deps.addAll(batch)));
+  const urls = [...new Set(["/favicon.png", ...precacheAssetUrls(manifest)])];
+  const size = deps.concurrency && deps.concurrency > 0 ? deps.concurrency : PRECACHE_BATCH;
+  for (let index = 0;index < urls.length; index += size) {
+    const slice = urls.slice(index, index + size);
+    await Promise.allSettled(slice.map((url) => deps.add(url)));
+  }
 }
 function isForgetDocumentsMessage(value) {
   if (!value || typeof value !== "object")
@@ -193,13 +193,17 @@ function handleShellFetch(request, deps) {
 }
 async function cacheFirstAsset(request, deps) {
   const cache = await deps.caches.open(deps.cacheName);
-  const cached = await cache.match(request);
+  const cached = await cache.match(request, { ignoreVary: true });
   if (cached)
     return cached;
-  const response = await deps.fetch(request);
-  if (shouldStoreAsset(response))
-    await cache.put(request, response.clone());
-  return response;
+  try {
+    const response = await deps.fetch(request);
+    if (shouldStoreAsset(response))
+      await cache.put(request, response.clone());
+    return response;
+  } catch {
+    return new Response(null, { status: 504 });
+  }
 }
 async function networkFirstDocument(request, deps) {
   const cache = await deps.caches.open(deps.cacheName);
@@ -270,15 +274,15 @@ if (inServiceWorker(globalThis)) {
       const cache = await scope.caches.open(SHELL_CACHE_NAME);
       await precacheShell(new URL("/precache-manifest.json", scope.location.origin).href, {
         fetch: (url) => scope.fetch(new Request(url, { cache: "no-store" })),
-        addAll: async (urls) => {
-          if (cache.addAll) {
-            await cache.addAll(urls);
+        add: async (url) => {
+          if (cache.add) {
+            await cache.add(new Request(url));
             return;
           }
-          await Promise.all(urls.map(async (url) => {
-            const response = await scope.fetch(new Request(url));
-            await cache.put(new Request(url), response);
-          }));
+          const response = await scope.fetch(new Request(url));
+          if (!response.ok)
+            throw new Error(`precache ${response.status}`);
+          await cache.put(new Request(url), response);
         }
       });
       await scope.skipWaiting();

@@ -40,3 +40,24 @@ A hosted plan's versions are a menu in the plan title bar instead of a separate 
 ### Notes
 
 No registry restart needed beyond the usual version check. The new shell cache name replaces the 1.12.1 cache (1.12.2 shipped without updating it).
+
+## 1.13.1
+
+**PR:** [#131](https://github.com/marco-calderon/visual-living-plan/pull/131)
+
+**Bump:** patch
+
+### Summary
+
+Plans this account owns are saved on the device from any hosted page and again whenever the app comes back to the front, and a plan that was never published reads as not found instead of an error page.
+
+### Bugs fixed
+
+- Opening the dashboard stores each owned plan's page in the shell cache. A plan is marked saved only after that copy is stored, and a new app version saves it again.
+- One missing build file no longer keeps the rest of the app shell from being cached. The browser's request for `/favicon.ico` is served and no longer fails the service worker while offline.
+- A plan whose hosted copy is empty reads as not found, with a link back to the dashboard.
+- Every hosted page keeps the account's plans on the device, not only the dashboard. Bringing the tab or installed app back to the front, or reconnecting, re-reads the plan list so plans made elsewhere are saved too.
+
+### Notes
+
+No registry restart needed beyond the usual version check. The new shell cache name replaces the 1.13.0 cache.

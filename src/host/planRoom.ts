@@ -115,6 +115,7 @@ export function planToken(sql: PlanSql): string {
 }
 
 export function touchPlan(sql: PlanSql): void {
+  planToken(sql)
   setMeta(sql, 'last_seen', String(Date.now()))
 }
 
@@ -142,7 +143,7 @@ export type PlanView = {
 }
 
 export function planView(sql: PlanSql): PlanView {
-  migratePlan(sql)
+  planToken(sql)
   return {
     title: meta(sql, 'title') ?? 'Living plan',
     source: meta(sql, 'source') ?? '',
@@ -160,6 +161,7 @@ export function planView(sql: PlanSql): PlanView {
 }
 
 export function pendingEvents(sql: PlanSql): Array<Record<string, unknown>> {
+  planToken(sql)
   return sql
     .exec(`SELECT id, seq, event, data, created_at, delivered_at FROM events WHERE delivered_at IS NULL ORDER BY seq`)
     .toArray()

@@ -32,7 +32,11 @@ import {
   plansToEvict,
   plansToWarm,
   settingsWinner,
+  warmRecordSaved,
   type PlanRow,
+  activationSyncDue,
+  ACTIVATION_SYNC_GAP_MS,
+  ownedPlanSyncAllowed,
 } from '../src/offlineSync.ts'
 import { openPlanSession } from '../src/planSession.ts'
 
@@ -256,6 +260,14 @@ test('live plan data and catalog rows stay free of the source body', () => {
     [{ id: 'p1', heartbeatAt: 9, storedPath: 'plans/p1.md', status: 'running' }],
   )
   assert.equal(listed[0]?.versionKey, '9/plans/p1.md')
+  const kept = catalogFromOwned(
+    [{ id: 'p1', title: 'Owned' }],
+    [{ id: 'p1', heartbeatAt: 9, storedPath: 'plans/p1.md', status: 'running' }],
+    [{ id: 'p1', title: 'Owned', mode: '', status: '', versionLabel: '', warmedAt: 4, failedAt: 8, cacheName: 'visual-living-plan-shell-1.12.0' }],
+  )
+  assert.equal(kept[0]?.warmedAt, 4)
+  assert.equal(kept[0]?.failedAt, 8)
+  assert.equal(kept[0]?.cacheName, 'visual-living-plan-shell-1.12.0')
   assert.equal(dashboardAccountDecision({ ok: false, networkFailure: false, hasStored: true }), 'login')
   assert.equal(dashboardAccountDecision({ ok: null, networkFailure: true, hasStored: true }), 'stored')
   assert.equal(dashboardAccountDecision({ ok: null, networkFailure: true, hasStored: false }), 'error')
@@ -266,6 +278,22 @@ test('live plan data and catalog rows stay free of the source body', () => {
   assert.equal(offlineStatusText({ available: true, offline: true, pending: 2, failed: 0 }), 'Offline · 2 pending')
   assert.equal(offlineStatusText({ available: false, offline: true, pending: 2, failed: 1 }), null)
   assert.equal(settingsWinner({ updatedAt: 5, accent: 'old' }, { updatedAt: 4, accent: 'new' }).accent, 'old')
+})
+
+test('a failed warm is not saved, and a different shell cache is due', () => {
+  const now = 1_000_000
+  const cache = 'visual-living-plan-shell-1.12.1'
+  const owned = [{ id: 'bad', versionKey: '1/', recency: 2 }]
+  const failed = [{ id: 'bad', versionKey: '1/', failedAt: now - 1000, cacheName: cache }]
+  assert.deepEqual(plansToWarm(owned, failed, now, OWNED_PLAN_CAP, cache), [])
+  assert.equal(warmRecordSaved(failed[0], cache), false)
+  assert.deepEqual(plansToWarm(owned, failed, now + WARM_INTERVAL_MS, OWNED_PLAN_CAP, cache), ['bad'])
+  const previousCache = [{ id: 'bad', versionKey: '1/', warmedAt: now - 1000, cacheName: 'visual-living-plan-shell-1.12.0' }]
+  assert.equal(warmRecordSaved(previousCache[0], cache), false)
+  assert.deepEqual(plansToWarm(owned, previousCache, now, OWNED_PLAN_CAP, cache), ['bad'])
+  const saved = [{ id: 'bad', versionKey: '1/', warmedAt: now - 1000, cacheName: cache }]
+  assert.equal(warmRecordSaved(saved[0], cache), true)
+  assert.deepEqual(plansToWarm(owned, saved, now, OWNED_PLAN_CAP, cache), [])
 })
 
 test('the durable object replays one submission and keeps a single event', () => {
@@ -362,3 +390,14 @@ function sqlOf(db: Database): PlanSql {
     },
   }
 }
+
+test('an active tab syncs at most once per gap, and only on hosted account pages', () => {
+  assert.equal(activationSyncDue(0, 1_000), true)
+  assert.equal(activationSyncDue(1_000, 1_000 + ACTIVATION_SYNC_GAP_MS - 1), false)
+  assert.equal(activationSyncDue(1_000, 1_000 + ACTIVATION_SYNC_GAP_MS), true)
+  assert.equal(ownedPlanSyncAllowed('/plans/abc', 'cloud'), true)
+  assert.equal(ownedPlanSyncAllowed('/settings', undefined), true)
+  assert.equal(ownedPlanSyncAllowed('/login', undefined), false)
+  assert.equal(ownedPlanSyncAllowed('/signup/', undefined), false)
+  assert.equal(ownedPlanSyncAllowed('/', 'local'), false)
+})

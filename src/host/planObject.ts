@@ -16,6 +16,7 @@ import {
   putBlob,
   commitUserMutation,
   planSnapshot,
+  planToken,
   putExecution,
   putSource,
   socketLimit,
@@ -85,6 +86,12 @@ export class PlanObject extends DurableObject {
     const authorization = request.headers.get('authorization')
     const action = url.pathname.endsWith('/api/agent-events') ? 'agent' : 'read'
     if (!actorAllows(actor, authorization, sql, action)) return text(401, 'Sign in required')
+    try {
+      planToken(sql)
+    } catch (error) {
+      if (error instanceof PlanRoomError) return text(error.status, error.message)
+      throw error
+    }
     if (this.ctx.getWebSockets().length >= socketLimit(sql)) {
       return text(403, `This plan is at its ${planTier(sql)} connection limit (${socketLimit(sql)}).`)
     }
