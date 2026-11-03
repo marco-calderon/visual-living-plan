@@ -57,3 +57,13 @@ test('origin matching is an exact https origin or one hostname run', () => {
   assert.equal(originMatches(`${preview}:8443`, pattern), false)
   assert.equal(originMatches('https://-visual-living-plan.mcalderon-code.workers.dev', pattern), false)
 })
+
+test('a plan.logspace.qzz.io subdomain matches; the bare domain and deeper subdomains do not', () => {
+  const both = `${pattern},https://*.plan.logspace.qzz.io`
+  const staging = 'https://staging.plan.logspace.qzz.io'
+  assert.equal(requestOrigin(new Request(`${staging}/api/auth/sign-in/email`), production, both), staging)
+  assert.equal(requestOrigin(new Request(`${preview}/api/plans`), production, both), preview)
+  assert.equal(requestOrigin(new Request(`${production}/api/plans`), production, both), production)
+  assert.equal(requestOrigin(new Request('https://a.b.plan.logspace.qzz.io/api/plans'), production, both), production)
+  assert.equal(requestOrigin(new Request('https://visual-living-plan.mcalderon-code.workers.dev/api/plans'), production, both), production)
+})

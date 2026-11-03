@@ -28,14 +28,14 @@
   // `*` is one run of [a-z0-9-] in the hostname. A matching preview signs in
   // on its own origin while PUBLIC_URL stays the production origin.
   "vars": {
-    "TRUSTED_ORIGINS": "https://*-visual-living-plan.mcalderon-code.workers.dev"
+    "TRUSTED_ORIGINS": "https://*-visual-living-plan.mcalderon-code.workers.dev,https://*.plan.logspace.qzz.io"
   },
   // Preview deployments for pull requests (`wrangler preview` in Workers Builds).
   // They share the production D1 database and inherit the PUBLIC_URL secret.
   // `vars` is not inherited, so TRUSTED_ORIGINS is set again here.
   "previews": {
     "vars": {
-      "TRUSTED_ORIGINS": "https://*-visual-living-plan.mcalderon-code.workers.dev"
+      "TRUSTED_ORIGINS": "https://*-visual-living-plan.mcalderon-code.workers.dev,https://*.plan.logspace.qzz.io"
     },
     "d1_databases": [
       {

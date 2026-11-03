@@ -168,7 +168,7 @@ Email and password sign-in on a Worker Preview stays on that preview's address.
 
 ### Bugs fixed
 
-- Signing in on a preview no longer fails with an invalid origin. The preview still uses the production address for links, and it accepts its own address for sign-in.
+- Signing in on a preview no longer fails with an invalid origin. A preview, or a `*.plan.logspace.qzz.io` subdomain, uses its own address for sign-in and links. `plan.logspace.qzz.io` keeps using `PUBLIC_URL`.
 
 ### Notes
 
