@@ -39,7 +39,7 @@ The service and the private server are Elysia apps. Route handlers live in `src/
 | `src/host/` | Worker session for `--cloud`: Better Auth, D1 plan rows, Elysia routes, and one SQLite Durable Object per plan |
 | `src/migrations/` | D1 migrations for accounts, settings, and published plan versions |
 | `src/routes/`, `src/entry.ts`, `src/client.tsx` | The web application on that Worker. TanStack Start. `src/client.tsx` is the browser entry, registers the shell cache, and on a secure origin keeps a device copy of the open plan, the account, and the dashboard. The browser still compiles the plan MDX |
-| `test/` | Node test runner via `npm test` |
+| `test/` | Bun test runner via `bun test ./test` |
 | `examples/rate-limit.plan.md` | The fixture plan used by service tests |
 
 Home directory for the service is `~/.config/living-plan` (`$XDG_CONFIG_HOME/living-plan` when set), or `LIVE_PLAN_HOME` when set. The lock file is `registry.json`. The database is `registry.sqlite`. Development logs are under `logs/` in that home, or `LIVE_PLAN_LOG_HOME` when set. Older `~/.visual-living-plan` and `~/.living-plan` trees are migrated when idle ([ADR 0017](architecture/decisions/0017-xdg-config-home.md)).
@@ -61,13 +61,15 @@ Home directory for the service is `~/.config/living-plan` (`$XDG_CONFIG_HOME/liv
 
 ## Working on a change
 
+This project runs on Bun, not Node. Use `bun` for installs, scripts, and tests. The built CLI (`dist/cli.js`) starts with `#!/usr/bin/env bun` and imports without file extensions, so `node dist/cli.js` fails. `bun.lock` is the lockfile.
+
 ```bash
-npm install
-npm test
-npx tsc --noEmit
+bun install
+bun test ./test
+bun run typecheck
 ```
 
-`npm test` runs `tsx --test test/*.test.ts`. Service behavior is covered in `test/planService.test.ts`. The older registry catalog is covered in `test/registry.test.ts`.
+`bun test ./test` is the same as `bun run test`. Service behavior is covered in `test/planService.test.ts`. The older registry catalog is covered in `test/registry.test.ts`.
 
 When a change alters how plans are hosted, how agents are notified, or what survives a restart, add an architecture decision under [docs/architecture/decisions](architecture/decisions/README.md) and update [docs/architecture/README.md](architecture/README.md) if the current picture changed. Update [docs/agent-guidelines.md](agent-guidelines.md) and [skills/live-plan/SKILL.md](../skills/live-plan/SKILL.md) when the CLI contract changes. Leave [skills/live-plan/primitives.md](../skills/live-plan/primitives.md) alone unless the plan vocabulary changed.
 
