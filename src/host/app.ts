@@ -353,7 +353,10 @@ async function loadHostedPlan(request: Request, env: HostEnv, planId: string): P
   const account = Boolean(session && row && row.user_id === session.user.id)
   const actor = account ? 'account' : viewer ? 'viewer' : ''
   if (!actor) return text(401, 'Sign in required')
-  const viewResponse = await planFetch(env, planId, request, '/view', actor)
+  let viewResponse = await planFetch(env, planId, request, '/view', actor)
+  if (viewResponse.status === 404 && (await seedPlanRoom(env, planId))) {
+    viewResponse = await planFetch(env, planId, request, '/view', actor)
+  }
   if (!viewResponse.ok) return viewResponse
   const view = (await viewResponse.json()) as {
     title: string
@@ -471,6 +474,34 @@ export async function hostedPlanVersions(request: Request, env: HostEnv, planId:
     versions,
     name: session.user.name || session.user.email,
   })
+}
+
+/**
+ * Fill an empty plan room from the latest published version in D1.
+ * A Worker Preview shares D1 with production but starts with empty Durable Objects,
+ * so this lets a preview open existing plans. Changes made there stay in the preview's room.
+ */
+export async function seedPlanRoom(env: HostEnv, planId: string): Promise<boolean> {
+  const row = await env.DB.prepare(`SELECT token, title, mode, json_extract(meta, '$.tier') AS tier FROM plans WHERE id = ?`)
+    .bind(planId)
+    .first<{ token: string | null; title: string | null; mode: string | null; tier: string | null }>()
+  if (!row?.token) return false
+  const version = await readPlanVersion(env.DB, planId, 'latest').catch(() => null)
+  if (!version) return false
+  const stub = env.PLANS.get(env.PLANS.idFromName(planId))
+  const init = await stub.fetch(
+    new Request('https://plan.internal/internal/init', {
+      method: 'POST',
+      body: JSON.stringify({
+        token: row.token,
+        title: version.title || row.title || 'Living plan',
+        mode: row.mode || 'watch',
+        tier: normalizeTier(row.tier ?? undefined),
+        source: version.source,
+      }),
+    }),
+  )
+  return init.ok
 }
 
 async function planFetch(env: HostEnv, planId: string, request: Request, path: string, actor: string): Promise<Response> {
