@@ -252,8 +252,14 @@ export function renderRegistryPage(): string {
       }
 
       document.addEventListener('click', followInternalPage);
+      // Poll only while this tab is visible. Coming back refreshes right away.
       refresh();
-      setInterval(refresh, 4000);
+      setInterval(() => {
+        if (document.visibilityState !== 'hidden') refresh();
+      }, 4000);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'hidden') refresh();
+      });
     })();
   </script>
 </body>

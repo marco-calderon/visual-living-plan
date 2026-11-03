@@ -583,6 +583,12 @@ export function processesPanelScript(): string {
   }
 
   async function refresh() {
+    // The React menu can mount after this fallback starts. It polls on its own, so stop here.
+    if (document.documentElement.dataset.planChrome === 'react') {
+      clearInterval(timer);
+      return;
+    }
+    if (document.visibilityState === 'hidden') return;
     try {
       const response = await fetch('/api/processes', { cache: 'no-store' });
       if (!response.ok) throw new Error('Request failed');
@@ -592,8 +598,11 @@ export function processesPanelScript(): string {
     }
   }
 
+  const timer = setInterval(refresh, 4000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'hidden') refresh();
+  });
   refresh();
-  setInterval(refresh, 4000);
   }, 0);
 })();
 `

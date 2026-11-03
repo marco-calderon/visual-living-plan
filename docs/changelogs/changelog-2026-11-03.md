@@ -115,3 +115,30 @@ Settings ends with a Version card on both the loopback plan page and the hosted 
 ### Notes
 
 No registry restart needed beyond the usual version check. The shell cache name is 1.13.3.
+
+## 1.13.4
+
+**PR:** not opened yet
+
+**Bump:** patch
+
+### Summary
+
+Plans on the hosted dashboard no longer disappear and come back between refreshes. Every request made from the app's pages now goes through React Query, and polling stops while a tab is hidden.
+
+### Bugs fixed
+
+- The device store no longer loses rows when two saves happen close together. Each save rewrote the whole list from what was already shown, so a row that was still saving was erased.
+- When one hosted dashboard refresh fails, the rows on screen stay and the status line says the refresh failed. Before, the table was emptied until the next refresh.
+- Plans saved for offline keep the time they were last fetched, so they are not fetched again on every dashboard refresh.
+- Log out in the hosted account menu works again. The request had no JSON body and the server answered 415.
+- A local plan page no longer polls the running plans list twice when the React menu mounts after the fallback script starts.
+
+### Improvements
+
+- Dashboard rows, running plans, plan versions, the Settings version card, and the workflow canvas are React Query queries. Sign-in, sign-up, account linking, log out, settings saves, and plan answers, comments, reviews, and mode changes are React Query mutations. Plan changes still queue in the device outbox when offline.
+- The hosted dashboard and the running plans menu refresh every 4 seconds only while the tab is visible, and refresh right away when it is shown again. The local dashboard, the local service page, and the once-a-minute background plan sync also skip hidden tabs.
+
+### Notes
+
+Adds `@tanstack/react-query`. No registry restart needed beyond the usual version check. The shell cache name is 1.13.4.

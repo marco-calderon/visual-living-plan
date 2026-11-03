@@ -1,3 +1,4 @@
+import { useMutation } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Button } from '../client/ui/button.tsx'
 import {
@@ -20,13 +21,18 @@ type LinkSocialAccountsProps = {
 /** Hosted settings controls that link GitHub or Google to the signed-in email account. */
 export function LinkSocialAccounts({ email, accounts, errorCode }: LinkSocialAccountsProps) {
   const [pending, setPending] = useState<LinkableProvider | null>(null)
+  const link = useMutation({
+    mutationFn: (provider: LinkableProvider) => authClient.linkSocial(linkSocialRequest(provider, email)),
+  })
   const [error, setError] = useState(() => linkAccountErrorMessage(errorCode))
 
   async function start(provider: LinkableProvider) {
     if (providerIsLinked(accounts, provider) || pending) return
     setError('')
     setPending(provider)
-    const result = await authClient.linkSocial(linkSocialRequest(provider, email))
+    const result = await link.mutateAsync(provider).catch((cause: unknown) => ({
+      error: { message: cause instanceof Error ? cause.message : '' },
+    }))
     if (result.error) {
       setPending(null)
       setError(result.error.message || 'Could not link that provider. Try again.')

@@ -1,5 +1,6 @@
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
+import { QueryProvider } from '../../client/queryClient.tsx'
 import appCss from '../styles.css?url'
 import { APPLE_TOUCH_ICON, FAVICON_16, FAVICON_32, FAVICON_ICO } from '../pwaIcons.ts'
 import { THEME_COLOR_DARK, THEME_COLOR_LIGHT, WEB_MANIFEST_PATH } from '../webManifest.ts'
@@ -39,7 +40,7 @@ function RootDocument({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        {children}
+        <QueryProvider>{children}</QueryProvider>
         <Scripts />
       </body>
     </html>
