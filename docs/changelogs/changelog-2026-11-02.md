@@ -175,3 +175,21 @@ A signed-in person can open the dashboard and read their own plans with no netwo
 ### Notes
 
 No registry restart needed beyond the usual version check. The new shell cache name replaces the 1.11.0 cache. A plan opened over plain HTTP on the local network stays on the network. The registry, the hosted database, and the plan room remain the source of truth.
+
+## 1.12.1
+
+**PR:** [#130](https://github.com/marco-calderon/visual-living-plan/pull/130)
+
+**Bump:** patch
+
+### Summary
+
+Email and password sign-in on a Worker Preview stays on that preview's address.
+
+### Bugs fixed
+
+- Signing in on a preview no longer fails with an invalid origin. A preview, or a `*.plan.logspace.qzz.io` subdomain, uses its own address for sign-in and links. `plan.logspace.qzz.io` keeps using `PUBLIC_URL`.
+
+### Notes
+
+GitHub and Google sign-in still only work on the production site. No registry restart needed beyond the usual version check. The shell cache name is 1.12.1.
