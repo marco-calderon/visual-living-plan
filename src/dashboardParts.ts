@@ -224,14 +224,52 @@ export function dashboardDocumentCss(): string {
       tbody tr.enter { animation: row-in 150ms var(--ease-out) both; }
     }
     .num { font-variant-numeric: tabular-nums; }
-    a.action {
-      color: var(--accent);
-      font-weight: 600;
-      text-decoration: none;
-      margin-right: 0.7rem;
-      white-space: nowrap;
+    .plan-actions-cell { vertical-align: middle; }
+    .plan-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: var(--space-xxs);
     }
-    a.action:hover { text-decoration: underline; }
+    .plan-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-xs);
+      height: 36px;
+      border: 1px solid var(--hairline);
+      background: var(--canvas);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 0 var(--space-md);
+      font: inherit;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 1;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform 160ms var(--ease-out), background-color 150ms ease, border-color 150ms ease;
+    }
+    .plan-btn svg { width: 16px; height: 16px; flex: none; }
+    .plan-btn-ghost {
+      border-color: transparent;
+      background: transparent;
+      color: var(--ink);
+    }
+    .plan-btn-ghost:hover {
+      background: color-mix(in srgb, var(--ink) 6%, transparent);
+      border-color: transparent;
+    }
+    .plan-btn.plan-action { width: 36px; padding: 0; }
+    .plan-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .plan-btn:active { transform: scale(0.97); }
+    @media (prefers-reduced-motion: reduce) {
+      .plan-btn { transition: background-color 150ms ease, border-color 150ms ease; }
+      .plan-btn:active { transform: none; }
+    }
     .empty { color: var(--muted); }
     .account-card {
       display: grid;

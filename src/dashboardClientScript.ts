@@ -139,22 +139,50 @@ export function dashboardClientScript(apiPath: string): string {
         return cell;
       }
 
+      function actionIcon(kind) {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'currentColor');
+        svg.setAttribute('stroke-width', '2');
+        svg.setAttribute('stroke-linecap', 'round');
+        svg.setAttribute('stroke-linejoin', 'round');
+        svg.setAttribute('aria-hidden', 'true');
+        const paths = kind === 'open'
+          ? ['M15 3h6v6', 'M10 14 21 3', 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6']
+          : ['M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z', 'M14 2v4a2 2 0 0 0 2 2h4', 'M10 9H8', 'M16 13H8', 'M16 17H8'];
+        for (let index = 0; index < paths.length; index += 1) {
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', paths[index]);
+          svg.append(path);
+        }
+        return svg;
+      }
+
+      function actionLink(label, href, kind) {
+        const node = document.createElement('a');
+        node.className = 'plan-btn plan-btn-ghost plan-action';
+        node.href = href;
+        node.setAttribute('aria-label', label);
+        node.title = label;
+        node.append(actionIcon(kind));
+        return node;
+      }
+
       function actions(record) {
         const cell = document.createElement('td');
+        cell.className = 'plan-actions-cell';
+        const row = document.createElement('div');
+        row.className = 'plan-actions';
         if (record.status === 'running') {
           const site = safeUrl(record.url || '');
-          if (site) {
-            const open = text('a', 'action', 'Open');
-            open.href = site;
-            cell.append(open);
-          }
+          if (site) row.append(actionLink('Open', site, 'open'));
         }
         if (record.storedPath && record.id) {
-          const archived = text('a', 'action', 'Plan file');
-          archived.href = record.fileUrl || ('/archive/' + encodeURIComponent(record.id));
-          if (record.storedPath) archived.title = record.storedPath;
-          cell.append(archived);
+          const archived = record.fileUrl || ('/archive/' + encodeURIComponent(record.id));
+          row.append(actionLink('Plan file', archived, 'file'));
         }
+        if (row.childElementCount) cell.append(row);
         return cell;
       }
 

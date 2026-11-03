@@ -77,6 +77,37 @@
   color: var(--danger);
 }
 
+.plan-btn-ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink);
+}
+
+.plan-btn-ghost:hover:not(:disabled):not([aria-disabled='true']) {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  border-color: transparent;
+}
+
+.plan-btn-ghost:active:not(:disabled):not([aria-disabled='true']) {
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.plan-btn.plan-action {
+  width: 36px;
+  padding: 0;
+}
+
+.plan-btn.plan-action-menu {
+  width: auto;
+  padding: 0 var(--space-xs, 8px);
+  gap: var(--space-xxs, 4px);
+}
+
+.plan-btn[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .plan-btn {
     transition: background-color 150ms ease, border-color 150ms ease;

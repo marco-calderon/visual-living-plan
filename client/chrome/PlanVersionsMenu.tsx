@@ -1,8 +1,10 @@
-import { ChevronDown } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { ChevronDown, History } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { formatWhen } from '../../src/dashboardFormat.ts'
 import { versionMenuEntries, type VersionMenuEntry } from '../../src/planVersionMenu.ts'
+import { Button } from '../ui/button.tsx'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLinkItem, DropdownMenuTrigger } from '../ui/dropdown-menu.tsx'
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip.tsx'
 
 type PlanVersionsMenuProps = {
   planId: string
@@ -10,6 +12,8 @@ type PlanVersionsMenuProps = {
   triggerClassName: string
   liveHref?: string
   prefetch?: boolean
+  /** Icon and chevron only. The label is the tooltip and the accessible name. */
+  iconOnly?: boolean
 }
 
 type VersionRow = VersionMenuEntry & { createdAt?: number }
@@ -33,7 +37,7 @@ async function loadHistory({ data: planId }: { data: string }): Promise<HistoryR
   }
 }
 
-export function PlanVersionsMenu({ planId, label, triggerClassName, liveHref, prefetch = false }: PlanVersionsMenuProps) {
+export function PlanVersionsMenu({ planId, label, triggerClassName, liveHref, prefetch = false, iconOnly = false }: PlanVersionsMenuProps) {
   const [open, setOpen] = useState(false)
   const [versions, setVersions] = useState<VersionRow[] | null>(null)
   const [offline, setOffline] = useState(() => (typeof navigator === 'undefined' ? false : navigator.onLine === false))
@@ -76,10 +80,17 @@ export function PlanVersionsMenu({ planId, label, triggerClassName, liveHref, pr
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger className={triggerClassName} aria-label="Plan versions">
-        {label}
-        <ChevronDown size={14} aria-hidden="true" />
-      </DropdownMenuTrigger>
+      {iconOnly ? (
+        <Tooltip disabled={open}>
+          <VersionsIconTrigger label={label} className={triggerClassName} menu />
+          <TooltipContent>{label}</TooltipContent>
+        </Tooltip>
+      ) : (
+        <DropdownMenuTrigger className={triggerClassName} aria-label="Plan versions">
+          {label}
+          <ChevronDown size={14} aria-hidden="true" />
+        </DropdownMenuTrigger>
+      )}
       <DropdownMenuContent>
         {entries.map((entry) => {
           const when = entry.kind === 'version' ? formatWhen(entry.createdAt) : ''
@@ -108,7 +119,7 @@ export function PlanVersionsMenu({ planId, label, triggerClassName, liveHref, pr
 }
 
 /**
- * Server render shows the trigger label only. The menu mounts after hydration, so
+ * Server render shows the trigger only. The menu mounts after hydration, so
  * the dropdown's client-only ids and portal never differ between server and browser.
  */
 export function PlanVersionsMenuMount(props: PlanVersionsMenuProps) {
@@ -117,12 +128,48 @@ export function PlanVersionsMenuMount(props: PlanVersionsMenuProps) {
     setMounted(true)
   }, [])
   if (!mounted) {
+    if (!props.iconOnly) {
+      return (
+        <span className={props.triggerClassName} aria-hidden="true">
+          {props.label}
+          <ChevronDown size={14} aria-hidden="true" />
+        </span>
+      )
+    }
     return (
-      <span className={props.triggerClassName} aria-hidden="true">
-        {props.label}
-        <ChevronDown size={14} aria-hidden="true" />
-      </span>
+      <Tooltip>
+        <VersionsIconTrigger label={props.label} className={props.triggerClassName} />
+        <TooltipContent>{props.label}</TooltipContent>
+      </Tooltip>
     )
   }
   return <PlanVersionsMenu {...props} />
+}
+
+function VersionsIconTrigger({ label, className, menu = false }: { label: string; className?: string; menu?: boolean }) {
+  const classes = ['plan-action', 'plan-action-menu', className].filter(Boolean).join(' ')
+  const face: ReactNode = (
+    <>
+      <History size={16} aria-hidden="true" />
+      <ChevronDown size={16} aria-hidden="true" />
+    </>
+  )
+  if (menu) {
+    return (
+      <TooltipTrigger
+        render={
+          <DropdownMenuTrigger aria-label={label} render={<Button variant="ghost" className={classes} />} />
+        }
+      >
+        {face}
+      </TooltipTrigger>
+    )
+  }
+  return (
+    <TooltipTrigger
+      render={<Button type="button" variant="ghost" className={classes} aria-label={label} aria-haspopup="menu" aria-expanded={false} />}
+    >
+      {face}
+    </TooltipTrigger>
+  )
 }

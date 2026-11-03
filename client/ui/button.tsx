@@ -1,7 +1,7 @@
 import { Button as ButtonPrimitive } from '@base-ui/react/button'
 import './button.css'
 
-export type ButtonVariant = 'primary' | 'secondary' | 'tertiary' | 'danger'
+export type ButtonVariant = 'primary' | 'secondary' | 'tertiary' | 'danger' | 'ghost'
 
 type ButtonProps = Omit<ButtonPrimitive.Props, 'className'> & {
   variant?: ButtonVariant
@@ -13,6 +13,7 @@ const VARIANT_CLASS: Record<ButtonVariant, string | undefined> = {
   secondary: 'plan-btn-secondary',
   tertiary: undefined,
   danger: 'plan-btn-danger',
+  ghost: 'plan-btn-ghost',
 }
 
 /** 36px pill. Primary is the near-black MiniMax control; quiet pills keep an ink border. */

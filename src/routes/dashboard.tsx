@@ -16,7 +16,7 @@ import { Button } from '../../client/ui/button.tsx'
 import { HostBar } from '../HostBar.tsx'
 import { loadAccount, type AccountPayload } from '../planFns.ts'
 import type { PlanRecord } from '../processRecord.ts'
-import { PlanVersionsMenuMount } from '../../client/chrome/PlanVersionsMenu.tsx'
+import { PlanRowActions } from './PlanRowActions.tsx'
 import { startOfflineEngine } from '../../client/offline/engine.ts'
 import { refreshDeviceDashboards } from '../../client/offline/warmPlans.ts'
 import { dashboardAccountDecision, isAccountNetworkFailure } from '../offlineSync.ts'
@@ -279,21 +279,6 @@ function isAccountPayload(value: unknown): value is AccountPayload {
   return Boolean(user && typeof user.email === 'string')
 }
 
-function OfflineAction({ href, offline, title, children }: { href: string; offline: boolean; title?: string; children: string }) {
-  if (offline) {
-    return (
-      <span className="action is-offline" title="Needs a connection" aria-disabled="true">
-        {children}
-      </span>
-    )
-  }
-  return (
-    <a className="action" href={href} title={title}>
-      {children}
-    </a>
-  )
-}
-
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <article className="stat">
@@ -362,20 +347,14 @@ function PlanRow({ plan, offline }: { plan: DashboardPlan; offline: boolean }) {
       <td className="num">{plan.filesModified ?? 0}</td>
       <td className="num">{formatWhen(plan.startedAt)}</td>
       <td className="num">{formatDuration(plan.durationMs)}</td>
-      <td>
-        {openUrl ? (
-          <a className="action" href={openUrl}>
-            Open
-          </a>
-        ) : null}
-        {fileUrl ? (
-          <OfflineAction href={fileUrl} offline={offline} title={plan.storedPath ?? undefined}>
-            Plan file
-          </OfflineAction>
-        ) : null}
-        {plan.id && plan.historyUrl ? (
-          <PlanVersionsMenuMount planId={plan.id} label="Versions" triggerClassName="action plan-version-trigger" />
-        ) : null}
+      <td className="plan-actions-cell">
+        <PlanRowActions
+          openUrl={openUrl}
+          fileUrl={fileUrl}
+          offline={offline}
+          planId={plan.id}
+          showVersions={Boolean(plan.id && plan.historyUrl)}
+        />
       </td>
     </tr>
   )

@@ -115,3 +115,22 @@ Settings ends with a Version card on both the loopback plan page and the hosted 
 ### Notes
 
 No registry restart needed beyond the usual version check. The shell cache name is 1.13.3.
+
+## 1.13.4
+
+**PR:** not opened yet
+
+**Bump:** patch
+
+### Summary
+
+Dashboard plan actions are icon buttons. Hover a control to see its name.
+
+### Improvements
+
+- Open, Plan file, and Versions are ghost icon buttons in the plan row. The name shows in a tooltip.
+- Versions keeps a chevron so it still reads as the versions menu. The menu opens the same live plan and published versions.
+
+### Notes
+
+No registry restart needed beyond the usual version check. The shell cache name is 1.13.4.
