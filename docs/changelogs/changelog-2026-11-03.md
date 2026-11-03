@@ -20,3 +20,23 @@ The installed app has proper icons on Android, iOS, Windows, macOS, and ChromeOS
 ### Notes
 
 No registry restart needed beyond the usual version check. The shell cache name is 1.12.2. Reinstall the app to pick up the new icons where the system keeps the old one.
+
+## 1.13.0
+
+**PR:** none (merged directly to main)
+
+**Bump:** minor
+
+### Summary
+
+A hosted plan's versions are a menu in the plan title bar instead of a separate page.
+
+### Improvements
+
+- The plan title bar has a **Live** menu listing the live plan and every published version, newest first, with when each was published.
+- The dashboard's **Versions** action opens the same menu in place.
+- Old `/plans/:id/history` links land on the live plan.
+
+### Notes
+
+No registry restart needed beyond the usual version check. The new shell cache name replaces the 1.12.1 cache (1.12.2 shipped without updating it).

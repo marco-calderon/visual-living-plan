@@ -1,4 +1,4 @@
-import { FileText, Workflow } from 'lucide-react'
+import { ChevronDown, FileText, Workflow } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '../client/ui/button.tsx'
 import { hostToolbarCss } from './hostToolbar.ts'
@@ -41,6 +41,7 @@ export function PlanShell({
 }: PlanShellProps) {
   const started = useRef(false)
   const [tab, setTab] = useState<'plan' | 'workflow'>('plan')
+  const cloudPlanId = host === 'cloud' && basePath.startsWith('/plans/') ? (basePath.slice('/plans/'.length).split('/')[0] ?? '') : ''
   const tocHtml = renderPlanTocHtml(buildPlanToc(source))
 
   useEffect(() => {
@@ -150,6 +151,14 @@ export function PlanShell({
               <Workflow size={16} aria-hidden="true" />
             </button>
           </div>
+          {cloudPlanId ? (
+            <div className="plan-versions-menu" data-plan-versions="" data-plan-id={cloudPlanId} data-live-href={basePath}>
+              <button type="button" className="titlebar-action" aria-label="Plan versions" aria-haspopup="menu" aria-expanded="false">
+                Live
+                <ChevronDown size={14} aria-hidden="true" />
+              </button>
+            </div>
+          ) : null}
           {accountLabel ? (
             <div className="account-menu" data-account-menu="" data-label={accountLabel}>
               <Button type="button" variant="secondary" className="titlebar-user" aria-haspopup="menu" aria-expanded="false">

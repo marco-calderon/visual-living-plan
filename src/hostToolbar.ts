@@ -128,6 +128,8 @@ export const hostToolbarCss = `
 .plan-menu-item {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
   width: 100%;
   padding: var(--space-xs) var(--space-sm);
   border: 0;
@@ -143,7 +145,9 @@ export const hostToolbarCss = `
   cursor: pointer;
 }
 .plan-menu-item[data-highlighted] { background: var(--accent-soft); }
+.plan-menu-item[data-disabled] { color: var(--muted); cursor: not-allowed; }
 .plan-menu-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.plan-menu-meta { color: var(--muted); font-weight: 500; font-size: 12px; }
 .titlebar-action,
 .titlebar-user,
 .plan-menu-item {
