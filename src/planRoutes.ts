@@ -1,5 +1,6 @@
 import { faviconResponse } from './favicon'
 import { readShellWorkerSource, shellWorkerResponse } from './shellWorkerResponse'
+import { pwaIconResponse } from './pwaIcons'
 import { WEB_MANIFEST_PATH, webManifestResponse } from './webManifest'
 import { HttpError, jsonBody } from './http'
 import { acceptClientLog, readLogs } from './serviceLog'
@@ -86,6 +87,8 @@ export function registerPlanRoutes(app: any, options: PlanRouteOptions): any {
   }
 
   app.get('/favicon.png', () => faviconResponse())
+  app.get('/favicon.ico', () => pwaIconResponse('/favicon.ico'))
+  app.get('/icons/:name', ({ params }: RouteContext) => pwaIconResponse(`/icons/${params.name ?? ''}`))
   app.get('/sw.js', () => shellWorkerResponse(readShellWorkerSource()))
   app.get(WEB_MANIFEST_PATH, () => webManifestResponse())
 
