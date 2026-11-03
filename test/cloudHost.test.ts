@@ -16,9 +16,13 @@ import {
   ackEvents,
   initPlan,
   pendingEvents,
+  planSnapshot,
+  planView,
+  PlanRoomError,
   putSource,
   StaleRevision,
   submitInteraction,
+  touchPlan,
   type PlanSql,
 } from '../src/host/planRoom.ts'
 import { hostedViewUrl, planUrlOnCalledOrigin, registerCloudPlan, uploadSource } from '../src/cloudClient.ts'
@@ -330,6 +334,19 @@ test('a stale source upload retries once', async () => {
   })
   assert.deepEqual(revisions, [1, 4])
   assert.equal(next, 5)
+})
+
+test('an empty plan room reads as not found', () => {
+  const db = new Database(':memory:')
+  const sql = sqlOf(db)
+  for (const read of [() => planView(sql), () => planSnapshot(sql), () => pendingEvents(sql), () => touchPlan(sql)]) {
+    assert.throws(read, (error: unknown) => {
+      assert.ok(error instanceof PlanRoomError)
+      assert.equal(error.status, 404)
+      assert.equal(error.message, 'Plan not found')
+      return true
+    })
+  }
 })
 
 test('plan room stores a submission until it is acked', () => {

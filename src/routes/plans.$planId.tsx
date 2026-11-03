@@ -12,9 +12,10 @@ export const Route = createFileRoute('/plans/$planId')({
           search: { next: `/plans/${params.planId}` },
         })
       }
+      if (result.status === 404) return { found: false as const }
       throw new Error(result.message)
     }
-    return result.page
+    return { found: true as const, page: result.page }
   },
   component: CloudPlanPage,
 })
@@ -24,8 +25,22 @@ function jsonScript(value: unknown): string {
 }
 
 function CloudPlanPage() {
-  const page = Route.useLoaderData()
+  const loaded = Route.useLoaderData()
   const { planId } = Route.useParams()
+  if (!loaded.found) {
+    return (
+      <main className="host-page">
+        <section className="card">
+          <h1>Plan not found</h1>
+          <p>This plan is not on this host.</p>
+          <p>
+            <a href="/dashboard">Back to dashboard</a>
+          </p>
+        </section>
+      </main>
+    )
+  }
+  const page = loaded.page
   const boot = {
     source: page.source,
     title: page.title,
