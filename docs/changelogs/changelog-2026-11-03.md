@@ -188,3 +188,22 @@ Plans open on Worker Preview deployments, previews keep their own database apart
 ### Notes
 
 No registry restart needed beyond the usual version check. The shell cache name is 1.14.1. Sign up once on a preview, then publish a plan to the preview's URL to check how it renders there. Apply new migrations to `living-plan-preview` as well as `living-plan`.
+
+## 1.14.2
+
+**PR:** #138
+
+**Bump:** patch
+
+### Summary
+
+Dashboard plan actions are icon buttons. Hover a control to see its name.
+
+### Improvements
+
+- Open, Plan file, and Versions are ghost icon buttons in the plan row. The name shows in a tooltip.
+- Versions keeps a chevron so it still reads as the versions menu. The menu opens the same live plan and published versions.
+
+### Notes
+
+No registry restart needed beyond the usual version check. The shell cache name is 1.14.2.

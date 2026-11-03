@@ -1,0 +1,38 @@
+.plan-tooltip-positioner {
+  z-index: 40;
+}
+
+.plan-tooltip {
+  box-sizing: border-box;
+  max-width: 16rem;
+  padding: var(--space-xxs) var(--space-xs);
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--canvas);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  box-shadow: var(--shadow-popover);
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity 150ms var(--ease-out),
+    transform 150ms var(--ease-out);
+}
+
+.plan-tooltip[data-starting-style],
+.plan-tooltip[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-tooltip {
+    transition: opacity 150ms ease;
+  }
+
+  .plan-tooltip[data-starting-style],
+  .plan-tooltip[data-ending-style] {
+    transform: none;
+  }
+}

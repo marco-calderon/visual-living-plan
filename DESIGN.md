@@ -113,6 +113,7 @@ Flat by default. Hairline border, no shadow, on documentation cards. Level 2 sha
 - **button-secondary**: transparent quiet pill, ink text, 1px ink border, 36px height.
 - **button-tertiary**: canvas fill, hairline border, 36px height, pill.
 - **button-danger**: `#fff4f0` fill, `#c9322a` text, `#ef4d3e` border, 36px height, pill.
+- **button-ghost**: transparent pill, no border, ink icon or label, 36px height. Hover mixes 6% ink into the background. An icon-only ghost is a 36px circle; an icon with a chevron keeps the pill and horizontal padding.
 - **card-base**: canvas was the spec for white cards; this app uses surface (`#f5f5f5`) so the card is visibly different from the white page. 16px radius, 16px padding, 1px hairline. Nested cards pad 12px.
 - **text-input**: canvas fill, hairline border, 8px radius, 36px height. Focus ring is 2px `#0094fc` and appears on `:focus-visible` with no delay.
 - **badge-success**, **badge-new**, **badge-beta** as specified, pill shaped.
