@@ -13,6 +13,7 @@ import {
   loadLatestChangelog,
   parseChangelog,
 } from '../src/changelog.ts'
+import { hostedReleaseFrom } from '../src/changelogParse.ts'
 import { createIdleExecutionState } from '../src/execution.ts'
 import { parsePlan } from '../src/parse.ts'
 import { renderPlanPage } from '../src/render.ts'
@@ -189,4 +190,32 @@ test('the version card shows the version alone and hides when empty', () => {
   assert.match(html, /data-app-version>1\.2\.3</)
   assert.doesNotMatch(html, /data-changelog/)
   assert.equal(versionSectionHtml(null, null), '')
+})
+
+test('the hosted card loads only the newest built-in changelog', async () => {
+  const loaded: string[] = []
+  const loader = (name: string, body: string) => async () => {
+    loaded.push(name)
+    return body
+  }
+  const about = await hostedReleaseFrom('2.0.0', {
+    '../docs/changelogs/changelog-2026-01-02.md': loader('old', '## 1.0.0\n\n### Improvements\n\n- Older\n'),
+    '../docs/changelogs/changelog-2026-10-27.md': loader('new', '## 2.0.0\n\n### New features\n\n- Newest\n'),
+  })
+  assert.deepEqual(loaded, ['new'])
+  assert.equal(about.version, '2.0.0')
+  assert.equal(about.release?.fileName, 'changelog-2026-10-27.md')
+
+  const html = versionSectionHtml(about.version, about.release, 'hosted')
+  assert.match(html, /data-release-source="hosted"/)
+  assert.match(html, /deployed to this host/)
+  assert.match(html, /Built in from <code>docs\/changelogs\/changelog-2026-10-27\.md<\/code>/)
+  assert.match(versionSectionHtml('2.0.0', about.release), /installed on this machine[\s\S]*Read from/)
+
+  const failing = await hostedReleaseFrom(null, {
+    '../docs/changelogs/changelog-2026-10-27.md': async () => {
+      throw new Error('offline')
+    },
+  })
+  assert.deepEqual(failing, { version: null, release: null })
 })

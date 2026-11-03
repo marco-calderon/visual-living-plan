@@ -99,7 +99,7 @@ No registry restart needed beyond the usual version check. The shell cache name 
 
 ### Summary
 
-The plan's Settings tab ends with a Version card that shows the installed version and the latest changelog.
+Settings ends with a Version card on both the loopback plan page and the hosted site, showing the version and the latest changelog.
 
 ### Improvements
 
@@ -107,6 +107,10 @@ The plan's Settings tab ends with a Version card that shows the installed versio
 - The Version card shows the installed Living Plan version above the changelog.
 - On narrow screens the changelog cards stack their count above the list so lines no longer run past the card.
 - Changelog entries are plain bullets. The version pill in front of each line is gone.
+
+### New features
+
+- The hosted Settings page has the same Version card. A local plan reads the version and newest changelog from disk each time the page loads. The hosted site builds them in when it is deployed and loads only the newest changelog.
 
 ### Notes
 

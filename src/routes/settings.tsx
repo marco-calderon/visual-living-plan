@@ -5,7 +5,9 @@ import { ACCENT_CHOICES } from '../host/accountSettings.ts'
 import { CodeWrapSwitch } from '../../client/chrome/CodeWrapSwitch.tsx'
 import { Button } from '../../client/ui/button.tsx'
 import { DIFFS_THEME_PRESETS, diffsThemePreset, type DiffsThemeSample } from '../diffsTheme.ts'
+import { versionSectionHtml } from '../changelogParse.ts'
 import { HostBar } from '../HostBar.tsx'
+import { loadHostedRelease, type HostedRelease } from '../hostedRelease.ts'
 import { LinkSocialAccounts } from '../LinkSocialAccounts.tsx'
 import { loadAccount, type AccountPayload } from '../planFns.ts'
 import { currentOfflineHandle, startOfflineEngine } from '../../client/offline/engine.ts'
@@ -127,6 +129,24 @@ function SettingsBackButton() {
       Back
     </button>
   )
+}
+
+/** Last card in Settings. The version and changelog are built into this host. */
+function HostedVersionCard() {
+  const [about, setAbout] = useState<HostedRelease | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    void loadHostedRelease().then((next) => {
+      if (!cancelled) setAbout(next)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  const html = about ? versionSectionHtml(about.version, about.release, 'hosted') : ''
+  if (!html) return null
+  // The markup escapes every changelog line. The wrapper keeps it in the stack's grid.
+  return <div className="settings-version" dangerouslySetInnerHTML={{ __html: html }} />
 }
 
 function SettingsPage() {
@@ -375,6 +395,8 @@ function SettingsPage() {
               </div>
             </div>
           </section>
+
+          <HostedVersionCard />
         </div>
       </main>
     </>
