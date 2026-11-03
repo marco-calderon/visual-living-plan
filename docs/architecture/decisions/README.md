@@ -30,5 +30,6 @@ Decisions are numbered in the order they were made. Superseded decisions stay he
 | [0024](0024-one-plan-store.md) | 2026-11-01 | Accepted; plan tables updated by 0025 | One SQLite store for local plans and D1 for hosted plans; Elysia on every HTTP route |
 | [0025](0025-one-plan-schema.md) | 2026-11-01 | Accepted | One plan schema for the local registry and D1, with configuration in `meta` |
 | [0026](0026-browser-offline-store.md) | 2026-11-02 | Accepted | The browser keeps a device copy of the open plan; the registry, D1, and the Durable Object stay the authority |
+| [0027](0027-offline-dashboard-and-owned-plans.md) | 2026-11-02 | Accepted | The installed app opens the dashboard offline, and this device keeps the account's plans |
 
 Add the next decision as `0027-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.

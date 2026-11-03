@@ -1,8 +1,11 @@
 import {
   offlineStatusText,
+  type AccountRow,
   type CatalogRow,
   type CommentRow,
+  type DashboardStoreRow,
   type PlanRow,
+  type PlanSnapshot,
   type SettingsRow,
   type UserMutationKind,
 } from '../../src/offlineSync.ts'
@@ -26,6 +29,15 @@ export type OfflineHandle = {
   noteLive: (event: string, data: unknown) => void
   submit: (input: { kind: UserMutationKind; path: string; body: unknown }) => Promise<PlanPostResult>
   rememberCatalog: (plans: CatalogRow[]) => void
+  account: () => AccountRow | null
+  rememberAccount: (payload: unknown) => void
+  dashboard: (period: string) => DashboardStoreRow | null
+  rememberDashboard: (period: string, payload: unknown) => void
+  storePlanSnapshot: (id: string, basePath: string, snapshot: PlanSnapshot) => void
+  markWarmed: (id: string, versionKey: string, warmedAt: number) => void
+  pendingCount: () => number
+  noteNetwork: (online: boolean) => void
+  clearDevice: (options?: { force?: boolean }) => Promise<boolean>
   saveSettings: (scope: string, patch: Partial<SettingsRow> & { url: string }) => Promise<void>
 }
 
@@ -58,6 +70,13 @@ export async function postPlanMutation(kind: UserMutationKind, path: string, bod
   const engine = await startOfflineEngine()
   if (engine?.available) return engine.submit({ kind, path, body })
   return postDirect(path, body)
+}
+
+export function currentOfflineHandle(): OfflineHandle | null {
+  if (typeof window === 'undefined') return null
+  const handle = (window as OfflineWindow).__livingPlanOffline
+  if (handle && 'plan' in handle && handle.available) return handle
+  return null
 }
 
 export function paintOfflineStatus(handle: OfflineHandle | null, pending: number, failed: number, offline: boolean): void {

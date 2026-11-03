@@ -26,5 +26,8 @@ export function authReturnPath(search: AuthSearch): string {
 }
 
 export function finishAuth(search: AuthSearch) {
+  if (typeof navigator !== 'undefined') {
+    navigator.serviceWorker?.controller?.postMessage({ type: 'forget-documents', all: true })
+  }
   window.location.assign(authReturnPath(search))
 }

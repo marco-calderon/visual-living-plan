@@ -20,7 +20,7 @@ import { Phase } from './entries/Phase.tsx'
 import { Questions } from './entries/Questions.tsx'
 import './entries/primitives.css'
 import { subscribePlanEvents } from './planEvents.ts'
-import { planContext, postPlanMutation, startOfflineEngine } from './offline/engine.ts'
+import { currentOfflineHandle, planContext, postPlanMutation, startOfflineEngine } from './offline/engine.ts'
 import { stampPlanParts } from './stampPlanParts.ts'
 
 type PlanWindow = Window & {
@@ -146,22 +146,25 @@ function PlanMdxApp() {
   tocCursor.current.n = 0
   tocCursor.current.ids = headingIds
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let stopStore = () => {}
     const context = planContext()
+    const paintFrom = (engine: NonNullable<ReturnType<typeof currentOfflineHandle>>) => {
+      const row = engine.plan(context.id)
+      if (!row?.source || row.sourceOmitted) return
+      setBoot((current) => ({
+        ...current,
+        source: row.source,
+        title: row.title,
+        responses: row.responses as Boot['responses'],
+        locked: row.locked,
+      }))
+    }
+    const ready = currentOfflineHandle()
+    if (ready) paintFrom(ready)
     void startOfflineEngine().then((engine) => {
       if (!engine?.available) return
-      const paint = () => {
-        const row = engine.plan(context.id)
-        if (!row?.source || row.sourceOmitted) return
-        setBoot((current) => ({
-          ...current,
-          source: row.source,
-          title: row.title,
-          responses: row.responses as Boot['responses'],
-          locked: row.locked,
-        }))
-      }
+      const paint = () => paintFrom(engine)
       paint()
       stopStore = engine.subscribe(paint)
       void engine.syncPlan()

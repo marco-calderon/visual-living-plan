@@ -1,7 +1,37 @@
+import { readFileSync } from 'node:fs'
 import { cloudflare } from '@cloudflare/vite-plugin'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
+
+const PRECACHE_ASSET = /\.(?:js|mjs|css|wasm|woff2?|ttf|otf|png|jpe?g|gif|webp|avif|svg|ico)$/i
+
+/** Lists the client build so the shell worker can precache it on install. */
+function precacheManifestPlugin(): Plugin {
+  return {
+    name: 'living-plan-precache-manifest',
+    apply: 'build',
+    generateBundle(_options, bundle) {
+      const name = this.environment?.name
+      if (name && name !== 'client') return
+      if (bundle['precache-manifest.json']) return
+      const urls: string[] = []
+      for (const item of Object.values(bundle)) {
+        const fileName = item.fileName
+        if (!fileName.startsWith('assets/') || fileName.endsWith('.map')) continue
+        if (!PRECACHE_ASSET.test(fileName)) continue
+        urls.push(`/${fileName}`)
+      }
+      urls.sort()
+      const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }
+      this.emitFile({
+        type: 'asset',
+        fileName: 'precache-manifest.json',
+        source: JSON.stringify({ version: pkg.version, urls }),
+      })
+    },
+  }
+}
 
 export default defineConfig({
   resolve: {
@@ -46,5 +76,6 @@ export default defineConfig({
     cloudflare({ viteEnvironment: { name: 'ssr' } }),
     tanstackStart({ server: { entry: 'startServer' } }),
     viteReact(),
+    precacheManifestPlugin(),
   ],
 })

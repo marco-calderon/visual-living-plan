@@ -1,4 +1,4 @@
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, isRedirect, redirect, useNavigate } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import type { DashboardPeriod, DashboardSummary } from '../dashboard.ts'
 import {
@@ -14,10 +14,11 @@ import {
 } from '../dashboardFormat.ts'
 import { Button } from '../../client/ui/button.tsx'
 import { HostBar } from '../HostBar.tsx'
-import { loadAccount } from '../planFns.ts'
-import { emptyGitSnapshot, type PlanRecord } from '../processRecord.ts'
+import { loadAccount, type AccountPayload } from '../planFns.ts'
+import type { PlanRecord } from '../processRecord.ts'
 import { startOfflineEngine } from '../../client/offline/engine.ts'
-import type { CatalogRow } from '../offlineSync.ts'
+import { refreshDeviceDashboards } from '../../client/offline/warmPlans.ts'
+import { dashboardAccountDecision, isAccountNetworkFailure } from '../offlineSync.ts'
 import './dashboard.css'
 
 const LEDE =
@@ -54,11 +55,25 @@ export const Route = createFileRoute('/dashboard')({
     return {}
   },
   loader: async () => {
-    const result = await loadAccount()
-    if (!result.ok) {
-      throw redirect({ to: '/login', search: { next: '/dashboard' } })
+    const browser = typeof window !== 'undefined'
+    const online = browser ? navigator.onLine : true
+    try {
+      const result = await loadAccount()
+      if (!result.ok || dashboardAccountDecision({ ok: result.ok, networkFailure: false, hasStored: false }) === 'login') {
+        throw redirect({ to: '/login', search: { next: '/dashboard' } })
+      }
+      if (browser) {
+        const engine = await startOfflineEngine()
+        engine?.rememberAccount(result.account)
+      }
+      return result.account
+    } catch (error) {
+      if (isRedirect(error) || !browser || !isAccountNetworkFailure(error, online)) throw error
+      const engine = await startOfflineEngine()
+      const stored = engine?.account()?.payload
+      if (!isAccountPayload(stored)) throw error
+      return stored
     }
-    return result.account
   },
   component: DashboardPage,
 })
@@ -73,45 +88,51 @@ function DashboardPage() {
   const [error, setError] = useState('')
   const [shift, setShift] = useState<Shift>('enter')
   const [reload, setReload] = useState(0)
+  const [offlineAt, setOfflineAt] = useState<number | null>(null)
+  const [online, setOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine))
 
   useEffect(() => {
     let cancelled = false
+    let timer = 0
     async function load() {
-      try {
-        const response = await fetch(`/api/account/dashboard?period=${encodeURIComponent(period)}`, { cache: 'no-store' })
-        if (!response.ok) throw new Error('Request failed')
-        const next = (await response.json()) as DashboardBody
-        if (cancelled) return
-        setPayload(next)
-        setError('')
-        const engine = await startOfflineEngine()
-        engine?.rememberCatalog(
-          next.plans.map((plan) => ({
-            id: plan.id,
-            title: plan.title,
-            mode: plan.mode,
-            status: plan.status,
-            versionLabel: plan.outcome ?? '',
-          })),
-        )
-      } catch {
-        if (cancelled) return
-        const engine = await startOfflineEngine()
-        const saved = engine?.catalog() ?? []
-        if (saved.length === 0) {
-          setError('Could not read the dashboard.')
-          return
-        }
-        const plans = saved.map(catalogPlan)
-        setPayload({ summary: catalogSummary(period, plans), plans })
-        setError('')
+      const engine = await startOfflineEngine()
+      const result = await refreshDeviceDashboards(engine, { period, force: true })
+      if (cancelled) return
+      if ('missing' in result) {
+        setPayload(null)
+        setOfflineAt(null)
+        setError('Could not read the dashboard.')
+        return
       }
+      setPayload(result.body as DashboardBody)
+      setError('')
+      setOfflineAt(result.offline ? result.savedAt : null)
+      setOnline(navigator.onLine)
     }
     void load()
-    const timer = window.setInterval(() => void load(), 4000)
+    function startPolling() {
+      window.clearInterval(timer)
+      if (!navigator.onLine) return
+      timer = window.setInterval(() => {
+        void load()
+      }, 4000)
+    }
+    function onOnline() {
+      void load()
+      startPolling()
+    }
+    function onOffline() {
+      window.clearInterval(timer)
+      void load()
+    }
+    startPolling()
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
     return () => {
       cancelled = true
       window.clearInterval(timer)
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
     }
   }, [period, reload])
 
@@ -135,7 +156,10 @@ function DashboardPage() {
 
   const plans = payload?.plans ?? []
   const shown = visiblePlans(plans, filter)
-  const status = error || (payload ? dashboardStatusLine(payload.summary, shown.length, filter) : 'Loading…')
+  const offline = !online || offlineAt !== null
+  const status = offlineAt
+    ? `Offline · updated ${formatWhen(offlineAt)}`
+    : error || (payload ? dashboardStatusLine(payload.summary, shown.length, filter) : 'Loading…')
 
   return (
     <>
@@ -224,7 +248,7 @@ function DashboardPage() {
                       </td>
                     </tr>
                   ) : (
-                    shown.map((plan) => <PlanRow key={plan.id} plan={plan} />)
+                    shown.map((plan) => <PlanRow key={plan.id} plan={plan} offline={offline} />)
                   )}
                 </tbody>
               </table>
@@ -236,60 +260,25 @@ function DashboardPage() {
   )
 }
 
-function catalogPlan(row: CatalogRow): DashboardPlan {
-  const status = row.status === 'executed' || row.status === 'interrupted' ? row.status : 'running'
-  const mode = row.mode === 'comment' || row.mode === 'review' ? row.mode : 'watch'
-  const outcome = row.versionLabel === 'approve' || row.versionLabel === 'deny' || row.versionLabel === 'iterate' ? row.versionLabel : null
-  return {
-    id: row.id,
-    pid: 0,
-    title: row.title,
-    summary: null,
-    agent: null,
-    mode,
-    planPath: '',
-    directory: '',
-    cwd: '',
-    url: `/plans/${row.id}`,
-    host: '',
-    port: 0,
-    startedAt: 0,
-    heartbeatAt: 0,
-    pendingCount: 0,
-    executionActive: false,
-    executionStep: null,
-    git: emptyGitSnapshot(),
-    status,
-    storedPath: null,
-    endedAt: null,
-    durationMs: 0,
-    phaseTotal: 0,
-    phaseDone: 0,
-    interactionTotal: 0,
-    interactionDone: 0,
-    completionRatio: 0,
-    completionState: 'idle',
-    filesModified: 0,
-    outcome,
-    historyUrl: `/plans/${row.id}/history`,
-  }
+function isAccountPayload(value: unknown): value is AccountPayload {
+  if (!value || typeof value !== 'object') return false
+  const user = (value as { user?: { email?: unknown } }).user
+  return Boolean(user && typeof user.email === 'string')
 }
 
-function catalogSummary(period: DashboardPeriod, plans: DashboardPlan[]): DashboardSummary {
-  return {
-    period,
-    label: 'Saved on this device',
-    from: 0,
-    to: Date.now(),
-    plans: plans.length,
-    started: 0,
-    running: plans.filter((plan) => plan.status === 'running').length,
-    executed: plans.filter((plan) => plan.status === 'executed').length,
-    interrupted: plans.filter((plan) => plan.status === 'interrupted').length,
-    filesModified: 0,
-    durationMs: 0,
-    folders: 0,
+function OfflineAction({ href, offline, title, children }: { href: string; offline: boolean; title?: string; children: string }) {
+  if (offline) {
+    return (
+      <span className="action is-offline" title="Needs a connection" aria-disabled="true">
+        {children}
+      </span>
+    )
   }
+  return (
+    <a className="action" href={href} title={title}>
+      {children}
+    </a>
+  )
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -320,7 +309,7 @@ function BrokenPath({ value, className }: { value: string; className: string }) 
   )
 }
 
-function PlanRow({ plan }: { plan: DashboardPlan }) {
+function PlanRow({ plan, offline }: { plan: DashboardPlan; offline: boolean }) {
   const bits = [plan.mode || 'watch']
   if (plan.executionStep) bits.push(plan.executionStep)
   if (plan.outcome) bits.push(plan.outcome)
@@ -367,14 +356,14 @@ function PlanRow({ plan }: { plan: DashboardPlan }) {
           </a>
         ) : null}
         {fileUrl ? (
-          <a className="action" href={fileUrl} title={plan.storedPath ?? undefined}>
+          <OfflineAction href={fileUrl} offline={offline} title={plan.storedPath ?? undefined}>
             Plan file
-          </a>
+          </OfflineAction>
         ) : null}
         {plan.historyUrl ? (
-          <a className="action" href={plan.historyUrl}>
+          <OfflineAction href={plan.historyUrl} offline={offline}>
             Versions
-          </a>
+          </OfflineAction>
         ) : null}
       </td>
     </tr>

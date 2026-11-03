@@ -8,7 +8,9 @@ import { registerServiceWorker, type ServiceWorkerHost } from '../src/registerSe
 import {
   activateShellCaches,
   classifyShellRequest,
+  forgetShellDocuments,
   handleShellFetch,
+  precacheShell,
   SHELL_CACHE_NAME,
   SHELL_CACHE_VERSION,
   type ShellCacheStorage,
@@ -31,6 +33,9 @@ test('the shell cache name is the package version', async () => {
   assert.match(source, /addEventListener\("install"/)
   assert.match(source, /addEventListener\("activate"/)
   assert.match(source, /addEventListener\("fetch"/)
+  assert.match(source, /addEventListener\("message"/)
+  assert.match(source, /precache-manifest\.json/)
+  assert.match(source, /forget-documents/)
 })
 
 test('navigation and static assets are the shell, and API and auth stay on the network', () => {
@@ -57,6 +62,7 @@ test('navigation and static assets are the shell, and API and auth stay on the n
     ['viewer link', document('/plans/abcdefgh/view/sig'), 'network'],
     ['share', document('/plans/abcdefgh/share'), 'network'],
     ['worker script', asset('/sw.js'), 'network'],
+    ['precache manifest', asset('/precache-manifest.json'), 'network'],
     ['server function', serverFn('/dashboard'), 'network'],
     ['post', new Request(`${origin}/plans/abcdefgh`, { method: 'POST' }), 'network'],
     ['socket', new Request(`${origin}/plans/abcdefgh/api/events`, { headers: { upgrade: 'websocket' } }), 'network'],
@@ -101,21 +107,103 @@ test('a document comes from the network while online and from the cache when tha
   assert.equal(await third?.text(), '<html>two</html>')
 })
 
-test('one account document is not served to another account', async () => {
+test('documents on one device share a cache key', async () => {
   const runtime = memoryRuntime()
-  const alice = await handleShellFetch(document('/dashboard', 'session=alice'), runtime.deps)
-  assert.equal(await alice?.text(), '<html>one</html>')
-
-  runtime.pages.set('/dashboard', '<html>bob</html>')
-  const bob = await handleShellFetch(document('/dashboard', 'session=bob'), runtime.deps)
-  assert.equal(await bob?.text(), '<html>bob</html>')
-  assert.equal(runtime.fetches.length, 2)
+  const first = await handleShellFetch(document('/dashboard', 'session=alice'), runtime.deps)
+  assert.equal(await first?.text(), '<html>one</html>')
 
   runtime.fetch = () => {
-    throw new Error('alice should still be cached')
+    throw new Error('the cookie is not part of the cache key')
   }
-  const aliceAgain = await handleShellFetch(document('/dashboard', 'session=alice'), runtime.deps)
-  assert.equal(await aliceAgain?.text(), '<html>one</html>')
+  const second = await handleShellFetch(document('/dashboard', 'session=bob'), runtime.deps)
+  assert.equal(await second?.text(), '<html>one</html>')
+  assert.equal(runtime.fetches.length, 1)
+})
+
+test('the start URL falls back to the cached dashboard', async () => {
+  const runtime = memoryRuntime()
+  runtime.pages.set('/dashboard', '<html>dash</html>')
+  const stored = await handleShellFetch(document('/dashboard'), runtime.deps)
+  assert.equal(await stored?.text(), '<html>dash</html>')
+
+  runtime.fetch = () => {
+    throw new Error('offline')
+  }
+  const home = await handleShellFetch(document('/'), runtime.deps)
+  assert.equal(await home?.text(), '<html>dash</html>')
+})
+
+test('dashboard periods share one document cache key', async () => {
+  const runtime = memoryRuntime()
+  runtime.pages.set('/dashboard', '<html>day</html>')
+  const day = await handleShellFetch(document('/dashboard?period=day'), runtime.deps)
+  assert.equal(await day?.text(), '<html>day</html>')
+
+  runtime.fetch = () => {
+    throw new Error('offline')
+  }
+  const week = await handleShellFetch(document('/dashboard?period=week'), runtime.deps)
+  assert.equal(await week?.text(), '<html>day</html>')
+})
+
+test('an uncached plan page is the offline notice', async () => {
+  const runtime = memoryRuntime()
+  runtime.fetch = () => {
+    throw new Error('offline')
+  }
+  const page = await handleShellFetch(document('/plans/abcdefgh'), runtime.deps)
+  assert.equal(page?.status, 200)
+  assert.match(page?.headers.get('content-type') ?? '', /text\/html/)
+  const html = await page?.text()
+  assert.match(html ?? '', /This plan is not saved on this device yet/)
+  assert.match(html ?? '', /href="\/dashboard"/)
+})
+
+test('precache stores assets in batches and tolerates a failed batch', async () => {
+  const added: string[][] = []
+  await precacheShell('/precache-manifest.json', {
+    fetch: async () => Response.json({
+      version: '1.12.0',
+      urls: ['/assets/a.js', '/assets/b.css', '/assets/c.wasm', '/assets/d.js.map', 'https://example.com/nope.js'],
+    }),
+    addAll: async (urls) => {
+      added.push([...urls])
+      if (urls.includes('/assets/b.css')) throw new Error('missing')
+    },
+    batchSize: 1,
+  })
+  assert.deepEqual(added, [['/assets/a.js'], ['/assets/b.css'], ['/assets/c.wasm']])
+})
+
+test('a missing precache manifest does not fail install', async () => {
+  let added = 0
+  await precacheShell('/precache-manifest.json', {
+    fetch: async () => {
+      throw new Error('dev server')
+    },
+    addAll: async () => {
+      added += 1
+    },
+  })
+  assert.equal(added, 0)
+})
+
+test('forget-documents deletes documents and keeps assets', async () => {
+  const runtime = memoryRuntime()
+  await handleShellFetch(document('/plans/abcdefgh'), runtime.deps)
+  await handleShellFetch(document('/plans/ijklmnop'), runtime.deps)
+  await handleShellFetch(asset('/assets/app.js'), runtime.deps)
+  const cache = await runtime.deps.caches.open(SHELL_CACHE_NAME)
+  await forgetShellDocuments(cache, { paths: ['/plans/abcdefgh'] })
+  const left = (await cache.keys?.()) ?? []
+  const urls = left.map((request) => request.url).sort()
+  assert.equal(urls.some((url) => url.includes('/plans/abcdefgh')), false)
+  assert.equal(urls.some((url) => url.includes('/plans/ijklmnop')), true)
+  assert.equal(urls.some((url) => url.includes('/assets/app.js')), true)
+
+  await forgetShellDocuments(cache, { all: true })
+  const after = (await cache.keys?.()) ?? []
+  assert.deepEqual(after.map((request) => new URL(request.url).pathname), ['/assets/app.js'])
 })
 
 test('plan JSON, redirects, and session cookies are not stored', async () => {
@@ -144,8 +232,10 @@ test('plan JSON, redirects, and session cookies are not stored', async () => {
   runtime.fetch = async () => {
     throw new Error('nothing from those responses should be cached')
   }
-  await assert.rejects(() => handleShellFetch(document('/login'), runtime.deps))
-  await assert.rejects(() => handleShellFetch(document('/dashboard'), runtime.deps))
+  const login = await handleShellFetch(document('/login'), runtime.deps)
+  const dashboard = await handleShellFetch(document('/dashboard'), runtime.deps)
+  assert.match(await login?.text() ?? '', /not saved on this device/i)
+  assert.match(await dashboard?.text() ?? '', /not saved on this device/i)
 })
 
 test('activate replaces older shell caches and leaves the current one', async () => {
@@ -291,6 +381,12 @@ function memoryCaches(): ShellCacheStorage {
         },
         async put(request, response) {
           store.set(request.url, response.clone())
+        },
+        async keys() {
+          return [...store.keys()].map((url) => new Request(url))
+        },
+        async delete(request) {
+          return store.delete(request.url)
         },
       }
     },
