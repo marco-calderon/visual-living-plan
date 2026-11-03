@@ -5,6 +5,7 @@ import { ACCENT_CHOICES } from '../host/accountSettings.ts'
 import { CodeWrapSwitch } from '../../client/chrome/CodeWrapSwitch.tsx'
 import { Button } from '../../client/ui/button.tsx'
 import { DiffsThemePicker } from '../../client/chrome/DiffsThemePicker.tsx'
+import { rememberAppearance } from '../../client/chrome/appearanceMemory.ts'
 import { HostBar } from '../HostBar.tsx'
 import { LinkSocialAccounts } from '../LinkSocialAccounts.tsx'
 import { loadAccount } from '../planFns.ts'
@@ -72,7 +73,8 @@ function SettingsBackButton() {
 function SettingsPage() {
   const account = Route.useLoaderData()
   const search = Route.useSearch()
-  const settings = account.settings
+  // Saved values apply in place. A reload would lose the scroll position.
+  const [settings, setSettings] = useState(account.settings)
   const label = account.user.name || account.user.email
   const [error, setError] = useState('')
   const [picker, setPicker] = useState(settings.accent)
@@ -92,15 +94,21 @@ function SettingsPage() {
 
   async function save(partial: AppearancePartial) {
     if (saving) return
+    const previous = settings
     setSaving(true)
     setError('')
+    setSettings({ ...previous, ...partial } as typeof previous)
+    window.dispatchEvent(new CustomEvent('living-plan-theme', { detail: partial }))
     const ok = await saveHostedAppearance(partial)
+    setSaving(false)
     if (!ok) {
-      setSaving(false)
+      setSettings(previous)
+      window.dispatchEvent(new CustomEvent('living-plan-theme', { detail: previous }))
       setError('Could not save those settings.')
       return
     }
-    window.location.reload()
+    // A plan page restored with Back still holds the old appearance. It reads this on return.
+    rememberAppearance(partial as Parameters<typeof rememberAppearance>[0])
   }
 
   return (

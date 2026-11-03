@@ -7,6 +7,7 @@ import { buildPlanToc, renderPlanTocHtml } from './planToc.ts'
 import { bindPlanChrome } from './bindPlanChrome.ts'
 import './planPage.css'
 import { themeBootstrapScript } from './themeBootstrap.ts'
+import { APPEARANCE_MEMORY_KEY, readRememberedAppearance } from '../client/chrome/appearanceMemory.ts'
 
 export type PlanShellProps = {
   title: string
@@ -52,6 +53,40 @@ export function PlanShell({
     return () => window.removeEventListener('living-plan-activate-tab', onTab)
   }, [])
 
+  // Settings is a separate page. When Back restores this page from the browser cache, or another tab
+  // saves, apply an appearance saved after this page loaded. Only the owner's page uses account settings.
+  const loadedAt = useRef(Date.now())
+  useEffect(() => {
+    if (host !== 'cloud' || !accountLabel) return
+    const catchUp = () => {
+      const saved = readRememberedAppearance()
+      if (!saved || saved.savedAt <= loadedAt.current) return
+      loadedAt.current = saved.savedAt
+      const root = document.documentElement
+      if (saved.diffsTheme) root.dataset.diffsTheme = saved.diffsTheme
+      if (typeof saved.wrapCode === 'boolean') root.dataset.wrapCode = saved.wrapCode ? 'true' : 'false'
+      if (saved.accent) root.dataset.accent = saved.accent
+      if (saved.pageWidth) {
+        root.dataset.layout = saved.pageWidth
+        document.body.classList.remove('layout-default', 'layout-wide', 'layout-full')
+        document.body.classList.add(`layout-${saved.pageWidth}`)
+      }
+      window.dispatchEvent(new CustomEvent('living-plan-theme', { detail: saved }))
+    }
+    const onShow = (event: PageTransitionEvent) => {
+      if (event.persisted) catchUp()
+    }
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === APPEARANCE_MEMORY_KEY) catchUp()
+    }
+    window.addEventListener('pageshow', onShow)
+    window.addEventListener('storage', onStorage)
+    return () => {
+      window.removeEventListener('pageshow', onShow)
+      window.removeEventListener('storage', onStorage)
+    }
+  }, [accountLabel, host])
+
   useEffect(() => {
     if (tab !== 'workflow') return
     const frame = requestAnimationFrame(() => window.dispatchEvent(new Event('resize')))
@@ -91,6 +126,9 @@ export function PlanShell({
       void import('../client/chrome/mountChrome.tsx')
       if (host === 'cloud') void import('../client/PlanSelector.tsx')
     }
+    // Code blocks and the canvas read these once. Announce them so a fresh loader result
+    // (after a theme is saved in Settings) reaches components that are already mounted.
+    window.dispatchEvent(new CustomEvent('living-plan-theme', { detail: { accent, pageWidth, diffsTheme, wrapCode } }))
     const sourceFlags = planSourceFlags(source)
     if (sourceFlags.mermaid) void import('../client/mermaid.ts')
     if (sourceFlags.code) void import('../client/highlight.tsx')

@@ -423,11 +423,13 @@ function clientScript(
     const previous = currentDiffsTheme;
     const previousLabel = document.getElementById('diffs-theme-current')?.textContent || previous;
     applyDiffsTheme(next, label);
+    window.dispatchEvent(new CustomEvent('living-plan-theme', { detail: { diffsTheme: next } }));
     try {
       await putTheme({ diffsTheme: next });
       showToast('Diff theme saved');
     } catch (error) {
       applyDiffsTheme(previous, previousLabel);
+      window.dispatchEvent(new CustomEvent('living-plan-theme', { detail: { diffsTheme: previous } }));
       showToast(error instanceof Error ? error.message : 'Diff theme update failed');
     }
   });
