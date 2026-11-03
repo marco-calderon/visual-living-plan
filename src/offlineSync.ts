@@ -6,6 +6,12 @@
 
 export const SOURCE_BODY_CAP = 500_000
 
+/** Owned plans kept on this device. Shared plans the person only opened stay at the smaller cap. */
+export const OWNED_PLAN_CAP = 50
+
+/** Skip a warm or a background dashboard fetch when the device copy is newer than this. */
+export const WARM_INTERVAL_MS = 10 * 60 * 1000
+
 export const USER_MUTATIONS = ['interaction', 'comment', 'reply', 'address', 'addressing', 'review', 'mode'] as const
 
 export type UserMutationKind = (typeof USER_MUTATIONS)[number]
@@ -58,6 +64,28 @@ export type CatalogRow = {
   mode: string
   status: string
   versionLabel: string
+  /** `heartbeatAt/storedPath` from the last dashboard row. Absent on older device rows. */
+  versionKey?: string
+  warmedAt?: number
+  recency?: number
+}
+
+export type AccountRow = {
+  id: string
+  payload: unknown
+  savedAt: number
+}
+
+export type DashboardStoreRow = {
+  id: string
+  payload: unknown
+  savedAt: number
+}
+
+export type WarmPlan = {
+  id: string
+  versionKey: string
+  recency: number
 }
 
 export type SettingsRow = {
@@ -243,13 +271,154 @@ export function commentRowsFromSnapshot(planId: string, comments: unknown[], pen
   return [...server, ...pending.filter((row) => row.pending && row.planId === planId && !ids.has(row.id))]
 }
 
-export function plansToEvict(rows: readonly { id: string; openedAt: number }[], openId: string, keep = 4): string[] {
-  const others = rows
-    .filter((row) => row.id !== openId)
+export function planVersionKey(plan: { heartbeatAt?: number | null; storedPath?: string | null }): string {
+  const heartbeat = typeof plan.heartbeatAt === 'number' && Number.isFinite(plan.heartbeatAt) ? plan.heartbeatAt : 0
+  const stored = typeof plan.storedPath === 'string' ? plan.storedPath : ''
+  return `${heartbeat}/${stored}`
+}
+
+export function dashboardFetchDue(savedAt: number | undefined, now: number, interval = WARM_INTERVAL_MS): boolean {
+  if (!savedAt) return true
+  return now - savedAt >= interval
+}
+
+/**
+ * Owned plans up to the cap are kept. Plans past that cap, and plans the person
+ * no longer owns (`releasedIds`), are dropped. Other plans keep the last `keep`
+ * opened copies. The plan open on this page is kept either way.
+ */
+export function plansToEvict(
+  rows: readonly { id: string; openedAt: number }[],
+  openId: string,
+  keep = 4,
+  ownedIds: readonly string[] = [],
+  releasedIds: readonly string[] = [],
+): string[] {
+  const ownedSet = new Set<string>()
+  for (const id of ownedIds) {
+    if (!id || ownedSet.has(id)) continue
+    ownedSet.add(id)
+    if (ownedSet.size >= OWNED_PLAN_CAP) break
+  }
+  const released = new Set(releasedIds.filter((id) => id && !ownedSet.has(id)))
+  for (const id of ownedIds) {
+    if (!ownedSet.has(id)) released.add(id)
+  }
+  const shared = rows
+    .filter((row) => !ownedSet.has(row.id) && !released.has(row.id) && row.id !== openId)
     .slice()
     .sort((left, right) => right.openedAt - left.openedAt)
-  const kept = new Set([openId, ...others.slice(0, Math.max(0, keep - 1)).map((row) => row.id)])
+  const openIsShared = Boolean(openId) && !ownedSet.has(openId) && !released.has(openId)
+  const sharedRoom = Math.max(0, keep - (openIsShared ? 1 : 0))
+  const kept = new Set<string>(ownedSet)
+  if (openId) kept.add(openId)
+  for (const row of shared.slice(0, sharedRoom)) kept.add(row.id)
   return rows.map((row) => row.id).filter((id) => !kept.has(id))
+}
+
+/** Most recent owned plans that are new, changed, or last warmed longer ago than the interval. */
+export function plansToWarm(
+  owned: readonly WarmPlan[],
+  warmed: readonly { id: string; versionKey?: string; warmedAt?: number }[],
+  now: number,
+  cap = OWNED_PLAN_CAP,
+): string[] {
+  const ranked = owned
+    .filter((plan) => plan.id)
+    .slice()
+    .sort((left, right) => right.recency - left.recency || left.id.localeCompare(right.id))
+    .slice(0, cap)
+  const previous = new Map(warmed.map((row) => [row.id, row]))
+  const due: string[] = []
+  for (const plan of ranked) {
+    const last = previous.get(plan.id)
+    if (!last || (last.versionKey ?? '') !== plan.versionKey) {
+      due.push(plan.id)
+      continue
+    }
+    if (now - (last.warmedAt ?? 0) >= WARM_INTERVAL_MS) due.push(plan.id)
+  }
+  return due
+}
+
+type OwnedCatalogPlan = {
+  id?: unknown
+  title?: unknown
+  mode?: unknown
+  status?: unknown
+  outcome?: unknown
+  heartbeatAt?: unknown
+  startedAt?: unknown
+  storedPath?: unknown
+}
+
+/** The warm list: owned ids, with version keys taken from dashboard rows when we have them. */
+export function catalogFromOwned(
+  accountPlans: readonly { id?: unknown; title?: unknown; mode?: unknown }[],
+  dashboardPlans: readonly OwnedCatalogPlan[],
+  previous: readonly CatalogRow[] = [],
+): CatalogRow[] {
+  const dash = new Map<string, OwnedCatalogPlan>()
+  for (const plan of dashboardPlans) {
+    const id = typeof plan.id === 'string' ? plan.id : ''
+    if (id) dash.set(id, plan)
+  }
+  const prior = new Map(previous.map((row) => [row.id, row]))
+  const ranked = accountPlans
+    .map((plan) => {
+      const id = typeof plan.id === 'string' ? plan.id : ''
+      const row = id ? dash.get(id) : undefined
+      const heartbeat = typeof row?.heartbeatAt === 'number' ? row.heartbeatAt : 0
+      const started = typeof row?.startedAt === 'number' ? row.startedAt : 0
+      return { plan, row, id, recency: Math.max(heartbeat, started) }
+    })
+    .filter((entry) => entry.id)
+    .sort((left, right) => right.recency - left.recency || left.id.localeCompare(right.id))
+    .slice(0, OWNED_PLAN_CAP)
+  return ranked.map(({ plan, row, id, recency }) => {
+    const old = prior.get(id)
+    const versionKey = planVersionKey({
+      heartbeatAt: typeof row?.heartbeatAt === 'number' ? row.heartbeatAt : null,
+      storedPath: typeof row?.storedPath === 'string' ? row.storedPath : null,
+    })
+    const outcome = typeof row?.outcome === 'string' ? row.outcome : ''
+    return {
+      id,
+      title: text(row?.title) || text(plan.title) || old?.title || '',
+      mode: text(row?.mode) || text(plan.mode) || old?.mode || '',
+      status: text(row?.status) || old?.status || '',
+      versionLabel: outcome || old?.versionLabel || '',
+      versionKey,
+      warmedAt: old?.warmedAt,
+      recency,
+    }
+  })
+}
+
+/**
+ * The dashboard loader: a failed fetch in the browser can use the stored account.
+ * A real `!ok` (401) is still a sign-in redirect. Anything else surfaces as an error.
+ */
+export function dashboardAccountDecision(input: {
+  ok: boolean | null
+  networkFailure: boolean
+  hasStored: boolean
+}): 'account' | 'stored' | 'login' | 'error' {
+  if (input.ok === true) return 'account'
+  if (input.ok === false) return 'login'
+  if (input.networkFailure && input.hasStored) return 'stored'
+  return 'error'
+}
+
+export function isAccountNetworkFailure(error: unknown, online: boolean): boolean {
+  if (!online) return true
+  if (error instanceof TypeError) return true
+  if (error instanceof Error && /failed to fetch|networkerror|load failed|network request failed/i.test(error.message)) return true
+  return false
+}
+
+function text(value: unknown): string {
+  return typeof value === 'string' ? value : ''
 }
 
 export function catalogRows(

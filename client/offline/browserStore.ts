@@ -8,20 +8,22 @@ import {
 import { NonRetriableError, startOfflineExecutor, type OfflineExecutor } from '@tanstack/offline-transactions'
 import {
   applyLiveToPlan,
-  catalogRows,
   commentPartReady,
   commentRowsFromSnapshot,
   planRowFromSnapshot,
   plansToEvict,
   settingsWinner,
+  type AccountRow,
   type CatalogRow,
   type CommentRow,
+  type DashboardStoreRow,
   type PlanRow,
   type PlanSnapshot,
   type SettingsRow,
   type UserMutationKind,
 } from '../../src/offlineSync.ts'
 import { paintOfflineStatus, planContext, type OfflineHandle } from './engine.ts'
+import { forgetCachedDocuments } from './forgetDocuments.ts'
 
 type SyncWrite = {
   begin: (options?: { snapshot?: boolean }) => void
@@ -33,6 +35,9 @@ type SyncWrite = {
   reportHealthy: () => void
 }
 
+// New collections are new ids at this same version. Bumping it resets every
+// collection (TanStack's default mismatch policy) and would drop plan rows the
+// outbox still points at. The outbox itself lives in IndexedDB, not this file.
 const SCHEMA = 1
 
 type QueuedMutation = {
@@ -58,7 +63,9 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
     comments: ((rows: CommentRow[]) => void) | null
     catalog: ((rows: CatalogRow[]) => void) | null
     settings: ((rows: SettingsRow[]) => void) | null
-  } = { plans: null, comments: null, catalog: null, settings: null }
+    account: ((rows: AccountRow[]) => void) | null
+    dashboards: ((rows: DashboardStoreRow[]) => void) | null
+  } = { plans: null, comments: null, catalog: null, settings: null, account: null, dashboards: null }
 
   function syncOptions<T extends object>(id: string, assign: (apply: (rows: T[]) => void) => void) {
     return {
@@ -84,9 +91,11 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
   const comments = createCollection(persistedCollectionOptions<CommentRow, string>(syncOptions<CommentRow>('comments', (apply) => { writers.comments = apply })))
   const catalog = createCollection(persistedCollectionOptions<CatalogRow, string>(syncOptions<CatalogRow>('catalog', (apply) => { writers.catalog = apply })))
   const settings = createCollection(persistedCollectionOptions<SettingsRow, string>(syncOptions<SettingsRow>('settings', (apply) => { writers.settings = apply })))
+  const account = createCollection(persistedCollectionOptions<AccountRow, string>(syncOptions<AccountRow>('account', (apply) => { writers.account = apply })))
+  const dashboards = createCollection(persistedCollectionOptions<DashboardStoreRow, string>(syncOptions<DashboardStoreRow>('dashboards', (apply) => { writers.dashboards = apply })))
 
   const executor: OfflineExecutor = startOfflineExecutor({
-    collections: { plans, comments, catalog, settings },
+    collections: { plans, comments, catalog, settings, account, dashboards },
     mutationFns: {
       submit: async ({ transaction, idempotencyKey }) => {
         const meta = transaction.metadata as QueuedMutation
@@ -167,8 +176,10 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
     const row = planRowFromSnapshot(context.id, context.host, context.basePath, snapshot, previous, now)
     const keptPlans = [...plans.toArray].filter((entry) => entry.id !== row.id)
     const nextPlans = [...keptPlans, row]
-    const drop = new Set(plansToEvict(nextPlans, context.id))
+    const ownedIds = [...catalog.toArray].map((entry) => entry.id)
+    const drop = new Set(plansToEvict(nextPlans, openPlanId(), 4, ownedIds))
     const visiblePlans = nextPlans.filter((entry) => !drop.has(entry.id))
+    if (drop.size > 0) forgetCachedDocuments([...drop].map((id) => `/plans/${id}`))
     const pending = [...comments.toArray].filter((entry) => entry.pending)
     const keptComments = [...comments.toArray].filter((entry) => entry.planId !== context.id && !drop.has(entry.planId) && !entry.pending)
     const nextComments = [...keptComments, ...commentRowsFromSnapshot(context.id, snapshot.comments, pending).filter((entry) => !drop.has(entry.planId))]
@@ -203,14 +214,13 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
 
   async function loadCatalog(): Promise<void> {
     if (location.pathname !== '/dashboard' && !location.pathname.startsWith('/dashboard/')) return
-    try {
-      const response = await fetch('/api/account/dashboard?period=day', { cache: 'no-store' })
-      if (!response.ok) return
-      const payload = (await response.json()) as { plans?: Parameters<typeof catalogRows>[0] }
-      writers.catalog?.(catalogRows(payload.plans ?? []))
-      reachable = true
-    } catch {
+    const period = new URLSearchParams(location.search).get('period')
+    const selected = period === 'week' || period === 'month' ? period : 'day'
+    const { refreshDeviceDashboards } = await import('./warmPlans.ts')
+    const result = await refreshDeviceDashboards(handle, { period: selected })
+    if ('offline' in result && result.offline) {
       reachable = false
+      notify()
     }
   }
 
@@ -327,8 +337,57 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
       ])
     },
     rememberCatalog: (rows) => {
+      const previous = [...catalog.toArray].map((row) => row.id)
+      const nextIds = new Set(rows.map((row) => row.id))
+      const released = previous.filter((id) => !nextIds.has(id))
       writers.catalog?.(rows)
+      const drop = new Set(plansToEvict([...plans.toArray], openPlanId(), 4, rows.map((row) => row.id), released))
+      if (drop.size > 0) {
+        writers.plans?.([...plans.toArray].filter((row) => !drop.has(row.id)))
+        writers.comments?.([...comments.toArray].filter((row) => !drop.has(row.planId)))
+        forgetCachedDocuments([...drop].map((id) => `/plans/${id}`))
+      }
       notify()
+    },
+    account: () => account.get('me') ?? null,
+    rememberAccount: (payload) => {
+      writers.account?.([{ id: 'me', payload, savedAt: Date.now() }])
+      notify()
+    },
+    dashboard: (period) => dashboards.get(period) ?? null,
+    rememberDashboard: (period, payload) => {
+      const rest = [...dashboards.toArray].filter((row) => row.id !== period)
+      writers.dashboards?.([...rest, { id: period, payload, savedAt: Date.now() }])
+      notify()
+    },
+    storePlanSnapshot: (id, basePath, snapshot) => {
+      publishSnapshot({ id, host: basePath.startsWith('/plans/') ? 'cloud' : 'local', basePath }, snapshot)
+    },
+    markWarmed: (id, versionKey, warmedAt) => {
+      const rows = [...catalog.toArray].map((row) => (row.id === id ? { ...row, versionKey, warmedAt } : row))
+      writers.catalog?.(rows)
+    },
+    pendingCount: () => executor.getPendingCount(),
+    noteNetwork: (online) => {
+      reachable = online
+      notify()
+    },
+    clearDevice: async (options) => {
+      const pending = executor.getPendingCount()
+      if (pending > 0 && !options?.force) {
+        const noun = pending === 1 ? '1 change has' : `${pending} changes have`
+        if (!window.confirm(`${noun} not been sent. Sign out anyway?`)) return false
+      }
+      if (executor.getPendingCount() > 0) await executor.clearOutbox()
+      writers.plans?.([])
+      writers.comments?.([])
+      writers.catalog?.([])
+      writers.settings?.([])
+      writers.account?.([])
+      writers.dashboards?.([])
+      forgetCachedDocuments()
+      notify()
+      return true
     },
     saveSettings: async (scope, patch) => {
       const current = settings.get(scope)
@@ -358,7 +417,7 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
     },
   }
 
-  await Promise.all([plans.preload(), comments.preload(), catalog.preload(), settings.preload()].map((job) => job.catch(() => undefined)))
+  await Promise.all([plans.preload(), comments.preload(), catalog.preload(), settings.preload(), account.preload(), dashboards.preload()].map((job) => job.catch(() => undefined)))
   handle.hydrated = true
   seedFromDocument()
   void refreshPlan()
@@ -437,6 +496,11 @@ function optimisticBody(kind: UserMutationKind, body: unknown, idempotencyKey: s
       addressedAt: null,
     },
   }
+}
+
+function openPlanId(): string {
+  const match = location.pathname.match(/^\/plans\/([A-Za-z0-9_-]{8,80})$/)
+  return match?.[1] ?? ''
 }
 
 function emptySettings(id: string): SettingsRow {

@@ -29,7 +29,7 @@ export function webManifest(): WebManifest {
     name: 'Living Plan',
     short_name: 'Living Plan',
     description: 'Agent-authored living plans you can follow, answer, and review.',
-    start_url: '/',
+    start_url: '/dashboard',
     scope: '/',
     display: 'standalone',
     background_color: THEME_COLOR_LIGHT,

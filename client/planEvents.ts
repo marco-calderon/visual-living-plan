@@ -26,34 +26,85 @@ function bindRelease(win: PlanEventsWindow, source: EventSource): void {
   window.addEventListener('beforeunload', release)
 }
 
+let socketAttempt = 0
+let socketTimer = 0
+let socketStopped = false
+let socketOnlineBound = false
+
 function ensureSocket(): EventTarget {
   const win = window as PlanEventsWindow
   if (win.__livingPlanHub && win.__livingPlanSocket && win.__livingPlanSocket.readyState !== WebSocket.CLOSED) {
     return win.__livingPlanHub
   }
-  const hub = new EventTarget()
+  const hub = win.__livingPlanHub ?? new EventTarget()
+  win.__livingPlanHub = hub
   const http = new URL(apiPath('/api/events'), window.location.href)
   http.protocol = http.protocol === 'https:' ? 'wss:' : 'ws:'
-  const socket = new WebSocket(http.toString())
-  socket.addEventListener('message', (message) => {
+
+  const open = () => {
+    if (socketStopped || !navigator.onLine) return
+    if (win.__livingPlanSocket && win.__livingPlanSocket.readyState !== WebSocket.CLOSED) return
+    let socket: WebSocket
     try {
-      const parsed = JSON.parse(String(message.data)) as { event?: string; data?: unknown }
-      if (!parsed.event) return
-      const data = typeof parsed.data === 'string' ? parsed.data : JSON.stringify(parsed.data ?? null)
-      hub.dispatchEvent(new MessageEvent(parsed.event, { data }))
+      socket = new WebSocket(http.toString())
     } catch {
-      // Ignore a frame that is not a plan event.
+      scheduleSocket()
+      return
     }
-  })
-  const release = () => {
-    if (win.__livingPlanSocket !== socket) return
-    socket.close()
+    socket.addEventListener('open', () => {
+      socketAttempt = 0
+    })
+    socket.addEventListener('message', (message) => {
+      try {
+        const parsed = JSON.parse(String(message.data)) as { event?: string; data?: unknown }
+        if (!parsed.event) return
+        const data = typeof parsed.data === 'string' ? parsed.data : JSON.stringify(parsed.data ?? null)
+        hub.dispatchEvent(new MessageEvent(parsed.event, { data }))
+      } catch {
+        // Ignore a frame that is not a plan event.
+      }
+    })
+    socket.addEventListener('error', () => {
+      // `close` follows. An offline connect must not surface as an uncaught error.
+    })
+    socket.addEventListener('close', () => {
+      if (socketStopped || win.__livingPlanSocket !== socket) return
+      scheduleSocket()
+    })
+    win.__livingPlanSocket = socket
   }
-  window.addEventListener('pagehide', release)
-  window.addEventListener('beforeunload', release)
-  win.__livingPlanHub = hub
-  win.__livingPlanSocket = socket
+
+  if (!socketOnlineBound) {
+    socketOnlineBound = true
+    window.addEventListener('online', () => {
+      socketAttempt = 0
+      window.clearTimeout(socketTimer)
+      socketTimer = 0
+      open()
+    })
+    const stop = () => {
+      socketStopped = true
+      window.clearTimeout(socketTimer)
+      win.__livingPlanSocket?.close()
+    }
+    window.addEventListener('pagehide', stop)
+    window.addEventListener('beforeunload', stop)
+  }
+  open()
   return hub
+}
+
+function scheduleSocket(): void {
+  if (socketStopped || socketTimer) return
+  const wait = Math.min(30_000, 1000 * 2 ** socketAttempt)
+  socketAttempt += 1
+  socketTimer = window.setTimeout(() => {
+    socketTimer = 0
+    const win = window as PlanEventsWindow
+    if (!navigator.onLine) return
+    if (win.__livingPlanSocket && win.__livingPlanSocket.readyState !== WebSocket.CLOSED) return
+    ensureSocket()
+  }, wait)
 }
 
 function ensurePlanEvents(): EventTarget {

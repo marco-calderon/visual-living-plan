@@ -1,7 +1,10 @@
 import {
   activateShellCaches,
   classifyShellRequest,
+  forgetShellDocuments,
   handleShellFetch,
+  isForgetDocumentsMessage,
+  precacheShell,
   SHELL_CACHE_NAME,
   SHELL_CACHE_VERSION,
   type ShellCacheStorage,
@@ -9,14 +12,15 @@ import {
 
 export { activateShellCaches, classifyShellRequest, handleShellFetch, SHELL_CACHE_NAME, SHELL_CACHE_VERSION }
 
-type BrowserFetchEvent = {
-  request: Request
+type WorkerEvent = {
+  request?: Request
+  data?: unknown
   waitUntil(promise: Promise<unknown>): void
-  respondWith(response: Promise<Response>): void
+  respondWith?(response: Promise<Response>): void
 }
 
 type BrowserScope = {
-  addEventListener(type: string, listener: (event: BrowserFetchEvent) => void): void
+  addEventListener(type: string, listener: (event: WorkerEvent) => void): void
   skipWaiting(): Promise<void>
   clients: { claim(): Promise<void> }
   caches: ShellCacheStorage
@@ -32,12 +36,29 @@ function inServiceWorker(scope: object): boolean {
 if (inServiceWorker(globalThis)) {
   const scope = globalThis as unknown as BrowserScope
   scope.addEventListener('install', (event) => {
-    event.waitUntil(scope.skipWaiting())
+    event.waitUntil((async () => {
+      const cache = await scope.caches.open(SHELL_CACHE_NAME)
+      await precacheShell(new URL('/precache-manifest.json', scope.location.origin).href, {
+        fetch: (url) => scope.fetch(new Request(url, { cache: 'no-store' })),
+        addAll: async (urls) => {
+          if (cache.addAll) {
+            await cache.addAll(urls)
+            return
+          }
+          await Promise.all(urls.map(async (url) => {
+            const response = await scope.fetch(new Request(url))
+            await cache.put(new Request(url), response)
+          }))
+        },
+      })
+      await scope.skipWaiting()
+    })())
   })
   scope.addEventListener('activate', (event) => {
     event.waitUntil(activateShellCaches(scope.caches).then(() => scope.clients.claim()))
   })
   scope.addEventListener('fetch', (event) => {
+    if (!event.request || !event.respondWith) return
     const response = handleShellFetch(event.request, {
       cacheName: SHELL_CACHE_NAME,
       caches: scope.caches,
@@ -46,5 +67,13 @@ if (inServiceWorker(globalThis)) {
       waitUntil: (promise) => event.waitUntil(promise),
     })
     if (response) event.respondWith(response)
+  })
+  scope.addEventListener('message', (event) => {
+    if (!isForgetDocumentsMessage(event.data)) return
+    const message = event.data
+    event.waitUntil((async () => {
+      const cache = await scope.caches.open(SHELL_CACHE_NAME)
+      await forgetShellDocuments(cache, message)
+    })())
   })
 }
