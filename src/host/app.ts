@@ -23,6 +23,7 @@ export interface HostEnv {
   ASSETS?: { fetch(request: Request): Promise<Response> }
   BETTER_AUTH_SECRET: string
   PUBLIC_URL?: string
+  TRUSTED_ORIGINS?: string
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string
   GITHUB_CLIENT_ID?: string
@@ -31,8 +32,12 @@ export interface HostEnv {
 
 const ID = /^[A-Za-z0-9_-]{8,80}$/
 
+function originFor(request: Request, env: HostEnv): string {
+  return requestOrigin(request, env.PUBLIC_URL, env.TRUSTED_ORIGINS)
+}
+
 function createAuthFor(env: HostEnv, request: Request) {
-  return createAuth(env, requestOrigin(request, env.PUBLIC_URL))
+  return createAuth(env, originFor(request, env))
 }
 
 /** HTTP routes for the hosted app. WebSocket upgrades stay outside this app so the Durable Object socket is not copied into a new Response. Ahead-of-time compilation is off because Workers reject `new Function`. */
@@ -50,12 +55,12 @@ export function createHostApp(env: HostEnv, options: { auth?: (request: Request)
     .get('/api/account', ({ request }) => accountRead(request, env, authFor(request)))
     .put('/api/account/settings', ({ request }) => accountSave(request, env, authFor(request)))
     .get('/api/account/dashboard', ({ request }) =>
-      accountDashboardApi(request, env, authFor(request), requestOrigin(request, env.PUBLIC_URL)),
+      accountDashboardApi(request, env, authFor(request), originFor(request, env)),
     )
-    .post('/api/plans', ({ request }) => registerPlan(request, env, authFor(request), requestOrigin(request, env.PUBLIC_URL)))
+    .post('/api/plans', ({ request }) => registerPlan(request, env, authFor(request), originFor(request, env)))
     .get('/api/auth/cli-session', ({ request }) => cliSession(request, env, authFor(request), new URL(request.url)))
     .get('/plans/:planId/share', ({ request, params }) =>
-      sharePlan(request, env, authFor(request), requestOrigin(request, env.PUBLIC_URL), params.planId),
+      sharePlan(request, env, authFor(request), originFor(request, env), params.planId),
     )
     .get('/plans/:planId/view/:sig', ({ request, params }) => acceptViewer(request, env, params.planId, params.sig))
     .get('/plans/:planId/document', ({ request, params }) =>
@@ -340,7 +345,7 @@ export async function hostedPlanPage(request: Request, env: HostEnv, planId: str
 }
 
 async function loadHostedPlan(request: Request, env: HostEnv, planId: string): Promise<HostedPlanPage | Response> {
-  const origin = requestOrigin(request, env.PUBLIC_URL)
+  const origin = originFor(request, env)
   const auth = createAuth(env, origin)
   const session = await readSession(auth, request, env.DB)
   const row = await env.DB.prepare('SELECT user_id FROM plans WHERE id = ?').bind(planId).first<{ user_id: string }>()
@@ -455,7 +460,7 @@ async function versionsForPlan(env: HostEnv, planId: string): Promise<Array<{ se
 
 /** Version list for the Start history page. */
 export async function hostedPlanVersions(request: Request, env: HostEnv, planId: string): Promise<Response> {
-  const origin = requestOrigin(request, env.PUBLIC_URL)
+  const origin = originFor(request, env)
   const auth = createAuth(env, origin)
   const session = await readSession(auth, request, env.DB)
   if (!session || !(await planOwner(request, env, auth, planId))) return text(401, 'Sign in required')

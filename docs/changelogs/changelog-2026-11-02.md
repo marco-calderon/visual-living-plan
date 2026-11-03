@@ -178,7 +178,25 @@ No registry restart needed beyond the usual version check. The new shell cache n
 
 ## 1.12.1
 
-**PR:** not opened yet
+**PR:** [#130](https://github.com/marco-calderon/visual-living-plan/pull/130)
+
+**Bump:** patch
+
+### Summary
+
+Email and password sign-in on a Worker Preview stays on that preview's address.
+
+### Bugs fixed
+
+- Signing in on a preview no longer fails with an invalid origin. A preview, or a `*.plan.logspace.qzz.io` subdomain, uses its own address for sign-in and links. `plan.logspace.qzz.io` keeps using `PUBLIC_URL`.
+
+### Notes
+
+GitHub and Google sign-in still only work on the production site. No registry restart needed beyond the usual version check. The shell cache name is 1.12.1.
+
+## 1.12.2
+
+**PR:** [#131](https://github.com/marco-calderon/visual-living-plan/pull/131)
 
 **Bump:** patch
 
@@ -194,4 +212,4 @@ Plans this account owns are saved on the device the first time the dashboard loa
 
 ### Notes
 
-No registry restart needed beyond the usual version check. The new shell cache name replaces the 1.12.0 cache.
+No registry restart needed beyond the usual version check. The new shell cache name replaces the 1.12.1 cache.

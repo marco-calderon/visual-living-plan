@@ -49,6 +49,9 @@ export function createAuth(env: AuthEnv, baseURL: string) {
     secret: env.BETTER_AUTH_SECRET,
     baseURL,
     trustedOrigins: [baseURL],
+    // Bun test sets NODE_ENV=test, and Better Auth then skips the origin check.
+    // Production already runs it. Keep the same check here.
+    advanced: { disableOriginCheck: false },
     emailAndPassword: { enabled: true },
     account: {
       accountLinking: accountLinkingConfig({
