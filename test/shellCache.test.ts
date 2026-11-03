@@ -44,6 +44,7 @@ test('navigation and static assets are the shell, and API and auth stay on the n
     ['style', asset('/assets/index-abc123.css'), 'asset'],
     ['local client', asset('/client/assets/main-abc123.js'), 'asset'],
     ['favicon', asset('/favicon.png'), 'asset'],
+    ['favicon ico', new Request(`${origin}/favicon.ico`), 'asset'],
     ['font', asset('/fonts/plan.woff2'), 'asset'],
     ['hosted plan page', document('/plans/abcdefgh'), 'document'],
     ['local plan page', document('/plans/abcdefgh/'), 'document'],
@@ -159,20 +160,30 @@ test('an uncached plan page is the offline notice', async () => {
   assert.match(html ?? '', /href="\/dashboard"/)
 })
 
-test('precache stores assets in batches and tolerates a failed batch', async () => {
-  const added: string[][] = []
+test('precache stores each asset and skips a missing file', async () => {
+  const added: string[] = []
   await precacheShell('/precache-manifest.json', {
     fetch: async () => Response.json({
       version: '1.12.0',
       urls: ['/assets/a.js', '/assets/b.css', '/assets/c.wasm', '/assets/d.js.map', 'https://example.com/nope.js'],
     }),
-    addAll: async (urls) => {
-      added.push([...urls])
-      if (urls.includes('/assets/b.css')) throw new Error('missing')
+    add: async (url) => {
+      added.push(url)
+      if (url === '/assets/b.css') throw new Error('missing')
     },
-    batchSize: 1,
+    concurrency: 2,
   })
-  assert.deepEqual(added, [['/assets/a.js'], ['/assets/b.css'], ['/assets/c.wasm']])
+  assert.deepEqual(added, ['/assets/a.js', '/assets/b.css', '/assets/c.wasm'])
+})
+
+test('a missing asset fetch is a gateway timeout instead of a rejected fetch', async () => {
+  const runtime = memoryRuntime()
+  runtime.fetch = () => {
+    throw new TypeError('Failed to fetch')
+  }
+  const response = await handleShellFetch(new Request(`${origin}/favicon.ico`), runtime.deps)
+  assert.equal(response?.status, 504)
+  assert.equal(await response?.text(), '')
 })
 
 test('a missing precache manifest does not fail install', async () => {
@@ -181,7 +192,7 @@ test('a missing precache manifest does not fail install', async () => {
     fetch: async () => {
       throw new Error('dev server')
     },
-    addAll: async () => {
+    add: async () => {
       added += 1
     },
   })

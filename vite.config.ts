@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { cloudflare } from '@cloudflare/vite-plugin'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
@@ -6,29 +7,36 @@ import { defineConfig, type Plugin } from 'vite'
 
 const PRECACHE_ASSET = /\.(?:js|mjs|css|wasm|woff2?|ttf|otf|png|jpe?g|gif|webp|avif|svg|ico)$/i
 
-/** Lists the client build so the shell worker can precache it on install. */
+/** Lists files actually written under client `assets/`, so a CSS-only chunk that Vite drops is not precached. */
 function precacheManifestPlugin(): Plugin {
   return {
     name: 'living-plan-precache-manifest',
     apply: 'build',
-    generateBundle(_options, bundle) {
+    writeBundle(options) {
       const name = this.environment?.name
       if (name && name !== 'client') return
-      if (bundle['precache-manifest.json']) return
-      const urls: string[] = []
-      for (const item of Object.values(bundle)) {
-        const fileName = item.fileName
-        if (!fileName.startsWith('assets/') || fileName.endsWith('.map')) continue
-        if (!PRECACHE_ASSET.test(fileName)) continue
-        urls.push(`/${fileName}`)
+      const dir = options.dir
+      if (!dir) return
+      const assetsDir = join(dir, 'assets')
+      let names: string[] = []
+      try {
+        names = readdirSync(assetsDir)
+      } catch {
+        names = []
       }
-      urls.sort()
+      const urls = names
+        .filter((file) => PRECACHE_ASSET.test(file) && !file.endsWith('.map'))
+        .filter((file) => {
+          try {
+            return statSync(join(assetsDir, file)).isFile()
+          } catch {
+            return false
+          }
+        })
+        .map((file) => `/assets/${file}`)
+        .sort()
       const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }
-      this.emitFile({
-        type: 'asset',
-        fileName: 'precache-manifest.json',
-        source: JSON.stringify({ version: pkg.version, urls }),
-      })
+      writeFileSync(join(dir, 'precache-manifest.json'), JSON.stringify({ version: pkg.version, urls }))
     },
   }
 }

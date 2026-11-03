@@ -23,4 +23,4 @@ Sign-out asks before discarding unsent writes, then clears the device collection
 
 ## Consequences
 
-The first online visit after a plan exists is what puts it on the device. Fifty is a cap, not a full archive. A plan past the cap, or one that has not been warmed yet, shows the offline notice. Plain HTTP on the LAN stays network-only. The registry, D1, and the Durable Object remain the authority.
+The first online visit after a plan exists is what puts it on the device. The page writes each plan document into the shell cache after the worker is ready, and the warm record stores that cache name. A new shell cache makes every owned plan due again. An error from the host is not marked saved. Fifty is a cap, not a full archive. A plan past the cap, or one that has not been warmed yet, shows the offline notice. Plain HTTP on the LAN stays network-only. The registry, D1, and the Durable Object remain the authority.

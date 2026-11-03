@@ -175,3 +175,23 @@ A signed-in person can open the dashboard and read their own plans with no netwo
 ### Notes
 
 No registry restart needed beyond the usual version check. The new shell cache name replaces the 1.11.0 cache. A plan opened over plain HTTP on the local network stays on the network. The registry, the hosted database, and the plan room remain the source of truth.
+
+## 1.12.1
+
+**PR:** not opened yet
+
+**Bump:** patch
+
+### Summary
+
+Plans this account owns are saved on the device the first time the dashboard loads, and a plan that was never published reads as not found instead of an error page.
+
+### Bugs fixed
+
+- Opening the dashboard stores each owned plan's page in the shell cache. A plan is marked saved only after that copy is stored, and a new app version saves it again.
+- One missing build file no longer keeps the rest of the app shell from being cached. The browser's request for `/favicon.ico` is served and no longer fails the service worker while offline.
+- A plan whose hosted copy is empty reads as not found, with a link back to the dashboard.
+
+### Notes
+
+No registry restart needed beyond the usual version check. The new shell cache name replaces the 1.12.0 cache.
