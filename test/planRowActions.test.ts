@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import test from 'node:test'
@@ -52,13 +53,18 @@ test('plan actions render as icon buttons and versions includes a chevron', () =
 })
 
 test('the versions menu trigger is an icon button with a chevron', () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const source = renderToStaticMarkup(
-    createElement(PlanVersionsMenu, {
-      planId: 'abc',
-      label: 'Versions',
-      triggerClassName: '',
-      iconOnly: true,
-    }),
+    createElement(
+      QueryClientProvider,
+      { client },
+      createElement(PlanVersionsMenu, {
+        planId: 'abc',
+        label: 'Versions',
+        triggerClassName: '',
+        iconOnly: true,
+      }),
+    ),
   )
   const versions = control(source, 'Versions')
   assert.match(versions, /plan-btn-ghost/)

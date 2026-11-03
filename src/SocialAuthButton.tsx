@@ -1,3 +1,4 @@
+import { useMutation } from '@tanstack/react-query'
 import { Button } from '../client/ui/button.tsx'
 import { authClient } from './authClient.ts'
 import { OAuthMark } from './OAuthMark.tsx'
@@ -24,15 +25,23 @@ export function SocialAuthButton({ provider, search, intent, pending, onPending,
   const page = intent === 'sign-up' ? '/signup' : '/login'
   const label = `Continue with ${NAME[provider]}`
 
+  const social = useMutation({
+    mutationFn: () =>
+      authClient.signIn.social({
+        provider,
+        callbackURL: authReturnPath(search),
+        errorCallbackURL: authPath(page, search),
+        requestSignUp: intent === 'sign-up',
+      }),
+  })
+
   async function start() {
     onError('')
     onPending(true)
-    const result = await authClient.signIn.social({
-      provider,
-      callbackURL: authReturnPath(search),
-      errorCallbackURL: authPath(page, search),
-      requestSignUp: intent === 'sign-up',
-    })
+    const result = await social.mutateAsync().catch((cause: unknown) => ({
+      error: { message: cause instanceof Error ? cause.message : '' },
+      data: null,
+    }))
     if (result.error) {
       onPending(false)
       onError(result.error.message || `${NAME[provider]} sign-in failed`)

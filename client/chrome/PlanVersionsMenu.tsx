@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, History } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { formatWhen } from '../../src/dashboardFormat.ts'
@@ -24,7 +25,7 @@ type HistoryPayload = { versions: Array<{ seq: number; title?: string; createdAt
 type HistoryResult = { ok: true; history: HistoryPayload } | { ok: false }
 
 /** Published versions for a plan this account owns. A failed or offline read is an empty list. */
-async function loadHistory({ data: planId }: { data: string }): Promise<HistoryResult> {
+async function loadHistory(planId: string): Promise<HistoryResult> {
   const response = await fetch(`/api/plans/${encodeURIComponent(planId)}/versions`, {
     cache: 'no-store',
     credentials: 'include',
@@ -37,9 +38,15 @@ async function loadHistory({ data: planId }: { data: string }): Promise<HistoryR
   }
 }
 
+function versionRows(planId: string, result: HistoryResult | undefined, liveHref: string | undefined): VersionRow[] {
+  if (!result?.ok) return versionMenuEntries(planId, [], liveHref)
+  const entries = versionMenuEntries(planId, result.history.versions, liveHref)
+  const dated = new Map(result.history.versions.map((version) => [version.seq, version.createdAt]))
+  return entries.map((entry) => ({ ...entry, createdAt: entry.seq == null ? undefined : dated.get(entry.seq) }))
+}
+
 export function PlanVersionsMenu({ planId, label, triggerClassName, liveHref, prefetch = false, iconOnly = false }: PlanVersionsMenuProps) {
   const [open, setOpen] = useState(false)
-  const [versions, setVersions] = useState<VersionRow[] | null>(null)
   const [offline, setOffline] = useState(() => (typeof navigator === 'undefined' ? false : navigator.onLine === false))
 
   useEffect(() => {
@@ -57,26 +64,15 @@ export function PlanVersionsMenu({ planId, label, triggerClassName, liveHref, pr
     }
   }, [])
 
-  useEffect(() => {
-    if (!prefetch && !open) return
-    if (versions || offline) return
-    let cancelled = false
-    void loadHistory({ data: planId }).then((result) => {
-      if (cancelled) return
-      if (!result.ok) {
-        setVersions(versionMenuEntries(planId, [], liveHref))
-        return
-      }
-      const entries = versionMenuEntries(planId, result.history.versions, liveHref)
-      const dated = new Map(result.history.versions.map((version) => [version.seq, version.createdAt]))
-      setVersions(entries.map((entry) => ({ ...entry, createdAt: entry.seq == null ? undefined : dated.get(entry.seq) })))
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [liveHref, offline, open, planId, prefetch, versions])
+  // Read when the menu opens (or right away with prefetch), then reused for 30 s across menus.
+  const history = useQuery({
+    queryKey: ['plan-versions', planId],
+    queryFn: () => loadHistory(planId),
+    enabled: (prefetch || open) && !offline,
+    staleTime: 30_000,
+  })
 
-  const entries: VersionRow[] = versions ?? versionMenuEntries(planId, [], liveHref)
+  const entries: VersionRow[] = versionRows(planId, history.data, liveHref)
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>

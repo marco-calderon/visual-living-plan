@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query'
 import { createRoot } from 'react-dom/client'
 import { registerServiceWorker } from '../src/registerServiceWorker.ts'
 import { startOfflineEngine } from './offline/engine.ts'
@@ -7,6 +8,7 @@ import type { ExecutionState } from '../src/execution.ts'
 import { createIdleExecutionState, mergePlannedExecution } from '../src/execution.ts'
 import { subscribePlanEvents } from './planEvents.ts'
 import { sampleLoopExecution } from './sampleLoopExecution.ts'
+import { QueryProvider, sharedQueryClient } from './queryClient.tsx'
 import './execution.css'
 
 type FocusWindow = Window & {
@@ -32,8 +34,24 @@ function readBootstrap(): ExecutionState {
   }
 }
 
+async function readExecution(): Promise<ExecutionState> {
+  const response = await fetch(apiPath('/api/execution'))
+  if (!response.ok) throw new Error('Request failed')
+  return (await response.json()) as ExecutionState
+}
+
 function ExecutionApp() {
-  const [execution, setExecution] = useState<ExecutionState>(readBootstrap)
+  const [bootstrap] = useState<ExecutionState>(readBootstrap)
+  // The page's embedded state shows first. The event stream keeps it current, so there is no polling.
+  const query = useQuery({
+    queryKey: ['execution', apiPath('')],
+    queryFn: readExecution,
+    initialData: bootstrap,
+    initialDataUpdatedAt: 0,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  })
+  const execution = query.data
   const plannedGraph = useMemo(
     () => mergePlannedExecution(execution.planned, execution.graph),
     [execution.graph, execution.planned],
@@ -45,31 +63,23 @@ function ExecutionApp() {
   )
 
   useEffect(() => {
-    let cancelled = false
-
-    async function load() {
-      const response = await fetch(apiPath('/api/execution'))
-      if (!response.ok) return
-      const data = (await response.json()) as ExecutionState
-      if (!cancelled) setExecution(data)
-    }
-
-    void load()
+    const client = sharedQueryClient()
+    const key = ['execution', apiPath('')]
+    // initialDataUpdatedAt 0 marks the embedded state stale, so this reads the server once.
+    void client.refetchQueries({ queryKey: key, exact: true })
 
     const stopExecution = subscribePlanEvents('execution', (event) => {
       try {
-        const payload = JSON.parse(event.data) as ExecutionState
-        if (!cancelled) setExecution(payload)
+        client.setQueryData(key, JSON.parse(event.data) as ExecutionState)
       } catch {
         // ignore malformed events
       }
     })
     const stopReload = subscribePlanEvents('reload', () => {
-      void load()
+      void client.invalidateQueries({ queryKey: key, exact: true })
     })
 
     return () => {
-      cancelled = true
       stopExecution()
       stopReload()
     }
@@ -132,5 +142,9 @@ if (typeof document !== 'undefined') {
   registerServiceWorker()
   void startOfflineEngine()
   const root = document.getElementById('execution-root')
-  if (root) createRoot(root).render(<ExecutionApp />)
+  if (root) createRoot(root).render(
+      <QueryProvider>
+        <ExecutionApp />
+      </QueryProvider>,
+    )
 }

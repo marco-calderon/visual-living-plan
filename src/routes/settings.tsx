@@ -1,4 +1,5 @@
 import { createFileRoute, isRedirect, redirect } from '@tanstack/react-router'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
 import { useEffect, useLayoutEffect, useState, type CSSProperties } from 'react'
 import { ACCENT_CHOICES } from '../host/accountSettings.ts'
@@ -133,16 +134,9 @@ function SettingsBackButton() {
 
 /** Last card in Settings. The version and changelog are built into this host. */
 function HostedVersionCard() {
-  const [about, setAbout] = useState<HostedRelease | null>(null)
-  useEffect(() => {
-    let cancelled = false
-    void loadHostedRelease().then((next) => {
-      if (!cancelled) setAbout(next)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  // Built into this host, so it never changes while the page is open.
+  const release = useQuery({ queryKey: ['hosted-release'], queryFn: loadHostedRelease, staleTime: Infinity })
+  const about: HostedRelease | null = release.data ?? null
   const html = about ? versionSectionHtml(about.version, about.release, 'hosted') : ''
   if (!html) return null
   // The markup escapes every changelog line. The wrapper keeps it in the stack's grid.
@@ -158,7 +152,7 @@ function SettingsPage() {
   const [error, setError] = useState('')
   const [picker, setPicker] = useState(settings.accent)
   const [diffsOpen, setDiffsOpen] = useState(false)
-  const [saving, setSaving] = useState(false)
+  const appearance = useMutation({ mutationFn: saveHostedAppearance })
 
   useEffect(() => {
     setSettings(account.settings)
@@ -204,11 +198,9 @@ function SettingsPage() {
   }, [settings.accent, settings.diffsTheme, settings.pageWidth, settings.wrapCode])
 
   async function save(partial: AppearancePartial) {
-    if (saving) return
-    setSaving(true)
+    if (appearance.isPending) return
     setError('')
-    const ok = await saveHostedAppearance(partial)
-    setSaving(false)
+    const ok = await appearance.mutateAsync(partial).catch(() => false)
     if (!ok) {
       setError('Could not save those settings.')
       return

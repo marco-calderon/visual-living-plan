@@ -1,6 +1,6 @@
 {
   "name": "visual-living-plan",
-  "version": "1.13.4",
+  "version": "1.13.5",
   "description": "Agent-authored living plans with human interaction, live updates, and a swappable execution canvas",
   "type": "module",
   "bin": {
@@ -59,6 +59,7 @@
     "@tanstack/browser-db-sqlite-persistence": "^1.0.0-rc.1.1",
     "@tanstack/db": "^1.0.0-rc.1.1",
     "@tanstack/offline-transactions": "^1.2.0",
+    "@tanstack/react-query": "^5.105.3",
     "@tanstack/react-router": "1.170.46",
     "@tanstack/react-start": "1.169.4",
     "@tanstack/react-table": "^9.3.1",
