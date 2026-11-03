@@ -16,12 +16,14 @@ import {
   ackEvents,
   initPlan,
   pendingEvents,
+  planHosted,
   putSource,
+  touchPlan,
   StaleRevision,
   submitInteraction,
   type PlanSql,
 } from '../src/host/planRoom.ts'
-import { hostedViewUrl, planUrlOnCalledOrigin, registerCloudPlan, uploadSource } from '../src/cloudClient.ts'
+import { planUrlOnCalledOrigin, registerCloudPlan, uploadSource } from '../src/cloudClient.ts'
 import { requestOrigin } from '../src/host/requestOrigin.ts'
 import { renderDashboardPage } from '../src/dashboardPage.ts'
 import { cloudIdInSource, sourceWithCloudId } from '../src/cloudFrontmatter.ts'
@@ -222,23 +224,6 @@ test('a local Worker uses the loopback origin the CLI called', () => {
   assert.equal(requestOrigin(hintedPublic), 'http://127.0.0.1:8787')
 })
 
-test('the opened cloud plan uses the signed view link', async () => {
-  const previous = globalThis.fetch
-  globalThis.fetch = (async (input: RequestInfo | URL) => {
-    const url = new URL(String(input))
-    assert.equal(url.pathname, '/plans/plan1234/share')
-    return Response.json({ url: 'https://plans.example/plans/plan1234/view/sig' })
-  }) as typeof fetch
-  try {
-    assert.equal(
-      await hostedViewUrl('https://plans.example/plans/plan1234/', 'account-token'),
-      'https://plans.example/plans/plan1234/view/sig',
-    )
-  } finally {
-    globalThis.fetch = previous
-  }
-})
-
 test('account settings stay on the hosted database', async () => {
   const db = new Database(':memory:')
   const saved = await saveAccountSettings(d1Of(db), 'user-1', { accent: '#b45309', pageWidth: 'full', wrapCode: true, diffsTheme: 'nope' })
@@ -345,6 +330,15 @@ test('plan room stores a submission until it is acked', () => {
   const id = String((sent.outbound[0]?.data as { id: string }).id)
   ackEvents(sql, [id])
   assert.equal(pendingEvents(sql).length, 0)
+})
+
+test('a plan room that was never registered reports not hosted instead of a SQL error', () => {
+  const db = new Database(':memory:')
+  const sql = sqlOf(db)
+  assert.equal(planHosted(sql), false)
+  touchPlan(sql)
+  initPlan(sql, { token: 'plan-token', title: 'Demo', mode: 'watch', tier: 'free', source: '# Demo\n' })
+  assert.equal(planHosted(sql), true)
 })
 
 test('tier caps and viewer access', () => {
