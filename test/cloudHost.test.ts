@@ -21,7 +21,7 @@ import {
   submitInteraction,
   type PlanSql,
 } from '../src/host/planRoom.ts'
-import { hostedViewUrl, planUrlOnCalledOrigin, registerCloudPlan, uploadSource } from '../src/cloudClient.ts'
+import { planUrlOnCalledOrigin, registerCloudPlan, uploadSource } from '../src/cloudClient.ts'
 import { requestOrigin } from '../src/host/requestOrigin.ts'
 import { renderDashboardPage } from '../src/dashboardPage.ts'
 import { cloudIdInSource, sourceWithCloudId } from '../src/cloudFrontmatter.ts'
@@ -220,23 +220,6 @@ test('a local Worker uses the loopback origin the CLI called', () => {
     headers: { 'cf-connecting-ip': '127.0.0.1', 'x-living-plan-origin': 'https://evil.example' },
   })
   assert.equal(requestOrigin(hintedPublic), 'http://127.0.0.1:8787')
-})
-
-test('the opened cloud plan uses the signed view link', async () => {
-  const previous = globalThis.fetch
-  globalThis.fetch = (async (input: RequestInfo | URL) => {
-    const url = new URL(String(input))
-    assert.equal(url.pathname, '/plans/plan1234/share')
-    return Response.json({ url: 'https://plans.example/plans/plan1234/view/sig' })
-  }) as typeof fetch
-  try {
-    assert.equal(
-      await hostedViewUrl('https://plans.example/plans/plan1234/', 'account-token'),
-      'https://plans.example/plans/plan1234/view/sig',
-    )
-  } finally {
-    globalThis.fetch = previous
-  }
 })
 
 test('account settings stay on the hosted database', async () => {

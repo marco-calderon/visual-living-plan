@@ -60,10 +60,7 @@ export function createHostApp(env: HostEnv, options: { auth?: (request: Request)
     .post('/api/plans', ({ request }) => registerPlan(request, env, authFor(request), originFor(request, env)))
     .get('/api/plans/:planId/versions', ({ request, params }) => hostedPlanVersions(request, env, params.planId))
     .get('/api/auth/cli-session', ({ request }) => cliSession(request, env, authFor(request), new URL(request.url)))
-    .get('/plans/:planId/share', ({ request, params }) =>
-      sharePlan(request, env, authFor(request), originFor(request, env), params.planId),
-    )
-    .get('/plans/:planId/view/:sig', ({ request, params }) => acceptViewer(request, env, params.planId, params.sig))
+    .get('/plans/:planId/view/:sig', ({ params }) => retiredViewLink(params.planId))
     .get('/plans/:planId/document', ({ request, params }) =>
       planDocument(request, env, authFor(request), params.planId, 'latest'),
     )
@@ -272,26 +269,24 @@ async function registerPlan(request: Request, env: HostEnv, auth: ReturnType<typ
   })
 }
 
-async function sharePlan(
-  request: Request,
-  env: HostEnv,
-  auth: ReturnType<typeof createAuth>,
-  origin: string,
-  planId: string,
-): Promise<Response> {
-  const session = await readSession(auth, request, env.DB)
-  const row = await env.DB.prepare('SELECT user_id FROM plans WHERE id = ?').bind(planId).first<{ user_id: string }>()
-  if (!session || !row || row.user_id !== session.user.id) return text(401, 'Sign in required')
-  const sig = await signPlan(env.BETTER_AUTH_SECRET, planId)
-  return Response.json({ url: `${origin}/plans/${planId}/view/${sig}` })
+/** Old signed view links no longer grant access. Send them to the plan, which asks for the owner's sign-in, and drop the old cookie. */
+function retiredViewLink(planId: string): Response {
+  const headers = new Headers({ location: `/plans/${planId}/` })
+  headers.append('set-cookie', 'living_plan_view=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0')
+  return new Response(null, { status: 302, headers })
 }
 
-async function acceptViewer(request: Request, env: HostEnv, planId: string, sig: string): Promise<Response> {
-  const expected = await signPlan(env.BETTER_AUTH_SECRET, planId)
-  if (!timingSafe(expected, sig)) return text(401, 'This review link is not valid.')
-  const headers = new Headers({ location: `/plans/${planId}/` })
-  headers.append('set-cookie', viewerCookie(planId, sig, new URL(request.url).protocol === 'https:'))
-  return new Response(null, { status: 302, headers })
+type PlanAccess = { actor: PlanActor; signedIn: boolean }
+type PlanActor = 'account' | 'viewer' | ''
+
+/**
+ * The role this request has on a plan. Only the owning account has access.
+ * Sharing will return 'viewer' here for an account the owner added. The plan object already limits a viewer to read and submit.
+ */
+async function planAccess(session: AuthSession | null, env: HostEnv, planId: string): Promise<PlanAccess> {
+  if (!session) return { actor: '', signedIn: false }
+  const row = await env.DB.prepare('SELECT user_id FROM plans WHERE id = ?').bind(planId).first<{ user_id: string }>()
+  return { actor: row && row.user_id === session.user.id ? 'account' : '', signedIn: true }
 }
 
 async function forwardPlan(
@@ -302,10 +297,8 @@ async function forwardPlan(
   rest: string,
 ): Promise<Response> {
   const session = await readSession(auth, request, env.DB)
-  const row = await env.DB.prepare('SELECT user_id FROM plans WHERE id = ?').bind(planId).first<{ user_id: string }>()
-  const viewer = await viewerFor(request, env, planId)
-  const account = Boolean(session && row && row.user_id === session.user.id)
-  const actor = account ? 'account' : viewer ? 'viewer' : ''
+  const { actor } = await planAccess(session, env, planId)
+  const account = actor === 'account'
   if (request.method === 'DELETE') {
     if (!account && !bearerHeader(request)) return text(401, 'Sign in required')
     // The owner closes with the account. Anyone else must hold the plan bearer, which the object checks.
@@ -338,7 +331,7 @@ export type HostedPlanPage = {
   settings: Awaited<ReturnType<typeof readAccountSettings>>
 }
 
-/** Plan document and session for the signed-in account or a viewer cookie. */
+/** Plan document and session for the signed-in owner. */
 export async function hostedPlanPage(request: Request, env: HostEnv, planId: string): Promise<Response> {
   const loaded = await loadHostedPlan(request, env, planId)
   if (loaded instanceof Response) return loaded
@@ -349,11 +342,9 @@ async function loadHostedPlan(request: Request, env: HostEnv, planId: string): P
   const origin = originFor(request, env)
   const auth = createAuth(env, origin)
   const session = await readSession(auth, request, env.DB)
-  const row = await env.DB.prepare('SELECT user_id FROM plans WHERE id = ?').bind(planId).first<{ user_id: string }>()
-  const viewer = await viewerFor(request, env, planId)
-  const account = Boolean(session && row && row.user_id === session.user.id)
-  const actor = account ? 'account' : viewer ? 'viewer' : ''
-  if (!actor) return text(401, 'Sign in required')
+  const { actor, signedIn } = await planAccess(session, env, planId)
+  const account = actor === 'account'
+  if (!actor) return signedIn ? text(403, 'This plan belongs to another account.') : text(401, 'Sign in required')
   const viewResponse = await planFetch(env, planId, request, '/view', actor)
   if (!viewResponse.ok) return viewResponse
   const view = (await viewResponse.json()) as {
@@ -492,46 +483,6 @@ async function readSession(auth: ReturnType<typeof createAuth>, request: Request
   const match = /^Bearer\s+(\S+)$/i.exec(request.headers.get('authorization') ?? '')
   if (!match?.[1]) return null
   return sessionFromToken(db, match[1])
-}
-
-async function viewerFor(request: Request, env: HostEnv, planId: string): Promise<boolean> {
-  const cookie = readCookie(request.headers.get('cookie'), 'living_plan_view')
-  if (!cookie) return false
-  const split = cookie.indexOf('.')
-  if (split === -1) return false
-  if (cookie.slice(0, split) !== planId) return false
-  const expected = await signPlan(env.BETTER_AUTH_SECRET, planId)
-  return timingSafe(expected, cookie.slice(split + 1))
-}
-
-async function signPlan(secret: string, planId: string): Promise<string> {
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
-  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(planId))
-  return btoa(String.fromCharCode(...new Uint8Array(sig))).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')
-}
-
-function viewerCookie(planId: string, sig: string, secure: boolean): string {
-  return `living_plan_view=${planId}.${sig}; HttpOnly; Path=/; SameSite=Lax; Max-Age=2592000${secure ? '; Secure' : ''}`
-}
-
-function readCookie(header: string | null, name: string): string | null {
-  if (!header) return null
-  for (const part of header.split(';')) {
-    const separator = part.indexOf('=')
-    if (separator === -1) continue
-    if (part.slice(0, separator).trim() !== name) continue
-    return decodeURIComponent(part.slice(separator + 1).trim())
-  }
-  return null
-}
-
-function timingSafe(expected: string, actual: string): boolean {
-  const left = new TextEncoder().encode(expected)
-  const right = new TextEncoder().encode(actual)
-  if (left.length !== right.length || left.length === 0) return false
-  let diff = 0
-  for (let index = 0; index < left.length; index += 1) diff |= (left[index] ?? 0) ^ (right[index] ?? 0)
-  return diff === 0
 }
 
 function isInternalPath(pathname: string): boolean {
