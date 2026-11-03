@@ -115,3 +115,28 @@ Settings ends with a Version card on both the loopback plan page and the hosted 
 ### Notes
 
 No registry restart needed beyond the usual version check. The shell cache name is 1.13.3.
+
+## 1.13.4
+
+**PR:** not opened yet
+
+**Bump:** patch
+
+### Summary
+
+Plans on the hosted dashboard no longer disappear and come back between refreshes, and neither dashboard sends requests while its tab is hidden.
+
+### Bugs fixed
+
+- The device store no longer loses rows when two saves happen close together. Each save rewrote the whole list from what was already shown, so a row that was still saving was erased.
+- When one hosted dashboard refresh fails, the rows on screen stay and the status line says the refresh failed. Before, the table was emptied until the next refresh.
+- Plans saved for offline keep the time they were last fetched, so they are not fetched again on every dashboard refresh.
+
+### Improvements
+
+- The hosted and local dashboards refresh every 4 seconds only while the tab is visible. Returning to the tab refreshes right away.
+- The once-a-minute background plan sync skips hidden tabs.
+
+### Notes
+
+No registry restart needed beyond the usual version check. The shell cache name is 1.13.4.

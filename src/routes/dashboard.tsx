@@ -49,6 +49,12 @@ type DashboardBody = {
 
 type Shift = 'enter' | 'forward' | 'back' | 'filter' | 'quiet'
 
+const DASHBOARD_POLL_MS = 4000
+
+function pageVisible(): boolean {
+  return typeof document === 'undefined' || document.visibilityState !== 'hidden'
+}
+
 export const Route = createFileRoute('/dashboard')({
   validateSearch: (search: Record<string, unknown>): DashboardSearch => {
     const period = search.period
@@ -111,7 +117,8 @@ function DashboardPage() {
       if (cancelled) return
       fresh = true
       if ('missing' in result) {
-        setPayload(null)
+        // Keep the rows on screen when one refresh fails. Only a different period's rows are cleared.
+        setPayload((current) => (current && current.summary.period === period ? current : null))
         setOfflineAt(null)
         setError('Could not read the dashboard.')
         return
@@ -123,29 +130,41 @@ function DashboardPage() {
     }
     void paintStored()
     void load()
+    /** Poll only while this tab is on screen and online. A hidden tab sends no dashboard requests. */
     function startPolling() {
       window.clearInterval(timer)
-      if (!navigator.onLine) return
+      if (!navigator.onLine || !pageVisible()) return
       timer = window.setInterval(() => {
         void load()
-      }, 4000)
+      }, DASHBOARD_POLL_MS)
     }
     function onOnline() {
-      void load()
+      if (pageVisible()) void load()
       startPolling()
     }
     function onOffline() {
       window.clearInterval(timer)
       void load()
     }
+    function onVisibility() {
+      if (!pageVisible()) {
+        window.clearInterval(timer)
+        return
+      }
+      // Coming back: one refresh right away, then the interval again.
+      void load()
+      startPolling()
+    }
     startPolling()
     window.addEventListener('online', onOnline)
     window.addEventListener('offline', onOffline)
+    document.addEventListener('visibilitychange', onVisibility)
     return () => {
       cancelled = true
       window.clearInterval(timer)
       window.removeEventListener('online', onOnline)
       window.removeEventListener('offline', onOffline)
+      document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [period, reload])
 

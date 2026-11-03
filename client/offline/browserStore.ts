@@ -28,7 +28,7 @@ import { forgetCachedDocuments } from './forgetDocuments.ts'
 
 type SyncWrite = {
   begin: (options?: { snapshot?: boolean }) => void
-  write: (message: { type: 'insert'; value: object }) => void
+  write: (message: { type: 'insert' | 'update'; value: object } | { type: 'delete'; key: string }) => void
   commit: () => unknown
   markReady: () => void
   fail: (error: unknown) => void
@@ -40,6 +40,16 @@ type SyncWrite = {
 // collection (TanStack's default mismatch policy) and would drop plan rows the
 // outbox still points at. The outbox itself lives in IndexedDB, not this file.
 const SCHEMA = 1
+
+/**
+ * One write to a device collection. `put` and `drop` touch only the rows they name, so two writes
+ * close together cannot erase each other. A write only shows in `toArray` once the one before it
+ * has been saved, so a full snapshot built from `toArray` could drop a row that was still saving.
+ * `replace` is a full snapshot and is kept for clearing the device.
+ */
+type RowChange<T> = { put?: readonly T[]; drop?: readonly string[]; replace?: readonly T[] }
+
+type RowWriter<T> = ((change: RowChange<T>) => void) | null
 
 type QueuedMutation = {
   kind: UserMutationKind
@@ -60,15 +70,23 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
   let reachable = navigator.onLine
   const results = new Map<string, unknown>()
   const writers: {
-    plans: ((rows: PlanRow[]) => void) | null
-    comments: ((rows: CommentRow[]) => void) | null
-    catalog: ((rows: CatalogRow[]) => void) | null
-    settings: ((rows: SettingsRow[]) => void) | null
-    account: ((rows: AccountRow[]) => void) | null
-    dashboards: ((rows: DashboardStoreRow[]) => void) | null
+    plans: RowWriter<PlanRow>
+    comments: RowWriter<CommentRow>
+    catalog: RowWriter<CatalogRow>
+    settings: RowWriter<SettingsRow>
+    account: RowWriter<AccountRow>
+    dashboards: RowWriter<DashboardStoreRow>
   } = { plans: null, comments: null, catalog: null, settings: null, account: null, dashboards: null }
 
-  function syncOptions<T extends object>(id: string, assign: (apply: (rows: T[]) => void) => void) {
+  /**
+   * `full` makes a put replace the whole row. `partial` merges it into the stored row when it is
+   * applied, so a put can leave out a field another write owns.
+   */
+  function syncOptions<T extends object>(
+    id: string,
+    assign: (apply: (change: RowChange<T>) => void) => void,
+    rowUpdateMode: 'full' | 'partial' = 'full',
+  ) {
     return {
       id,
       getKey: (row: T & { id: string }) => row.id,
@@ -76,10 +94,18 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
       schemaVersion: SCHEMA,
       initialRender: { strategy: 'network-first' as const, networkTimeoutMs: 0 },
       sync: {
+        rowUpdateMode,
         sync: (params: SyncWrite) => {
-          assign((rows) => {
-            params.begin({ snapshot: true })
-            for (const row of rows) params.write({ type: 'insert', value: row })
+          assign((change) => {
+            if (change.replace) {
+              params.begin({ snapshot: true })
+              for (const row of change.replace) params.write({ type: 'insert', value: row })
+            } else {
+              params.begin()
+            }
+            // An update writes the row whether or not it is stored yet.
+            for (const row of change.put ?? []) params.write({ type: 'update', value: row })
+            for (const key of change.drop ?? []) params.write({ type: 'delete', key })
             params.commit()
           })
           params.markReady()
@@ -90,7 +116,7 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
 
   const plans = createCollection(persistedCollectionOptions<PlanRow, string>(syncOptions<PlanRow>('plans', (apply) => { writers.plans = apply })))
   const comments = createCollection(persistedCollectionOptions<CommentRow, string>(syncOptions<CommentRow>('comments', (apply) => { writers.comments = apply })))
-  const catalog = createCollection(persistedCollectionOptions<CatalogRow, string>(syncOptions<CatalogRow>('catalog', (apply) => { writers.catalog = apply })))
+  const catalog = createCollection(persistedCollectionOptions<CatalogRow, string>(syncOptions<CatalogRow>('catalog', (apply) => { writers.catalog = apply }, 'partial')))
   const settings = createCollection(persistedCollectionOptions<SettingsRow, string>(syncOptions<SettingsRow>('settings', (apply) => { writers.settings = apply })))
   const account = createCollection(persistedCollectionOptions<AccountRow, string>(syncOptions<AccountRow>('account', (apply) => { writers.account = apply })))
   const dashboards = createCollection(persistedCollectionOptions<DashboardStoreRow, string>(syncOptions<DashboardStoreRow>('dashboards', (apply) => { writers.dashboards = apply })))
@@ -179,13 +205,17 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
     const nextPlans = [...keptPlans, row]
     const ownedIds = [...catalog.toArray].map((entry) => entry.id)
     const drop = new Set(plansToEvict(nextPlans, openPlanId(), 4, ownedIds))
-    const visiblePlans = nextPlans.filter((entry) => !drop.has(entry.id))
     if (drop.size > 0) forgetCachedDocuments([...drop].map((id) => `/plans/${id}`))
-    const pending = [...comments.toArray].filter((entry) => entry.pending)
-    const keptComments = [...comments.toArray].filter((entry) => entry.planId !== context.id && !drop.has(entry.planId) && !entry.pending)
-    const nextComments = [...keptComments, ...commentRowsFromSnapshot(context.id, snapshot.comments, pending).filter((entry) => !drop.has(entry.planId))]
-    writers.plans?.(visiblePlans)
-    writers.comments?.(nextComments)
+    const stored = [...comments.toArray]
+    const pending = stored.filter((entry) => entry.pending)
+    const nextComments = commentRowsFromSnapshot(context.id, snapshot.comments, pending).filter((entry) => !drop.has(entry.planId))
+    const nextIds = new Set(nextComments.map((entry) => entry.id))
+    const staleComments = stored
+      .filter((entry) => entry.planId === context.id || drop.has(entry.planId) || entry.pending)
+      .filter((entry) => !nextIds.has(entry.id))
+      .map((entry) => entry.id)
+    writers.plans?.({ put: drop.has(row.id) ? [] : [row], drop: [...drop] })
+    writers.comments?.({ put: nextComments, drop: staleComments })
     notify()
   }
 
@@ -244,8 +274,7 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
           wrapCode: Boolean(theme.wrapCode),
           updatedAt: typeof theme.updatedAt === 'number' ? theme.updatedAt : 0,
         }
-        const current = [...settings.toArray].filter((entry) => entry.id !== row.id)
-        writers.settings?.([...current, settingsWinner(settings.get(row.id) ?? row, row)])
+        writers.settings?.({ put: [settingsWinner(settings.get(row.id) ?? row, row)] })
       } else if (location.pathname.startsWith('/settings') || location.pathname.startsWith('/account')) {
         const response = await fetch('/api/account', { cache: 'no-store' })
         if (!response.ok) return
@@ -261,11 +290,7 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
           wrapCode: Boolean(theme.wrapCode),
           updatedAt: typeof theme.updatedAt === 'number' ? theme.updatedAt : 0,
         }
-        const current = [...settings.toArray].filter((entry) => entry.id !== row.id)
-        writers.settings?.([...current, settingsWinner(settings.get(row.id) ?? row, row)])
-      } else {
-        writers.settings?.([...settings.toArray])
-        writers.catalog?.([...catalog.toArray])
+        writers.settings?.({ put: [settingsWinner(settings.get(row.id) ?? row, row)] })
       }
       reachable = true
     } catch {
@@ -289,17 +314,14 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
       const current = plans.get(context.id)
       if (!current) return
       const next = applyLiveToPlan(current, event, data)
-      const rest = [...plans.toArray].filter((row) => row.id !== context.id)
-      writers.plans?.([...rest, next])
+      writers.plans?.({ put: [next] })
       if (event === 'comment' && data && typeof data === 'object') {
         const comment = data as Record<string, unknown>
         const id = typeof comment.id === 'string' ? comment.id : ''
         if (!id) return
-        const others = [...comments.toArray].filter((row) => row.id !== id)
-        writers.comments?.([
-          ...others,
-          { id, planId: context.id, partId: typeof comment.partId === 'string' ? comment.partId : '', pending: false, comment },
-        ])
+        writers.comments?.({
+          put: [{ id, planId: context.id, partId: typeof comment.partId === 'string' ? comment.partId : '', pending: false, comment }],
+        })
       }
     },
     submit: async ({ kind, path, body }) => {
@@ -346,32 +368,33 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
       const previous = [...catalog.toArray].map((row) => row.id)
       const nextIds = new Set(rows.map((row) => row.id))
       const released = previous.filter((id) => !nextIds.has(id))
-      writers.catalog?.(rows)
+      // warmedAt is left out so this merge keeps the time markWarmed wrote, even one still being saved.
+      writers.catalog?.({ put: rows.map(({ warmedAt: _warmedAt, ...row }) => row as CatalogRow), drop: released })
       const drop = new Set(plansToEvict([...plans.toArray], openPlanId(), 4, rows.map((row) => row.id), released))
       if (drop.size > 0) {
-        writers.plans?.([...plans.toArray].filter((row) => !drop.has(row.id)))
-        writers.comments?.([...comments.toArray].filter((row) => !drop.has(row.planId)))
+        writers.plans?.({ drop: [...drop] })
+        writers.comments?.({ drop: [...comments.toArray].filter((row) => drop.has(row.planId)).map((row) => row.id) })
         forgetCachedDocuments([...drop].map((id) => `/plans/${id}`))
       }
       notify()
     },
     account: () => account.get('me') ?? null,
     rememberAccount: (payload) => {
-      writers.account?.([{ id: 'me', payload, savedAt: Date.now() }])
+      writers.account?.({ put: [{ id: 'me', payload, savedAt: Date.now() }] })
       notify()
     },
     dashboard: (period) => dashboards.get(period) ?? null,
     rememberDashboard: (period, payload) => {
-      const rest = [...dashboards.toArray].filter((row) => row.id !== period)
-      writers.dashboards?.([...rest, { id: period, payload, savedAt: Date.now() }])
+      writers.dashboards?.({ put: [{ id: period, payload, savedAt: Date.now() }] })
       notify()
     },
     storePlanSnapshot: (id, basePath, snapshot) => {
       publishSnapshot({ id, host: basePath.startsWith('/plans/') ? 'cloud' : 'local', basePath }, snapshot)
     },
     markWarmed: (id, versionKey, warmedAt) => {
-      const rows = [...catalog.toArray].map((row) => (row.id === id ? { ...row, versionKey, warmedAt } : row))
-      writers.catalog?.(rows)
+      // Catalog puts merge, so this changes only these two fields of a row that is still listed.
+      if (!catalog.get(id)) return
+      writers.catalog?.({ put: [{ id, versionKey, warmedAt } as CatalogRow] })
     },
     pendingCount: () => executor.getPendingCount(),
     noteNetwork: (online) => {
@@ -385,12 +408,12 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
         if (!window.confirm(`${noun} not been sent. Sign out anyway?`)) return false
       }
       if (executor.getPendingCount() > 0) await executor.clearOutbox()
-      writers.plans?.([])
-      writers.comments?.([])
-      writers.catalog?.([])
-      writers.settings?.([])
-      writers.account?.([])
-      writers.dashboards?.([])
+      writers.plans?.({ replace: [] })
+      writers.comments?.({ replace: [] })
+      writers.catalog?.({ replace: [] })
+      writers.settings?.({ replace: [] })
+      writers.account?.({ replace: [] })
+      writers.dashboards?.({ replace: [] })
       forgetCachedDocuments()
       notify()
       return true
@@ -415,15 +438,14 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
   }
 
   function writeSettings(row: SettingsRow): void {
-    const rest = [...settings.toArray].filter((entry) => entry.id !== row.id)
-    writers.settings?.([...rest, row])
+    writers.settings?.({ put: [row] })
   }
 
   /** Keep the stored account in step, so the settings page and dashboard read the change offline. */
   function patchStoredAccount(row: SettingsRow): void {
     const stored = account.get('me')
     if (!stored) return
-    writers.account?.([{ ...stored, payload: accountWithSettings(stored.payload, row) }])
+    writers.account?.({ put: [{ ...stored, payload: accountWithSettings(stored.payload, row) }] })
   }
 
   /** Send one settings row. It stays pending on a network failure and is sent again when the network returns. */
@@ -484,7 +506,7 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
     void loadCatalog()
   })
   window.setInterval(() => {
-    if (navigator.onLine) void loadCatalog()
+    if (navigator.onLine && document.visibilityState !== 'hidden') void loadCatalog()
   }, 60_000)
   comments.subscribeChanges(() => notify())
   plans.subscribeChanges(() => notify())

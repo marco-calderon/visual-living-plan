@@ -73,3 +73,44 @@ test('an offline interaction is stored, restored, and recorded once', async ({ p
   })
   expect(interactions).toBe(1)
 })
+
+type StoreWindow = Window & {
+  __livingPlanOffline?: {
+    available?: boolean
+    hydrated?: boolean
+    dashboard?: (period: string) => { payload?: unknown } | null
+    rememberDashboard?: (period: string, payload: unknown) => void
+  }
+}
+
+test('back-to-back device writes keep every row', async ({ page }) => {
+  await page.goto('/')
+  const opfs = await page.evaluate(async () => {
+    if (!navigator.storage?.getDirectory) return false
+    try {
+      await navigator.storage.getDirectory()
+      return true
+    } catch {
+      return false
+    }
+  })
+  test.skip(!opfs, 'Chromium has no OPFS')
+
+  await page.waitForFunction(() => Boolean((window as StoreWindow).__livingPlanOffline?.hydrated))
+  // Each write lands only after the one before it is saved. A full snapshot built in between
+  // used to erase the row that was still saving.
+  await page.evaluate(() => {
+    const engine = (window as StoreWindow).__livingPlanOffline
+    for (const period of ['e2e-a', 'e2e-b', 'e2e-c', 'e2e-d']) engine?.rememberDashboard?.(period, { period })
+  })
+  const stored = () =>
+    page.evaluate(() => {
+      const engine = (window as StoreWindow).__livingPlanOffline
+      return ['e2e-a', 'e2e-b', 'e2e-c', 'e2e-d'].filter((period) => engine?.dashboard?.(period)).join(',')
+    })
+  await expect.poll(stored).toBe('e2e-a,e2e-b,e2e-c,e2e-d')
+
+  await page.reload()
+  await page.waitForFunction(() => Boolean((window as StoreWindow).__livingPlanOffline?.hydrated))
+  await expect.poll(stored).toBe('e2e-a,e2e-b,e2e-c,e2e-d')
+})

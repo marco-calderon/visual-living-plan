@@ -375,7 +375,18 @@ export function dashboardClientScript(apiPath: string): string {
         refresh();
       });
       document.addEventListener('click', followInternalPage);
+      // Poll only while this tab is on screen. A hidden tab sends no dashboard requests.
+      function startPolling() {
+        if (window.__livingPlanDashboardTimer) clearInterval(window.__livingPlanDashboardTimer);
+        window.__livingPlanDashboardTimer = null;
+        if (document.visibilityState === 'hidden') return;
+        window.__livingPlanDashboardTimer = setInterval(refresh, 4000);
+      }
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'hidden') refresh();
+        startPolling();
+      });
       refresh();
-      window.__livingPlanDashboardTimer = setInterval(refresh, 4000);
+      startPolling();
     })();`
 }
