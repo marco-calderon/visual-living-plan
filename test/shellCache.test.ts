@@ -173,7 +173,7 @@ test('precache stores each asset and skips a missing file', async () => {
     },
     concurrency: 2,
   })
-  assert.deepEqual(added, ['/assets/a.js', '/assets/b.css', '/assets/c.wasm'])
+  assert.deepEqual(added, ['/favicon.png', '/assets/a.js', '/assets/b.css', '/assets/c.wasm'])
 })
 
 test('a missing asset fetch is a gateway timeout instead of a rejected fetch', async () => {
@@ -184,6 +184,36 @@ test('a missing asset fetch is a gateway timeout instead of a rejected fetch', a
   const response = await handleShellFetch(new Request(`${origin}/favicon.ico`), runtime.deps)
   assert.equal(response?.status, 504)
   assert.equal(await response?.text(), '')
+})
+
+test('a cached asset matches without its Vary header', async () => {
+  const seen: Array<{ ignoreVary?: boolean } | undefined> = []
+  const cached = new Response('main', { headers: { 'content-type': 'text/javascript', vary: 'Origin' } })
+  const caches = {
+    open: async () => ({
+      match: async (_request: Request, options?: { ignoreVary?: boolean }) => {
+        seen.push(options)
+        return options?.ignoreVary ? cached : undefined
+      },
+      put: async () => undefined,
+    }),
+    keys: async () => [],
+    delete: async () => true,
+  } as unknown as ShellCacheStorage
+  const response = await handleShellFetch(
+    new Request(`${origin}/assets/react-abc123.js`, { headers: { origin } }),
+    {
+      cacheName: SHELL_CACHE_NAME,
+      caches,
+      origin,
+      fetch: () => {
+        throw new TypeError('Failed to fetch')
+      },
+    },
+  )
+  assert.equal(response?.status, 200)
+  assert.equal(await response?.text(), 'main')
+  assert.deepEqual(seen, [{ ignoreVary: true }])
 })
 
 test('a missing precache manifest does not fail install', async () => {

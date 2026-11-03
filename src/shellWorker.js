@@ -116,7 +116,7 @@ async function precacheShell(manifestUrl, deps) {
   } catch {
     return;
   }
-  const urls = precacheAssetUrls(manifest);
+  const urls = [...new Set(["/favicon.png", ...precacheAssetUrls(manifest)])];
   const size = deps.concurrency && deps.concurrency > 0 ? deps.concurrency : PRECACHE_BATCH;
   for (let index = 0;index < urls.length; index += size) {
     const slice = urls.slice(index, index + size);
@@ -193,7 +193,7 @@ function handleShellFetch(request, deps) {
 }
 async function cacheFirstAsset(request, deps) {
   const cache = await deps.caches.open(deps.cacheName);
-  const cached = await cache.match(request);
+  const cached = await cache.match(request, { ignoreVary: true });
   if (cached)
     return cached;
   try {

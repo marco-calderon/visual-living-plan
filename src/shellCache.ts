@@ -31,7 +31,7 @@ export const PRECACHE_BATCH = 16
 export type ShellKind = 'asset' | 'document' | 'network'
 
 export type ShellCacheStore = {
-  match(request: Request): Promise<Response | undefined>
+  match(request: Request, options?: { ignoreVary?: boolean }): Promise<Response | undefined>
   put(request: Request, response: Response): Promise<void>
   add?(request: Request): Promise<void>
   addAll?(urls: readonly string[]): Promise<void>
@@ -166,7 +166,8 @@ export async function precacheShell(manifestUrl: string, deps: PrecacheClient): 
   } catch {
     return
   }
-  const urls = precacheAssetUrls(manifest)
+  // The icon is served by the Worker, not from assets/, so the build manifest does not list it.
+  const urls = [...new Set(['/favicon.png', ...precacheAssetUrls(manifest)])]
   const size = deps.concurrency && deps.concurrency > 0 ? deps.concurrency : PRECACHE_BATCH
   for (let index = 0; index < urls.length; index += size) {
     const slice = urls.slice(index, index + size)
@@ -250,7 +251,8 @@ export function handleShellFetch(request: Request, deps: ShellRuntime): Promise<
 
 async function cacheFirstAsset(request: Request, deps: ShellRuntime): Promise<Response> {
   const cache = await deps.caches.open(deps.cacheName)
-  const cached = await cache.match(request)
+  // Assets are content-hashed. A `Vary: Origin` response would otherwise miss for module scripts, which send Origin.
+  const cached = await cache.match(request, { ignoreVary: true })
   if (cached) return cached
   try {
     const response = await deps.fetch(request)
