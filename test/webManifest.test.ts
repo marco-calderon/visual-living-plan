@@ -22,11 +22,11 @@ test('the manifest has what browsers need to offer install', async () => {
   assert.equal(manifest.id, '/')
   assert.equal(manifest.start_url, '/dashboard')
   assert.equal(manifest.scope, '/')
-  const icon = manifest.icons.find((entry) => entry.type === 'image/png')
-  assert.ok(icon, 'a PNG icon is listed')
-  const [width] = icon.sizes.split('x').map(Number)
-  assert.ok(width >= 512, 'the icon is at least 512px')
-  assert.equal(icon.src, '/favicon.png')
+  for (const purpose of ['any', 'maskable'] as const) {
+    const sizes = manifest.icons.filter((entry) => entry.purpose === purpose).map((entry) => entry.sizes)
+    assert.ok(sizes.includes('192x192'), `a 192px ${purpose} icon is listed`)
+    assert.ok(sizes.includes('512x512'), `a 512px ${purpose} icon is listed`)
+  }
 
   const response = webManifestResponse()
   assert.equal(response.headers.get('content-type'), 'application/manifest+json; charset=utf-8')

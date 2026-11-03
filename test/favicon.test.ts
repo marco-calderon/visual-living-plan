@@ -29,12 +29,6 @@ test('the plan, dashboard, and registry pages link the favicon', () => {
   }
 })
 
-test('the hosted app serves favicon.ico from the same handler as favicon.png', () => {
-  const entry = readFileSync(new URL('../src/entry.ts', import.meta.url), 'utf8')
-  assert.match(entry, /pathname === '\/favicon\.png' \|\| url\.pathname === '\/favicon\.ico'/)
-  assert.match(entry, /serveFavicon/)
-})
-
 test('favicon.png is the circle mark', async () => {
   const response = faviconResponse()
   assert.equal(response.headers.get('content-type'), 'image/png')

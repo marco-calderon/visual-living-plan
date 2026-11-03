@@ -7,9 +7,11 @@ import {
 } from '@tanstack/browser-db-sqlite-persistence'
 import { NonRetriableError, startOfflineExecutor, type OfflineExecutor } from '@tanstack/offline-transactions'
 import {
+  activationSyncDue,
   applyLiveToPlan,
   commentPartReady,
   commentRowsFromSnapshot,
+  ownedPlanSyncAllowed,
   planRowFromSnapshot,
   plansToEvict,
   settingsWinner,
@@ -212,16 +214,31 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
     }
   }
 
-  async function loadCatalog(): Promise<void> {
-    if (location.pathname !== '/dashboard' && !location.pathname.startsWith('/dashboard/')) return
-    const period = new URLSearchParams(location.search).get('period')
-    const selected = period === 'week' || period === 'month' ? period : 'day'
-    const { refreshDeviceDashboards } = await import('./warmPlans.ts')
-    const result = await refreshDeviceDashboards(handle, { period: selected })
-    if ('offline' in result && result.offline) {
-      reachable = false
-      notify()
+  async function loadCatalog(options: { forceAccount?: boolean } = {}): Promise<void> {
+    if (location.pathname === '/dashboard' || location.pathname.startsWith('/dashboard/')) {
+      const period = new URLSearchParams(location.search).get('period')
+      const selected = period === 'week' || period === 'month' ? period : 'day'
+      const { refreshDeviceDashboards } = await import('./warmPlans.ts')
+      const result = await refreshDeviceDashboards(handle, { period: selected })
+      if ('offline' in result && result.offline) {
+        reachable = false
+        notify()
+      }
+      return
     }
+    if (!ownedPlanSyncAllowed(location.pathname, (window as Window & { __LIVE_PLAN_HOST__?: string }).__LIVE_PLAN_HOST__)) return
+    const { syncOwnedPlans } = await import('./warmPlans.ts')
+    await syncOwnedPlans(handle, options)
+  }
+
+  let lastActivationSync = 0
+  /** The tab or installed app came to the front: pick up plans created or changed elsewhere. */
+  function syncOnActivate(): void {
+    if (document.visibilityState !== 'visible' || !navigator.onLine) return
+    const now = Date.now()
+    if (!activationSyncDue(lastActivationSync, now)) return
+    lastActivationSync = now
+    void loadCatalog({ forceAccount: true })
   }
 
   async function loadSettings(): Promise<void> {
@@ -445,7 +462,13 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
   window.addEventListener('online', () => {
     reachable = true
     void refreshPlan()
+    syncOnActivate()
     notify()
+  })
+  document.addEventListener('visibilitychange', syncOnActivate)
+  window.addEventListener('focus', syncOnActivate)
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) syncOnActivate()
   })
   comments.subscribeChanges(() => notify())
   plans.subscribeChanges(() => notify())

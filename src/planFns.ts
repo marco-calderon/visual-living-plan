@@ -42,19 +42,6 @@ export const loadAccount = createServerFn({ method: 'GET' }).handler(async () =>
   return { ok: true as const, account }
 })
 
-export const loadHistory = createServerFn({ method: 'GET' })
-  .validator((planId: string) => planId)
-  .handler(async ({ data: planId }) => {
-    const request = getRequest()
-    const [{ hostedPlanVersions }, { env }] = await workerAndEnv()
-    const response = await hostedPlanVersions(request, env, planId)
-    if (!response.ok) {
-      return { ok: false as const, status: response.status, message: await response.text() }
-    }
-    const history = (await response.json()) as HistoryPayload
-    return { ok: true as const, history }
-  })
-
 export const loadPlan = createServerFn({ method: 'GET' })
   .validator((planId: string) => planId)
   .handler(async ({ data: planId }) => {

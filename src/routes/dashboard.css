@@ -213,19 +213,30 @@ body {
   white-space: nowrap;
 }
 
-.dashboard a.action {
+.dashboard a.action,
+.dashboard button.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 0;
+  padding: 0;
+  background: transparent;
   color: var(--accent);
+  font: inherit;
   font-weight: 600;
   text-decoration: none;
   margin-right: 0.7rem;
   white-space: nowrap;
+  cursor: pointer;
 }
 
-.dashboard a.action:hover {
+.dashboard a.action:hover,
+.dashboard button.action:hover {
   text-decoration: underline;
 }
 
-.dashboard a.action:focus-visible {
+.dashboard a.action:focus-visible,
+.dashboard button.action:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }

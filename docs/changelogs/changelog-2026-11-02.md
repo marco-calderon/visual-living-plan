@@ -193,23 +193,3 @@ Email and password sign-in on a Worker Preview stays on that preview's address.
 ### Notes
 
 GitHub and Google sign-in still only work on the production site. No registry restart needed beyond the usual version check. The shell cache name is 1.12.1.
-
-## 1.12.2
-
-**PR:** [#131](https://github.com/marco-calderon/visual-living-plan/pull/131)
-
-**Bump:** patch
-
-### Summary
-
-Plans this account owns are saved on the device the first time the dashboard loads, and a plan that was never published reads as not found instead of an error page.
-
-### Bugs fixed
-
-- Opening the dashboard stores each owned plan's page in the shell cache. A plan is marked saved only after that copy is stored, and a new app version saves it again.
-- One missing build file no longer keeps the rest of the app shell from being cached. The browser's request for `/favicon.ico` is served and no longer fails the service worker while offline.
-- A plan whose hosted copy is empty reads as not found, with a link back to the dashboard.
-
-### Notes
-
-No registry restart needed beyond the usual version check. The new shell cache name replaces the 1.12.1 cache.

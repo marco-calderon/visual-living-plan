@@ -53,6 +53,23 @@ export async function refreshDeviceDashboards(
   }
 }
 
+/**
+ * Any hosted page: refresh the account's plan list and save the plans that are due.
+ * `forceAccount` re-reads the list even when the stored copy is recent, so a plan
+ * created elsewhere is saved the next time this tab becomes active.
+ */
+export async function syncOwnedPlans(engine: OfflineHandle | null, options: { forceAccount?: boolean } = {}): Promise<void> {
+  if (!engine?.available || !warmingAllowed()) return
+  try {
+    await refreshAccount(engine, options.forceAccount === true)
+    syncOwnedCatalog(engine)
+    engine.noteNetwork(true)
+    await warmOwnedPlans(engine)
+  } catch {
+    engine.noteNetwork(false)
+  }
+}
+
 export async function warmOwnedPlans(engine: OfflineHandle): Promise<void> {
   if (!engine.available || !warmingAllowed() || warming) return
   const due = plansToWarm(warmPlans(engine.catalog()), engine.catalog(), Date.now(), undefined, SHELL_CACHE_NAME)

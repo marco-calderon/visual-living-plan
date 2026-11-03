@@ -58,6 +58,7 @@ export function createHostApp(env: HostEnv, options: { auth?: (request: Request)
       accountDashboardApi(request, env, authFor(request), originFor(request, env)),
     )
     .post('/api/plans', ({ request }) => registerPlan(request, env, authFor(request), originFor(request, env)))
+    .get('/api/plans/:planId/versions', ({ request, params }) => hostedPlanVersions(request, env, params.planId))
     .get('/api/auth/cli-session', ({ request }) => cliSession(request, env, authFor(request), new URL(request.url)))
     .get('/plans/:planId/share', ({ request, params }) =>
       sharePlan(request, env, authFor(request), originFor(request, env), params.planId),

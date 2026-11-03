@@ -154,11 +154,6 @@ export function dashboardClientScript(apiPath: string): string {
           archived.href = record.fileUrl || ('/archive/' + encodeURIComponent(record.id));
           if (record.storedPath) archived.title = record.storedPath;
           cell.append(archived);
-          if (record.historyUrl) {
-            const history = text('a', 'action', 'Versions');
-            history.href = record.historyUrl;
-            cell.append(history);
-          }
         }
         return cell;
       }

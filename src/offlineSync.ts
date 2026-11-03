@@ -338,6 +338,23 @@ export function warmRecordSaved(row: Pick<WarmRecord, 'warmedAt' | 'cacheName'> 
   return true
 }
 
+/** Minimum gap between two "the tab became active" syncs, so focus and visibility firing together cost one sync. */
+export const ACTIVATION_SYNC_GAP_MS = 30 * 1000
+
+export function activationSyncDue(lastAt: number, now: number, gap = ACTIVATION_SYNC_GAP_MS): boolean {
+  return lastAt <= 0 || now - lastAt >= gap
+}
+
+/**
+ * Pages that keep the account's own plans on the device. Sign-in pages have no account yet,
+ * and a local plan page has no hosted account at all.
+ */
+export function ownedPlanSyncAllowed(pathname: string, host: string | undefined): boolean {
+  if (host === 'local') return false
+  const path = pathname.replace(/\/+$/, '') || '/'
+  return path !== '/login' && path !== '/signup'
+}
+
 /** Most recent owned plans that are new, changed, in a different shell cache, or last tried longer ago than the interval. */
 export function plansToWarm(
   owned: readonly WarmPlan[],

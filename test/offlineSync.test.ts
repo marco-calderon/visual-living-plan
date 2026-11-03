@@ -34,6 +34,9 @@ import {
   settingsWinner,
   warmRecordSaved,
   type PlanRow,
+  activationSyncDue,
+  ACTIVATION_SYNC_GAP_MS,
+  ownedPlanSyncAllowed,
 } from '../src/offlineSync.ts'
 import { openPlanSession } from '../src/planSession.ts'
 
@@ -387,3 +390,14 @@ function sqlOf(db: Database): PlanSql {
     },
   }
 }
+
+test('an active tab syncs at most once per gap, and only on hosted account pages', () => {
+  assert.equal(activationSyncDue(0, 1_000), true)
+  assert.equal(activationSyncDue(1_000, 1_000 + ACTIVATION_SYNC_GAP_MS - 1), false)
+  assert.equal(activationSyncDue(1_000, 1_000 + ACTIVATION_SYNC_GAP_MS), true)
+  assert.equal(ownedPlanSyncAllowed('/plans/abc', 'cloud'), true)
+  assert.equal(ownedPlanSyncAllowed('/settings', undefined), true)
+  assert.equal(ownedPlanSyncAllowed('/login', undefined), false)
+  assert.equal(ownedPlanSyncAllowed('/signup/', undefined), false)
+  assert.equal(ownedPlanSyncAllowed('/', 'local'), false)
+})

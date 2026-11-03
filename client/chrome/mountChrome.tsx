@@ -3,6 +3,7 @@ import { toast, Toaster } from 'sonner'
 import { AccountMenu } from './AccountMenu.tsx'
 import { CodeWrapSwitch } from './CodeWrapSwitch.tsx'
 import { PlanDetails } from './PlanDetails.tsx'
+import { PlanVersionsMenu } from './PlanVersionsMenu.tsx'
 import { PlansMenu } from './PlansMenu.tsx'
 import { SettingsAccordion } from './SettingsAccordion.tsx'
 import 'sonner/dist/styles.css'
@@ -71,6 +72,22 @@ function mountCodeWrap() {
   createRoot(slot).render(<CodeWrapSwitch initialChecked={checked} />)
 }
 
+/** The title bar is server HTML that other chrome rearranges, so the menu gets its own root like the account menu. */
+function mountVersionsMenu() {
+  const host = document.querySelector('[data-plan-versions]')
+  if (!(host instanceof HTMLElement) || host.dataset.versionsMounted === 'true') return
+  const planId = host.getAttribute('data-plan-id') ?? ''
+  if (!planId) return
+  const liveHref = host.getAttribute('data-live-href') || `/plans/${planId}`
+  host.dataset.versionsMounted = 'true'
+  const slot = document.createElement('div')
+  slot.className = 'plan-versions-menu'
+  host.replaceWith(slot)
+  createRoot(slot).render(
+    <PlanVersionsMenu planId={planId} label="Live" triggerClassName="titlebar-action" liveHref={liveHref} prefetch />,
+  )
+}
+
 function mountAccountMenu() {
   const host = document.querySelector('[data-account-menu]')
   if (!(host instanceof HTMLElement) || host.dataset.accountMenuMounted === 'true') return
@@ -109,6 +126,7 @@ if (typeof document !== 'undefined') {
   mountPlanDetails()
   mountAccordions()
   mountCodeWrap()
+  mountVersionsMenu()
   mountAccountMenu()
   mountToaster()
 }

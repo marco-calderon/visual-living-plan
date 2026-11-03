@@ -2,6 +2,7 @@ import handler from '@tanstack/react-start/server-entry'
 import { handleHostRequest, type HostEnv } from './host/app.ts'
 import { PlanObject } from './host/planObject.ts'
 import { faviconFromAsset } from './favicon.ts'
+import { pwaIconFromAsset, pwaIconName } from './pwaIcons.ts'
 import { planIdFromPath, tanstackPage } from './pageRoutes.ts'
 import shellWorkerSource from './shellWorker.js?raw'
 import { SHELL_WORKER_PATH, shellWorkerResponse } from './shellWorkerResponse.ts'
@@ -20,7 +21,9 @@ export default {
     }
     if (!upgrade && url.pathname === SHELL_WORKER_PATH) return shellWorkerResponse(shellWorkerSource)
     if (!upgrade && url.pathname === WEB_MANIFEST_PATH) return webManifestResponse()
-    if (!upgrade && (url.pathname === '/favicon.png' || url.pathname === '/favicon.ico')) return serveFavicon(request, env)
+    if (!upgrade && url.pathname === '/favicon.png') return serveFavicon(request, env)
+    const icon = upgrade ? undefined : pwaIconName(url.pathname)
+    if (icon) return serveIcon(request, env, icon)
     const page = upgrade ? null : tanstackPage(url.pathname, request.method)
     if (!page) return handleHostRequest(request, env)
     if (page === 'plan') {
@@ -45,4 +48,14 @@ async function serveFavicon(request: Request, env: StartEnv): Promise<Response> 
     asset = null
   }
   return faviconFromAsset(asset)
+}
+
+async function serveIcon(request: Request, env: StartEnv, name: string): Promise<Response> {
+  const url = new URL(request.url)
+  url.pathname = `/icons/${name}`
+  try {
+    return pwaIconFromAsset(await env.ASSETS.fetch(new Request(url, request)))
+  } catch {
+    return pwaIconFromAsset(null)
+  }
 }

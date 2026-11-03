@@ -16,6 +16,7 @@ import { Button } from '../../client/ui/button.tsx'
 import { HostBar } from '../HostBar.tsx'
 import { loadAccount, type AccountPayload } from '../planFns.ts'
 import type { PlanRecord } from '../processRecord.ts'
+import { PlanVersionsMenuMount } from '../../client/chrome/PlanVersionsMenu.tsx'
 import { startOfflineEngine } from '../../client/offline/engine.ts'
 import { refreshDeviceDashboards } from '../../client/offline/warmPlans.ts'
 import { dashboardAccountDecision, isAccountNetworkFailure } from '../offlineSync.ts'
@@ -360,10 +361,8 @@ function PlanRow({ plan, offline }: { plan: DashboardPlan; offline: boolean }) {
             Plan file
           </OfflineAction>
         ) : null}
-        {plan.historyUrl ? (
-          <OfflineAction href={plan.historyUrl} offline={offline}>
-            Versions
-          </OfflineAction>
+        {plan.id && plan.historyUrl ? (
+          <PlanVersionsMenuMount planId={plan.id} label="Versions" triggerClassName="action plan-version-trigger" />
         ) : null}
       </td>
     </tr>
