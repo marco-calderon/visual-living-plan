@@ -78,6 +78,8 @@ test('kind headings become three cards and ignore the summary', () => {
   assert.doesNotMatch(html, /data-kind="changes"/)
   assert.doesNotMatch(html, /The fixed header is gone/)
   assert.doesNotMatch(html, /<script>/)
+  assert.doesNotMatch(html, /class="ver"/)
+  assert.match(html, /<li>Click the logo to open a card\.<\/li>/)
 })
 
 test('a flat Changes list stays one card', () => {

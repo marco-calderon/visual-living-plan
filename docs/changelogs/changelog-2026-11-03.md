@@ -106,6 +106,7 @@ The plan's Settings tab ends with a Version card that shows the installed versio
 - The changelog moved from the top of Settings to a **Version** card at the bottom, under the appearance settings.
 - The Version card shows the installed Living Plan version above the changelog.
 - On narrow screens the changelog cards stack their count above the list so lines no longer run past the card.
+- Changelog entries are plain bullets. The version pill in front of each line is gone.
 
 ### Notes
 

@@ -148,12 +148,7 @@ function card(kind: string, label: string, lines: ChangelogEntry[]): string {
   const empty = lines.length === 0
   const body = empty
     ? '<p class="release-empty">None in this file.</p>'
-    : `<ul class="release-list">${lines
-        .map(
-          (line) =>
-            `<li><span class="ver">${escapeHtml(line.version)}</span><span>${rich(line.text)}</span></li>`,
-        )
-        .join('')}</ul>`
+    : `<ul class="release-list">${lines.map((line) => `<li>${rich(line.text)}</li>`).join('')}</ul>`
   return `<article class="release-card" data-kind="${kind}"${empty ? ' data-empty="true"' : ''}>
       <div class="release-stat">
         <div class="settings-kicker">${label}</div>
