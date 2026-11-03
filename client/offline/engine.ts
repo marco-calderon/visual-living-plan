@@ -38,6 +38,7 @@ export type OfflineHandle = {
   pendingCount: () => number
   noteNetwork: (online: boolean) => void
   clearDevice: (options?: { force?: boolean }) => Promise<boolean>
+  settings: (scope: string) => SettingsRow | undefined
   saveSettings: (scope: string, patch: Partial<SettingsRow> & { url: string }) => Promise<void>
 }
 

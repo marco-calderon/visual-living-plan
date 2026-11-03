@@ -1,13 +1,15 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute, isRedirect, redirect } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
-import { useLayoutEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useLayoutEffect, useState, type CSSProperties } from 'react'
 import { ACCENT_CHOICES } from '../host/accountSettings.ts'
 import { CodeWrapSwitch } from '../../client/chrome/CodeWrapSwitch.tsx'
 import { Button } from '../../client/ui/button.tsx'
 import { DIFFS_THEME_PRESETS, diffsThemePreset, type DiffsThemeSample } from '../diffsTheme.ts'
 import { HostBar } from '../HostBar.tsx'
 import { LinkSocialAccounts } from '../LinkSocialAccounts.tsx'
-import { loadAccount } from '../planFns.ts'
+import { loadAccount, type AccountPayload } from '../planFns.ts'
+import { currentOfflineHandle, startOfflineEngine } from '../../client/offline/engine.ts'
+import { accountWithSettings, isAccountNetworkFailure } from '../offlineSync.ts'
 import './settings.css'
 
 type SettingsSearch = { error?: string }
@@ -35,17 +37,48 @@ type AppearancePartial = {
 export const Route = createFileRoute('/settings')({
   validateSearch: (search: Record<string, unknown>): SettingsSearch => settingsSearch(search),
   loader: async () => {
-    const result = await loadAccount()
-    if (!result.ok) {
-      throw redirect({ to: '/login', search: { next: '/settings' } })
+    const browser = typeof window !== 'undefined'
+    const online = browser ? navigator.onLine : true
+    try {
+      const result = await loadAccount()
+      if (!result.ok) {
+        throw redirect({ to: '/login', search: { next: '/settings' } })
+      }
+      if (!browser) return result.account
+      const engine = await startOfflineEngine()
+      const account = accountWithSettings(result.account, pendingSettings(engine?.settings('account')))
+      engine?.rememberAccount(account)
+      return account
+    } catch (error) {
+      // Offline: open with the account and settings kept on this device.
+      if (isRedirect(error) || !browser || !isAccountNetworkFailure(error, online)) throw error
+      const engine = await startOfflineEngine()
+      const stored = engine?.account()?.payload
+      if (!isAccountPayload(stored)) throw error
+      return accountWithSettings(stored, engine?.settings('account'))
     }
-    return result.account
   },
   component: SettingsPage,
 })
 
+function pendingSettings<T extends { pending?: boolean }>(row: T | undefined): T | undefined {
+  return row?.pending ? row : undefined
+}
+
+function isAccountPayload(value: unknown): value is AccountPayload {
+  if (!value || typeof value !== 'object') return false
+  const record = value as Partial<AccountPayload>
+  return Boolean(record.user && typeof record.user.email === 'string' && record.settings)
+}
+
+type Settings = AccountPayload['settings']
+
+function settingsFromDevice(current: Settings): Settings {
+  const row = currentOfflineHandle()?.settings('account')
+  return accountWithSettings({ settings: current }, row).settings
+}
+
 async function saveHostedAppearance(partial: AppearancePartial): Promise<boolean> {
-  const { startOfflineEngine } = await import('../../client/offline/engine.ts')
   const engine = await startOfflineEngine()
   if (engine?.available) {
     await engine.saveSettings('account', { ...partial, url: THEME_URL })
@@ -99,13 +132,44 @@ function SettingsBackButton() {
 function SettingsPage() {
   const account = Route.useLoaderData()
   const search = Route.useSearch()
-  const settings = account.settings
+  const [settings, setSettings] = useState<Settings>(account.settings)
   const label = account.user.name || account.user.email
   const currentDiffs = diffsThemePreset(settings.diffsTheme)
   const [error, setError] = useState('')
   const [picker, setPicker] = useState(settings.accent)
   const [diffsOpen, setDiffsOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setSettings(account.settings)
+    setPicker(account.settings.accent)
+  }, [account])
+
+  useEffect(() => {
+    // A cached page can be older than a change made on this device. Show the newer one.
+    let stop = () => {}
+    let cancelled = false
+    void startOfflineEngine().then((engine) => {
+      if (cancelled || !engine?.available) return
+      const paint = () => setSettings((current) => {
+        const next = settingsFromDevice(current)
+        return next === current ? current : next
+      })
+      paint()
+      stop = engine.subscribe(paint)
+    })
+    // The code wrap switch saves on its own. Keep this page's copy in step with it.
+    const onTheme = (event: Event) => {
+      const wrapCode = (event as CustomEvent<{ wrapCode?: boolean }>).detail?.wrapCode
+      if (typeof wrapCode === 'boolean') setSettings((current) => (current.wrapCode === wrapCode ? current : { ...current, wrapCode }))
+    }
+    window.addEventListener('living-plan-theme', onTheme)
+    return () => {
+      cancelled = true
+      stop()
+      window.removeEventListener('living-plan-theme', onTheme)
+    }
+  }, [])
 
   useLayoutEffect(() => {
     const root = document.documentElement
@@ -124,12 +188,13 @@ function SettingsPage() {
     setSaving(true)
     setError('')
     const ok = await saveHostedAppearance(partial)
+    setSaving(false)
     if (!ok) {
-      setSaving(false)
       setError('Could not save those settings.')
       return
     }
-    window.location.reload()
+    setSettings((current) => ({ ...current, ...(partial as Partial<Settings>), updatedAt: Date.now() }))
+    if (partial.accent) setPicker(partial.accent)
   }
 
   return (

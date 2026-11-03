@@ -128,6 +128,105 @@ function PlanPre({ children }: { children?: ReactNode }) {
   )
 }
 
+type InteractionState = { responses: Boot['responses']; locked: boolean }
+
+// Answers and the lock reach the entries through context. The component functions stay the same
+// between renders, so a new answer re-renders the forms in place instead of remounting the plan.
+const InteractionContext = createContext<InteractionState>({ responses: {}, locked: false })
+
+function stopBubble(event: { stopPropagation: () => void }) {
+  event.stopPropagation()
+}
+
+function sendInteraction(response: InteractionResponse) {
+  void postInteraction(response)
+}
+
+function PlanChoice(props: { className?: string; id: string }) {
+  const { responses, locked } = useContext(InteractionContext)
+  const saved = responses[props.id]
+  return (
+    <div onClick={stopBubble} onSubmit={stopBubble}>
+      <Choice
+        {...props}
+        className={blockClass(props.className)}
+        locked={locked}
+        selectedId={saved?.kind === 'choice' ? saved.optionId : undefined}
+        selectedLabel={saved?.kind === 'choice' ? saved.label : undefined}
+        onSelect={sendInteraction}
+      />
+    </div>
+  )
+}
+
+function PlanForm(props: { className?: string; id: string }) {
+  const { responses, locked } = useContext(InteractionContext)
+  const saved = responses[props.id]
+  return (
+    <div onClick={stopBubble} onSubmit={stopBubble}>
+      <Form
+        {...props}
+        className={blockClass(props.className)}
+        locked={locked}
+        values={saved?.kind === 'form' ? saved.values : undefined}
+        onSubmit={sendInteraction}
+      />
+    </div>
+  )
+}
+
+function PlanQuestions(props: { className?: string; id: string }) {
+  const { responses, locked } = useContext(InteractionContext)
+  const saved = responses[props.id]
+  return (
+    <div onClick={stopBubble} onSubmit={stopBubble}>
+      <Questions
+        {...props}
+        className={blockClass(props.className)}
+        locked={locked}
+        answers={saved?.kind === 'questions' ? saved.answers : undefined}
+        onSubmit={sendInteraction}
+      />
+    </div>
+  )
+}
+
+function PlanApprove(props: { className?: string; id: string }) {
+  const { responses, locked } = useContext(InteractionContext)
+  const saved = responses[props.id]
+  return (
+    <div onClick={stopBubble} onSubmit={stopBubble}>
+      <Approve
+        {...props}
+        className={blockClass(props.className)}
+        locked={locked}
+        approved={saved?.kind === 'approve' ? saved.approved : undefined}
+        note={saved?.kind === 'approve' ? saved.note : undefined}
+        onDecide={sendInteraction}
+      />
+    </div>
+  )
+}
+
+const interactiveComponents = {
+  choice: PlanChoice,
+  form: PlanForm,
+  questions: PlanQuestions,
+  approve: PlanApprove,
+}
+
+function PlanPhase(props: { className?: string }) {
+  return <Phase {...props} className={blockClass(props.className)} />
+}
+
+function PlanCallout(props: { className?: string }) {
+  return <Callout {...props} className={blockClass(props.className)} />
+}
+
+function PlanChecklist(props: { className?: string }) {
+  return <Checklist {...props} className={blockClass(props.className)} />
+}
+
 function PlanMdxApp() {
   const [boot, setBoot] = useState<Boot>(readBoot)
   const [content, setContent] = useState<ReactNode>(null)
@@ -135,6 +234,7 @@ function PlanMdxApp() {
   const mdx = planSourceToMdx(boot.source)
   const responses = boot.responses
   const locked = boot.locked
+  const interaction = useMemo<InteractionState>(() => ({ responses, locked }), [responses, locked])
   const headingIds = useMemo(() => {
     try {
       return buildPlanToc(boot.source).flatMap((item) => (item.headingId ? [item.headingId] : []))
@@ -224,8 +324,9 @@ function PlanMdxApp() {
 
   useEffect(() => {
     let cancelled = false
+    // Hide only the first render. Hiding a rendered plan collapses the page and resets the scroll.
     const root = document.getElementById('plan-mdx-root')
-    root?.classList.add('plan-mdx-pending')
+    if (!root?.querySelector('[data-plan-rendered]')) root?.classList.add('plan-mdx-pending')
     compileMdx(mdx).then(
       async (Content) => {
         if (cancelled) return
@@ -235,75 +336,10 @@ function PlanMdxApp() {
           ...planComponents,
           pre: PlanPre,
           table: MarkdownTable,
-          phase: (props: { className?: string }) => <Phase {...props} className={blockClass(props.className)} />,
-          callout: (props: { className?: string }) => <Callout {...props} className={blockClass(props.className)} />,
-          choice: (props: { className?: string; id: string }) => {
-            const saved = responses[props.id]
-            return (
-              <div onClick={(event) => event.stopPropagation()} onSubmit={(event) => event.stopPropagation()}>
-                <Choice
-                  {...props}
-                  className={blockClass(props.className)}
-                  locked={locked}
-                  selectedId={saved?.kind === 'choice' ? saved.optionId : undefined}
-                  selectedLabel={saved?.kind === 'choice' ? saved.label : undefined}
-                  onSelect={(response) => {
-                    void postInteraction(response)
-                  }}
-                />
-              </div>
-            )
-          },
-          form: (props: { className?: string; id: string }) => {
-            const saved = responses[props.id]
-            return (
-              <div onClick={(event) => event.stopPropagation()} onSubmit={(event) => event.stopPropagation()}>
-                <Form
-                  {...props}
-                  className={blockClass(props.className)}
-                  locked={locked}
-                  values={saved?.kind === 'form' ? saved.values : undefined}
-                  onSubmit={(response) => {
-                    void postInteraction(response)
-                  }}
-                />
-              </div>
-            )
-          },
-          questions: (props: { className?: string; id: string }) => {
-            const saved = responses[props.id]
-            return (
-              <div onClick={(event) => event.stopPropagation()} onSubmit={(event) => event.stopPropagation()}>
-                <Questions
-                  {...props}
-                  className={blockClass(props.className)}
-                  locked={locked}
-                  answers={saved?.kind === 'questions' ? saved.answers : undefined}
-                  onSubmit={(response) => {
-                    void postInteraction(response)
-                  }}
-                />
-              </div>
-            )
-          },
-          approve: (props: { className?: string; id: string }) => {
-            const saved = responses[props.id]
-            return (
-              <div onClick={(event) => event.stopPropagation()} onSubmit={(event) => event.stopPropagation()}>
-                <Approve
-                  {...props}
-                  className={blockClass(props.className)}
-                  locked={locked}
-                  approved={saved?.kind === 'approve' ? saved.approved : undefined}
-                  note={saved?.kind === 'approve' ? saved.note : undefined}
-                  onDecide={(response) => {
-                    void postInteraction(response)
-                  }}
-                />
-              </div>
-            )
-          },
-          checklist: (props: { className?: string }) => <Checklist {...props} className={blockClass(props.className)} />,
+          phase: PlanPhase,
+          callout: PlanCallout,
+          ...interactiveComponents,
+          checklist: PlanChecklist,
         }
         setContent(
           <Content
@@ -328,7 +364,7 @@ function PlanMdxApp() {
     return () => {
       cancelled = true
     }
-  }, [locked, mdx, responses])
+  }, [mdx])
 
   useLayoutEffect(() => {
     const root = document.getElementById('plan-mdx-root')
@@ -367,6 +403,7 @@ function PlanMdxApp() {
   }, [boot.source])
 
   return (
+    <InteractionContext.Provider value={interaction}>
     <TocHeadingCursor.Provider value={tocCursor}>
       {error ? (
         <p className="host-error" role="alert" data-plan-error="">
@@ -381,6 +418,7 @@ function PlanMdxApp() {
         <p data-plan-rendering="">Rendering plan…</p>
       )}
     </TocHeadingCursor.Provider>
+    </InteractionContext.Provider>
   )
 }
 

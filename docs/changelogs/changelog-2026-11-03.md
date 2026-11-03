@@ -40,3 +40,30 @@ A hosted plan's versions are a menu in the plan title bar instead of a separate 
 ### Notes
 
 No registry restart needed beyond the usual version check. The new shell cache name replaces the 1.12.1 cache (1.12.2 shipped without updating it).
+
+## 1.13.1
+
+**PR:** not opened yet
+
+**Bump:** patch
+
+### Summary
+
+Settings work offline and sync when the network returns, and submitting a form in a plan no longer flickers or jumps to the top.
+
+### Bugs fixed
+
+- Submitting a form, choice, questions, or approval in a plan updates it in place. The page no longer hides and rebuilds the plan, so it does not flicker and keeps its scroll position.
+- The settings page opens offline from the account and settings saved on this device, instead of failing to load.
+- A settings change made offline is kept on the device and sent to the host when the network returns. Before, it was lost.
+- A page fetched through a redirect, such as a sign-in redirect, is no longer cached under the page that was asked for.
+
+### Improvements
+
+- A signed-in device keeps a copy of the settings page in the installed app, so it opens without a network.
+- Saving a setting applies it on the page without reloading.
+
+### Notes
+
+No registry restart needed beyond the usual version check. The shell cache name is 1.13.1.
+

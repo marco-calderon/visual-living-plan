@@ -13,6 +13,7 @@ import {
   precacheShell,
   SHELL_CACHE_NAME,
   SHELL_CACHE_VERSION,
+  shouldStoreDocument,
   type ShellCacheStorage,
   type ShellRuntime,
 } from '../src/shellCache.ts'
@@ -398,3 +399,11 @@ function memoryCaches(): ShellCacheStorage {
     },
   }
 }
+
+test('a document reached through a redirect is not stored under the asked-for page', () => {
+  const page = new Response('<html></html>', { status: 200, headers: { 'content-type': 'text/html' } })
+  assert.equal(shouldStoreDocument(page), true)
+  const redirected = new Response('<html></html>', { status: 200, headers: { 'content-type': 'text/html' } })
+  Object.defineProperty(redirected, 'redirected', { value: true })
+  assert.equal(shouldStoreDocument(redirected), false)
+})

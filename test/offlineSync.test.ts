@@ -18,6 +18,7 @@ import {
   OWNED_PLAN_CAP,
   SOURCE_BODY_CAP,
   WARM_INTERVAL_MS,
+  accountWithSettings,
   applyLiveToPlan,
   catalogFromOwned,
   catalogRows,
@@ -362,3 +363,13 @@ function sqlOf(db: Database): PlanSql {
     },
   }
 }
+
+test('a newer device settings row replaces the stored account settings', () => {
+  const account = { user: { email: 'a@b.c' }, settings: { accent: '#0f766e', pageWidth: 'default', diffsTheme: 'pierre', wrapCode: false, updatedAt: 10 } }
+  const row = { id: 'account', accent: '#be123c', pageWidth: 'wide', diffsTheme: 'soft', wrapCode: true, updatedAt: 20, pending: true }
+  const next = accountWithSettings(account, row)
+  assert.deepEqual(next.settings, { accent: '#be123c', pageWidth: 'wide', diffsTheme: 'soft', wrapCode: true, updatedAt: 20 })
+  assert.equal(next.user, account.user)
+  assert.equal(accountWithSettings(account, { ...row, updatedAt: 5 }), account)
+  assert.equal(accountWithSettings(account, undefined), account)
+})

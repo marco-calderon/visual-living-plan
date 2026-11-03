@@ -10,6 +10,7 @@ export type AccountPayload = {
     pageWidth: 'default' | 'wide' | 'full'
     diffsTheme: string
     wrapCode: boolean
+    updatedAt?: number
   }
   accounts: Array<{ providerId: string }>
   plans: Array<{ id: string; title: string; mode: string }>
