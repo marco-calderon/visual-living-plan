@@ -214,15 +214,18 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
   }
 
   async function loadCatalog(): Promise<void> {
-    if (location.pathname !== '/dashboard' && !location.pathname.startsWith('/dashboard/')) return
-    const period = new URLSearchParams(location.search).get('period')
-    const selected = period === 'week' || period === 'month' ? period : 'day'
-    const { refreshDeviceDashboards } = await import('./warmPlans.ts')
-    const result = await refreshDeviceDashboards(handle, { period: selected })
-    if ('offline' in result && result.offline) {
-      reachable = false
-      notify()
+    const { refreshDeviceDashboards, syncOwnedPlans } = await import('./warmPlans.ts')
+    if (location.pathname === '/dashboard' || location.pathname.startsWith('/dashboard/')) {
+      const period = new URLSearchParams(location.search).get('period')
+      const selected = period === 'week' || period === 'month' ? period : 'day'
+      const result = await refreshDeviceDashboards(handle, { period: selected })
+      if ('offline' in result && result.offline) {
+        reachable = false
+        notify()
+      }
+      return
     }
+    await syncOwnedPlans(handle)
   }
 
   async function loadSettings(): Promise<void> {
@@ -474,8 +477,15 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
     reachable = true
     void refreshPlan()
     void flushSettings()
+    void loadCatalog()
     notify()
   })
+  navigator.serviceWorker?.addEventListener('controllerchange', () => {
+    void loadCatalog()
+  })
+  window.setInterval(() => {
+    if (navigator.onLine) void loadCatalog()
+  }, 60_000)
   comments.subscribeChanges(() => notify())
   plans.subscribeChanges(() => notify())
   notify()

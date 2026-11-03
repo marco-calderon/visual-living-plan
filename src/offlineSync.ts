@@ -340,6 +340,15 @@ export function plansToEvict(
   return rows.map((row) => row.id).filter((id) => !kept.has(id))
 }
 
+/**
+ * Plan HTML is cached by the service worker only after that worker controls the page.
+ * With no worker support, the device snapshot is the offline copy.
+ */
+export function planPageCacheReady(input: { serviceWorker: boolean; controller: boolean }): boolean {
+  if (!input.serviceWorker) return true
+  return input.controller
+}
+
 /** Most recent owned plans that are new, changed, or last warmed longer ago than the interval. */
 export function plansToWarm(
   owned: readonly WarmPlan[],

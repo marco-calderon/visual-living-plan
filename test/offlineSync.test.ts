@@ -29,6 +29,7 @@ import {
   isAccountNetworkFailure,
   mergeAgentDocument,
   offlineStatusText,
+  planPageCacheReady,
   planRowFromSnapshot,
   plansToEvict,
   plansToWarm,
@@ -252,6 +253,9 @@ test('live plan data and catalog rows stay free of the source body', () => {
   assert.equal(warm.length, OWNED_PLAN_CAP)
   assert.equal(warm[0], 'w00')
   assert.equal(warm.includes('w50'), false)
+  assert.equal(planPageCacheReady({ serviceWorker: true, controller: false }), false)
+  assert.equal(planPageCacheReady({ serviceWorker: true, controller: true }), true)
+  assert.equal(planPageCacheReady({ serviceWorker: false, controller: false }), true)
   const listed = catalogFromOwned(
     [{ id: 'p1', title: 'Owned' }],
     [{ id: 'p1', heartbeatAt: 9, storedPath: 'plans/p1.md', status: 'running' }],
