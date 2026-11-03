@@ -16,6 +16,7 @@ import {
   ackEvents,
   initPlan,
   pendingEvents,
+  planHosted,
   putSource,
   StaleRevision,
   submitInteraction,
@@ -330,6 +331,14 @@ test('a stale source upload retries once', async () => {
   })
   assert.deepEqual(revisions, [1, 4])
   assert.equal(next, 5)
+})
+
+test('a new plan room has its tables and is not hosted until a plan is published', () => {
+  const db = new Database(':memory:')
+  const sql = sqlOf(db)
+  assert.equal(planHosted(sql), false)
+  initPlan(sql, { token: 'plan-token', title: 'Demo', mode: 'watch', tier: 'free', source: '# Demo\n' })
+  assert.equal(planHosted(sql), true)
 })
 
 test('plan room stores a submission until it is acked', () => {

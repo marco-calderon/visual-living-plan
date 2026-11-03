@@ -16,6 +16,7 @@ import {
   putBlob,
   commitUserMutation,
   planSnapshot,
+  planHosted,
   putExecution,
   putSource,
   socketLimit,
@@ -37,6 +38,12 @@ type SqlExec = {
 }
 
 export class PlanObject extends DurableObject {
+  constructor(ctx: DurableObjectState, env: unknown) {
+    super(ctx, env as never)
+    // A new room, such as one on a Worker Preview, has no tables until something creates them.
+    migratePlan(this.sql())
+  }
+
   private sql(): PlanSql {
     return this.ctx.storage.sql as unknown as SqlExec
   }
@@ -130,6 +137,9 @@ export class PlanObject extends DurableObject {
       })
       .get('/view', ({ request }) => {
         if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'read')) return text(401, 'Sign in required')
+        if (!planHosted(sql)) {
+          return text(404, 'This plan has no data on this deployment. Publish it here with `live-plan serve --cloud`.')
+        }
         touchPlan(sql)
         return Response.json(planView(sql))
       })

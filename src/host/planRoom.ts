@@ -59,6 +59,12 @@ export function migratePlan(sql: PlanSql): void {
   )
 }
 
+/** True once a host has published this plan into the room. A new Preview room is empty. */
+export function planHosted(sql: PlanSql): boolean {
+  migratePlan(sql)
+  return meta(sql, 'token') !== null
+}
+
 function meta(sql: PlanSql, key: string): string | null {
   const row = sql.exec(`SELECT value FROM meta WHERE key = ?`, key).toArray()[0]
   return typeof row?.value === 'string' ? row.value : null
