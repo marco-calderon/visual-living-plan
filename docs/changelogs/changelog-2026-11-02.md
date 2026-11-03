@@ -155,3 +155,21 @@ Living Plan can be installed as an app from the browser's install prompt. The ho
 ### Notes
 
 The new service version replaces the running registry through the usual version check. The new shell cache name replaces the 1.10.2 cache. A plan opened over plain HTTP on the local network is not installable.
+
+## 1.11.1
+
+**PR:** (link once known)
+
+**Bump:** patch
+
+### Summary
+
+Email and password sign-in on a Worker Preview stays on that preview's address.
+
+### Bugs fixed
+
+- Signing in on a preview no longer fails with an invalid origin. The preview still uses the production address for links, and it accepts its own address for sign-in.
+
+### Notes
+
+GitHub and Google sign-in still only work on the production site. No registry restart needed beyond the usual version check. The shell cache name is 1.11.1.

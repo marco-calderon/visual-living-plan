@@ -1,6 +1,7 @@
 # Local workerd only (`npm run host`). Copy to `.dev.vars`. Never deploy these values.
 BETTER_AUTH_SECRET=local-dev-secret-at-least-32-characters
 # PUBLIC_URL=http://127.0.0.1:3000
+# TRUSTED_ORIGINS=https://*-visual-living-plan.mcalderon-code.workers.dev
 # GITHUB_CLIENT_ID=
 # GITHUB_CLIENT_SECRET=
 # GOOGLE_CLIENT_ID=
