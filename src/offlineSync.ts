@@ -95,6 +95,30 @@ export type SettingsRow = {
   diffsTheme: string
   wrapCode: boolean
   updatedAt: number
+  /** Set while the host has not confirmed this change. Sent again when the network returns. */
+  pending?: boolean
+  /** Where a pending change is sent. */
+  url?: string
+}
+
+/** The settings fields of a stored account payload, replaced by a newer device row. */
+export function accountWithSettings<T>(payload: T, row: SettingsRow | undefined): T {
+  if (!row || !payload || typeof payload !== 'object') return payload
+  const record = payload as Record<string, unknown>
+  const current = record.settings && typeof record.settings === 'object' ? (record.settings as Record<string, unknown>) : {}
+  const currentAt = typeof current.updatedAt === 'number' ? current.updatedAt : 0
+  if (row.updatedAt <= currentAt) return payload
+  return {
+    ...record,
+    settings: {
+      ...current,
+      accent: row.accent,
+      pageWidth: row.pageWidth,
+      diffsTheme: row.diffsTheme,
+      wrapCode: row.wrapCode,
+      updatedAt: row.updatedAt,
+    },
+  } as T
 }
 
 export type MutationInspection = {

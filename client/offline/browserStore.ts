@@ -13,6 +13,7 @@ import {
   planRowFromSnapshot,
   plansToEvict,
   settingsWinner,
+  accountWithSettings,
   type AccountRow,
   type CatalogRow,
   type CommentRow,
@@ -246,6 +247,8 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
         const response = await fetch('/api/account', { cache: 'no-store' })
         if (!response.ok) return
         const payload = (await response.json()) as { settings?: Partial<SettingsRow> }
+        const local = settings.get('account')
+        handle.rememberAccount(accountWithSettings(payload, local?.pending ? local : undefined))
         const theme = payload.settings ?? {}
         const row: SettingsRow = {
           id: 'account',
@@ -389,32 +392,69 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
       notify()
       return true
     },
+    settings: (scope) => settings.get(scope),
     saveSettings: async (scope, patch) => {
       const current = settings.get(scope)
-      const next: SettingsRow = settingsWinner(current ?? emptySettings(scope), {
+      const next: SettingsRow = {
         id: scope,
         accent: patch.accent ?? current?.accent ?? '#0f766e',
         pageWidth: patch.pageWidth ?? current?.pageWidth ?? 'default',
         diffsTheme: patch.diffsTheme ?? current?.diffsTheme ?? 'pierre',
         wrapCode: patch.wrapCode ?? current?.wrapCode ?? false,
-        updatedAt: Date.now(),
-      })
-      const rest = [...settings.toArray].filter((row) => row.id !== scope)
-      writers.settings?.([...rest, next])
-      try {
-        const response = await fetch(patch.url, {
-          method: 'PUT',
-          credentials: 'include',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ ...next, url: undefined }),
-        })
-        if (!response.ok) throw new Error(await response.text())
-        reachable = true
-      } catch {
-        reachable = false
-        notify()
+        updatedAt: Math.max(Date.now(), (current?.updatedAt ?? 0) + 1),
+        pending: true,
+        url: patch.url,
       }
+      writeSettings(next)
+      if (scope === 'account') patchStoredAccount(next)
+      await pushSettings(next)
     },
+  }
+
+  function writeSettings(row: SettingsRow): void {
+    const rest = [...settings.toArray].filter((entry) => entry.id !== row.id)
+    writers.settings?.([...rest, row])
+  }
+
+  /** Keep the stored account in step, so the settings page and dashboard read the change offline. */
+  function patchStoredAccount(row: SettingsRow): void {
+    const stored = account.get('me')
+    if (!stored) return
+    writers.account?.([{ ...stored, payload: accountWithSettings(stored.payload, row) }])
+  }
+
+  /** Send one settings row. It stays pending on a network failure and is sent again when the network returns. */
+  async function pushSettings(row: SettingsRow): Promise<void> {
+    if (!row.url) return
+    try {
+      const response = await fetch(row.url, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          accent: row.accent,
+          pageWidth: row.pageWidth,
+          diffsTheme: row.diffsTheme,
+          wrapCode: row.wrapCode,
+          updatedAt: row.updatedAt,
+        }),
+      })
+      reachable = true
+      const latest = settings.get(row.id)
+      // A rejected change (signed out, bad value) is dropped. Only a newer edit keeps the pending flag.
+      if (latest && latest.updatedAt === row.updatedAt) writeSettings({ ...latest, pending: false })
+      if (!response.ok) window.showPlanToast?.('Could not save those settings.')
+    } catch {
+      reachable = false
+    }
+    notify()
+  }
+
+  async function flushSettings(): Promise<void> {
+    if (!navigator.onLine) return
+    for (const row of [...settings.toArray]) {
+      if (row.pending) await pushSettings(row)
+    }
   }
 
   await Promise.all([plans.preload(), comments.preload(), catalog.preload(), settings.preload(), account.preload(), dashboards.preload()].map((job) => job.catch(() => undefined)))
@@ -422,7 +462,10 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
   seedFromDocument()
   void refreshPlan()
   void loadCatalog()
-  void loadSettings()
+  void flushSettings().then(() => loadSettings())
+  if (account.get('me') && !location.pathname.startsWith('/settings')) {
+    void import('./warmPlans.ts').then(({ warmSettingsPage }) => warmSettingsPage(handle))
+  }
   window.addEventListener('offline', () => {
     reachable = false
     notify()
@@ -430,6 +473,7 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
   window.addEventListener('online', () => {
     reachable = true
     void refreshPlan()
+    void flushSettings()
     notify()
   })
   comments.subscribeChanges(() => notify())

@@ -19,9 +19,9 @@
 export const SHELL_CACHE_PREFIX = 'visual-living-plan-shell-'
 
 /** Keep both equal to package.json `version`. test/shellCache.test.ts checks them. */
-export const SHELL_CACHE_VERSION = '1.13.0'
+export const SHELL_CACHE_VERSION = '1.13.1'
 
-export const SHELL_CACHE_NAME = 'visual-living-plan-shell-1.13.0'
+export const SHELL_CACHE_NAME = 'visual-living-plan-shell-1.13.1'
 
 /** One document cache per device. The worker cannot see which account is signed in. */
 export const DOCUMENT_CACHE_MARKER = 'device'
@@ -109,6 +109,8 @@ export function documentCacheRequest(request: Request): Request {
 
 export function shouldStoreDocument(response: Response): boolean {
   if (response.status !== 200) return false
+  // A followed redirect (signed out, sent to login) is not the page that was asked for.
+  if (response.redirected) return false
   if (response.type !== 'basic' && response.type !== 'default') return false
   if (response.headers.has('set-cookie')) return false
   return (response.headers.get('content-type') ?? '').toLowerCase().includes('text/html')
