@@ -363,8 +363,23 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
     storePlanSnapshot: (id, basePath, snapshot) => {
       publishSnapshot({ id, host: basePath.startsWith('/plans/') ? 'cloud' : 'local', basePath }, snapshot)
     },
-    markWarmed: (id, versionKey, warmedAt) => {
-      const rows = [...catalog.toArray].map((row) => (row.id === id ? { ...row, versionKey, warmedAt } : row))
+    markWarmed: (id, versionKey, warmedAt, cacheName) => {
+      const rows = [...catalog.toArray].map((row) => {
+        if (row.id !== id) return row
+        const next: CatalogRow = { ...row, versionKey, warmedAt, cacheName }
+        delete next.failedAt
+        return next
+      })
+      writers.catalog?.(rows)
+    },
+    markWarmFailed: (id, failedAt, cacheName) => {
+      const rows = [...catalog.toArray].map((row) => {
+        if (row.id !== id) return row
+        const keepSaved = row.cacheName === cacheName && row.warmedAt != null
+        const next: CatalogRow = { ...row, failedAt, cacheName }
+        if (keepSaved) next.warmedAt = row.warmedAt
+        return next
+      })
       writers.catalog?.(rows)
     },
     pendingCount: () => executor.getPendingCount(),
