@@ -63,3 +63,28 @@ The rendered plan page has space above the plan, under the title bar.
 ### Notes
 
 No registry restart needed beyond the usual version check. The shell cache name is 1.15.1.
+
+## 2.0.0
+
+**PR:** #144
+
+**Bump:** major
+
+### Summary
+
+`live-plan` is the only command name besides `visual-living-plan`. The bundled skill now prefers the hosted service and walks a new user through signing up.
+
+### Breaking changes
+
+- The `living-plan` command alias is gone. Use `live-plan`, or `bunx visual-living-plan`.
+- The deprecated `living-plan` skill is gone. `npm run skills:install` removes an old copy of it from `~/.agents/skills`.
+
+### Improvements
+
+- `live-plan account login` prints the sign-in link as well as opening it, so a person can open it when no browser launches. The sign-in page links to sign-up.
+- The `live-plan` skill prefers `serve --cloud` on `https://plan.logspace.qzz.io`. It explains how to tell whether the user is signed in, the sign-in and sign-up steps, and the free account limits. The local session stays documented for offline use or when the user declines an account.
+- CLI messages say "live-plan registry".
+
+### Notes
+
+Scripts that call `living-plan` must switch to `live-plan`. The config folder stays `~/.config/living-plan`. The shell cache name is 2.0.0.

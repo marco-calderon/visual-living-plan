@@ -501,6 +501,33 @@ test('serve --cloud without a session does not start the registry', async () => 
   await rm(home, { recursive: true, force: true })
 })
 
+test('account login prints the sign-in link and saves the session from its callback', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'live-plan-login-'))
+  const child = spawn(process.execPath, [entry, 'account', 'login', '--url', 'https://plan.example', '--no-open'], {
+    env: { ...process.env, LIVE_PLAN_HOME: home, HOME: home },
+  })
+  let stdout = ''
+  const link = await new Promise<URL>((resolveLink, reject) => {
+    child.stdout?.on('data', (chunk) => {
+      stdout += String(chunk)
+      const match = stdout.match(/https:\/\/plan\.example\/login\?\S+/)
+      if (match) resolveLink(new URL(match[0]))
+    })
+    child.on('exit', () => reject(new Error(`login exited before printing a link: ${stdout}`)))
+  })
+  assert.match(stdout, /sign up/i)
+  const callback = link.searchParams.get('cli')
+  assert.ok(callback)
+  const exited = new Promise<number>((resolveExit) => child.on('exit', (code) => resolveExit(code ?? 1)))
+  const reply = await fetch(`${callback}?token=account-token`)
+  assert.equal(reply.status, 200)
+  assert.equal(await exited, 0)
+  assert.match(stdout, /Signed in to https:\/\/plan\.example/)
+  const saved = JSON.parse(await readFile(join(home, 'cloud.json'), 'utf8'))
+  assert.deepEqual(saved.account, { baseUrl: 'https://plan.example', token: 'account-token' })
+  await rm(home, { recursive: true, force: true })
+})
+
 test('serve --cloud rejects --no-registry', async () => {
   const home = await mkdtemp(join(tmpdir(), 'living-plan-cloud-'))
   const plan = join(home, 'demo.plan.md')

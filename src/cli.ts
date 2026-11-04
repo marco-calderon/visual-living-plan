@@ -995,7 +995,7 @@ async function cmdProcesses(): Promise<number> {
   const home = defaultRegistryHome()
   const lock = await readRegistryLock(home)
   if (!lock || !isPidAlive(lock.pid) || !(await registryHealthy(registryBindUrl(lock)))) {
-    console.log('No living-plan registry is running.')
+    console.log('No live-plan registry is running.')
     return 0
   }
   const processes = await listProcesses(registryBindUrl(lock))
@@ -1341,7 +1341,11 @@ async function main(): Promise<number> {
       return 1
     }
     try {
-      await signInToCloud(base, openBrowser)
+      await signInToCloud(base, async (url) => {
+        // Print the link too, so a person can open it when no browser launches.
+        console.log(`Sign in, or choose Sign up instead to create an account:\n${url}`)
+        await openBrowser(url)
+      })
       const account = await requireCloudAccount()
       console.log(`Signed in to ${account.baseUrl}`)
       return 0
