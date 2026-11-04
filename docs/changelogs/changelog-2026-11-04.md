@@ -107,9 +107,55 @@ Outline (secondary) buttons use a soft gray border in light and dark mode instea
 
 No registry restart needed.
 
-## 2.0.2
+## 2.1.0
 
-**PR:** pending
+**PR:** #146
+
+**Bump:** minor
+
+### Summary
+
+Settings open as a modal over the dashboard or the plan you are on, with General, Account, Usage, and About sections. Usage shows how much your hosted plans store.
+
+### Improvements
+
+- Settings are a modal instead of a page. The account menu opens it over the current page, and Back, Escape, or the close button returns to that page.
+- The section is in the URL (`?settings=general`, `account`, `usage`, or `about`), so a link opens that section. Switching sections does not add history entries.
+- A search box filters the sections. On a phone the modal is a full-height sheet and the sections are a row of pills.
+- `/settings` still works. It opens the modal over the dashboard. A GitHub or Google linking error opens the Account section.
+- On a plan you own, appearance changes show on the plan right away. On someone else's plan the modal says the plan keeps its owner's look.
+
+### New features
+
+- Usage section: stored size, saved versions, and active plans against the tier limit, with a per-plan breakdown.
+- `GET /api/account/usage` returns that breakdown for the signed-in account.
+
+### Notes
+
+No migration. The shell cache name is 2.1.0. The device no longer fetches `/settings` in the background, since there is no separate page to cache.
+
+## 2.2.0
+
+**PR:** #147
+
+**Bump:** minor
+
+### Summary
+
+The plan page logo and the browser tab icon carry a small dot that shows whether the plan is waiting for approval, running, or stopped.
+
+### New features
+
+- A status dot on the title bar logo: amber while the plan waits for a review decision, green (with a soft pulse) while execution is running, and grey when it is stopped. The plan details card names the status.
+- The tab icon shows the same dot, so a plan's status is visible from the tab strip. Both follow mode, review, and execution changes live, on local and hosted plans.
+
+### Notes
+
+No registry restart needed beyond the usual version check. The shell cache name is 2.2.0.
+
+## 2.2.1
+
+**PR:** #148
 
 **Bump:** patch
 
@@ -129,4 +175,4 @@ Blue accent buttons (Approve, Comment when on, Send, and the comment marks) are 
 
 ### Notes
 
-No registry restart needed beyond the usual version check. The shell cache name is 2.0.2.
+No registry restart needed beyond the usual version check. The shell cache name is 2.2.1.

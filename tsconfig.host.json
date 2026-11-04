@@ -13,7 +13,9 @@
     "src/authClient.ts",
     "src/cloudflare.d.ts",
     "src/routes/**/*.ts",
-    "src/routes/**/*.tsx"
+    "src/routes/**/*.tsx",
+    "src/settings/**/*.ts",
+    "src/settings/**/*.tsx"
   ],
   "compilerOptions": {
     "target": "ES2022",

@@ -7,6 +7,7 @@ import { ExecutionCanvas } from './ExecutionCanvas'
 import type { ExecutionState } from '../src/execution.ts'
 import { createIdleExecutionState, mergePlannedExecution } from '../src/execution.ts'
 import { subscribePlanEvents } from './planEvents.ts'
+import { startPlanStatusMark } from './planStatusMark.ts'
 import { sampleLoopExecution } from './sampleLoopExecution.ts'
 import { QueryProvider, sharedQueryClient } from './queryClient.tsx'
 import { viewingPlanVersion } from './versionView.ts'
@@ -144,6 +145,7 @@ function ExecutionApp() {
 if (typeof document !== 'undefined') {
   registerServiceWorker()
   void startOfflineEngine()
+  startPlanStatusMark()
   const root = document.getElementById('execution-root')
   if (root) createRoot(root).render(
       <QueryProvider>

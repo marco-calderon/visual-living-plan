@@ -273,3 +273,74 @@ test('the account appearance is a read of its own for plan pages', async () => {
   assert.equal(body.settings.wrapCode, true)
   assert.match(body.settings.accent, /^#/)
 })
+
+test('account usage counts the saved versions of each owned plan in bytes', async () => {
+  const sqlite = new Database(':memory:')
+  const db = authDatabase(sqlite)
+  for (const file of ['0002_user_settings.sql', '0003_plan_versions.sql', '0004_one_schema.sql']) {
+    sqlite.exec(readFileSync(new URL(`../src/migrations/${file}`, import.meta.url), 'utf8'))
+  }
+  const now = new Date().toISOString()
+  const later = new Date(Date.now() + 60 * 60 * 1000).toISOString()
+  for (const id of ['owner', 'other']) {
+    sqlite.run('INSERT INTO user (id, name, email, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)', [id, id, `${id}@example.com`, now, now])
+    sqlite.run('INSERT INTO session (id, expiresAt, token, createdAt, updatedAt, userId) VALUES (?, ?, ?, ?, ?, ?)', [
+      `session-${id}`,
+      later,
+      `${id}-token`,
+      now,
+      now,
+      id,
+    ])
+  }
+  const plan = (id: string, user: string, status: string, startedAt: number) =>
+    sqlite.run(
+      `INSERT INTO plans (id, user_id, token, title, mode, status, started_at, heartbeat_at) VALUES (?, ?, 't', ?, 'watch', ?, ?, ?)`,
+      [id, user, `Plan ${id}`, status, startedAt, startedAt],
+    )
+  plan('plan-small', 'owner', 'running', 1)
+  plan('plan-large', 'owner', 'executed', 2)
+  plan('plan-empty', 'owner', 'running', 3)
+  plan('plan-other', 'other', 'running', 4)
+  await publishPlanVersion(db, { planId: 'plan-small', userId: 'owner', title: 'S', source: 'é', now: 10 })
+  await publishPlanVersion(db, { planId: 'plan-large', userId: 'owner', title: 'L', source: '1234567890', now: 11 })
+  await publishPlanVersion(db, { planId: 'plan-large', userId: 'owner', title: 'L', source: '12345', now: 12 })
+  await publishPlanVersion(db, { planId: 'plan-other', userId: 'other', title: 'O', source: 'x'.repeat(500), now: 13 })
+
+  const app = createHostApp({ ...env(), DB: db })
+  const read = (token?: string) =>
+    app.fetch(
+      new Request('https://plans.example/api/account/usage', {
+        headers: token ? { authorization: `Bearer ${token}` } : {},
+      }),
+    )
+  assert.equal((await read()).status, 401)
+  const response = await read('owner-token')
+  assert.equal(response.status, 200)
+  const usage = (await response.json()) as {
+    tier: string
+    activePlans: number
+    activeCap: number
+    versionLimit: number
+    plans: number
+    versions: number
+    bytes: number
+    byPlan: Array<{ id: string; versions: number; bytes: number }>
+  }
+  assert.equal(usage.tier, 'free')
+  assert.equal(usage.activePlans, 2)
+  assert.equal(usage.activeCap, 1)
+  assert.equal(usage.versionLimit, 10)
+  assert.equal(usage.plans, 3)
+  assert.equal(usage.versions, 3)
+  // Title and body bytes. "é" is two bytes in UTF-8.
+  assert.equal(usage.bytes, 1 + 10 + 1 + 5 + 1 + 2)
+  assert.deepEqual(
+    usage.byPlan.map((row) => [row.id, row.versions, row.bytes]),
+    [
+      ['plan-large', 2, 17],
+      ['plan-small', 1, 3],
+      ['plan-empty', 0, 0],
+    ],
+  )
+})
