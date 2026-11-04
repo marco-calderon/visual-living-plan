@@ -8,6 +8,7 @@ import type { PlanMode } from './processRecord'
 import { clientLogScript } from './clientLog'
 import { faviconLink } from './favicon'
 import { webManifestHead } from './webManifest'
+import { PLAN_STATUS_LABEL, planStatus } from './planStatus'
 import { PROCESSES_PANEL_STYLES, processesPanelMarkup, processesPanelScript } from './processesPanel'
 import { accentCssCustomProperties, PAGE_WIDTH_OPTIONS, type PageWidth } from './theme'
 import {
@@ -1378,6 +1379,7 @@ export function renderPlanPage(options: {
   const showReviewBar = mode === 'review' && !reviewDecision && !locked
   const planned = planToExpectedGraph(plan)
   const workflowState = locked ? 'live' : planned ? 'planned' : 'idle'
+  const status = planStatus({ mode, decision: reviewDecision, active: locked })
   const flags = planSourceFlags(plan.source)
   const hasMermaid = flags.mermaid
   const hasCode = flags.code
@@ -1449,16 +1451,18 @@ export function renderPlanPage(options: {
   ${accentStyleTag(theme.accent)}
   ${planMdxHref ? '<style>.plan-mdx-pending{display:none}</style><noscript><style>.plan-mdx-pending{display:block}</style></noscript>' : ''}
 </head>
-<body class="${showReviewBar ? 'has-review-bar ' : ''}layout-${layoutMode}" data-plan-mode="${escapeHtml(mode)}">
+<body class="${showReviewBar ? 'has-review-bar ' : ''}layout-${layoutMode}" data-plan-mode="${escapeHtml(mode)}" data-plan-status="${status}">
   <header class="titlebar">
     <div class="plan-details" data-plan-details>
       <button type="button" class="logo-btn" data-plan-details-toggle aria-expanded="false" aria-controls="plan-card" aria-label="${pendingCount > 0 ? `Plan details, ${pendingCount} pending` : 'Plan details'}">
         <img class="titlebar-logo" src="/favicon.png" alt="" width="29" height="29" />
+        <span class="logo-status" aria-hidden="true"></span>
         <span class="logo-badge" data-pending-badge${pendingCount > 0 ? '' : ' hidden'}>${pendingCount}</span>
       </button>
       <div class="plan-card" id="plan-card" data-plan-card role="dialog" aria-labelledby="plan-title" hidden>
         ${plan.summary ? `<p class="lede">${escapeHtml(plan.summary)}</p>` : ''}
         <div class="facts">
+          <span class="fact" data-plan-status-fact title="Status"><span class="status-dot" aria-hidden="true"></span><span class="val" data-plan-status-label>${PLAN_STATUS_LABEL[status]}</span></span>
           <span class="fact solo" data-plan-mode-chip data-mode="${escapeHtml(mode)}" title="Mode · ${escapeHtml(mode)}" aria-label="Mode · ${escapeHtml(mode)}">${MODE_ICON.watch}${MODE_ICON.review}${MODE_ICON.comment}<span class="sr" data-plan-mode-value>${escapeHtml(mode)}</span></span>
           ${plan.agent ? `<span class="fact" title="Agent · ${escapeHtml(plan.agent)}" aria-label="Agent · ${escapeHtml(plan.agent)}">${AGENT_ICON}<span class="val">${escapeHtml(plan.agent)}</span></span>` : ''}
           <span class="fact" data-file-version title="${escapeHtml(versionName)}" aria-label="${escapeHtml(versionName)}">${FILE_VERSION_ICON}<span class="val" data-file-version-value>${escapeHtml(versionText)}</span></span>
