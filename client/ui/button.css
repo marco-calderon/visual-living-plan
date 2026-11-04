@@ -29,10 +29,6 @@
   flex: none;
 }
 
-.plan-btn:hover:not(:disabled) {
-  background: var(--surface);
-}
-
 .plan-btn:active:not(:disabled) {
   transform: scale(0.97);
 }

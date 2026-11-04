@@ -90,16 +90,6 @@ body.layout-full .settings-page {
   height: 36px;
   margin: 0 0 var(--space-md);
   padding: 0 16px;
-  border: 1px solid var(--ink);
-  border-radius: 9999px;
-  background: transparent;
-  color: var(--ink);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.4;
-  cursor: pointer;
-  transition: transform 160ms var(--ease-out), background-color 150ms ease, color 150ms ease, border-color 150ms ease;
 }
 .settings-page .settings-back svg {
   width: 16px;

@@ -91,6 +91,11 @@ export function initPlan(
   const existing = meta(sql, 'token')
   if (existing) {
     if (!secretEquals(existing, input.token)) throw new PlanRoomError(409, 'This plan is already hosted.')
+    setMeta(sql, 'closed', '0')
+    setMeta(sql, 'title', input.title)
+    setMeta(sql, 'mode', input.mode)
+    setMeta(sql, 'tier', normalizeTier(input.tier))
+    setMeta(sql, 'last_seen', String(Date.now()))
     return { revision: Number(meta(sql, 'revision') ?? '0') }
   }
   setMeta(sql, 'token', input.token)

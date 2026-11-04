@@ -1,208 +1,233 @@
-import { createFileRoute, isRedirect, redirect } from '@tanstack/react-router'
-import { applyAppearance } from '../appearanceDom.ts'
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { ArrowLeft } from 'lucide-react'
-import { useEffect, useLayoutEffect, useState, type CSSProperties } from 'react'
-import { ACCENT_CHOICES } from '../host/accountSettings.ts'
-import { CodeWrapSwitch } from '../../client/chrome/CodeWrapSwitch.tsx'
-import { Button } from '../../client/ui/button.tsx'
-import { DIFFS_THEME_PRESETS, diffsThemePreset, type DiffsThemeSample } from '../diffsTheme.ts'
-import { versionSectionHtml } from '../changelogParse.ts'
-import { HostBar } from '../HostBar.tsx'
-import { loadHostedRelease, type HostedRelease } from '../hostedRelease.ts'
-import { LinkSocialAccounts } from '../LinkSocialAccounts.tsx'
-import { loadAccount, type AccountPayload } from '../planFns.ts'
-import { currentOfflineHandle, startOfflineEngine } from '../../client/offline/engine.ts'
-import { accountWithSettings, isAccountNetworkFailure } from '../offlineSync.ts'
-import './settings.css'
+import { createFileRoute, isRedirect, redirect } from "@tanstack/react-router";
+import { applyAppearance } from "../appearanceDom.ts";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { ArrowLeft } from "lucide-react";
+import { useEffect, useLayoutEffect, useState, type CSSProperties } from "react";
+import { ACCENT_CHOICES } from "../host/accountSettings.ts";
+import { CodeWrapSwitch } from "../../client/chrome/CodeWrapSwitch.tsx";
+import { Button } from "../../client/ui/button.tsx";
+import { DIFFS_THEME_PRESETS, diffsThemePreset, type DiffsThemeSample } from "../diffsTheme.ts";
+import { versionSectionHtml } from "../changelogParse.ts";
+import { HostBar } from "../HostBar.tsx";
+import { loadHostedRelease, type HostedRelease } from "../hostedRelease.ts";
+import { LinkSocialAccounts } from "../LinkSocialAccounts.tsx";
+import { loadAccount, type AccountPayload } from "../planFns.ts";
+import { currentOfflineHandle, startOfflineEngine } from "../../client/offline/engine.ts";
+import { accountWithSettings, isAccountNetworkFailure } from "../offlineSync.ts";
+import "./settings.css";
 
-type SettingsSearch = { error?: string }
+type SettingsSearch = { error?: string };
 
 function settingsSearch(search: Record<string, unknown>): SettingsSearch {
-  const error = typeof search.error === 'string' && /^[a-z0-9_]+$/.test(search.error) ? search.error : undefined
-  return error ? { error } : {}
+  const error =
+    typeof search.error === "string" && /^[a-z0-9_]+$/.test(search.error)
+      ? search.error
+      : undefined;
+  return error ? { error } : {};
 }
 
 const WIDTHS = [
-  { id: 'default', label: 'Default' },
-  { id: 'wide', label: 'Wide' },
-  { id: 'full', label: 'Full' },
-] as const
+  { id: "default", label: "Default" },
+  { id: "wide", label: "Wide" },
+  { id: "full", label: "Full" },
+] as const;
 
-const SAVED = 'Saved on this host for your account.'
-const THEME_URL = '/api/account/settings'
+const SAVED = "Saved on this host for your account.";
+const THEME_URL = "/api/account/settings";
 
 type AppearancePartial = {
-  accent?: string
-  pageWidth?: string
-  diffsTheme?: string
-}
+  accent?: string;
+  pageWidth?: string;
+  diffsTheme?: string;
+};
 
-export const Route = createFileRoute('/settings')({
+export const Route = createFileRoute("/settings")({
   validateSearch: (search: Record<string, unknown>): SettingsSearch => settingsSearch(search),
   loader: async () => {
-    const browser = typeof window !== 'undefined'
-    const online = browser ? navigator.onLine : true
+    const browser = typeof window !== "undefined";
+    const online = browser ? navigator.onLine : true;
     try {
-      const result = await loadAccount()
+      const result = await loadAccount();
       if (!result.ok) {
-        throw redirect({ to: '/login', search: { next: '/settings' } })
+        throw redirect({ to: "/login", search: { next: "/settings" } });
       }
-      if (!browser) return result.account
-      const engine = await startOfflineEngine()
-      const account = accountWithSettings(result.account, pendingSettings(engine?.settings('account')))
-      engine?.rememberAccount(account)
-      return account
+      if (!browser) return result.account;
+      const engine = await startOfflineEngine();
+      const account = accountWithSettings(
+        result.account,
+        pendingSettings(engine?.settings("account")),
+      );
+      engine?.rememberAccount(account);
+      return account;
     } catch (error) {
       // Offline: open with the account and settings kept on this device.
-      if (isRedirect(error) || !browser || !isAccountNetworkFailure(error, online)) throw error
-      const engine = await startOfflineEngine()
-      const stored = engine?.account()?.payload
-      if (!isAccountPayload(stored)) throw error
-      return accountWithSettings(stored, engine?.settings('account'))
+      if (isRedirect(error) || !browser || !isAccountNetworkFailure(error, online)) throw error;
+      const engine = await startOfflineEngine();
+      const stored = engine?.account()?.payload;
+      if (!isAccountPayload(stored)) throw error;
+      return accountWithSettings(stored, engine?.settings("account"));
     }
   },
   component: SettingsPage,
-})
+});
 
 function pendingSettings<T extends { pending?: boolean }>(row: T | undefined): T | undefined {
-  return row?.pending ? row : undefined
+  return row?.pending ? row : undefined;
 }
 
 function isAccountPayload(value: unknown): value is AccountPayload {
-  if (!value || typeof value !== 'object') return false
-  const record = value as Partial<AccountPayload>
-  return Boolean(record.user && typeof record.user.email === 'string' && record.settings)
+  if (!value || typeof value !== "object") return false;
+  const record = value as Partial<AccountPayload>;
+  return Boolean(record.user && typeof record.user.email === "string" && record.settings);
 }
 
-type Settings = AccountPayload['settings']
+type Settings = AccountPayload["settings"];
 
 function settingsFromDevice(current: Settings): Settings {
-  const row = currentOfflineHandle()?.settings('account')
-  return accountWithSettings({ settings: current }, row).settings
+  const row = currentOfflineHandle()?.settings("account");
+  return accountWithSettings({ settings: current }, row).settings;
 }
 
 async function saveHostedAppearance(partial: AppearancePartial): Promise<boolean> {
-  const engine = await startOfflineEngine()
+  const engine = await startOfflineEngine();
   if (engine?.available) {
-    await engine.saveSettings('account', { ...partial, url: THEME_URL })
-    return true
+    await engine.saveSettings("account", { ...partial, url: THEME_URL });
+    return true;
   }
   const response = await fetch(THEME_URL, {
-    method: 'PUT',
-    credentials: 'include',
-    headers: { 'content-type': 'application/json' },
+    method: "PUT",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
     body: JSON.stringify({ ...partial, updatedAt: Date.now() }),
-  })
-  return response.ok
+  });
+  return response.ok;
 }
 
 function sampleStyle(sample: DiffsThemeSample): CSSProperties {
   return {
-    '--sample-bg': sample.bg,
-    '--sample-fg': sample.fg,
-    '--sample-comment': sample.comment,
-    '--sample-string': sample.string,
-    '--sample-keyword': sample.keyword,
-    '--sample-function': sample.function,
-    '--sample-added': sample.added,
-    '--sample-deleted': sample.deleted,
-  } as CSSProperties
+    "--sample-bg": sample.bg,
+    "--sample-fg": sample.fg,
+    "--sample-comment": sample.comment,
+    "--sample-string": sample.string,
+    "--sample-keyword": sample.keyword,
+    "--sample-function": sample.function,
+    "--sample-added": sample.added,
+    "--sample-deleted": sample.deleted,
+  } as CSSProperties;
 }
 
-function DiffSample({ sample, mode }: { sample: DiffsThemeSample; mode: 'Light' | 'Dark' }) {
+function DiffSample({ sample, mode }: { sample: DiffsThemeSample; mode: "Light" | "Dark" }) {
   return (
     <div className="diffs-theme-sample" style={sampleStyle(sample)} aria-hidden="true" title={mode}>
       <span className="tok-comment">{`// ${mode}`}</span>
       <span>
-        <span className="tok-keyword">const</span> <span className="tok-fn">n</span> = <span className="tok-string">'ok'</span>
+        <span className="tok-keyword">const</span> <span className="tok-fn">n</span> ={" "}
+        <span className="tok-string">'ok'</span>
       </span>
       <span>
         <span className="tok-added">+ keep</span> <span className="tok-deleted">- drop</span>
       </span>
     </div>
-  )
+  );
 }
 
 function SettingsBackButton() {
   return (
-    <button type="button" className="settings-back" data-history-back="" onClick={() => history.back()}>
+    <Button
+      className="settings-back"
+      variant="ghost"
+      type="button"
+      data-history-back=""
+      onClick={() => history.back()}
+    >
       <ArrowLeft size={16} aria-hidden="true" />
       Back
-    </button>
-  )
+    </Button>
+  );
 }
 
 /** Last card in Settings. The version and changelog are built into this host. */
 function HostedVersionCard() {
   // Built into this host, so it never changes while the page is open.
-  const release = useQuery({ queryKey: ['hosted-release'], queryFn: loadHostedRelease, staleTime: Infinity })
-  const about: HostedRelease | null = release.data ?? null
-  const html = about ? versionSectionHtml(about.version, about.release, 'hosted') : ''
-  if (!html) return null
+  const release = useQuery({
+    queryKey: ["hosted-release"],
+    queryFn: loadHostedRelease,
+    staleTime: Infinity,
+  });
+  const about: HostedRelease | null = release.data ?? null;
+  const html = about ? versionSectionHtml(about.version, about.release, "hosted") : "";
+  if (!html) return null;
   // The markup escapes every changelog line. The wrapper keeps it in the stack's grid.
-  return <div className="settings-version" dangerouslySetInnerHTML={{ __html: html }} />
+  return <div className="settings-version" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 function SettingsPage() {
-  const account = Route.useLoaderData()
-  const search = Route.useSearch()
-  const [settings, setSettings] = useState<Settings>(account.settings)
-  const label = account.user.name || account.user.email
-  const currentDiffs = diffsThemePreset(settings.diffsTheme)
-  const [error, setError] = useState('')
-  const [picker, setPicker] = useState(settings.accent)
-  const [diffsOpen, setDiffsOpen] = useState(false)
-  const appearance = useMutation({ mutationFn: saveHostedAppearance })
+  const account = Route.useLoaderData();
+  const search = Route.useSearch();
+  const [settings, setSettings] = useState<Settings>(account.settings);
+  const label = account.user.name || account.user.email;
+  const currentDiffs = diffsThemePreset(settings.diffsTheme);
+  const [error, setError] = useState("");
+  const [picker, setPicker] = useState(settings.accent);
+  const [diffsOpen, setDiffsOpen] = useState(false);
+  const appearance = useMutation({ mutationFn: saveHostedAppearance });
 
   useEffect(() => {
-    setSettings(account.settings)
-    setPicker(account.settings.accent)
-  }, [account])
+    setSettings(account.settings);
+    setPicker(account.settings.accent);
+  }, [account]);
 
   useEffect(() => {
     // A cached page can be older than a change made on this device. Show the newer one.
-    let stop = () => {}
-    let cancelled = false
+    let stop = () => {};
+    let cancelled = false;
     void startOfflineEngine().then((engine) => {
-      if (cancelled || !engine?.available) return
-      const paint = () => setSettings((current) => {
-        const next = settingsFromDevice(current)
-        return next === current ? current : next
-      })
-      paint()
-      stop = engine.subscribe(paint)
-    })
+      if (cancelled || !engine?.available) return;
+      const paint = () =>
+        setSettings((current) => {
+          const next = settingsFromDevice(current);
+          return next === current ? current : next;
+        });
+      paint();
+      stop = engine.subscribe(paint);
+    });
     // The code wrap switch saves on its own. Keep this page's copy in step with it.
     const onTheme = (event: Event) => {
-      const wrapCode = (event as CustomEvent<{ wrapCode?: boolean }>).detail?.wrapCode
-      if (typeof wrapCode === 'boolean') setSettings((current) => (current.wrapCode === wrapCode ? current : { ...current, wrapCode }))
-    }
-    window.addEventListener('living-plan-theme', onTheme)
+      const wrapCode = (event as CustomEvent<{ wrapCode?: boolean }>).detail?.wrapCode;
+      if (typeof wrapCode === "boolean")
+        setSettings((current) =>
+          current.wrapCode === wrapCode ? current : { ...current, wrapCode },
+        );
+    };
+    window.addEventListener("living-plan-theme", onTheme);
     return () => {
-      cancelled = true
-      stop()
-      window.removeEventListener('living-plan-theme', onTheme)
-    }
-  }, [])
+      cancelled = true;
+      stop();
+      window.removeEventListener("living-plan-theme", onTheme);
+    };
+  }, []);
 
   useLayoutEffect(() => {
-    const root = document.documentElement
-    root.dataset.planHost = 'cloud'
-    applyAppearance(settings)
-    ;(window as Window & { __LIVE_PLAN_THEME_URL__?: string }).__LIVE_PLAN_THEME_URL__ = THEME_URL
-  }, [settings.accent, settings.diffsTheme, settings.pageWidth, settings.wrapCode])
+    const root = document.documentElement;
+    root.dataset.planHost = "cloud";
+    applyAppearance(settings);
+    (window as Window & { __LIVE_PLAN_THEME_URL__?: string }).__LIVE_PLAN_THEME_URL__ = THEME_URL;
+  }, [settings.accent, settings.diffsTheme, settings.pageWidth, settings.wrapCode]);
 
   async function save(partial: AppearancePartial) {
-    if (appearance.isPending) return
-    setError('')
-    const ok = await appearance.mutateAsync(partial).catch(() => false)
+    if (appearance.isPending) return;
+    setError("");
+    const ok = await appearance.mutateAsync(partial).catch(() => false);
     if (!ok) {
-      setError('Could not save those settings.')
-      return
+      setError("Could not save those settings.");
+      return;
     }
-    setSettings((current) => ({ ...current, ...(partial as Partial<Settings>), updatedAt: Date.now() }))
-    if (partial.accent) setPicker(partial.accent)
+    setSettings((current) => ({
+      ...current,
+      ...(partial as Partial<Settings>),
+      updatedAt: Date.now(),
+    }));
+    if (partial.accent) setPicker(partial.accent);
   }
 
   return (
@@ -211,7 +236,11 @@ function SettingsPage() {
       <main className="settings-page">
         <SettingsBackButton />
         <div className="settings-stack">
-          <section className="block settings-section" data-account-section="" data-host-panel="cloud">
+          <section
+            className="block settings-section"
+            data-account-section=""
+            data-host-panel="cloud"
+          >
             <h3>Signed in as {account.user.email}</h3>
             <p className="settings-copy">
               Name <strong>{label}</strong>
@@ -220,22 +249,27 @@ function SettingsPage() {
               Tier <strong>{account.user.tier}</strong>
             </p>
             <p className="settings-copy">
-              If a terminal is waiting on account login, close this window and return to it. Host a plan from that
-              machine with <code>live-plan serve path/to/work.plan.md --cloud</code>. Each publish stores the plan
-              here. Loopback plans stay separate and do not require this account.
+              If a terminal is waiting on account login, close this window and return to it. Host a
+              plan from that machine with <code>live-plan serve path/to/work.plan.md --cloud</code>.
+              Each publish stores the plan here. Loopback plans stay separate and do not require
+              this account.
             </p>
             <p className="settings-meta settings-error" role="alert">
               {error}
             </p>
           </section>
 
-          <LinkSocialAccounts email={account.user.email} accounts={account.accounts ?? []} errorCode={search.error} />
+          <LinkSocialAccounts
+            email={account.user.email}
+            accounts={account.accounts ?? []}
+            errorCode={search.error}
+          />
 
           <section className="block settings-section">
             <h3>Accent color</h3>
             <p className="settings-copy">
-              Pick one of eight presets tuned for light and dark mode, or set a custom hex. Changes save on this host
-              for your account.
+              Pick one of eight presets tuned for light and dark mode, or set a custom hex. Changes
+              save on this host for your account.
             </p>
             <div className="settings-preview">
               <span className="chip">
@@ -251,13 +285,13 @@ function SettingsPage() {
                   key={choice.accent}
                   type="button"
                   className="theme-swatch"
-                  style={{ '--swatch': choice.accent } as CSSProperties}
+                  style={{ "--swatch": choice.accent } as CSSProperties}
                   aria-label={`${choice.label} accent`}
                   aria-checked={choice.accent === settings.accent}
                   title={choice.label}
                   onClick={() => {
-                    if (choice.accent === settings.accent) return
-                    void save({ accent: choice.accent })
+                    if (choice.accent === settings.accent) return;
+                    void save({ accent: choice.accent });
                   }}
                 >
                   {choice.label}
@@ -272,10 +306,10 @@ function SettingsPage() {
                 aria-label="Custom accent color"
                 onInput={(event) => setPicker(event.currentTarget.value)}
                 onChange={(event) => {
-                  const accent = event.currentTarget.value
-                  setPicker(accent)
-                  if (accent === settings.accent) return
-                  void save({ accent })
+                  const accent = event.currentTarget.value;
+                  setPicker(accent);
+                  if (accent === settings.accent) return;
+                  void save({ accent });
                 }}
               />
               <code>{picker}</code>
@@ -286,8 +320,8 @@ function SettingsPage() {
           <section className="block settings-section">
             <h3>Page width</h3>
             <p className="settings-copy">
-              Choose the document column. Default, wide, and full apply to Plan, Workflow, and Settings. Full uses the
-              available width.
+              Choose the document column. Default, wide, and full apply to Plan, Workflow, and
+              Settings. Full uses the available width.
             </p>
             <div className="width-choices" role="radiogroup" aria-label="Page width">
               {WIDTHS.map((option) => (
@@ -298,8 +332,8 @@ function SettingsPage() {
                   role="radio"
                   aria-checked={option.id === settings.pageWidth}
                   onClick={() => {
-                    if (option.id === settings.pageWidth) return
-                    void save({ pageWidth: option.id })
+                    if (option.id === settings.pageWidth) return;
+                    void save({ pageWidth: option.id });
                   }}
                 >
                   {option.label}
@@ -314,7 +348,8 @@ function SettingsPage() {
               <div className="code-wrap-copy">
                 <h3 id="code-wrap-label">Wrap text in code</h3>
                 <p className="settings-copy">
-                  Long lines wrap inside code blocks, in light and dark. Turn this off to scroll sideways.
+                  Long lines wrap inside code blocks, in light and dark. Turn this off to scroll
+                  sideways.
                 </p>
               </div>
               <div className="code-wrap-control">
@@ -324,10 +359,10 @@ function SettingsPage() {
             <p className="settings-meta">{SAVED}</p>
             <h3>Pierre theme</h3>
             <p className="settings-copy">
-              Choose the Pierre syntax theme used for code blocks and diffs. Light and dark samples follow the page
-              color mode.
+              Choose the Pierre syntax theme used for code blocks and diffs. Light and dark samples
+              follow the page color mode.
             </p>
-            <div className="settings-accordion" data-open={diffsOpen ? 'true' : 'false'}>
+            <div className="settings-accordion" data-open={diffsOpen ? "true" : "false"}>
               <button
                 type="button"
                 className="settings-accordion-trigger"
@@ -342,7 +377,12 @@ function SettingsPage() {
                     Current: <strong>{currentDiffs.label}</strong>
                   </span>
                 </span>
-                <svg className="settings-accordion-chevron" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                <svg
+                  className="settings-accordion-chevron"
+                  viewBox="0 0 20 20"
+                  aria-hidden="true"
+                  focusable="false"
+                >
                   <path
                     fill="currentColor"
                     d="M5.2 7.5a.9.9 0 0 1 1.27-.05L10 10.74l3.53-3.29a.9.9 0 0 1 1.22 1.32l-4.14 3.86a.9.9 0 0 1-1.22 0L5.25 8.77a.9.9 0 0 1-.05-1.27z"
@@ -352,7 +392,11 @@ function SettingsPage() {
               <div className="settings-accordion-panel" id="diffs-theme-panel" inert={!diffsOpen}>
                 <div className="settings-accordion-panel-inner">
                   <div className="settings-accordion-body">
-                    <div className="diffs-theme-grid" role="radiogroup" aria-label="Pierre diff themes">
+                    <div
+                      className="diffs-theme-grid"
+                      role="radiogroup"
+                      aria-label="Pierre diff themes"
+                    >
                       {DIFFS_THEME_PRESETS.map((preset) => (
                         <button
                           key={preset.id}
@@ -362,8 +406,8 @@ function SettingsPage() {
                           aria-checked={preset.id === currentDiffs.id}
                           title={preset.description}
                           onClick={() => {
-                            if (preset.id === currentDiffs.id) return
-                            void save({ diffsTheme: preset.id })
+                            if (preset.id === currentDiffs.id) return;
+                            void save({ diffsTheme: preset.id });
                           }}
                         >
                           <div className="diffs-theme-samples">
@@ -388,5 +432,5 @@ function SettingsPage() {
         </div>
       </main>
     </>
-  )
+  );
 }

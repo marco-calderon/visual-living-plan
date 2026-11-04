@@ -1,6 +1,6 @@
 import { faviconResponse } from './favicon'
 import { readShellWorkerSource, shellWorkerResponse } from './shellWorkerResponse'
-import { pwaIconResponse } from './pwaIcons'
+import { pwaIconResponse } from './pwaIconFile'
 import { WEB_MANIFEST_PATH, webManifestResponse } from './webManifest'
 import { HttpError, jsonBody } from './http'
 import { acceptClientLog, readLogs } from './serviceLog'

@@ -1,14 +1,9 @@
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-
 /**
  * Install and home screen icons, generated from the Living Plan mark.
  * Regenerate with `npm run icons` (see scripts/pwa-icons/README.md).
  *
  * Files live in `public/icons/`. The hosted Worker serves them as static
- * assets. The local service reads them from `dist/icons/` (copied at build)
- * or `public/icons/` when it runs from source.
+ * assets. The local service reads the bytes in `pwaIconFile.ts`.
  */
 
 export const PWA_ICONS_PATH = '/icons/'
@@ -40,37 +35,6 @@ export function pwaIconName(pathname: string): string | undefined {
   if (!pathname.startsWith(PWA_ICONS_PATH)) return undefined
   const name = pathname.slice(PWA_ICONS_PATH.length)
   return ICON_FILE.test(name) ? name : undefined
-}
-
-function iconContentType(name: string): string {
-  return name.endsWith('.ico') ? 'image/x-icon' : 'image/png'
-}
-
-function readIcon(name: string): Uint8Array<ArrayBuffer> | undefined {
-  const moduleUrl = import.meta.url
-  if (!moduleUrl) return undefined
-  const here = dirname(fileURLToPath(moduleUrl))
-  for (const dir of [join(here, 'icons'), join(here, '../public/icons')]) {
-    try {
-      return new Uint8Array(readFileSync(join(dir, name)))
-    } catch {
-      // try the next location
-    }
-  }
-  return undefined
-}
-
-/** Local service: serve a generated icon, or 404. */
-export function pwaIconResponse(pathname: string): Response {
-  const name = pwaIconName(pathname)
-  const body = name ? readIcon(name) : undefined
-  if (!name || !body) return new Response('Not found', { status: 404 })
-  return new Response(body, {
-    headers: {
-      'content-type': iconContentType(name),
-      'cache-control': 'public, max-age=86400',
-    },
-  })
 }
 
 /** Hosted Worker: keep the static asset only when it is an image. */

@@ -15,8 +15,10 @@ import { LATEST_PLAN_VERSION_SQL, PLAN_VERSION_LIMIT, ensurePlanVersions, publis
 import type { HostedPlanRow } from '../src/host/hostedDashboard.ts'
 import {
   ackEvents,
+  closePlan,
   executionView,
   initPlan,
+  planView,
   putExecution,
   pendingEvents,
   planHosted,
@@ -320,6 +322,20 @@ test('a stale source upload retries once', async () => {
   assert.equal(next, 5)
 })
 
+test('a closed plan reports the host message instead of a stale revision', async () => {
+  const fetchImpl: typeof fetch = async () => new Response('This plan is closed.', { status: 409 })
+  await assert.rejects(
+    () => uploadSource({
+      planUrl: 'https://plans.example/plans/abc12345/',
+      token: 'plan-token',
+      markdown: '# Demo\n',
+      revision: 1,
+      fetchImpl,
+    }),
+    /This plan is closed\./,
+  )
+})
+
 test('plan room stores a submission until it is acked', () => {
   const db = new Database(':memory:')
   const sql = sqlOf(db)
@@ -333,6 +349,26 @@ test('plan room stores a submission until it is acked', () => {
   const id = String((sent.outbound[0]?.data as { id: string }).id)
   ackEvents(sql, [id])
   assert.equal(pendingEvents(sql).length, 0)
+})
+
+test('serving an existing plan opens it again', () => {
+  const db = new Database(':memory:')
+  const sql = sqlOf(db)
+  initPlan(sql, { token: 'plan-token', title: 'Demo', mode: 'watch', tier: 'free', source: '# Demo\n' })
+  putSource(sql, { markdown: '# Demo\n', revision: 0 })
+  closePlan(sql)
+  const again = initPlan(sql, { token: 'plan-token', title: 'Cloud showcase', mode: 'watch', tier: 'pro', source: '# Cloud showcase\n' })
+  const view = planView(sql)
+  assert.equal(again.revision, 1)
+  assert.equal(view.closed, false)
+  assert.equal(view.title, 'Cloud showcase')
+  assert.equal(view.mode, 'watch')
+  assert.equal(view.tier, 'pro')
+  assert.equal(view.source, '# Demo\n')
+  assert.throws(
+    () => initPlan(sql, { token: 'other-token', title: 'Cloud showcase', mode: 'watch', tier: 'pro', source: '# Cloud showcase\n' }),
+    /already hosted/,
+  )
 })
 
 test('a plan room that was never registered reports not hosted instead of a SQL error', () => {

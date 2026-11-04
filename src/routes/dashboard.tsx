@@ -1,7 +1,7 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, isRedirect, redirect, useNavigate } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
-import type { DashboardPeriod, DashboardSummary } from '../dashboard.ts'
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, isRedirect, redirect, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import type { DashboardPeriod, DashboardSummary } from "../dashboard.ts";
 import {
   completionLabel,
   dashboardStatusLine,
@@ -12,99 +12,106 @@ import {
   statusLabel,
   visiblePlans,
   type DashboardFilter,
-} from '../dashboardFormat.ts'
-import { Button } from '../../client/ui/button.tsx'
-import { HostBar } from '../HostBar.tsx'
-import { loadAccount, type AccountPayload } from '../planFns.ts'
-import type { PlanRecord } from '../processRecord.ts'
-import { PlanRowActions } from './PlanRowActions.tsx'
-import { startOfflineEngine } from '../../client/offline/engine.ts'
-import { refreshDeviceDashboards } from '../../client/offline/warmPlans.ts'
-import { dashboardAccountDecision, isAccountNetworkFailure } from '../offlineSync.ts'
-import './dashboard.css'
+} from "../dashboardFormat.ts";
+import { Button } from "../../client/ui/button.tsx";
+import { HostBar } from "../HostBar.tsx";
+import { loadAccount, type AccountPayload } from "../planFns.ts";
+import type { PlanRecord } from "../processRecord.ts";
+import { PlanRowActions } from "./PlanRowActions.tsx";
+import { startOfflineEngine } from "../../client/offline/engine.ts";
+import { refreshDeviceDashboards } from "../../client/offline/warmPlans.ts";
+import { dashboardAccountDecision, isAccountNetworkFailure } from "../offlineSync.ts";
+import "./dashboard.css";
+import { RefreshCcw } from "lucide-react";
 
 const LEDE =
-  'Hosted plans for this account. Summaries follow the local day, week, and month. Each published version is stored on this host, and the latest 10 are kept. Loopback plans stay on your machine.'
+  "Hosted plans for this account. Summaries follow the local day, week, and month. Each published version is stored on this host, and the latest 10 are kept. Loopback plans stay on your machine.";
 
 const PERIODS: Array<{ id: DashboardPeriod; label: string; aria?: string }> = [
-  { id: 'day', label: 'Today' },
-  { id: 'week', label: 'Week', aria: 'This week' },
-  { id: 'month', label: 'Month', aria: 'This month' },
-]
+  { id: "day", label: "Today" },
+  { id: "week", label: "Week", aria: "This week" },
+  { id: "month", label: "Month", aria: "This month" },
+];
 
 const FILTERS: Array<{ id: DashboardFilter; label: string }> = [
-  { id: 'all', label: 'All' },
-  { id: 'running', label: 'Running' },
-  { id: 'executed', label: 'Executed' },
-  { id: 'interrupted', label: 'Interrupted' },
-]
+  { id: "all", label: "All" },
+  { id: "running", label: "Running" },
+  { id: "executed", label: "Executed" },
+  { id: "interrupted", label: "Interrupted" },
+];
 
-type DashboardSearch = { period?: DashboardPeriod }
+type DashboardSearch = { period?: DashboardPeriod };
 
-type DashboardPlan = PlanRecord & { fileUrl?: string; historyUrl?: string }
+type DashboardPlan = PlanRecord & { fileUrl?: string; historyUrl?: string };
 
 type DashboardBody = {
-  summary: DashboardSummary
-  plans: DashboardPlan[]
-}
+  summary: DashboardSummary;
+  plans: DashboardPlan[];
+};
 
-type Shift = 'enter' | 'forward' | 'back' | 'filter' | 'quiet'
+type Shift = "enter" | "forward" | "back" | "filter" | "quiet";
 
-const DASHBOARD_POLL_MS = 4000
+const DASHBOARD_POLL_MS = 4000;
 
-type DashboardResult = { body: DashboardBody; savedAt: number; offline: boolean }
+type DashboardResult = { body: DashboardBody; savedAt: number; offline: boolean };
 
 function dashboardKey(period: DashboardPeriod) {
-  return ['account-dashboard', period] as const
+  return ["account-dashboard", period] as const;
 }
 
 /** Network first, then this device's copy. Throws only when neither is there. */
 async function readDashboard(period: DashboardPeriod): Promise<DashboardResult> {
-  const engine = await startOfflineEngine()
-  const result = await refreshDeviceDashboards(engine, { period, force: true })
-  if ('missing' in result) throw new Error('Could not read the dashboard.')
-  return { body: result.body as DashboardBody, savedAt: result.savedAt, offline: result.offline }
+  const engine = await startOfflineEngine();
+  const result = await refreshDeviceDashboards(engine, { period, force: true });
+  if ("missing" in result) throw new Error("Could not read the dashboard.");
+  return { body: result.body as DashboardBody, savedAt: result.savedAt, offline: result.offline };
 }
 
-export const Route = createFileRoute('/dashboard')({
+export const Route = createFileRoute("/dashboard")({
   validateSearch: (search: Record<string, unknown>): DashboardSearch => {
-    const period = search.period
-    if (period === 'day' || period === 'week' || period === 'month') return { period }
-    return {}
+    const period = search.period;
+    if (period === "day" || period === "week" || period === "month") return { period };
+    return {};
   },
   loader: async () => {
-    const browser = typeof window !== 'undefined'
-    const online = browser ? navigator.onLine : true
+    const browser = typeof window !== "undefined";
+    const online = browser ? navigator.onLine : true;
     try {
-      const result = await loadAccount()
-      if (!result.ok || dashboardAccountDecision({ ok: result.ok, networkFailure: false, hasStored: false }) === 'login') {
-        throw redirect({ to: '/login', search: { next: '/dashboard' } })
+      const result = await loadAccount();
+      if (
+        !result.ok ||
+        dashboardAccountDecision({ ok: result.ok, networkFailure: false, hasStored: false }) ===
+          "login"
+      ) {
+        throw redirect({ to: "/login", search: { next: "/dashboard" } });
       }
       if (browser) {
-        const engine = await startOfflineEngine()
-        engine?.rememberAccount(result.account)
+        const engine = await startOfflineEngine();
+        engine?.rememberAccount(result.account);
       }
-      return result.account
+      return result.account;
     } catch (error) {
-      if (isRedirect(error) || !browser || !isAccountNetworkFailure(error, online)) throw error
-      const engine = await startOfflineEngine()
-      const stored = engine?.account()?.payload
-      if (!isAccountPayload(stored)) throw error
-      return stored
+      if (isRedirect(error) || !browser || !isAccountNetworkFailure(error, online)) throw error;
+      const engine = await startOfflineEngine();
+      const stored = engine?.account()?.payload;
+      if (!isAccountPayload(stored)) throw error;
+      return stored;
     }
   },
   component: DashboardPage,
-})
+});
 
 function DashboardPage() {
-  const account = Route.useLoaderData()
-  const search = Route.useSearch()
-  const navigate = useNavigate()
-  const period = search.period ?? 'day'
-  const [filter, setFilter] = useState<DashboardFilter>('all')
-  const [shift, setShift] = useState<Shift>('enter')
-  const [online, setOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine))
-  const queryClient = useQueryClient()
+  const account = Route.useLoaderData();
+  const search = Route.useSearch();
+  const navigate = useNavigate();
+  const period = search.period ?? "day";
+  const [filter, setFilter] = useState<DashboardFilter>("all");
+  const [shift, setShift] = useState<Shift>("enter");
+  const [online, setOnline] = useState(() =>
+    typeof navigator === "undefined" ? true : navigator.onLine,
+  );
+  const queryClient = useQueryClient();
 
   // Polls every 4 s while the tab is visible and online. React Query pauses the interval while the
   // tab is hidden and refreshes once when it is shown again. A failed refresh keeps the last rows.
@@ -113,72 +120,76 @@ function DashboardPage() {
     queryFn: () => readDashboard(period),
     refetchInterval: () => (navigator.onLine ? DASHBOARD_POLL_MS : false),
     // The query reads this device's copy itself when the network is down.
-    networkMode: 'always',
-  })
+    networkMode: "always",
+  });
 
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
     /** Show this device's saved copy right away, before the network answers. */
     void startOfflineEngine().then((engine) => {
-      const saved = engine?.dashboard(period)
-      if (cancelled || !saved || queryClient.getQueryData(dashboardKey(period))) return
+      const saved = engine?.dashboard(period);
+      if (cancelled || !saved || queryClient.getQueryData(dashboardKey(period))) return;
       // updatedAt 0 keeps it stale, so the network read in flight still replaces it.
       queryClient.setQueryData<DashboardResult>(
         dashboardKey(period),
-        { body: saved.payload as DashboardBody, savedAt: saved.savedAt, offline: !navigator.onLine },
+        {
+          body: saved.payload as DashboardBody,
+          savedAt: saved.savedAt,
+          offline: !navigator.onLine,
+        },
         { updatedAt: 0 },
-      )
-    })
+      );
+    });
     return () => {
-      cancelled = true
-    }
-  }, [period, queryClient])
+      cancelled = true;
+    };
+  }, [period, queryClient]);
 
   useEffect(() => {
     function onOnline() {
-      setOnline(true)
+      setOnline(true);
     }
     function onOffline() {
-      setOnline(false)
+      setOnline(false);
       // Switch to this device's copy and its "Offline" line right away.
-      void queryClient.refetchQueries({ queryKey: ['account-dashboard'] })
+      void queryClient.refetchQueries({ queryKey: ["account-dashboard"] });
     }
-    window.addEventListener('online', onOnline)
-    window.addEventListener('offline', onOffline)
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
     return () => {
-      window.removeEventListener('online', onOnline)
-      window.removeEventListener('offline', onOffline)
-    }
-  }, [queryClient])
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, [queryClient]);
 
-  const payload = dashboard.data?.body ?? null
-  const error = dashboard.isError ? 'Could not read the dashboard.' : ''
-  const offlineAt = !dashboard.isError && dashboard.data?.offline ? dashboard.data.savedAt : null
+  const payload = dashboard.data?.body ?? null;
+  const error = dashboard.isError ? "Could not read the dashboard." : "";
+  const offlineAt = !dashboard.isError && dashboard.data?.offline ? dashboard.data.savedAt : null;
 
   useEffect(() => {
-    if (!payload || shift === 'quiet') return
-    const timer = window.setTimeout(() => setShift('quiet'), 240)
-    return () => window.clearTimeout(timer)
-  }, [payload, shift])
+    if (!payload || shift === "quiet") return;
+    const timer = window.setTimeout(() => setShift("quiet"), 240);
+    return () => window.clearTimeout(timer);
+  }, [payload, shift]);
 
   function choosePeriod(next: DashboardPeriod) {
-    if (next === period) return
-    setShift(periodIndex(next) > periodIndex(period) ? 'forward' : 'back')
-    void navigate({ to: '/dashboard', search: { period: next }, replace: true })
+    if (next === period) return;
+    setShift(periodIndex(next) > periodIndex(period) ? "forward" : "back");
+    void navigate({ to: "/dashboard", search: { period: next }, replace: true });
   }
 
   function chooseFilter(next: DashboardFilter) {
-    if (next === filter) return
-    setShift('filter')
-    setFilter(next)
+    if (next === filter) return;
+    setShift("filter");
+    setFilter(next);
   }
 
-  const plans = payload?.plans ?? []
-  const shown = visiblePlans(plans, filter)
-  const offline = !online || offlineAt !== null
+  const plans = payload?.plans ?? [];
+  const shown = visiblePlans(plans, filter);
+  const offline = !online || offlineAt !== null;
   const status = offlineAt
     ? `Offline · updated ${formatWhen(offlineAt)}`
-    : error || (payload ? dashboardStatusLine(payload.summary, shown.length, filter) : 'Loading…')
+    : error || (payload ? dashboardStatusLine(payload.summary, shown.length, filter) : "Loading…");
 
   return (
     <>
@@ -203,13 +214,14 @@ function DashboardPage() {
               </div>
               <Button
                 type="button"
-                variant="secondary"
+                variant="ghost"
                 className="titlebar-action"
                 onClick={() => {
-                  setShift('filter')
-                  void dashboard.refetch()
+                  setShift("filter");
+                  void dashboard.refetch();
                 }}
               >
+                <RefreshCcw />
                 Refresh
               </Button>
             </div>
@@ -276,13 +288,13 @@ function DashboardPage() {
         </div>
       </main>
     </>
-  )
+  );
 }
 
 function isAccountPayload(value: unknown): value is AccountPayload {
-  if (!value || typeof value !== 'object') return false
-  const user = (value as { user?: { email?: unknown } }).user
-  return Boolean(user && typeof user.email === 'string')
+  if (!value || typeof value !== "object") return false;
+  const user = (value as { user?: { email?: unknown } }).user;
+  return Boolean(user && typeof user.email === "string");
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -291,11 +303,11 @@ function Stat({ label, value }: { label: string; value: string }) {
       <span>{label}</span>
       <strong>{value}</strong>
     </article>
-  )
+  );
 }
 
 function BrokenPath({ value, className }: { value: string; className: string }) {
-  const parts = value.split('/')
+  const parts = value.split("/");
   return (
     <span className={className}>
       {parts.map((part, index) => (
@@ -310,26 +322,29 @@ function BrokenPath({ value, className }: { value: string; className: string }) 
         </span>
       ))}
     </span>
-  )
+  );
 }
 
 function PlanRow({ plan, offline }: { plan: DashboardPlan; offline: boolean }) {
-  const bits = [plan.mode || 'watch']
-  if (plan.executionStep) bits.push(plan.executionStep)
-  if (plan.outcome) bits.push(plan.outcome)
-  const ratio = Math.max(0, Math.min(100, Number(plan.completionRatio) || 0))
-  const openUrl = plan.status === 'running' ? safeHttpUrl(plan.url) : ''
-  const fileUrl = plan.storedPath && plan.id ? plan.fileUrl || `/archive/${encodeURIComponent(plan.id)}` : ''
+  const bits = [plan.mode || "watch"];
+  if (plan.executionStep) bits.push(plan.executionStep);
+  if (plan.outcome) bits.push(plan.outcome);
+  const ratio = Math.max(0, Math.min(100, Number(plan.completionRatio) || 0));
+  const openUrl = plan.status === "running" ? safeHttpUrl(plan.url) : "";
+  const fileUrl =
+    plan.storedPath && plan.id ? plan.fileUrl || `/archive/${encodeURIComponent(plan.id)}` : "";
   return (
     <tr>
       <td>
-        <span className="title">{plan.title || 'Untitled plan'}</span>
-        <span className="sub">{bits.join(', ')}</span>
+        <span className="title">{plan.title || "Untitled plan"}</span>
+        <span className="sub">{bits.join(", ")}</span>
         {plan.planPath ? <BrokenPath className="sub path" value={plan.planPath} /> : null}
       </td>
       <td>
-        <span className={`pill ${plan.status || 'running'}`}>{statusLabel(plan.status)}</span>
-        {plan.status === 'running' ? <span className="sub">{plan.pendingCount} pending</span> : null}
+        <span className={`pill ${plan.status || "running"}`}>{statusLabel(plan.status)}</span>
+        {plan.status === "running" ? (
+          <span className="sub">{plan.pendingCount} pending</span>
+        ) : null}
       </td>
       <td>
         <div className="meter">
@@ -339,14 +354,15 @@ function PlanRow({ plan, offline }: { plan: DashboardPlan; offline: boolean }) {
           {ratio}% {completionLabel(plan.completionState)}
         </span>
         <span className="sub">
-          {plan.phaseDone}/{plan.phaseTotal} phases, {plan.interactionDone}/{plan.interactionTotal} answers
+          {plan.phaseDone}/{plan.phaseTotal} phases, {plan.interactionDone}/{plan.interactionTotal}{" "}
+          answers
         </span>
       </td>
       <td>
         {plan.directory ? <BrokenPath className="path" value={plan.directory} /> : null}
         {plan.git?.branch ? (
           <span className="sub">
-            {plan.git.branch}, {plan.git.dirty ? 'dirty' : 'clean'}
+            {plan.git.branch}, {plan.git.dirty ? "dirty" : "clean"}
           </span>
         ) : null}
       </td>
@@ -363,5 +379,5 @@ function PlanRow({ plan, offline }: { plan: DashboardPlan; offline: boolean }) {
         />
       </td>
     </tr>
-  )
+  );
 }

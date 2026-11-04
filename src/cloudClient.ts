@@ -121,6 +121,15 @@ export async function registerCloudPlan(
   }
 }
 
+function jsonRevision(raw: string): number | null {
+  try {
+    const parsed = JSON.parse(raw) as { revision?: unknown }
+    return typeof parsed.revision === 'number' ? parsed.revision : null
+  } catch {
+    return null
+  }
+}
+
 export async function uploadSource(options: {
   planUrl: string
   token: string
@@ -138,9 +147,10 @@ export async function uploadSource(options: {
     })
   let response = await send(options.revision)
   if (response.status === 409) {
-    const stale = (await response.json().catch(() => null)) as { revision?: number } | null
-    if (typeof stale?.revision !== 'number') throw new Error('The hosted plan rejected a stale revision.')
-    response = await send(stale.revision)
+    const raw = await response.text()
+    const stale = jsonRevision(raw)
+    if (stale == null) throw new Error(raw.trim() || 'The hosted plan rejected the upload.')
+    response = await send(stale)
   }
   if (!response.ok) throw new Error(await errorText(response))
   const payload = (await response.json()) as { revision?: number }
