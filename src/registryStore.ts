@@ -2,7 +2,16 @@ import { and, desc, eq, gte, isNotNull, lte, sql } from 'drizzle-orm'
 import { drizzle, type BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
 import { STALE_MS } from './registryConstants'
 import { isPidAlive } from './pid'
-import { finishedPlan, isPlanMode, type PlanMode, type PlanRecord, type ProcessPulse, type ProcessRecord } from './processRecord'
+import {
+  finishedPlan,
+  isPlanMode,
+  readProgress,
+  type PlanMode,
+  type PlanRecord,
+  type ProcessPulse,
+  type ProcessRecord,
+  type ProgressFields,
+} from './processRecord'
 import { keepProgress, metaFromProcess, metaFromRecord, readMeta, type PlanMeta } from './store/meta'
 import { migratePlanDatabase } from './store/migrate'
 import { planEvents, planRuns, plans } from './store/tables'
@@ -34,11 +43,14 @@ export type RunWindow = {
   to: number
 }
 
+/** A live process row with the progress it last reported. */
+export type LiveProcess = ProcessRecord & ProgressFields
+
 export type RegistryStore = {
-  upsert(record: ProcessRecord): void
-  get(id: string): ProcessRecord | undefined
-  list(): ProcessRecord[]
-  heartbeat(id: string, pulse: ProcessPulse): ProcessRecord | undefined
+  upsert(record: ProcessRecord & Partial<ProgressFields>): void
+  get(id: string): LiveProcess | undefined
+  list(): LiveProcess[]
+  heartbeat(id: string, pulse: ProcessPulse): LiveProcess | undefined
   remove(id: string): boolean
   prune(options?: { now?: number; staleMs?: number; isAlive?: (pid: number) => boolean }): string[]
   saveSession(session: StoredPlanSession, events?: PlanSubmissionEvent[]): void
@@ -65,7 +77,7 @@ function parsed<T>(value: string, fallback: T): T {
   }
 }
 
-function toProcess(row: PlanRow): ProcessRecord | undefined {
+function toProcess(row: PlanRow): LiveProcess | undefined {
   const meta = readMeta(row.meta)
   if (meta.pid == null || row.status !== 'running') return undefined
   return {
@@ -87,6 +99,12 @@ function toProcess(row: PlanRow): ProcessRecord | undefined {
     executionActive: meta.executionActive,
     executionStep: meta.executionStep,
     git: meta.git,
+    phaseTotal: meta.phaseTotal,
+    phaseDone: meta.phaseDone,
+    interactionTotal: meta.interactionTotal,
+    interactionDone: meta.interactionDone,
+    completionRatio: meta.completionRatio,
+    completionState: meta.completionState,
   }
 }
 
@@ -179,7 +197,8 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
       const incoming = metaFromProcess(record)
       db.transaction((tx) => {
         const existing = tx.select().from(plans).where(eq(plans.id, record.id)).get()
-        const meta = existing ? keepProgress(readMeta(existing.meta), incoming) : incoming
+        // Progress the process just reported wins over the stored copy.
+        const meta = { ...(existing ? keepProgress(readMeta(existing.meta), incoming) : incoming), ...readProgress(record) }
         const values = {
           userId: existing?.userId ?? null,
           token: existing?.token ?? null,
@@ -215,8 +234,9 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
     heartbeat(id, pulse) {
       const current = store.get(id)
       if (!current) return undefined
-      const next: ProcessRecord = {
+      const next: ProcessRecord & Partial<ProgressFields> = {
         ...current,
+        ...readProgress(pulse),
         heartbeatAt: pulse.at ?? Date.now(),
         title: pulse.title ?? current.title,
         summary: pulse.summary === undefined ? current.summary : pulse.summary,

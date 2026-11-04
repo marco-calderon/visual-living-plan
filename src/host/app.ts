@@ -1,10 +1,11 @@
 import { Elysia } from 'elysia'
+import type { ProgressFields } from '../processRecord'
 import { PLAN_CAPS, allows, normalizeTier, planCapReached } from './access'
 import { defaultAccountSettings, readAccountSettings, saveAccountSettings } from './accountSettings'
 import { readAccountUsage } from './accountUsage'
 import { createAuth, sessionFromToken, type AuthSession } from './auth'
 import { listLinkedAccounts } from './linkedAccounts'
-import { hostedDashboard, type HostedPlanRow } from './hostedDashboard'
+import { NO_PROGRESS, hostedDashboard, hostedProgress, saveHostedProgress, type HostedPlanRow } from './hostedDashboard'
 import { LATEST_PLAN_VERSION_SQL, ensurePlanVersions, listPlanVersions, publishPlanVersion, readPlanVersion } from './planVersions'
 import { rehydrateRequest } from './rehydrateRequest'
 import { requestOrigin } from './requestOrigin'
@@ -122,7 +123,7 @@ async function listHostedPlanRows(env: HostEnv, userId: string): Promise<HostedP
     return listed.results ?? []
   } catch {
     const listed = await env.DB.prepare(
-      'SELECT id, title, mode, ended_at, started_at FROM plans WHERE user_id = ? ORDER BY started_at DESC',
+      'SELECT id, title, mode, ended_at, started_at, meta FROM plans WHERE user_id = ? ORDER BY started_at DESC',
     )
       .bind(userId)
       .all<Omit<HostedPlanRow, 'version_seq' | 'version_title' | 'version_at'>>()
@@ -138,19 +139,54 @@ async function listHostedPlanRows(env: HostEnv, userId: string): Promise<HostedP
 /** A plan saved before the versions table existed still has its document on the Durable Object. */
 async function backfillHostedPlans(env: HostEnv, userId: string, rows: HostedPlanRow[]): Promise<HostedPlanRow[]> {
   const filled: HostedPlanRow[] = []
-  for (const row of rows) {
-    if (row.version_seq != null) {
-      filled.push(row)
-      continue
+  for (const source of rows) {
+    let row = source
+    if (row.version_seq == null) {
+      const version = await rememberPlanVersion(env, userId, row.id, row.title).catch(() => null)
+      if (version) row = { ...row, version_seq: version.seq, version_title: version.title, version_at: version.createdAt }
     }
-    const version = await rememberPlanVersion(env, userId, row.id, row.title).catch(() => null)
-    filled.push(
-      version
-        ? { ...row, version_seq: version.seq, version_title: version.title, version_at: version.createdAt }
-        : row,
-    )
+    // A plan last written before progress was saved is measured once here, then kept on its row.
+    if (!hostedProgress(row.meta)) {
+      const progress = await syncPlanProgress(env, row.id)
+      if (progress) row = { ...row, meta: JSON.stringify({ ...parseMeta(row.meta), ...progress }) }
+    }
+    filled.push(row)
   }
   return filled
+}
+
+function parseMeta(meta: string | null | undefined): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(meta ?? '{}') as unknown
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {}
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Measure the plan on its object and save the result on the D1 row the dashboard reads.
+ * Best effort: a failure leaves the last saved progress and never fails the write that called it.
+ */
+async function syncPlanProgress(env: HostEnv, planId: string): Promise<ProgressFields | null> {
+  try {
+    const stub = env.PLANS.get(env.PLANS.idFromName(planId))
+    const response = await stub.fetch(new Request('https://plan.internal/internal/progress'))
+    if (!response.ok) return null
+    const body = (await response.json()) as { progress?: ProgressFields | null }
+    // A source that does not parse is saved as no progress, so the dashboard does not measure it again on every load.
+    const progress = body.progress ?? NO_PROGRESS
+    await saveHostedProgress(env.DB, planId, progress)
+    return progress
+  } catch {
+    return null
+  }
+}
+
+/** Writes that can change how far along a plan is. */
+function changesProgress(method: string, rest: string): boolean {
+  if (method === 'POST' && rest.startsWith('/api/interactions/')) return true
+  return method === 'PUT' && (rest === '/api/execution' || rest === '/api/execution/')
 }
 
 async function rememberPlanVersion(
@@ -279,6 +315,7 @@ async function registerPlan(request: Request, env: HostEnv, auth: ReturnType<typ
   )
   if (!init.ok) return text(init.status, await init.text())
   const payload = (await init.json()) as { revision?: number }
+  await syncPlanProgress(env, cloudId)
   await publishPlanVersion(env.DB, {
     planId: cloudId,
     userId: session.user.id,
@@ -332,7 +369,9 @@ async function forwardPlan(
   if (request.method === 'PUT' && (rest === '/source' || rest === '/source/')) {
     return publishSource(request, env, planId, actor)
   }
-  return planFetch(env, planId, request, rest || '/', actor)
+  const response = await planFetch(env, planId, request, rest || '/', actor)
+  if (response.ok && changesProgress(request.method, rest)) await syncPlanProgress(env, planId)
+  return response
 }
 
 export type HostedPlanPage = {
@@ -415,6 +454,7 @@ async function publishSource(request: Request, env: HostEnv, planId: string, act
     actor,
   )
   if (!forwarded.ok || typeof body.markdown !== 'string') return forwarded
+  await syncPlanProgress(env, planId)
   const row = await env.DB.prepare('SELECT user_id, title FROM plans WHERE id = ?')
     .bind(planId)
     .first<{ user_id: string; title: string | null }>()

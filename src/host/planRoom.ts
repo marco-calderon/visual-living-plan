@@ -1,4 +1,5 @@
 import type { ExecutionState } from '../execution'
+import type { PlanProgress } from '../planProgress'
 import {
   inspectMutation,
   readBaseRevision,
@@ -352,6 +353,19 @@ export async function executionView(sql: PlanSql): Promise<ExecutionState> {
   } catch {
     // A source that does not parse still has a run state to show.
     return execution
+  }
+}
+
+/** Progress of the hosted plan, measured the way the local session measures it. Null when the source does not parse. */
+export async function planProgress(sql: PlanSql): Promise<PlanProgress | null> {
+  const view = planView(sql)
+  const execution = { active: false, ...(view.execution as Partial<ExecutionState> | null) } as ExecutionState
+  try {
+    // Loaded on first use, like the parser in executionView.
+    const [{ parsePlan }, { measurePlan }] = await Promise.all([import('../parse'), import('../planProgress')])
+    return measurePlan(parsePlan(view.source), Object.keys(view.responses), execution)
+  } catch {
+    return null
   }
 }
 

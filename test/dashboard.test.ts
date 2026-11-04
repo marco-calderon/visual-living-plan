@@ -5,9 +5,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { buildDashboard, periodRange } from '../src/dashboard.ts'
+import { readFileSync } from 'node:fs'
+import type { ExecutionState } from '../src/execution.ts'
+import { parsePlan } from '../src/parse.ts'
 import { measurePlan } from '../src/planProgress.ts'
 import type { PlanRecord } from '../src/processRecord.ts'
-import { emptyGitSnapshot } from '../src/processRecord.ts'
+import { emptyGitSnapshot, runningPlan } from '../src/processRecord.ts'
 import { openRegistryStore } from '../src/registryStore.ts'
 import type { PlanDocument } from '../src/types.ts'
 
@@ -62,7 +65,8 @@ test('measurePlan counts done phases and answered interactions', () => {
   assert.equal(idle.phaseDone, 1)
   assert.equal(idle.phaseTotal, 2)
   assert.equal(idle.interactionDone, 0)
-  assert.equal(idle.completionRatio, 33)
+  // One done phase, one active phase worth half, one open question: 1.5 of 3.
+  assert.equal(idle.completionRatio, 50)
   assert.equal(idle.completionState, 'in_progress')
 
   const done = measurePlan(
@@ -77,6 +81,108 @@ test('measurePlan counts done phases and answered interactions', () => {
   )
   assert.equal(done.completionRatio, 100)
   assert.equal(done.completionState, 'complete')
+})
+
+test('measurePlan counts an active phase as half and reads 100% only when finished', () => {
+  const document: PlanDocument = {
+    title: 'Test',
+    source: '',
+    interactionIds: [],
+    blocks: [
+      { type: 'phase', id: 'a', title: 'A', status: 'active', bodyHtml: '', source: '' },
+      { type: 'phase', id: 'b', title: 'B', status: 'pending', bodyHtml: '', source: '' },
+      { type: 'phase', id: 'c', title: 'C', status: 'pending', bodyHtml: '', source: '' },
+    ],
+  }
+  const started = measurePlan(document, [])
+  assert.equal(started.completionRatio, 17)
+  assert.equal(started.completionState, 'in_progress')
+
+  const many: PlanDocument = {
+    ...document,
+    blocks: Array.from({ length: 199 }, (_, index) => ({
+      type: 'phase' as const,
+      id: `p${index}`,
+      title: `P${index}`,
+      status: index === 0 ? ('active' as const) : index < 198 ? ('done' as const) : ('pending' as const),
+      bodyHtml: '',
+      source: '',
+    })),
+  }
+  const almost = measurePlan(many, [])
+  assert.equal(almost.completionRatio, 99)
+  assert.notEqual(almost.completionState, 'complete')
+})
+
+test('measurePlan moves phases forward from the live run and counts its other steps', () => {
+  const source = readFileSync(new URL('../examples/rate-limit.plan.md', import.meta.url), 'utf8')
+  const document = parsePlan(source, 'examples/rate-limit.plan.md')
+  // design done, implement active, observe pending, four open interactions: 1.5 of 7.
+  assert.equal(measurePlan(document, []).completionRatio, 21)
+
+  const run: ExecutionState = {
+    active: true,
+    graph: {
+      nodes: [
+        // Same id as the workflow node that points at the phase.
+        { id: 'implement', label: 'Implement', status: 'done' },
+        // A run step linked to a phase by planRef.
+        { id: 'ship-alerts', label: 'Alerts', status: 'active', planRef: 'observe' },
+        // A step the file says is done is not moved back by the run.
+        { id: 'design', label: 'Design', status: 'pending' },
+        // Linked to an interaction: the answer counts, not the step.
+        { id: 'limits', label: 'Limits', status: 'done' },
+        // Linked to no phase or interaction: its own unit.
+        { id: 'smoke-test', label: 'Smoke test', status: 'done' },
+      ],
+    },
+  }
+  const live = measurePlan(document, ['fail-mode'], run)
+  assert.equal(live.phaseDone, 2)
+  assert.equal(live.interactionDone, 1)
+  // Phases 1 + 1 + 0.5, one answer, one extra step: 4.5 of 8.
+  assert.equal(live.completionRatio, 56)
+  assert.equal(live.completionState, 'in_progress')
+
+  // A stopped run that left no graph falls back to the file.
+  assert.equal(measurePlan(document, [], { active: false }).completionRatio, 21)
+})
+
+test('the store keeps the progress a live process reports and the dashboard shows it', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'live-plan-progress-'))
+  const store = await openRegistryStore(join(home, 'registry.sqlite'))
+  try {
+    const now = Date.now()
+    const { status: _status, storedPath: _stored, endedAt: _ended, durationMs: _duration, outcome: _outcome, filesModified: _files, ...process } = plan({
+      startedAt: now - 1_000,
+      heartbeatAt: now - 1_000,
+      phaseTotal: 3,
+      phaseDone: 1,
+      interactionTotal: 1,
+      interactionDone: 0,
+      completionRatio: 38,
+      completionState: 'in_progress',
+    })
+    store.upsert({ ...process, pid: process.pid })
+    assert.equal(store.list()[0]?.completionRatio, 38)
+
+    const beat = store.heartbeat(process.id, { at: now, phaseDone: 2, completionRatio: 63, completionState: 'in_progress' })
+    assert.equal(beat?.phaseDone, 2)
+    assert.equal(beat?.completionRatio, 63)
+
+    // A heartbeat without progress keeps the last report.
+    store.heartbeat(process.id, { at: now + 1 })
+    const listed = store.list()[0]
+    assert.ok(listed)
+    assert.equal(listed.completionRatio, 63)
+    const row = runningPlan(listed, now)
+    assert.equal(row.completionRatio, 63)
+    assert.equal(row.phaseTotal, 3)
+    assert.equal(row.completionState, 'in_progress')
+  } finally {
+    store.close()
+    await rm(home, { recursive: true, force: true })
+  }
 })
 
 test('dashboard groups plans by local day, week, and month', () => {

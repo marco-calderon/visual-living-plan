@@ -2,7 +2,7 @@
 export const PLAN_VERSION_LIMIT = 10
 
 /** Latest saved document for each plan. A missing table is created before this runs. */
-export const LATEST_PLAN_VERSION_SQL = `SELECT p.id, p.title, p.mode, p.ended_at, p.started_at,
+export const LATEST_PLAN_VERSION_SQL = `SELECT p.id, p.title, p.mode, p.ended_at, p.started_at, p.meta,
        v.seq AS version_seq, v.title AS version_title, v.created_at AS version_at
 FROM plans p
 LEFT JOIN (

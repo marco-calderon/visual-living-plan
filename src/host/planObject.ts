@@ -11,6 +11,7 @@ import {
   initPlan,
   migratePlan,
   planHosted,
+  planProgress,
   pendingEvents,
   planTier,
   planView,
@@ -123,6 +124,8 @@ export class PlanObject extends DurableObject {
         await this.armAlarm()
         return Response.json(result)
       })
+      // Called by the Worker after a write, to keep the dashboard row current. /internal/ is not reachable from outside.
+      .get('/internal/progress', async () => Response.json({ progress: planHosted(sql) ? await planProgress(sql) : null }))
       .delete('/', ({ request }) => {
         if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'close')) return text(401, 'Sign in required')
         closePlan(sql)

@@ -216,3 +216,28 @@ The plan page logo now takes you to the dashboard, like the logo on every other 
 ### Notes
 
 No registry restart needed beyond the usual version check. The shell cache name is 2.3.0.
+
+## 2.3.1
+
+**PR:** pending
+
+**Bump:** patch
+
+### Summary
+
+The dashboard shows how far along each plan is. Cloud plans no longer read 0% Idle, and the bar moves while a phase is active or a live run is pushed.
+
+### Bugs fixed
+
+- The cloud dashboard showed 0% Idle for every plan, because it never measured progress. The host now measures a plan after each upload, answer, and `execution` update, and saves the result on the plan row. Plans written before this release are measured once when the dashboard first lists them.
+- A plan registered as a separate process lost its progress on the local dashboard. Registration and heartbeats now keep the progress the process reports, and the dashboard shows it.
+
+### Improvements
+
+- An active phase counts as half done, so a plan that has just started no longer reads 0% In progress.
+- While a run is live, a workflow step marked done or active through `execution push` moves its phase forward, even before the plan file is updated. A run step that points at no phase or interaction counts as its own step. The run never moves a phase back from what the file says.
+- Only a finished plan reads 100%, and any started plan reads at least 1%.
+
+### Notes
+
+No registry restart needed beyond the usual version check. No D1 migration: progress is stored in the existing `plans.meta` JSON. The shell cache name is 2.3.1.
