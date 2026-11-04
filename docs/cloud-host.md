@@ -61,6 +61,8 @@ The Worker deploys from GitHub through Workers Builds (Worker → Settings → B
 | Deploy command | `npx wrangler deploy` |
 | Non-production branch deploy command | `npx wrangler preview` |
 
+Workers Builds installs with the Bun version in the `packageManager` field of `package.json` (`bun@1.4.4`). Without it, the build uses the build image's default Bun, and an older image cannot read `bun.lock`. Keep that field in step with the Bun you use locally.
+
 A pull request then gets a Worker Preview and never replaces production. Previews use the `previews` block in `wrangler.jsonc`. Nothing a Preview writes reaches production:
 
 - **D1:** Previews use their own database, `living-plan-preview` (id `8032bdc3-3b3e-4381-9b9c-a93837d244c8`). Accounts, plan rows, settings, and saved versions there are separate from production, so sign up once on a Preview.

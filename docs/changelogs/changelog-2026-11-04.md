@@ -133,3 +133,21 @@ Settings open as a modal over the dashboard or the plan you are on, with General
 ### Notes
 
 No migration. The shell cache name is 2.1.0. The device no longer fetches `/settings` in the background, since there is no separate page to cache.
+
+## 2.1.1
+
+**PR:** pending
+
+**Bump:** patch
+
+### Summary
+
+Production builds on Cloudflare install with a fixed Bun version, so a build no longer fails when it lands on an older build image.
+
+### Bugs fixed
+
+- A Workers Build that ran on an image with Bun 1.2.15 failed at `bun install --frozen-lockfile` with "Unknown lockfile version", because that Bun cannot read the `bun.lock` format this repo uses. `package.json` now sets `"packageManager": "bun@1.4.4"`, which Workers Builds uses to pick the Bun version.
+
+### Notes
+
+Bump the `packageManager` version when you update Bun locally, so the build and your machine write the same lockfile. Cloudflare asks for Bun 1.4.4 or newer in builds.
