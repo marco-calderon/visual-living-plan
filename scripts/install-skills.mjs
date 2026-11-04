@@ -6,7 +6,8 @@
  * Third-party skills already checked out under `.agents/skills` are left alone.
  * A skill already present in the destination is replaced, so running this
  * again refreshes those copies and does not create a second folder.
- * Other skills already in ~/.agents/skills are not removed.
+ * Other skills already in ~/.agents/skills are not removed, except the retired
+ * names in `retiredSkills`, which an older install left behind.
  *
  * LIVE_PLAN_SKILLS_DIR overrides the destination. It is for tests. The
  * default is the home directory, not a folder inside this repo.
@@ -19,6 +20,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 
 const skillRoots = [join(root, 'skills'), join(root, '.cursor', 'skills')]
+
+/** Skills this repo used to ship. An install removes the old copy. */
+export const retiredSkills = ['living-plan']
 
 export function skillsDestination(override = process.env.LIVE_PLAN_SKILLS_DIR) {
   if (override && override.trim()) return resolve(override)
@@ -64,12 +68,32 @@ export async function installProjectSkills(destDir = skillsDestination()) {
   return installed
 }
 
+/** Remove copies of retired skills from `destDir`. Returns the paths that existed. */
+export async function removeRetiredSkills(destDir = skillsDestination()) {
+  const removed = []
+  for (const name of retiredSkills) {
+    const dest = join(destDir, name)
+    try {
+      await stat(dest)
+    } catch (error) {
+      if (error && /** @type {NodeJS.ErrnoException} */ (error).code === 'ENOENT') continue
+      throw error
+    }
+    await rm(dest, { recursive: true, force: true })
+    removed.push({ name, dest })
+  }
+  return removed
+}
+
 async function main() {
   const destDir = skillsDestination()
   const installed = await installProjectSkills(destDir)
   for (const skill of installed) {
     const { name, dest } = skill
     console.log(`Installed ${name} to ${dest}`)
+  }
+  for (const { name, dest } of await removeRetiredSkills(destDir)) {
+    console.log(`Removed retired ${name} from ${dest}`)
   }
 }
 

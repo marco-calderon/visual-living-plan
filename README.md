@@ -42,14 +42,14 @@ live-plan processes
 
 ### Install the command
 
-This is the same kind of install as [Visual Plan](https://visualplan.dev/)'s `npm i -g vplan`. The package name on the registry is `visual-living-plan`. Publishing runs `prepack`, which compiles `dist/cli.js` into the tarball. `npm i -g` downloads that tarball and links the `live-plan`, `living-plan`, and `visual-living-plan` commands onto your PATH. It does not clone the repo and does not compile anything on your machine.
+This is the same kind of install as [Visual Plan](https://visualplan.dev/)'s `npm i -g vplan`. The package name on the registry is `visual-living-plan`. Publishing runs `prepack`, which compiles `dist/cli.js` into the tarball. `npm i -g` downloads that tarball and links the `live-plan` and `visual-living-plan` commands onto your PATH. It does not clone the repo and does not compile anything on your machine.
 
 Bun has to be on `PATH`. The published command's shebang is `bun`.
 
 ```bash
 npm i -g visual-living-plan
-living-plan --help
-living-plan check "$(npm root -g)/visual-living-plan/examples/rate-limit.plan.md"
+live-plan --help
+live-plan check "$(npm root -g)/visual-living-plan/examples/rate-limit.plan.md"
 ```
 
 `check` prints the workflow block. That block is required: it is the execution path. `serve` and `review` draw it on the Workflow tab before a run starts. Pass `--no-open` when a browser should not launch.
@@ -179,7 +179,7 @@ live-plan theme set --accent #0369a1 --url <printed-plan-url>
 
 ## For agents
 
-Agents should invoke the published CLI with bunx, or `live-plan` when that command is installed. `living-plan` is the same binary. Bun has to be installed. Do not use the `npm run` scripts above unless you are developing this repository.
+Agents should invoke the published CLI with bunx, or `live-plan` when that command is installed. Bun has to be installed. Do not use the `npm run` scripts above unless you are developing this repository.
 
 ```bash
 bunx visual-living-plan serve path/to/work.plan.md
@@ -191,7 +191,7 @@ live-plan events --url <printed-plan-url>
 - Skill: from this repo, `npm run skills:install` copies [`skills/live-plan/`](skills/live-plan/SKILL.md) and the other project skills into `~/.agents/skills`. Run it again to refresh those copies. [`skills/live-plan/SKILL.md`](skills/live-plan/SKILL.md)
 - Primitive schemas: [`skills/live-plan/primitives.md`](skills/live-plan/primitives.md)
 
-`npm install -g visual-living-plan` installs the `live-plan` command (`living-plan` and `visual-living-plan` remain aliases). Every plan includes a `workflow` block. That block is the execution path.
+`npm install -g visual-living-plan` installs the `live-plan` command (`visual-living-plan` is the same program). Every plan includes a `workflow` block. That block is the execution path.
 
 ## License
 

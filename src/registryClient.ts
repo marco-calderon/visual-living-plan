@@ -340,7 +340,7 @@ export async function ensureRegistry(options: {
   if (!acquired) {
     const waited = await waitForRunning(home, STARTING_STALE_MS)
     if (waited) return waited
-    throw new Error('Timed out waiting for the living-plan registry to start')
+    throw new Error('Timed out waiting for the live-plan registry to start')
   }
 
   const child = spawnDetachedRegistry(options.entryFile, port, host, home, process.env)
@@ -361,7 +361,7 @@ export async function ensureRegistry(options: {
       // The child already exited.
     }
   }
-  throw new Error(`Timed out starting the living-plan registry. See ${join(home, 'registry.log')}`)
+  throw new Error(`Timed out starting the live-plan registry. See ${join(home, 'registry.log')}`)
 }
 
 export type HostedPlan = {

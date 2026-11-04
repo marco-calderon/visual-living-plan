@@ -6,7 +6,7 @@ Read this before changing Visual Living Plan. It is the map for a new session. T
 
 An agent writes one `.plan.md` file. A person opens a local URL to see status and answer choices, forms, questions, approvals, and reviews. The agent hears those submissions on an event stream.
 
-The package name is `visual-living-plan`. The commands `live-plan`, `living-plan`, and `visual-living-plan` are the same program. Agents in other repos invoke the published CLI with `npx --yes visual-living-plan`. Do not point them at this repo's `npm run` scripts. Those scripts are for developing this repository.
+The package name is `visual-living-plan`. The commands `live-plan` and `visual-living-plan` are the same program. Agents in other repos invoke the published CLI with `npx --yes visual-living-plan`. Do not point them at this repo's `npm run` scripts. Those scripts are for developing this repository.
 
 Authoring rules for agents who *use* the tool live in [docs/agent-guidelines.md](agent-guidelines.md) and [skills/live-plan/SKILL.md](../skills/live-plan/SKILL.md). Block schemas live in [skills/live-plan/primitives.md](../skills/live-plan/primitives.md). This file is for agents who *change* the tool.
 
