@@ -136,7 +136,7 @@ No migration. The shell cache name is 2.1.0. The device no longer fetches `/sett
 
 ## 2.2.0
 
-**PR:** pending
+**PR:** #147
 
 **Bump:** minor
 
