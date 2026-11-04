@@ -35,6 +35,7 @@ For this app, use the documentation family only. Do not paint plan cards as vibr
 - **Surface Soft** (`colors.surface-soft`): `#fafafa`. Quieter section divisions.
 - **Hairline** (`colors.hairline`): `#e9e9e9`. 1px input border and primary divider. Solid form of black at about 9% on white.
 - **Hairline Soft** (`colors.hairline-soft`): `#f0f0f1`. Quieter table-row divider.
+- **Hairline Strong** (`colors.hairline-strong`): `#d4d4d8`. Outline (secondary) button border. Hover `#a1a1aa`. Never use ink for a button border: it reads as a heavy black ring in light mode and a white ring in dark mode.
 
 ### Text
 - **Ink** (`colors.ink`): `#181e25`. Primary headline and prose. The body reset before that class is `#18181b`.
@@ -56,7 +57,7 @@ For this app, use the documentation family only. Do not paint plan cards as vibr
 - **Footer bg** (`colors.footer-bg`): `#171717`.
 
 Dark document, measured on the product theme (`data-product-color-mode=dark`), not an inversion of the light page:
-- Canvas `#171717`, surface `#1c1c1c`, elevated `#262626`, hairline `#2c2c2c`, ink `#ededed`, secondary text `#949494`.
+- Canvas `#171717`, surface `#1c1c1c`, elevated `#262626`, hairline `#2c2c2c`, hairline strong `#4a4a4a` (hover `#666666`), ink `#ededed`, secondary text `#949494`.
 - The primary pill inverts: `#ffffff` fill, `#171717` label, same 36px height. Links and focus use `#0094fc`.
 
 ## Typography
@@ -110,7 +111,7 @@ Flat by default. Hairline border, no shadow, on documentation cards. Level 2 sha
 ## Components to apply
 
 - **button-primary**: `#171717` pill, white text, 36px height, 14px medium, full pill. Hover `#242424`. Active `#000000`. On a dark canvas the fill inverts to white and the label to `#171717`.
-- **button-secondary**: transparent quiet pill, ink text, 1px ink border, 36px height.
+- **button-secondary** (outline): transparent pill, ink text, 1px `hairline-strong` gray border (`#d4d4d8` light, `#4a4a4a` dark), 36px height. Hover fills with surface and steps the border to `hairline-strong-hover` (`#a1a1aa` light, `#666666` dark). The border stays gray in both themes, never ink or white.
 - **button-tertiary**: canvas fill, hairline border, 36px height, pill.
 - **button-danger**: `#fff4f0` fill, `#c9322a` text, `#ef4d3e` border, 36px height, pill.
 - **button-ghost**: transparent pill, no border, ink icon or label, 36px height. Hover mixes 6% ink into the background. An icon-only ghost is a 36px circle; an icon with a chevron keeps the pill and horizontal padding.

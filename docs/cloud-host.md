@@ -46,7 +46,7 @@ npx wrangler secret put GITHUB_CLIENT_SECRET
 
 Leave Cloudflare Access off this hostname. Access can gate a separate staging hostname for your team. It is not the product login.
 
-A signed-in email account links GitHub or Google from Settings. Each control starts Better Auth's account linking and returns to `/settings`. The provider is attached only when its email matches the signed-in account. A provider that is already linked stays disabled. A loopback plan does not show this section.
+A signed-in email account links GitHub or Google from the Account section of Settings. Each control starts Better Auth's account linking and returns to `/settings`, which opens Settings over the dashboard. The provider is attached only when its email matches the signed-in account. A provider that is already linked stays disabled. A loopback plan does not show this section.
 
 Run `npx wrangler d1 migrations apply living-plan --remote` again after you update the Worker. Account settings use the `user_settings` table. Published plan documents use the `plan_versions` table.
 
@@ -86,7 +86,7 @@ Deploy production after setting it, because production must answer the proxy cal
 
 ## Signed-in pages
 
-TanStack Start serves `/dashboard`, `/account`, `/settings`, `/login`, `/signup`, `/plans/:id`, and `/plans/:id/history`. `/` and `/review` redirect to `/dashboard`. The Worker does not return those documents. Elysia in `src/host/app.ts` serves the account and plan APIs those pages call, including `GET /api/account`, `GET /api/account/dashboard`, and `PUT /api/account/settings`, plus plan writes and the Durable Object. Only the account that owns a plan can open it ([ADR 0028](architecture/decisions/0028-owner-only-hosted-plans.md)). A loopback plan keeps writing the theme file beside that plan and does not ask for an account. `/local` stays that sample, with no sign-in.
+TanStack Start serves `/dashboard`, `/account`, `/settings` (a redirect that opens the settings modal), `/login`, `/signup`, `/plans/:id`, and `/plans/:id/history`. `/` and `/review` redirect to `/dashboard`. The Worker does not return those documents. Elysia in `src/host/app.ts` serves the account and plan APIs those pages call, including `GET /api/account`, `GET /api/account/dashboard`, `GET /api/account/usage`, and `PUT /api/account/settings`, plus plan writes and the Durable Object. Only the account that owns a plan can open it ([ADR 0028](architecture/decisions/0028-owner-only-hosted-plans.md)). A loopback plan keeps writing the theme file beside that plan and does not ask for an account. `/local` stays that sample, with no sign-in.
 
 When an agent publishes a plan (`serve --cloud`, `review --cloud`, or a later file upload), the host stores that markdown in D1. It keeps the latest 10 versions and drops the oldest on the 11th. The dashboard links to the current plan file and the version list. Loopback publish writes the same machine's `registry.sqlite`.
 

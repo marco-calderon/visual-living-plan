@@ -1,6 +1,7 @@
 import { Elysia } from 'elysia'
 import { PLAN_CAPS, allows, normalizeTier, planCapReached } from './access'
 import { defaultAccountSettings, readAccountSettings, saveAccountSettings } from './accountSettings'
+import { readAccountUsage } from './accountUsage'
 import { createAuth, sessionFromToken, type AuthSession } from './auth'
 import { listLinkedAccounts } from './linkedAccounts'
 import { hostedDashboard, type HostedPlanRow } from './hostedDashboard'
@@ -56,6 +57,7 @@ export function createHostApp(env: HostEnv, options: { auth?: (request: Request)
     .get('/api/account', ({ request }) => accountRead(request, env, authFor(request)))
     .get('/api/account/settings', ({ request }) => accountSettingsRead(request, env, authFor(request)))
     .put('/api/account/settings', ({ request }) => accountSave(request, env, authFor(request)))
+    .get('/api/account/usage', ({ request }) => accountUsageApi(request, env, authFor(request)))
     .get('/api/account/dashboard', ({ request }) =>
       accountDashboardApi(request, env, authFor(request), originFor(request, env)),
     )
@@ -187,6 +189,17 @@ async function accountSettingsRead(request: Request, env: HostEnv, auth: ReturnT
   const session = await readSession(auth, request, env.DB)
   if (!session) return text(401, 'Sign in required')
   return Response.json({ settings: await readAccountSettings(env.DB, session.user.id) })
+}
+
+async function accountUsageApi(request: Request, env: HostEnv, auth: ReturnType<typeof createAuth>): Promise<Response> {
+  const session = await readSession(auth, request, env.DB)
+  if (!session) return text(401, 'Sign in required')
+  try {
+    await ensurePlanVersions(env.DB)
+    return Response.json(await readAccountUsage(env.DB, session.user.id, session.user.tier))
+  } catch {
+    return text(500, 'Could not read storage usage.')
+  }
 }
 
 async function accountSave(request: Request, env: HostEnv, auth: ReturnType<typeof createAuth>): Promise<Response> {

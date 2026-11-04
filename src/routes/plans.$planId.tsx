@@ -16,6 +16,8 @@ export const Route = createFileRoute('/plans/$planId')({
     }
     return result.page
   },
+  // Opening settings only changes the search. Keep the loaded page.
+  shouldReload: ({ cause }) => cause !== 'stay',
   component: CloudPlanPage,
 })
 

@@ -89,7 +89,52 @@ No registry restart needed beyond the usual version check. The shell cache name 
 
 Scripts that call `living-plan` must switch to `live-plan`. The config folder stays `~/.config/living-plan`. The shell cache name is 2.0.0.
 
+## 2.0.1
+
+**PR:** #145
+
+**Bump:** patch
+
+### Summary
+
+Outline (secondary) buttons use a soft gray border in light and dark mode instead of a black or white ring.
+
+### Improvements
+
+- Outline buttons on the plan page, settings, dashboard, top bar and account menu use the new `hairline-strong` gray border (`#d4d4d8` light, `#4a4a4a` dark), which steps darker on hover. `DESIGN.md` documents the token and the button rule.
+
+### Notes
+
+No registry restart needed.
+
 ## 2.1.0
+
+**PR:** #146
+
+**Bump:** minor
+
+### Summary
+
+Settings open as a modal over the dashboard or the plan you are on, with General, Account, Usage, and About sections. Usage shows how much your hosted plans store.
+
+### Improvements
+
+- Settings are a modal instead of a page. The account menu opens it over the current page, and Back, Escape, or the close button returns to that page.
+- The section is in the URL (`?settings=general`, `account`, `usage`, or `about`), so a link opens that section. Switching sections does not add history entries.
+- A search box filters the sections. On a phone the modal is a full-height sheet and the sections are a row of pills.
+- `/settings` still works. It opens the modal over the dashboard. A GitHub or Google linking error opens the Account section.
+- On a plan you own, appearance changes show on the plan right away. On someone else's plan the modal says the plan keeps its owner's look.
+
+### New features
+
+- Usage section: stored size, saved versions, and active plans against the tier limit, with a per-plan breakdown.
+- `GET /api/account/usage` returns that breakdown for the signed-in account.
+
+### Notes
+
+No migration. The shell cache name is 2.1.0. The device no longer fetches `/settings` in the background, since there is no separate page to cache.
+
+## 2.2.0
 
 **PR:** pending
 
@@ -106,4 +151,4 @@ The plan page logo and the browser tab icon carry a small dot that shows whether
 
 ### Notes
 
-No registry restart needed beyond the usual version check. The shell cache name is 2.1.0.
+No registry restart needed beyond the usual version check. The shell cache name is 2.2.0.

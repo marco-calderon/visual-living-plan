@@ -65,7 +65,7 @@
   align-items: center;
   gap: var(--space-xs);
   height: 36px;
-  border: 1px solid var(--ink);
+  border: 1px solid var(--hairline-strong, var(--hairline));
   border-radius: 999px;
   background: transparent;
   color: var(--ink);

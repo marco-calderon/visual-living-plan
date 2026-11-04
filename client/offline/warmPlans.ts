@@ -21,9 +21,6 @@ type DashboardPlans = { plans?: Array<Record<string, unknown>> }
 
 let warming = false
 let warmAgain = false
-let settingsWarmedAt = 0
-
-const SETTINGS_WARM_INTERVAL_MS = 10 * 60 * 1000
 
 export function warmingAllowed(): boolean {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return false
@@ -44,7 +41,6 @@ export async function refreshDeviceDashboards(
   }
   try {
     await refreshAccount(engine, false)
-    void warmSettingsPage(engine)
     const savedAt = Date.now()
     const body = await fetchPeriod(engine, options.period, options.force === true)
     syncOwnedCatalog(engine)
@@ -104,22 +100,6 @@ export async function warmOwnedPlans(engine: OfflineHandle): Promise<void> {
       warmAgain = false
       void warmOwnedPlans(engine)
     }
-  }
-}
-
-/**
- * Fetch the settings page while online, so the shell worker keeps a copy and the page opens offline.
- * Only for a signed-in account, and at most once every 10 minutes.
- */
-export async function warmSettingsPage(engine: OfflineHandle | null, now = Date.now()): Promise<void> {
-  if (!engine?.available || !engine.account() || !warmingAllowed()) return
-  if (settingsWarmedAt && now - settingsWarmedAt < SETTINGS_WARM_INTERVAL_MS) return
-  settingsWarmedAt = now
-  try {
-    const page = await fetch('/settings', { credentials: 'include', headers: { accept: 'text/html' } })
-    await page.text()
-  } catch {
-    settingsWarmedAt = 0
   }
 }
 
