@@ -66,7 +66,7 @@ No registry restart needed beyond the usual version check. The shell cache name 
 
 ## 2.0.0
 
-**PR:** pending
+**PR:** #144
 
 **Bump:** major
 
