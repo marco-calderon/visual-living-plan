@@ -31,6 +31,18 @@ export const PROCESSES_PANEL_STYLES = `
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+/* Phones keep the dot and the count; the word stays for screen readers. */
+@media (max-width: 640px) {
+  .processes-toggle { padding: 8px 10px; }
+  .processes-toggle-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+}
 .processes-count {
   min-width: 1.3rem;
   text-align: center;
@@ -305,14 +317,13 @@ export function processesPanelMarkup(selfId?: string): string {
   <div class="processes" data-processes-root${self}>
     <button type="button" class="processes-toggle" data-processes-toggle aria-expanded="false" aria-controls="processes-panel">
       <span class="live-dot" aria-hidden="true"></span>
-      Plans
+      <span class="processes-toggle-label">Plans</span>
       <span class="processes-count" data-processes-count>0</span>
     </button>
     <div id="processes-panel" class="processes-panel" data-processes-panel hidden>
       <div class="processes-head">
         <strong>Running plans</strong>
         <span class="processes-links">
-          <a class="processes-registry" data-processes-dashboard href="" hidden>Dashboard</a>
           <a class="processes-registry" data-processes-registry href="" hidden>Registry</a>
         </span>
       </div>
@@ -337,9 +348,8 @@ export function processesPanelScript(): string {
   const status = root.querySelector('[data-processes-status]');
   const list = root.querySelector('[data-processes-list]');
   const registryLink = root.querySelector('[data-processes-registry]');
-  const dashboardLink = root.querySelector('[data-processes-dashboard]');
   const pageSelfId = root.getAttribute('data-self-id');
-  if (!toggle || !panel || !count || !status || !list || !registryLink || !dashboardLink) return;
+  if (!toggle || !panel || !count || !status || !list || !registryLink) return;
 
   let open = false;
   let latest = null;
@@ -461,11 +471,8 @@ export function processesPanelScript(): string {
     if (registryUrl) {
       registryLink.href = registryUrl;
       registryLink.hidden = false;
-      dashboardLink.href = new URL('/dashboard', registryUrl).href;
-      dashboardLink.hidden = false;
     } else {
       registryLink.hidden = true;
-      dashboardLink.hidden = true;
     }
     if (payload.status === 'disabled') {
       status.textContent = 'Started without the shared registry.';

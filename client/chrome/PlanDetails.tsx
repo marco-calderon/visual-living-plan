@@ -27,7 +27,7 @@ export function PlanDetails({
   return (
     <Popover modal={false}>
       <PopoverTrigger
-        className="logo-btn"
+        className="plan-status-chip"
         data-plan-details-toggle=""
         aria-controls="plan-card"
         openOnHover

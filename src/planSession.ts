@@ -190,6 +190,8 @@ export async function openPlanSession(options: {
   configPath?: string
   /** Prefix for browser API calls. Empty when this session owns the origin. */
   basePath?: string
+  /** Logo link. Omit to use `/dashboard` under the service; null for none. */
+  dashboardHref?: string | null
   selfId?: string
   startedAt?: number
   lastSeenAt?: number
@@ -649,6 +651,7 @@ export async function openPlanSession(options: {
         clientAssets,
         theme: currentTheme(),
         basePath,
+        dashboardHref: options.dashboardHref,
         selfId,
         changelog: loadLatestChangelog(fileURLToPath(import.meta.url)),
         appVersion: loadPackageVersion(fileURLToPath(import.meta.url)),

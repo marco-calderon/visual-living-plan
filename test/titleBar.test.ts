@@ -46,12 +46,13 @@ function header(html: string): string {
   return html.slice(barStart, barEnd)
 }
 
-test('the logo opens a card; the title sits on the solid bar', () => {
+test('the status chip opens a card; the title sits on the solid bar', () => {
   const html = page()
   const bar = header(html)
   const shell = html.indexOf('<div class="shell">')
   const logoAt = bar.indexOf('class="titlebar-logo"')
   const titleAt = bar.indexOf('<h1 class="brand" id="plan-title">')
+  const chipAt = bar.indexOf('class="plan-status-chip"')
   const toolsAt = bar.indexOf('class="chrome-tools"')
   const cardAt = bar.indexOf('data-plan-card')
 
@@ -86,9 +87,12 @@ test('the logo opens a card; the title sits on the solid bar', () => {
   assert.match(bar, /class="titlebar-logo" src="\/favicon.png"/)
   assert.match(bar, /data-plan-card[^>]*hidden/)
   assert.match(bar, /<h1 class="brand" id="plan-title">POS-22 Google Ads scripts migration \(AI-DLC\)<\/h1>/)
-  assert.ok(logoAt >= 0 && cardAt > logoAt && titleAt > cardAt && toolsAt > titleAt)
-  assert.ok(bar.lastIndexOf('</div>', titleAt) < titleAt)
-  assert.doesNotMatch(bar.slice(cardAt, bar.lastIndexOf('</div>', titleAt)), /<h1 /)
+  assert.ok(logoAt >= 0 && titleAt > logoAt && chipAt > titleAt && cardAt > chipAt && toolsAt > cardAt)
+  assert.doesNotMatch(bar.slice(cardAt, toolsAt), /<h1 /)
+  assert.match(bar, /class="plan-status-chip"[\s\S]*?data-plan-status-label>Stopped</)
+  assert.match(html, /\.brand\s*\{[^}]*flex:\s*0 1 auto;/)
+  assert.match(html, /\.brand\s*\{[^}]*text-overflow:\s*ellipsis;/)
+  assert.match(html, /@media \(max-width: 640px\)\s*\{[^}]*\.plan-status-chip \{[^}]*\}\s*\.plan-status-chip-label \{ display: none; \}/)
   assert.match(bar, /<p class="lede">POS-30 in review\.<\/p>/)
   assert.match(bar, /aria-label="Plan"/)
   assert.match(bar, /aria-label="Workflow"/)
@@ -164,7 +168,7 @@ test('settings can turn code wrapping on', () => {
   assert.match(on, /plan-switch-thumb" data-checked=""/)
 })
 
-test('pending, review, and changed sections use icons and the logo badge', () => {
+test('pending, review, and changed sections use icons and the chip badge', () => {
   const html = page(undefined, {
     mode: 'review',
     pendingInteractionIds: ['a', 'b'],
@@ -221,6 +225,19 @@ test('the description card shows the file version and not a snapshot list', () =
   assert.doesNotMatch(bar, /<button[^>]*data-file-version/)
   assert.doesNotMatch(html, /<h2>Snapshots<\/h2>/)
   assert.doesNotMatch(html, /plan-snapshots/)
+})
+
+test('the logo links to the dashboard when the plan sits under the service', () => {
+  const hosted = header(page(undefined, { basePath: '/plans/abc' }))
+  assert.match(hosted, /<a class="logo-btn" href="\/dashboard" aria-label="Dashboard"/)
+  assert.doesNotMatch(hosted, /class="logo-btn"[^>]*data-plan-details-toggle/)
+
+  const remote = header(page(undefined, { dashboardHref: 'http://127.0.0.1:9477/dashboard' }))
+  assert.match(remote, /<a class="logo-btn" href="http:\/\/127\.0\.0\.1:9477\/dashboard"/)
+
+  const privatePage = header(page())
+  assert.doesNotMatch(privatePage, /<a class="logo-btn"/)
+  assert.match(privatePage, /<span class="logo-btn"><img class="titlebar-logo"/)
 })
 
 test('the host title bar uses the dark hairline', () => {

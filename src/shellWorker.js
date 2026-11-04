@@ -2,8 +2,8 @@
 
 // src/shellCache.ts
 var SHELL_CACHE_PREFIX = "visual-living-plan-shell-";
-var SHELL_CACHE_VERSION = "2.2.2";
-var SHELL_CACHE_NAME = "visual-living-plan-shell-2.2.2";
+var SHELL_CACHE_VERSION = "2.3.0";
+var SHELL_CACHE_NAME = "visual-living-plan-shell-2.3.0";
 var DOCUMENT_CACHE_MARKER = "device";
 var PRECACHE_BATCH = 16;
 var ASSET_EXTENSION = /\.(?:js|mjs|css|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|wasm)$/i;

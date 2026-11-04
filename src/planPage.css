@@ -104,7 +104,7 @@
   --minimap-idle: #a1a1aa;
   --titlebar-offset: 3.75rem;
   --page-column: 720px;
-  --logo-badge-ink: #14201b;
+  --chip-badge-ink: #14201b;
   --swatch-edge: rgba(0, 0, 0, 0.12);
   --switch-track: var(--hairline);
   --sample-bg: #ffffff;
@@ -457,11 +457,14 @@ body.has-review-bar .plan-toc-toggle { bottom: 5.5rem; }
   pointer-events: none;
 }
 .logo-btn,
+.plan-status-chip,
 .plan-card,
 .chrome-tools,
 .chrome-tools > * { pointer-events: auto; }
+/* The logo is the way home: it links to the dashboard, as on every other page. */
 .logo-btn {
   position: relative;
+  flex: 0 0 auto;
   width: 36px;
   height: 36px;
   padding: 0;
@@ -470,11 +473,10 @@ body.has-review-bar .plan-toc-toggle { bottom: 5.5rem; }
   border: 0;
   border-radius: 50%;
   background: transparent;
-  cursor: pointer;
+  text-decoration: none;
 }
-.logo-btn[aria-expanded="true"] {
-  box-shadow: 0 0 0 3px var(--pulse);
-}
+a.logo-btn { cursor: pointer; }
+a.logo-btn:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
 .logo-btn:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
@@ -485,49 +487,80 @@ body.has-review-bar .plan-toc-toggle { bottom: 5.5rem; }
   display: block;
   border-radius: 50%;
 }
-.logo-badge {
-  position: absolute;
-  top: -0.15rem;
-  right: -0.35rem;
-  min-width: 1.05rem;
-  height: 1.05rem;
-  padding: 0 0.28rem;
-  border-radius: 999px;
+/* Plan details trigger: status dot, status label, pending count. */
+.plan-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  height: 28px;
+  padding: 0 var(--space-sm) 0 10px;
+  border: 1px solid var(--hairline-strong, var(--line));
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.plan-status-chip:hover,
+.plan-status-chip[aria-expanded="true"],
+.plan-status-chip[data-popup-open] {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  border-color: var(--hairline-strong-hover, var(--line));
+}
+.plan-status-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.chip-badge {
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.3rem;
+  border-radius: 9999px;
   background: var(--accent-2);
-  color: var(--logo-badge-ink);
-  font-size: 0.68rem;
+  color: var(--chip-badge-ink);
+  font-size: 0.7rem;
   font-weight: 700;
-  line-height: 1.05rem;
+  line-height: 1.15rem;
   text-align: center;
   font-variant-numeric: tabular-nums;
   pointer-events: none;
 }
-.logo-badge[hidden] { display: none !important; }
+.chip-badge[hidden] { display: none !important; }
+/* Phones keep the dot and the count. The button's aria-label still names it. */
+@media (max-width: 640px) {
+  .plan-status-chip { padding: 0 var(--space-xs); min-width: 28px; justify-content: center; }
+  .plan-status-chip-label { display: none; }
+  /* Tighter bar so a few letters of the title always show. */
+  .titlebar { gap: var(--space-xs); padding: 0 var(--space-sm); }
+  .titlebar .chrome-tools { gap: var(--space-xs); }
+  .titlebar .brand { min-width: 3.5rem; }
+}
 /* Plan status dot. Colors match PLAN_STATUS_COLOR in src/planStatus.ts, which draws the tab icon. */
 body {
   --status-approval: #f59e0b;
   --status-running: #04b54b;
   --status-stopped: #a1a1aa;
 }
-.logo-status,
+.chip-status,
 .status-dot {
   display: none;
   border-radius: 50%;
   background: var(--status-color, var(--status-stopped));
   pointer-events: none;
 }
-body[data-plan-status] .logo-status,
+body[data-plan-status] .chip-status,
 body[data-plan-status] .status-dot { display: block; }
 body[data-plan-status="approval"] { --status-color: var(--status-approval); }
 body[data-plan-status="running"] { --status-color: var(--status-running); }
 body[data-plan-status="stopped"] { --status-color: var(--status-stopped); }
-.logo-status {
-  position: absolute;
-  right: 2px;
-  bottom: 2px;
-  width: 10px;
-  height: 10px;
-  box-shadow: 0 0 0 2px var(--canvas);
+.chip-status {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
 }
 .status-dot {
   flex: 0 0 auto;
@@ -535,15 +568,15 @@ body[data-plan-status="stopped"] { --status-color: var(--status-stopped); }
   height: 8px;
 }
 body:not([data-plan-status]) [data-plan-status-fact] { display: none; }
-body[data-plan-status="running"] .logo-status {
+body[data-plan-status="running"] .chip-status {
   animation: plan-status-pulse 1.6s var(--ease-out) infinite;
 }
 @keyframes plan-status-pulse {
-  0% { box-shadow: 0 0 0 2px var(--canvas), 0 0 0 2px color-mix(in srgb, var(--status-running) 55%, transparent); }
-  100% { box-shadow: 0 0 0 2px var(--canvas), 0 0 0 7px color-mix(in srgb, var(--status-running) 0%, transparent); }
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--status-running) 55%, transparent); }
+  100% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--status-running) 0%, transparent); }
 }
 @media (prefers-reduced-motion: reduce) {
-  body[data-plan-status="running"] .logo-status { animation: none; }
+  body[data-plan-status="running"] .chip-status { animation: none; }
 }
 .plan-card {
   position: absolute;
@@ -589,6 +622,7 @@ html.js .plan-card[data-closed] {
 .chrome-tools {
   display: flex;
   flex: 0 0 auto;
+  margin-left: auto;
   align-items: center;
   gap: 0.65rem;
 }
@@ -681,7 +715,7 @@ html.js .plan-card[data-closed] {
 }
 
 .brand {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   margin: 0;
   font-family: var(--font-display);
@@ -1880,10 +1914,10 @@ textarea { min-height: 88px; resize: vertical; }
   0%, 100% { opacity: 0.55; }
   50% { opacity: 1; }
 }
-:is(.btn, .plan-btn, .logo-btn, .tab-btn, .choice-option, .workflow-step, .theme-swatch, .settings-accordion-trigger, .mermaid-control, .processes-toggle) {
+:is(.btn, .plan-btn, .logo-btn, .plan-status-chip, .tab-btn, .choice-option, .workflow-step, .theme-swatch, .settings-accordion-trigger, .mermaid-control, .processes-toggle) {
   transition: transform 160ms var(--ease-out), background-color 150ms ease, border-color 150ms ease, color 150ms ease;
 }
-:is(.btn, .plan-btn, .logo-btn, .tab-btn, .choice-option, .workflow-step, .theme-swatch, .settings-accordion-trigger, .mermaid-control, .processes-toggle):active:not(:disabled) {
+:is(.btn, .plan-btn, .logo-btn, .plan-status-chip, .tab-btn, .choice-option, .workflow-step, .theme-swatch, .settings-accordion-trigger, .mermaid-control, .processes-toggle):active:not(:disabled) {
   transform: scale(0.97);
 }
 
@@ -1905,10 +1939,10 @@ textarea { min-height: 88px; resize: vertical; }
     transition: opacity 150ms var(--ease-out);
   }
   .plan-toc { transition: none; }
-  :is(.btn, .plan-btn, .logo-btn, .tab-btn, .choice-option, .workflow-step, .theme-swatch, .diffs-theme-option, .settings-accordion-trigger, .mermaid-control, .processes-toggle) {
+  :is(.btn, .plan-btn, .logo-btn, .plan-status-chip, .tab-btn, .choice-option, .workflow-step, .theme-swatch, .diffs-theme-option, .settings-accordion-trigger, .mermaid-control, .processes-toggle) {
     transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
   }
-  :is(.btn, .plan-btn, .logo-btn, .tab-btn, .choice-option, .workflow-step, .theme-swatch, .diffs-theme-option, .settings-accordion-trigger, .mermaid-control, .processes-toggle):active {
+  :is(.btn, .plan-btn, .logo-btn, .plan-status-chip, .tab-btn, .choice-option, .workflow-step, .theme-swatch, .diffs-theme-option, .settings-accordion-trigger, .mermaid-control, .processes-toggle):active {
     transform: none;
   }
   .plan-switch,

@@ -1339,6 +1339,8 @@ export function renderPlanPage(options: {
   theme: RenderTheme
   /** Prefix for this plan's API. Empty when the plan owns the origin. */
   basePath?: string
+  /** Where the logo goes. Defaults to the service dashboard when the plan sits under `/plans/<id>`. The private server has no dashboard. */
+  dashboardHref?: string | null
   selfId?: string
   comments?: PlanComment[]
   /** Newest changelog, already parsed. Omit to hide the release block. */
@@ -1362,6 +1364,7 @@ export function renderPlanPage(options: {
     theme,
   } = options
   const basePath = options.basePath ?? ''
+  const dashboardHref = options.dashboardHref === undefined ? (basePath ? '/dashboard' : null) : options.dashboardHref
   const selfId = options.selfId
   const commentsJson = JSON.stringify(options.comments ?? []).replaceAll('<', '\\u003c')
   const reviewJson = JSON.stringify(options.review ?? null).replaceAll('<', '\\u003c')
@@ -1453,11 +1456,17 @@ export function renderPlanPage(options: {
 </head>
 <body class="${showReviewBar ? 'has-review-bar ' : ''}layout-${layoutMode}" data-plan-mode="${escapeHtml(mode)}" data-plan-status="${status}">
   <header class="titlebar">
+    ${
+      dashboardHref
+        ? `<a class="logo-btn" href="${escapeHtml(dashboardHref)}" aria-label="Dashboard" title="Dashboard"><img class="titlebar-logo" src="/favicon.png" alt="" width="29" height="29" /></a>`
+        : `<span class="logo-btn"><img class="titlebar-logo" src="/favicon.png" alt="" width="29" height="29" /></span>`
+    }
+    <h1 class="brand" id="plan-title">${escapeHtml(plan.title)}</h1>
     <div class="plan-details" data-plan-details>
-      <button type="button" class="logo-btn" data-plan-details-toggle aria-expanded="false" aria-controls="plan-card" aria-label="${pendingCount > 0 ? `Plan details, ${pendingCount} pending` : 'Plan details'}">
-        <img class="titlebar-logo" src="/favicon.png" alt="" width="29" height="29" />
-        <span class="logo-status" aria-hidden="true"></span>
-        <span class="logo-badge" data-pending-badge${pendingCount > 0 ? '' : ' hidden'}>${pendingCount}</span>
+      <button type="button" class="plan-status-chip" data-plan-details-toggle aria-expanded="false" aria-controls="plan-card" aria-label="${pendingCount > 0 ? `Plan details, ${pendingCount} pending` : 'Plan details'}">
+        <span class="chip-status" aria-hidden="true"></span>
+        <span class="plan-status-chip-label" data-plan-status-label>${PLAN_STATUS_LABEL[status]}</span>
+        <span class="chip-badge" data-pending-badge${pendingCount > 0 ? '' : ' hidden'}>${pendingCount}</span>
       </button>
       <div class="plan-card" id="plan-card" data-plan-card role="dialog" aria-labelledby="plan-title" hidden>
         ${plan.summary ? `<p class="lede">${escapeHtml(plan.summary)}</p>` : ''}
@@ -1473,7 +1482,6 @@ export function renderPlanPage(options: {
         </div>
       </div>
     </div>
-    <h1 class="brand" id="plan-title">${escapeHtml(plan.title)}</h1>
     <div class="chrome-tools">
       <p class="offline-state" data-offline-state hidden></p>
       <div class="tabs" role="tablist" aria-label="Living Plan views">
