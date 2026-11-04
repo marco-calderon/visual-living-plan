@@ -45,7 +45,10 @@
   --toc-info: #3b82f6;
   --toc-tip: #7c3aed;
   --toc-muted: #71717a;
-  --on-accent: var(--on-primary);
+  --on-accent: #1b2b37;
+  --accent-fill: #0094fc;
+  --accent-fill-hover: #1fa1fc;
+  --accent-fill-active: #3daefd;
   --shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
   --shadow-modal: 0 12px 16px -4px rgba(36, 36, 36, 0.08);
   --radius: 16px;
@@ -148,7 +151,10 @@
   --toc-info: #93c5fd;
   --toc-tip: #c4b5fd;
   --toc-muted: #a1a1aa;
-  --on-accent: #171717;
+  --on-accent: #1b2b37;
+  --accent-fill: #0094fc;
+  --accent-fill-hover: #1fa1fc;
+  --accent-fill-active: #3daefd;
   --shadow: 0 4px 6px rgba(0, 0, 0, 0.28);
   --shadow-modal: 0 12px 16px -4px rgba(0, 0, 0, 0.45);
   --wash-accent: rgba(147, 197, 253, 0.14);
@@ -497,6 +503,48 @@ body.has-review-bar .plan-toc-toggle { bottom: 5.5rem; }
   pointer-events: none;
 }
 .logo-badge[hidden] { display: none !important; }
+/* Plan status dot. Colors match PLAN_STATUS_COLOR in src/planStatus.ts, which draws the tab icon. */
+body {
+  --status-approval: #f59e0b;
+  --status-running: #04b54b;
+  --status-stopped: #a1a1aa;
+}
+.logo-status,
+.status-dot {
+  display: none;
+  border-radius: 50%;
+  background: var(--status-color, var(--status-stopped));
+  pointer-events: none;
+}
+body[data-plan-status] .logo-status,
+body[data-plan-status] .status-dot { display: block; }
+body[data-plan-status="approval"] { --status-color: var(--status-approval); }
+body[data-plan-status="running"] { --status-color: var(--status-running); }
+body[data-plan-status="stopped"] { --status-color: var(--status-stopped); }
+.logo-status {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 10px;
+  height: 10px;
+  box-shadow: 0 0 0 2px var(--canvas);
+}
+.status-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+}
+body:not([data-plan-status]) [data-plan-status-fact] { display: none; }
+body[data-plan-status="running"] .logo-status {
+  animation: plan-status-pulse 1.6s var(--ease-out) infinite;
+}
+@keyframes plan-status-pulse {
+  0% { box-shadow: 0 0 0 2px var(--canvas), 0 0 0 2px color-mix(in srgb, var(--status-running) 55%, transparent); }
+  100% { box-shadow: 0 0 0 2px var(--canvas), 0 0 0 7px color-mix(in srgb, var(--status-running) 0%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body[data-plan-status="running"] .logo-status { animation: none; }
+}
 .plan-card {
   position: absolute;
   z-index: 9;

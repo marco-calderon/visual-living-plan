@@ -59,6 +59,10 @@ export type ThemeConfig = {
 export type ThemeAccentVars = {
   accent: string
   onAccent: string
+  /** Solid fill for accent buttons. Meets 4.5:1 against `onAccent`. */
+  accentFill: string
+  accentFillHover: string
+  accentFillActive: string
   washAccent: string
   accentSoft: string
   accentBorder: string
@@ -375,17 +379,59 @@ export function accentForMode(accent: string, mode: 'light' | 'dark'): string {
   return toHex(lifted)
 }
 
+type Rgb = { r: number; g: number; b: number }
+
+const WHITE: Rgb = { r: 255, g: 255, b: 255 }
+const BLACK: Rgb = { r: 0, g: 0, b: 0 }
+/** WCAG AA for normal-size text. */
+const LABEL_CONTRAST = 4.5
+
+export function contrastRatio(a: Rgb, b: Rgb): number {
+  const la = relativeLuminance(a)
+  const lb = relativeLuminance(b)
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+}
+
+type AccentFill = { onAccent: string; fill: string; hover: string; active: string }
+
+/**
+ * Solid accent button colors. The label is whichever of white or a deep accent-tinted ink
+ * reads better on the accent. The fill shifts away from the label until it meets 4.5:1,
+ * and hover/active keep shifting the same way, so every state stays at least as readable.
+ */
+function deriveAccentFill(resolved: string): AccentFill {
+  const rgb = hexToRgb(resolved)
+  const darkLabel = paint(accentChroma(resolved), 0.35, 0.16)
+  const lightLabel = contrastRatio(rgb, WHITE) >= contrastRatio(rgb, darkLabel)
+  const label = lightLabel ? WHITE : darkLabel
+  const away = lightLabel ? BLACK : WHITE
+  let fill = rgb
+  for (let amount = 0.04; contrastRatio(fill, label) < LABEL_CONTRAST && amount <= 1; amount += 0.04) {
+    fill = mix(rgb, away, amount)
+  }
+  // A pure white or black fill has no room left, so step toward the label instead.
+  const shift = toHex(mix(fill, away, 0.12)) === toHex(fill) ? label : away
+  return {
+    onAccent: toHex(label),
+    fill: toHex(fill),
+    hover: toHex(mix(fill, shift, 0.12)),
+    active: toHex(mix(fill, shift, 0.24)),
+  }
+}
+
 export function deriveAccentVars(accent: string, mode: 'light' | 'dark'): ThemeAccentVars {
   const resolved = accentForMode(accent, mode)
   const rgb = hexToRgb(resolved)
-  const onAccent =
-    relativeLuminance(rgb) > 0.55 ? toHex(paint(accentChroma(resolved), 0.35, 0.16)) : '#ffffff'
+  const solid = deriveAccentFill(resolved)
   const soft = mode === 'dark' ? 0.14 : 0.08
   const border = mode === 'dark' ? 0.32 : 0.22
   const hover = mode === 'dark' ? 0.55 : 0.45
   return {
     accent: resolved,
-    onAccent,
+    onAccent: solid.onAccent,
+    accentFill: solid.fill,
+    accentFillHover: solid.hover,
+    accentFillActive: solid.active,
     washAccent: rgba(rgb, mode === 'dark' ? 0.16 : 0.16),
     accentSoft: rgba(rgb, soft),
     accentBorder: rgba(rgb, border),
@@ -406,6 +452,9 @@ export function accentCssCustomProperties(accent: string): string {
   const lines = (vars: ThemeAccentVars, mode: 'light' | 'dark') => `
   --accent: ${vars.accent};
   --on-accent: ${vars.onAccent};
+  --accent-fill: ${vars.accentFill};
+  --accent-fill-hover: ${vars.accentFillHover};
+  --accent-fill-active: ${vars.accentFillActive};
   --wash-accent: ${vars.washAccent};
   --accent-soft: ${vars.accentSoft};
   --accent-border: ${vars.accentBorder};

@@ -112,6 +112,7 @@ Flat by default. Hairline border, no shadow, on documentation cards. Level 2 sha
 
 - **button-primary**: `#171717` pill, white text, 36px height, 14px medium, full pill. Hover `#242424`. Active `#000000`. On a dark canvas the fill inverts to white and the label to `#171717`.
 - **button-secondary** (outline): transparent pill, ink text, 1px `hairline-strong` gray border (`#d4d4d8` light, `#4a4a4a` dark), 36px height. Hover fills with surface and steps the border to `hairline-strong-hover` (`#a1a1aa` light, `#666666` dark). The border stays gray in both themes, never ink or white.
+- **button-accent** (Approve, Comment on, Send): `--accent-fill` pill with `--on-accent` label. Hover `--accent-fill-hover`, active `--accent-fill-active`. `src/theme.ts` derives all three from the accent. The label is white or a deep accent-tinted ink, whichever contrasts more, and each state stays at least 4.5:1. The default `#0094fc` takes the `#1b2b37` label in both themes. Never put `--paper` or a fixed white on an accent fill.
 - **button-tertiary**: canvas fill, hairline border, 36px height, pill.
 - **button-danger**: `#fff4f0` fill, `#c9322a` text, `#ef4d3e` border, 36px height, pill.
 - **button-ghost**: transparent pill, no border, ink icon or label, 36px height. Hover mixes 6% ink into the background. An icon-only ghost is a 36px circle; an icon with a chevron keeps the pill and horizontal padding.

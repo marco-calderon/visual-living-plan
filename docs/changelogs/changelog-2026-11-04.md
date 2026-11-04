@@ -134,7 +134,50 @@ Settings open as a modal over the dashboard or the plan you are on, with General
 
 No migration. The shell cache name is 2.1.0. The device no longer fetches `/settings` in the background, since there is no separate page to cache.
 
-## 2.1.1
+## 2.2.0
+
+**PR:** #147
+
+**Bump:** minor
+
+### Summary
+
+The plan page logo and the browser tab icon carry a small dot that shows whether the plan is waiting for approval, running, or stopped.
+
+### New features
+
+- A status dot on the title bar logo: amber while the plan waits for a review decision, green (with a soft pulse) while execution is running, and grey when it is stopped. The plan details card names the status.
+- The tab icon shows the same dot, so a plan's status is visible from the tab strip. Both follow mode, review, and execution changes live, on local and hosted plans.
+
+### Notes
+
+No registry restart needed beyond the usual version check. The shell cache name is 2.2.0.
+
+## 2.2.1
+
+**PR:** #148
+
+**Bump:** patch
+
+### Summary
+
+Blue accent buttons (Approve, Comment when on, Send, and the comment marks) are readable in light and dark mode, at rest, on hover, and when pressed.
+
+### Bugs fixed
+
+- In light mode the blue buttons used white text on bright blue, about 3.2:1 contrast. They now use a dark label, about 4.6:1.
+- In dark mode a custom accent was lifted to a light tint but kept a white label, about 1.8:1 contrast. The label is now picked by contrast, so it turns dark on light fills.
+
+### Improvements
+
+- Blue buttons have hover and pressed states. Each state moves the fill away from the label, so text never gets harder to read.
+- New theme tokens `--accent-fill`, `--accent-fill-hover`, and `--accent-fill-active` are derived from any accent color and always meet 4.5:1 against `--on-accent`. Text and borders keep using `--accent`.
+
+### Notes
+
+No registry restart needed beyond the usual version check. The shell cache name is 2.2.1.
+
+## 2.2.2
 
 **PR:** #149
 
