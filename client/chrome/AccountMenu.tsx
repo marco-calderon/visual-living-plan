@@ -3,6 +3,7 @@ import { ChevronDown } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLinkItem, DropdownMenuTrigger } from '../ui/dropdown-menu.tsx'
 import { forgetCachedDocuments } from '../offline/forgetDocuments.ts'
 import { startOfflineEngine } from '../offline/engine.ts'
+import { openSettings } from '../../src/settings/settingsSections.ts'
 
 async function signOut(): Promise<void> {
   const engine = await startOfflineEngine()
@@ -33,7 +34,16 @@ export function AccountMenu({ label }: { label: string }) {
         <ChevronDown size={16} aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent>
-        <DropdownMenuLinkItem href="/settings">Settings</DropdownMenuLinkItem>
+        <DropdownMenuLinkItem
+          href="/settings"
+          onClick={(event) => {
+            // A plain click opens the modal over this page. Modified clicks keep the link.
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+            if (openSettings()) event.preventDefault()
+          }}
+        >
+          Settings
+        </DropdownMenuLinkItem>
         <DropdownMenuItem
           disabled={logOut.isPending}
           onClick={() => {

@@ -98,6 +98,8 @@ export const Route = createFileRoute("/dashboard")({
       return stored;
     }
   },
+  // Opening settings only changes the search. Keep the loaded page.
+  shouldReload: ({ cause }) => cause !== 'stay',
   component: DashboardPage,
 });
 
