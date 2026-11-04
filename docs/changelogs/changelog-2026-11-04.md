@@ -133,3 +133,22 @@ Settings open as a modal over the dashboard or the plan you are on, with General
 ### Notes
 
 No migration. The shell cache name is 2.1.0. The device no longer fetches `/settings` in the background, since there is no separate page to cache.
+
+## 2.2.0
+
+**PR:** #147
+
+**Bump:** minor
+
+### Summary
+
+The plan page logo and the browser tab icon carry a small dot that shows whether the plan is waiting for approval, running, or stopped.
+
+### New features
+
+- A status dot on the title bar logo: amber while the plan waits for a review decision, green (with a soft pulse) while execution is running, and grey when it is stopped. The plan details card names the status.
+- The tab icon shows the same dot, so a plan's status is visible from the tab strip. Both follow mode, review, and execution changes live, on local and hosted plans.
+
+### Notes
+
+No registry restart needed beyond the usual version check. The shell cache name is 2.2.0.

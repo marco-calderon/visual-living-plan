@@ -126,9 +126,14 @@ export function PlanShell({
             aria-label="Plan details"
           >
             <img className="titlebar-logo" src="/favicon.png" alt="" width={29} height={29} />
+            <span className="logo-status" aria-hidden="true" />
           </button>
           <div className="plan-card" id="plan-card" data-plan-card="" hidden>
             <div className="facts">
+              <span className="fact" data-plan-status-fact="" title="Status">
+                <span className="status-dot" aria-hidden="true" />
+                <span className="val" data-plan-status-label="" />
+              </span>
               <span className="fact" title={`Mode · ${mode}`}>
                 <span className="val">{mode}</span>
               </span>
