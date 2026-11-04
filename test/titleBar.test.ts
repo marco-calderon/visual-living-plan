@@ -56,6 +56,7 @@ test('the logo opens a card; the title sits on the solid bar', () => {
   const cardAt = bar.indexOf('data-plan-card')
 
   assert.match(html, /--titlebar-offset:\s*3\.75rem;/)
+  assert.match(html, /\.shell\s*\{[^}]*padding-top:\s*calc\(var\(--titlebar-offset\) \+ var\(--space-md\)\);/)
   assert.match(html, /\.titlebar\s*\{[^}]*height:\s*var\(--titlebar-offset\);/)
   assert.match(html, /\.titlebar\s*\{[^}]*background:\s*var\(--surface\);/)
   assert.match(html, /\.titlebar\s*\{[^}]*border-bottom:\s*1px solid var\(--hairline\);/)
