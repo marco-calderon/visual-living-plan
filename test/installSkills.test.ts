@@ -27,21 +27,22 @@ test('install-skills copies project skills into the destination and can run agai
     const other = join(dest, 'other-skill')
     mkdirSync(other, { recursive: true })
     writeFileSync(join(other, 'SKILL.md'), 'leave this skill alone\n')
+    const retired = join(dest, 'living-plan')
+    mkdirSync(retired, { recursive: true })
+    writeFileSync(join(retired, 'SKILL.md'), 'old copy\n')
 
     const first = run(dest)
     assert.equal(first.status, 0, first.stderr)
     assert.match(first.stdout, new RegExp(`Installed live-plan to ${join(dest, 'live-plan')}`))
-    assert.match(first.stdout, /Installed living-plan to /)
+    assert.doesNotMatch(first.stdout, /Installed living-plan/)
+    assert.match(first.stdout, new RegExp(`Removed retired living-plan from ${retired}`))
     assert.match(first.stdout, /Installed version-bump to /)
 
     const livePlan = join(dest, 'live-plan', 'SKILL.md')
     const primitives = join(dest, 'live-plan', 'primitives.md')
     assert.equal(read(livePlan), read(join(repoRoot, 'skills', 'live-plan', 'SKILL.md')))
     assert.equal(read(primitives), read(join(repoRoot, 'skills', 'live-plan', 'primitives.md')))
-    assert.equal(
-      read(join(dest, 'living-plan', 'SKILL.md')),
-      read(join(repoRoot, 'skills', 'living-plan', 'SKILL.md')),
-    )
+    assert.throws(() => read(join(retired, 'SKILL.md')))
     assert.equal(
       read(join(dest, 'version-bump', 'SKILL.md')),
       read(join(repoRoot, '.cursor', 'skills', 'version-bump', 'SKILL.md')),
