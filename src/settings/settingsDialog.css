@@ -5,6 +5,8 @@
   --canvas: #ffffff;
   --surface: #f5f5f5;
   --hairline: #e9e9e9;
+  --hairline-strong: #d4d4d8;
+  --hairline-strong-hover: #a1a1aa;
   --ink: #181e25;
   --charcoal: #34393f;
   --steel: #666666;
@@ -72,6 +74,8 @@
     --elevated: #1c1c1c;
     --surface: #262626;
     --hairline: #2c2c2c;
+    --hairline-strong: #4a4a4a;
+    --hairline-strong-hover: #666666;
     --ink: #ededed;
     --charcoal: #ededed;
     --steel: #949494;
