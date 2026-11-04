@@ -94,7 +94,7 @@ export const hostToolbarCss = `
   display: inline-flex;
   align-items: center;
   gap: var(--space-xs);
-  border: 1px solid var(--ink);
+  border: 1px solid var(--hairline-strong, var(--hairline));
   border-radius: 9999px;
   background: transparent;
   color: var(--ink);

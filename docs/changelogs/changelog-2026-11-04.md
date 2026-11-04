@@ -88,3 +88,21 @@ No registry restart needed beyond the usual version check. The shell cache name 
 ### Notes
 
 Scripts that call `living-plan` must switch to `live-plan`. The config folder stays `~/.config/living-plan`. The shell cache name is 2.0.0.
+
+## 2.0.1
+
+**PR:** #145
+
+**Bump:** patch
+
+### Summary
+
+Outline (secondary) buttons use a soft gray border in light and dark mode instead of a black or white ring.
+
+### Improvements
+
+- Outline buttons on the plan page, settings, dashboard, top bar and account menu use the new `hairline-strong` gray border (`#d4d4d8` light, `#4a4a4a` dark), which steps darker on hover. `DESIGN.md` documents the token and the button rule.
+
+### Notes
+
+No registry restart needed.
