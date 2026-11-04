@@ -194,3 +194,25 @@ Production builds on Cloudflare install with a fixed Bun version, so a build no 
 ### Notes
 
 Bump the `packageManager` version when you update Bun locally, so the build and your machine write the same lockfile. Cloudflare asks for Bun 1.4.4 or newer in builds.
+
+## 2.3.0
+
+**PR:** pending
+
+**Bump:** minor
+
+### Summary
+
+The plan page logo now takes you to the dashboard, like the logo on every other page. Plan details moved to a status chip next to the title.
+
+### Improvements
+
+- The logo in the plan page title bar links to the dashboard. On the service it opens `/dashboard`. A `--no-registry` page with a shared service links to that service's dashboard. A page with no dashboard shows the logo without a link.
+- Plan details open from a status chip after the title. It shows the status dot, the status label, and the pending count. On phones it keeps only the dot and the count.
+- The cloud account menu lists Dashboard above Settings.
+- On phones the Plans button keeps only its dot and count, and the title bar is tighter, so a few letters of the title always show.
+- The Dashboard link inside the Plans popover was removed. The logo replaces it.
+
+### Notes
+
+No registry restart needed beyond the usual version check. The shell cache name is 2.3.0.

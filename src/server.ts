@@ -45,6 +45,8 @@ export async function startLivingPlanServer(options: {
     configPath: options.configPath,
     cwd: process.cwd(),
     basePath: '',
+    // A private page links to the shared dashboard when it has one.
+    dashboardHref: options.registry ? new URL('/dashboard', options.registry.url).href : null,
     selfId,
   })
 

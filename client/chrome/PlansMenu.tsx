@@ -207,14 +207,13 @@ export function PlansMenu({ selfId }: { selfId: string | null }) {
 
   const processes = Array.isArray(payload.processes) ? payload.processes : []
   const registryUrl = safeUrl(payload.registryUrl || '')
-  const dashboardUrl = registryUrl ? safeUrl(new URL('/dashboard', registryUrl).href) : ''
   const pageSelfId = payload.selfId || selfId
 
   return (
     <Popover modal={false}>
       <PopoverTrigger className="processes-toggle" data-processes-toggle="">
         <span className="live-dot" aria-hidden="true" />
-        Plans
+        <span className="processes-toggle-label">Plans</span>
         <span className="processes-count" data-processes-count="">
           {processes.length}
         </span>
@@ -232,9 +231,6 @@ export function PlansMenu({ selfId }: { selfId: string | null }) {
         <div className="processes-head">
           <strong>Running plans</strong>
           <span className="processes-links">
-            <a className="processes-registry" href={dashboardUrl || undefined} hidden={!dashboardUrl}>
-              Dashboard
-            </a>
             <a className="processes-registry" href={registryUrl || undefined} hidden={!registryUrl}>
               Registry
             </a>

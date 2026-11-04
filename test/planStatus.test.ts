@@ -32,10 +32,10 @@ test('plan status: running wins, then an undecided review, else stopped', () => 
   assert.equal(planStatus({ mode: 'comment' }), 'stopped')
 })
 
-test('the plan page renders the status on the body, the logo dot, and the card', () => {
+test('the plan page renders the status on the body, the chip dot, and the card', () => {
   const stopped = page()
   assert.match(stopped, /<body[^>]*data-plan-status="stopped"/)
-  assert.match(stopped, /<span class="logo-status" aria-hidden="true"><\/span>/)
+  assert.match(stopped, /<span class="chip-status" aria-hidden="true"><\/span>/)
   assert.match(stopped, /data-plan-status-label>Stopped</)
 
   assert.match(page({ mode: 'review' }), /<body[^>]*data-plan-status="approval"/)

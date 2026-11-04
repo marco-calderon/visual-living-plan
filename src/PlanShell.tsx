@@ -116,17 +116,23 @@ export function PlanShell({
       <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       <style>{hostToolbarCss}</style>
       <header className="titlebar">
+        <a className="logo-btn" href="/dashboard" aria-label="Dashboard" title="Dashboard">
+          <img className="titlebar-logo" src="/favicon.png" alt="" width={29} height={29} />
+        </a>
+        <h1 className="brand" id="plan-title">
+          {title}
+        </h1>
         <div className="plan-details" data-plan-details>
           <button
             type="button"
-            className="logo-btn"
+            className="plan-status-chip"
             data-plan-details-toggle=""
             aria-expanded="false"
             aria-controls="plan-card"
             aria-label="Plan details"
           >
-            <img className="titlebar-logo" src="/favicon.png" alt="" width={29} height={29} />
-            <span className="logo-status" aria-hidden="true" />
+            <span className="chip-status" aria-hidden="true" />
+            <span className="plan-status-chip-label" data-plan-status-label="" />
           </button>
           <div className="plan-card" id="plan-card" data-plan-card="" hidden>
             <div className="facts">
@@ -140,9 +146,6 @@ export function PlanShell({
             </div>
           </div>
         </div>
-        <h1 className="brand" id="plan-title">
-          {title}
-        </h1>
         <div className="chrome-tools">
           <p className="offline-state" data-offline-state="" hidden />
           <div className="tabs" role="tablist" aria-label="Living Plan views">

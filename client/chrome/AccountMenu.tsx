@@ -34,6 +34,7 @@ export function AccountMenu({ label }: { label: string }) {
         <ChevronDown size={16} aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent>
+        <DropdownMenuLinkItem href="/dashboard">Dashboard</DropdownMenuLinkItem>
         <DropdownMenuLinkItem
           href="/settings"
           onClick={(event) => {
