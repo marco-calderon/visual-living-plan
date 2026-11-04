@@ -224,6 +224,7 @@ body.layout-full { --page-column: 100%; }
   position: relative;
   z-index: 1;
   overflow-x: clip;
+  padding-top: calc(var(--titlebar-offset) + var(--space-md));
 }
 body.has-review-bar .shell {
   padding-bottom: 14rem;
@@ -1185,7 +1186,7 @@ html.js .plan-card[data-closed] {
 
 .block {
   scroll-margin: 1.25rem;
-  scroll-margin-top: calc(var(--titlebar-offset) + 0.75rem);
+  scroll-margin-top: calc(var(--titlebar-offset) + var(--space-md));
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: 16px;

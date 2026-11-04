@@ -45,3 +45,21 @@ Pull request previews can sign in with GitHub and Google. The sign-in goes throu
 ### Notes
 
 Set the same `OAUTH_PROXY_SECRET` for production (`npx wrangler secret put OAUTH_PROXY_SECRET`) and for previews (`npx wrangler preview secret put OAUTH_PROXY_SECRET`), then deploy production. Without it the proxy stays off and previews keep email and password sign-in only. The shell cache name is 1.15.0.
+
+## 1.15.1
+
+**PR:** #141
+
+**Bump:** patch
+
+### Summary
+
+The rendered plan page has space above the plan, under the title bar.
+
+### Bugs fixed
+
+- The plan column started underneath the fixed title bar. It now clears the bar and leaves the same 16px gap the contents list uses.
+
+### Notes
+
+No registry restart needed beyond the usual version check. The shell cache name is 1.15.1.
