@@ -1,5 +1,7 @@
 const PLAN_PAGE = /^\/plans\/([A-Za-z0-9_-]{8,80})\/?$/
 const HISTORY_PAGE = /^\/plans\/([A-Za-z0-9_-]{8,80})\/history\/?$/
+/** A saved version, rendered read-only. Its raw file is `/plans/<id>/versions/<seq>/document` on the Worker. */
+const VERSION_PAGE = /^\/plans\/([A-Za-z0-9_-]{8,80})\/versions\/[1-9]\d{0,8}\/?$/
 
 const APP_PAGES = new Set([
   '/',
@@ -17,6 +19,7 @@ const APP_PAGES = new Set([
 export function tanstackPage(pathname: string, method: string): 'plan' | 'app' | null {
   if (method !== 'GET' && method !== 'HEAD') return null
   if (HISTORY_PAGE.test(pathname)) return 'app'
+  if (VERSION_PAGE.test(pathname)) return 'app'
   if (PLAN_PAGE.test(pathname)) return 'plan'
   const path = pathname === '/' ? pathname : pathname.replace(/\/+$/, '') || '/'
   if (APP_PAGES.has(path)) return 'app'

@@ -207,21 +207,3 @@ Dashboard plan actions are icon buttons. Hover a control to see its name.
 ### Notes
 
 No registry restart needed beyond the usual version check. The shell cache name is 1.14.2.
-
-## 1.14.3
-
-**PR:** #141
-
-**Bump:** patch
-
-### Summary
-
-The rendered plan page has space above the plan, under the title bar.
-
-### Bugs fixed
-
-- The plan column started underneath the fixed title bar. It now clears the bar and leaves the same 16px gap the contents list uses.
-
-### Notes
-
-No registry restart needed beyond the usual version check. The shell cache name is 1.14.3.

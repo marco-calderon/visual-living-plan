@@ -70,7 +70,17 @@ To check a rendered plan on a Preview, publish one to it: `live-plan account log
 
 When a change adds a migration, apply it to both databases: `npx wrangler d1 migrations apply living-plan --remote` and `npx wrangler d1 migrations apply living-plan-preview --remote`. If wrangler cannot find `living-plan-preview` by name, run the second command with `-c` pointing at a config whose top-level `d1_databases` names it, with `migrations_dir` set to `src/migrations`.
 
-Previews inherit the production `PUBLIC_URL`. `TRUSTED_ORIGINS` lists comma-separated origin patterns (the preview host pattern and `https://*.plan.logspace.qzz.io`), so a request on a matching origin keeps that origin, and email and password sign-in stays on the preview's own origin. GitHub and Google sign-in only work on the production domain, where those callbacks are registered. If a preview reports that `BETTER_AUTH_SECRET` is not set, run `npx wrangler preview secret put BETTER_AUTH_SECRET` with a value different from production's. Workers Builds does not run D1 migrations.
+Previews inherit the production `PUBLIC_URL`. `TRUSTED_ORIGINS` lists comma-separated origin patterns (the preview host pattern and `https://*.plan.logspace.qzz.io`), so a request on a matching origin keeps that origin, and email and password sign-in stays on the preview's own origin.
+
+GitHub and Google only know the production callbacks. A preview's GitHub or Google sign-in goes through production with Better Auth's OAuth proxy. Production exchanges the code and sends the encrypted profile back to the preview, and the preview creates the account and session in `living-plan-preview`. Production stores nothing. Previews use a different `BETTER_AUTH_SECRET`, so the proxy has its own secret. Set the same value for production and for previews:
+
+```bash
+openssl rand -base64 32   # copy the output
+npx wrangler secret put OAUTH_PROXY_SECRET
+npx wrangler preview secret put OAUTH_PROXY_SECRET
+```
+
+Deploy production after setting it, because production must answer the proxy callback. Without `OAUTH_PROXY_SECRET`, or without `PUBLIC_URL`, the proxy stays off and GitHub and Google sign-in only work on the production domain. Leave the providers' callback lists at the production URLs. Do not add preview URLs. If a preview reports that `BETTER_AUTH_SECRET` is not set, run `npx wrangler preview secret put BETTER_AUTH_SECRET` with a value different from production's. Workers Builds does not run D1 migrations.
 
 `wrangler.jsonc` pins `account_id`, so the build's Worker lookup always runs in this account. When a build fails with "The name in your wrangler.json file (visual-living-plan) must match the name of your Worker" and the name is correct, the Git connection points at a Worker that no longer exists. Add the build variable `WRANGLER_LOG=debug` to see the expected and actual Worker tags. Disconnect and reconnect the repository under Settings → Build to fix it.
 

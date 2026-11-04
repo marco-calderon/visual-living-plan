@@ -7,6 +7,7 @@ import {
   actorAllows,
   agentHello,
   closePlan,
+  executionView,
   initPlan,
   migratePlan,
   planHosted,
@@ -109,7 +110,9 @@ export class PlanObject extends DurableObject {
       .onBeforeHandle((context) => {
         rehydrateRequest(context)
       })
-      .onError(({ error }) => {
+      .onError(({ code, error }) => {
+        // A route this object does not serve is 404, not a server error.
+        if (code === 'NOT_FOUND') return text(404, 'Not found')
         if (error instanceof StaleRevision) return Response.json({ revision: error.revision }, { status: 409 })
         if (error instanceof PlanRoomError) return text(error.status, error.message)
         return text(500, error instanceof Error ? error.message : 'Unknown error')
@@ -183,6 +186,11 @@ export class PlanObject extends DurableObject {
         const result = putExecution(sql, await request.json())
         this.publish(result.outbound)
         return Response.json(result.body)
+      })
+      .get('/api/execution', async ({ request }) => {
+        if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'read')) return text(401, 'Sign in required')
+        touchPlan(sql)
+        return Response.json(await executionView(sql))
       })
       .get('/api/snapshot', ({ request }) => {
         if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'read')) return text(401, 'Sign in required')

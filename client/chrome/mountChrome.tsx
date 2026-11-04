@@ -88,13 +88,15 @@ function mountVersionsMenu() {
   const planId = host.getAttribute('data-plan-id') ?? ''
   if (!planId) return
   const liveHref = host.getAttribute('data-live-href') || `/plans/${planId}`
+  const label = host.getAttribute('data-label') || 'Live'
+  const current = Number(host.getAttribute('data-version') ?? '') || null
   host.dataset.versionsMounted = 'true'
   const slot = document.createElement('div')
   slot.className = 'plan-versions-menu'
   host.replaceWith(slot)
   createRoot(slot).render(
     <QueryProvider>
-      <PlanVersionsMenu planId={planId} label="Live" triggerClassName="titlebar-action" liveHref={liveHref} prefetch />
+      <PlanVersionsMenu planId={planId} label={label} current={current} triggerClassName="titlebar-action" liveHref={liveHref} prefetch />
     </QueryProvider>,
   )
 }

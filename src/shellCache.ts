@@ -19,9 +19,9 @@
 export const SHELL_CACHE_PREFIX = 'visual-living-plan-shell-'
 
 /** Keep both equal to package.json `version`. test/shellCache.test.ts checks them. */
-export const SHELL_CACHE_VERSION = '1.14.3'
+export const SHELL_CACHE_VERSION = '1.15.1'
 
-export const SHELL_CACHE_NAME = 'visual-living-plan-shell-1.14.3'
+export const SHELL_CACHE_NAME = 'visual-living-plan-shell-1.15.1'
 
 /** One document cache per device. The worker cannot see which account is signed in. */
 export const DOCUMENT_CACHE_MARKER = 'device'
@@ -69,6 +69,9 @@ const ASSET_EXTENSION = /\.(?:js|mjs|css|png|jpe?g|gif|webp|avif|svg|ico|woff2?|
 const PLAN_NETWORK =
   /^\/plans\/[^/]+\/(?:api|view|share|document|versions)(?:\/|$)/
 
+/** A saved version page is a document, so it opens offline once this device has visited it. Its `/document` download stays on the network. */
+const VERSION_PAGE = /^\/plans\/[^/]+\/versions\/[1-9]\d*\/?$/
+
 export function classifyShellRequest(request: Request, origin: string): ShellKind {
   if (request.method !== 'GET') return 'network'
   if (request.headers.has('range')) return 'network'
@@ -89,7 +92,7 @@ export function classifyShellRequest(request: Request, origin: string): ShellKin
   if (path === '/sw.js') return 'network'
   if (path === '/precache-manifest.json') return 'network'
   if (path === '/api' || path.startsWith('/api/')) return 'network'
-  if (PLAN_NETWORK.test(path)) return 'network'
+  if (PLAN_NETWORK.test(path) && !VERSION_PAGE.test(path)) return 'network'
   if (path === '/archive' || path.startsWith('/archive/')) return 'network'
   if (path.endsWith('.map')) return 'network'
   if (isAssetPath(path) || isAssetDestination(request)) return 'asset'

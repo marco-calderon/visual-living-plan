@@ -70,6 +70,53 @@ export type CatalogRow = {
   recency?: number
 }
 
+/** One saved version of an owned plan. `source` is present once that version was opened on this device. */
+export type VersionRow = {
+  /** `planId:seq` */
+  id: string
+  planId: string
+  seq: number
+  title: string
+  createdAt: number
+  source?: string
+}
+
+export function versionRowId(planId: string, seq: number): string {
+  return `${planId}:${seq}`
+}
+
+/**
+ * Rows to write and drop after the host listed a plan's versions. A listed row keeps a source this
+ * device already saved. A stored row the host no longer lists is dropped.
+ */
+export function versionRowsFromList(
+  planId: string,
+  listed: ReadonlyArray<{ seq: number; title?: string; createdAt?: number }>,
+  stored: readonly VersionRow[],
+): { put: VersionRow[]; drop: string[] } {
+  const mine = stored.filter((row) => row.planId === planId)
+  const byId = new Map(mine.map((row) => [row.id, row]))
+  const put: VersionRow[] = []
+  const keep = new Set<string>()
+  for (const version of listed) {
+    if (!Number.isInteger(version.seq) || version.seq <= 0) continue
+    const id = versionRowId(planId, version.seq)
+    if (keep.has(id)) continue
+    keep.add(id)
+    const previous = byId.get(id)
+    put.push({
+      id,
+      planId,
+      seq: version.seq,
+      title: version.title ?? previous?.title ?? '',
+      createdAt: version.createdAt ?? previous?.createdAt ?? 0,
+      ...(previous?.source !== undefined ? { source: previous.source } : {}),
+    })
+  }
+  const drop = mine.filter((row) => !keep.has(row.id)).map((row) => row.id)
+  return { put, drop }
+}
+
 export type AccountRow = {
   id: string
   payload: unknown
@@ -99,6 +146,19 @@ export type SettingsRow = {
   pending?: boolean
   /** Where a pending change is sent. */
   url?: string
+}
+
+/** A device settings row from a host theme or settings payload, with the same defaults the host uses. */
+export function settingsRowFrom(id: string, theme: Partial<SettingsRow> | null | undefined): SettingsRow {
+  const value = theme ?? {}
+  return {
+    id,
+    accent: typeof value.accent === 'string' && value.accent ? value.accent : '#0f766e',
+    pageWidth: typeof value.pageWidth === 'string' && value.pageWidth ? value.pageWidth : 'default',
+    diffsTheme: typeof value.diffsTheme === 'string' && value.diffsTheme ? value.diffsTheme : 'pierre',
+    wrapCode: Boolean(value.wrapCode),
+    updatedAt: typeof value.updatedAt === 'number' ? value.updatedAt : 0,
+  }
 }
 
 /** The settings fields of a stored account payload, replaced by a newer device row. */
