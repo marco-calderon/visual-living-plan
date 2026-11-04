@@ -2,7 +2,7 @@
 
 ## 1.15.0
 
-**PR:** not opened yet
+**PR:** #143
 
 **Bump:** minor
 
