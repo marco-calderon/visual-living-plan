@@ -21,6 +21,10 @@ export type PlanShellProps = {
   basePath: string
   transport?: 'websocket'
   bootstrap?: string
+  /** A saved version number. The page is read-only and does not follow the live plan. */
+  version?: number
+  /** The signed-in account owns this hosted plan, so the account appearance applies to it. */
+  owner?: boolean
   children?: ReactNode
 }
 
@@ -37,12 +41,15 @@ export function PlanShell({
   basePath,
   transport,
   bootstrap,
+  version,
+  owner = false,
   children,
 }: PlanShellProps) {
   const started = useRef(false)
   const [tab, setTab] = useState<'plan' | 'workflow'>('plan')
   const cloudPlanId = host === 'cloud' && basePath.startsWith('/plans/') ? (basePath.slice('/plans/'.length).split('/')[0] ?? '') : ''
   const tocHtml = renderPlanTocHtml(buildPlanToc(source))
+  const versionsLabel = version ? `Version ${version}` : 'Live'
 
   useEffect(() => {
     const onTab = (event: Event) => {
@@ -67,17 +74,22 @@ export function PlanShell({
     document.documentElement.dataset.accent = accent
     document.body.dataset.planMode = mode
     document.body.dataset.planHost = host
+    if (owner) document.body.dataset.planOwner = 'true'
+    else delete document.body.dataset.planOwner
     document.body.classList.remove('layout-default', 'layout-wide', 'layout-full')
     document.body.classList.add(`layout-${pageWidth}`)
     const win = window as Window & {
       __LIVE_PLAN_BASE__?: string
       __LIVE_PLAN_TRANSPORT__?: string
       __LIVE_PLAN_HOST__?: string
+      __LIVE_PLAN_VERSION__?: number
     }
     win.__LIVE_PLAN_BASE__ = basePath
     win.__LIVE_PLAN_HOST__ = host
     if (transport) win.__LIVE_PLAN_TRANSPORT__ = transport
     else delete win.__LIVE_PLAN_TRANSPORT__
+    if (version) win.__LIVE_PLAN_VERSION__ = version
+    else delete win.__LIVE_PLAN_VERSION__
     const media = window.matchMedia('(prefers-color-scheme: dark)')
     const applyTheme = () => {
       document.documentElement.dataset.theme = media.matches ? 'dark' : 'light'
@@ -90,13 +102,14 @@ export function PlanShell({
       void import('../client/planMdx.tsx')
       void import('../client/main.tsx')
       void import('../client/chrome/mountChrome.tsx')
-      if (host === 'cloud') void import('../client/PlanSelector.tsx')
+      // Comments and review belong to the live plan, not to a saved version.
+      if (host === 'cloud' && !version) void import('../client/PlanSelector.tsx')
     }
     const sourceFlags = planSourceFlags(source)
     if (sourceFlags.mermaid) void import('../client/mermaid.ts')
     if (sourceFlags.code) void import('../client/highlight.tsx')
     return () => media.removeEventListener('change', applyTheme)
-  }, [accent, basePath, diffsTheme, host, mode, pageWidth, source, transport, wrapCode])
+  }, [accent, basePath, diffsTheme, host, mode, pageWidth, owner, source, transport, version, wrapCode])
 
   return (
     <>
@@ -152,9 +165,16 @@ export function PlanShell({
             </button>
           </div>
           {cloudPlanId ? (
-            <div className="plan-versions-menu" data-plan-versions="" data-plan-id={cloudPlanId} data-live-href={basePath}>
+            <div
+              className="plan-versions-menu"
+              data-plan-versions=""
+              data-plan-id={cloudPlanId}
+              data-live-href={basePath}
+              data-label={versionsLabel}
+              data-version={version ? String(version) : undefined}
+            >
               <button type="button" className="titlebar-action" aria-label="Plan versions" aria-haspopup="menu" aria-expanded="false">
-                Live
+                {versionsLabel}
                 <ChevronDown size={14} aria-hidden="true" />
               </button>
             </div>

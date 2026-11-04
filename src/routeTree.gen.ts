@@ -20,6 +20,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as PlansPlanIdRouteImport } from './routes/plans.$planId'
 import { Route as PlansPlanIdHistoryRouteImport } from './routes/plans_.$planId.history'
+import { Route as PlansPlanIdVersionsSeqRouteImport } from './routes/plans_.$planId.versions.$seq'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -76,6 +77,11 @@ const PlansPlanIdHistoryRoute = PlansPlanIdHistoryRouteImport.update({
   path: '/plans/$planId/history',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlansPlanIdVersionsSeqRoute = PlansPlanIdVersionsSeqRouteImport.update({
+  id: '/plans_/$planId/versions/$seq',
+  path: '/plans/$planId/versions/$seq',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -89,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/plans/$planId': typeof PlansPlanIdRoute
   '/plans/$planId/history': typeof PlansPlanIdHistoryRoute
+  '/plans/$planId/versions/$seq': typeof PlansPlanIdVersionsSeqRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -102,6 +109,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/plans/$planId': typeof PlansPlanIdRoute
   '/plans/$planId/history': typeof PlansPlanIdHistoryRoute
+  '/plans/$planId/versions/$seq': typeof PlansPlanIdVersionsSeqRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/plans/$planId': typeof PlansPlanIdRoute
   '/plans_/$planId/history': typeof PlansPlanIdHistoryRoute
+  '/plans_/$planId/versions/$seq': typeof PlansPlanIdVersionsSeqRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -131,6 +140,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/plans/$planId'
     | '/plans/$planId/history'
+    | '/plans/$planId/versions/$seq'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -144,6 +154,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/plans/$planId'
     | '/plans/$planId/history'
+    | '/plans/$planId/versions/$seq'
   id:
     | '__root__'
     | '/'
@@ -157,6 +168,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/plans/$planId'
     | '/plans_/$planId/history'
+    | '/plans_/$planId/versions/$seq'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -171,6 +183,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   PlansPlanIdRoute: typeof PlansPlanIdRoute
   PlansPlanIdHistoryRoute: typeof PlansPlanIdHistoryRoute
+  PlansPlanIdVersionsSeqRoute: typeof PlansPlanIdVersionsSeqRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -252,6 +265,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlansPlanIdHistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/plans_/$planId/versions/$seq': {
+      id: '/plans_/$planId/versions/$seq'
+      path: '/plans/$planId/versions/$seq'
+      fullPath: '/plans/$planId/versions/$seq'
+      preLoaderRoute: typeof PlansPlanIdVersionsSeqRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -267,6 +287,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   PlansPlanIdRoute: PlansPlanIdRoute,
   PlansPlanIdHistoryRoute: PlansPlanIdHistoryRoute,
+  PlansPlanIdVersionsSeqRoute: PlansPlanIdVersionsSeqRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

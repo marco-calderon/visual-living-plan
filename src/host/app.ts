@@ -53,6 +53,7 @@ export function createHostApp(env: HostEnv, options: { auth?: (request: Request)
     })
     .get('/api/health', () => ({ ok: true }))
     .get('/api/account', ({ request }) => accountRead(request, env, authFor(request)))
+    .get('/api/account/settings', ({ request }) => accountSettingsRead(request, env, authFor(request)))
     .put('/api/account/settings', ({ request }) => accountSave(request, env, authFor(request)))
     .get('/api/account/dashboard', ({ request }) =>
       accountDashboardApi(request, env, authFor(request), originFor(request, env)),
@@ -64,8 +65,8 @@ export function createHostApp(env: HostEnv, options: { auth?: (request: Request)
     .get('/plans/:planId/document', ({ request, params }) =>
       planDocument(request, env, authFor(request), params.planId, 'latest'),
     )
-    .get('/plans/:planId/versions/:seq', ({ request, params }) =>
-      planDocument(request, env, authFor(request), params.planId, Number(params.seq)),
+    .get('/plans/:planId/versions/:seq/document', ({ request, params }) =>
+      planDocument(request, env, authFor(request), params.planId, versionSeq(params.seq)),
     )
     .all('/plans/:planId', ({ request, params }) => forwardPlan(request, env, authFor(request), params.planId, '/'))
     .all('/plans/:planId/*', ({ request, params }) => {
@@ -178,6 +179,13 @@ async function accountRead(request: Request, env: HostEnv, auth: ReturnType<type
     accounts: await listLinkedAccounts(env.DB, session.user.id),
     plans: await listOpenPlans(env, session.user.id),
   })
+}
+
+/** Appearance only. Plan pages read this instead of the whole account. */
+async function accountSettingsRead(request: Request, env: HostEnv, auth: ReturnType<typeof createAuth>): Promise<Response> {
+  const session = await readSession(auth, request, env.DB)
+  if (!session) return text(401, 'Sign in required')
+  return Response.json({ settings: await readAccountSettings(env.DB, session.user.id) })
 }
 
 async function accountSave(request: Request, env: HostEnv, auth: ReturnType<typeof createAuth>): Promise<Response> {
@@ -436,6 +444,35 @@ async function planDocument(
       'content-disposition': `inline; filename="${filename}"`,
       'cache-control': 'no-store',
     },
+  })
+}
+
+function versionSeq(value: string): number {
+  return /^[1-9]\d{0,8}$/.test(value) ? Number(value) : 0
+}
+
+/** One saved version with the owner's page settings, for the read-only version page. */
+export async function hostedPlanVersionPage(request: Request, env: HostEnv, planId: string, seq: string): Promise<Response> {
+  const origin = originFor(request, env)
+  const auth = createAuth(env, origin)
+  const session = await readSession(auth, request, env.DB)
+  if (!session || !(await planOwner(request, env, auth, planId))) return text(401, 'Sign in required')
+  const number = versionSeq(seq)
+  const version = number ? await readPlanVersion(env.DB, planId, number).catch(() => null) : null
+  if (!version) return text(404, 'This version is not saved.')
+  const settings = await readAccountSettings(env.DB, session.user.id)
+  return Response.json({
+    planId,
+    seq: version.seq,
+    title: version.title,
+    source: version.source,
+    createdAt: version.createdAt,
+    email: session.user.email,
+    name: session.user.name || session.user.email,
+    accent: settings.accent,
+    pageWidth: settings.pageWidth,
+    diffsTheme: settings.diffsTheme,
+    wrapCode: settings.wrapCode,
   })
 }
 

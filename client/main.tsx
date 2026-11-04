@@ -9,6 +9,7 @@ import { createIdleExecutionState, mergePlannedExecution } from '../src/executio
 import { subscribePlanEvents } from './planEvents.ts'
 import { sampleLoopExecution } from './sampleLoopExecution.ts'
 import { QueryProvider, sharedQueryClient } from './queryClient.tsx'
+import { viewingPlanVersion } from './versionView.ts'
 import './execution.css'
 
 type FocusWindow = Window & {
@@ -63,6 +64,8 @@ function ExecutionApp() {
   )
 
   useEffect(() => {
+    // A saved version shows the workflow from its own source, not the live run.
+    if (viewingPlanVersion() !== null) return
     const client = sharedQueryClient()
     const key = ['execution', apiPath('')]
     // initialDataUpdatedAt 0 marks the embedded state stale, so this reads the server once.
