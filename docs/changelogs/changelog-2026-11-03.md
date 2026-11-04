@@ -210,7 +210,7 @@ No registry restart needed beyond the usual version check. The shell cache name 
 
 ## 1.14.3
 
-**PR:** not opened yet
+**PR:** #141
 
 **Bump:** patch
 
