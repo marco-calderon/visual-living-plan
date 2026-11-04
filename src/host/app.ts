@@ -28,6 +28,7 @@ export interface HostEnv {
   GOOGLE_CLIENT_SECRET?: string
   GITHUB_CLIENT_ID?: string
   GITHUB_CLIENT_SECRET?: string
+  OAUTH_PROXY_SECRET?: string
 }
 
 const ID = /^[A-Za-z0-9_-]{8,80}$/
