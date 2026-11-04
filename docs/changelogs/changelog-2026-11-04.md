@@ -91,7 +91,7 @@ Scripts that call `living-plan` must switch to `live-plan`. The config folder st
 
 ## 2.0.1
 
-**PR:** pending
+**PR:** #145
 
 **Bump:** patch
 
