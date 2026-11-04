@@ -117,3 +117,31 @@ export const openSample = createServerFn({ method: 'POST' }).handler(async () =>
   const body = (await response.json()) as { plan: { id: string } }
   return { ok: true as const, id: body.plan.id }
 })
+
+export type PlanVersionPage = {
+  planId: string
+  seq: number
+  title: string
+  source: string
+  createdAt: number
+  email: string
+  name: string
+  accent: string
+  pageWidth: 'default' | 'wide' | 'full'
+  diffsTheme: string
+  wrapCode: boolean
+}
+
+/** One saved version of a plan, rendered read-only. */
+export const loadPlanVersion = createServerFn({ method: 'GET' })
+  .validator((input: { planId: string; seq: string }) => input)
+  .handler(async ({ data }) => {
+    const request = getRequest()
+    const [{ hostedPlanVersionPage }, { env }] = await workerAndEnv()
+    const response = await hostedPlanVersionPage(request, env, data.planId, data.seq)
+    if (!response.ok) {
+      return { ok: false as const, status: response.status, message: await response.text() }
+    }
+    const page = (await response.json()) as PlanVersionPage
+    return { ok: true as const, page: { ...page, bootstrap: await workflowBootstrap(page.source) } }
+  })

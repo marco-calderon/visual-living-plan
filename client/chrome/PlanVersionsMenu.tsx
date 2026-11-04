@@ -2,7 +2,10 @@ import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, History } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { formatWhen } from '../../src/dashboardFormat.ts'
+import type { VersionRow } from '../../src/offlineSync.ts'
 import { versionMenuEntries, type VersionMenuEntry } from '../../src/planVersionMenu.ts'
+import { currentOfflineHandle, startOfflineEngine } from '../offline/engine.ts'
+import { rememberPlanVersions } from '../offline/versions.ts'
 import { Button } from '../ui/button.tsx'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLinkItem, DropdownMenuTrigger } from '../ui/dropdown-menu.tsx'
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip.tsx'
@@ -15,9 +18,11 @@ type PlanVersionsMenuProps = {
   prefetch?: boolean
   /** Icon and chevron only. The label is the tooltip and the accessible name. */
   iconOnly?: boolean
+  /** The saved version this page shows. Null or absent on the live plan. */
+  current?: number | null
 }
 
-type VersionRow = VersionMenuEntry & { createdAt?: number }
+type MenuRow = VersionMenuEntry & { createdAt?: number; stored?: boolean }
 
 /** Body of GET /api/plans/:planId/versions. Kept here so the browser bundle does not import server functions. */
 type HistoryPayload = { versions: Array<{ seq: number; title?: string; createdAt?: number }> }
@@ -32,20 +37,53 @@ async function loadHistory(planId: string): Promise<HistoryResult> {
   }).catch(() => null)
   if (!response?.ok) return { ok: false }
   try {
-    return { ok: true, history: (await response.json()) as HistoryPayload }
+    const history = (await response.json()) as HistoryPayload
+    // The device database keeps the list, so the menu still shows it offline.
+    void rememberPlanVersions(planId, history.versions)
+    return { ok: true, history }
   } catch {
     return { ok: false }
   }
 }
 
-function versionRows(planId: string, result: HistoryResult | undefined, liveHref: string | undefined): VersionRow[] {
-  if (!result?.ok) return versionMenuEntries(planId, [], liveHref)
-  const entries = versionMenuEntries(planId, result.history.versions, liveHref)
-  const dated = new Map(result.history.versions.map((version) => [version.seq, version.createdAt]))
-  return entries.map((entry) => ({ ...entry, createdAt: entry.seq == null ? undefined : dated.get(entry.seq) }))
+function versionRows(
+  planId: string,
+  result: HistoryResult | undefined,
+  stored: readonly VersionRow[],
+  liveHref: string | undefined,
+): MenuRow[] {
+  const listed = result?.ok ? result.history.versions : stored
+  const entries = versionMenuEntries(planId, listed, liveHref)
+  const dated = new Map(listed.map((version) => [version.seq, version.createdAt]))
+  const saved = new Set(stored.filter((row) => typeof row.source === 'string').map((row) => row.seq))
+  return entries.map((entry) => ({
+    ...entry,
+    createdAt: entry.seq == null ? undefined : dated.get(entry.seq),
+    stored: entry.seq != null && saved.has(entry.seq),
+  }))
 }
 
-export function PlanVersionsMenu({ planId, label, triggerClassName, liveHref, prefetch = false, iconOnly = false }: PlanVersionsMenuProps) {
+/** Versions of one plan in the device database. Empty where the browser has no database. */
+function useStoredVersions(planId: string): VersionRow[] {
+  const [rows, setRows] = useState<VersionRow[]>(() => currentOfflineHandle()?.versions(planId) ?? [])
+  useEffect(() => {
+    let stop = () => {}
+    let cancelled = false
+    void startOfflineEngine().then((engine) => {
+      if (cancelled || !engine?.available) return
+      const read = () => setRows(engine.versions(planId))
+      read()
+      stop = engine.subscribe(read)
+    })
+    return () => {
+      cancelled = true
+      stop()
+    }
+  }, [planId])
+  return rows
+}
+
+export function PlanVersionsMenu({ planId, label, triggerClassName, liveHref, prefetch = false, iconOnly = false, current = null }: PlanVersionsMenuProps) {
   const [open, setOpen] = useState(false)
   const [offline, setOffline] = useState(() => (typeof navigator === 'undefined' ? false : navigator.onLine === false))
 
@@ -72,7 +110,8 @@ export function PlanVersionsMenu({ planId, label, triggerClassName, liveHref, pr
     staleTime: 30_000,
   })
 
-  const entries: VersionRow[] = versionRows(planId, history.data, liveHref)
+  const stored = useStoredVersions(planId)
+  const entries: MenuRow[] = versionRows(planId, history.data, stored, liveHref)
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -90,7 +129,9 @@ export function PlanVersionsMenu({ planId, label, triggerClassName, liveHref, pr
       <DropdownMenuContent>
         {entries.map((entry) => {
           const when = entry.kind === 'version' ? formatWhen(entry.createdAt) : ''
-          if (entry.kind === 'version' && offline) {
+          const isCurrent = entry.kind === 'live' ? current == null && label === 'Live' : entry.seq === current
+          // Offline, a version opens only when this device saved it.
+          if (entry.kind === 'version' && offline && !entry.stored) {
             return (
               <DropdownMenuItem key={`${entry.kind}-${entry.seq}-${entry.href}`} disabled title="Needs a connection">
                 <span>{entry.label}</span>
@@ -102,7 +143,7 @@ export function PlanVersionsMenu({ planId, label, triggerClassName, liveHref, pr
             <DropdownMenuLinkItem
               key={`${entry.kind}-${entry.seq ?? 'live'}`}
               href={entry.href}
-              aria-current={entry.kind === 'live' && label === 'Live' ? 'page' : undefined}
+              aria-current={isCurrent ? 'page' : undefined}
             >
               <span>{entry.label}</span>
               {when ? <span className="plan-menu-meta">{when}</span> : null}

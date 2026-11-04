@@ -34,7 +34,10 @@ import {
   plansToEvict,
   plansToWarm,
   settingsWinner,
+  versionRowId,
+  versionRowsFromList,
   type PlanRow,
+  type VersionRow,
 } from '../src/offlineSync.ts'
 import { openPlanSession } from '../src/planSession.ts'
 
@@ -376,4 +379,28 @@ test('a newer device settings row replaces the stored account settings', () => {
   assert.equal(next.user, account.user)
   assert.equal(accountWithSettings(account, { ...row, updatedAt: 5 }), account)
   assert.equal(accountWithSettings(account, undefined), account)
+})
+
+test('a version list keeps saved sources and drops versions the host no longer lists', () => {
+  const stored: VersionRow[] = [
+    { id: 'plan1234:1', planId: 'plan1234', seq: 1, title: 'Old', createdAt: 1 },
+    { id: 'plan1234:2', planId: 'plan1234', seq: 2, title: 'Two', createdAt: 2, source: '# Two\n' },
+    { id: 'other999:1', planId: 'other999', seq: 1, title: 'Other', createdAt: 1 },
+  ]
+  const change = versionRowsFromList(
+    'plan1234',
+    [
+      { seq: 3, title: 'Three', createdAt: 3 },
+      { seq: 2, title: 'Two', createdAt: 2 },
+      { seq: 3, title: 'Duplicate', createdAt: 3 },
+      { seq: 0, title: 'Bad' },
+    ],
+    stored,
+  )
+  assert.deepEqual(change.put, [
+    { id: 'plan1234:3', planId: 'plan1234', seq: 3, title: 'Three', createdAt: 3 },
+    { id: 'plan1234:2', planId: 'plan1234', seq: 2, title: 'Two', createdAt: 2, source: '# Two\n' },
+  ])
+  assert.deepEqual(change.drop, ['plan1234:1'])
+  assert.equal(versionRowId('plan1234', 4), 'plan1234:4')
 })

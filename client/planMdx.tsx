@@ -22,6 +22,7 @@ import './entries/primitives.css'
 import { subscribePlanEvents } from './planEvents.ts'
 import { currentOfflineHandle, planContext, startOfflineEngine } from './offline/engine.ts'
 import { stampPlanParts } from './stampPlanParts.ts'
+import { viewingPlanVersion } from './versionView.ts'
 import { sendPlanMutation, sharedQueryClient } from './queryClient.tsx'
 
 type PlanWindow = Window & {
@@ -254,6 +255,8 @@ function PlanMdxApp() {
   tocCursor.current.ids = headingIds
 
   useLayoutEffect(() => {
+    // A saved version shows the source it was rendered with. The device copy and the stream are the live plan.
+    if (viewingPlanVersion() !== null) return
     let stopStore = () => {}
     const context = planContext()
     const paintFrom = (engine: NonNullable<ReturnType<typeof currentOfflineHandle>>) => {

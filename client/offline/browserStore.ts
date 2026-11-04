@@ -22,9 +22,13 @@ import {
   type PlanSnapshot,
   type SettingsRow,
   type UserMutationKind,
+  type VersionRow,
+  versionRowId,
+  versionRowsFromList,
 } from '../../src/offlineSync.ts'
 import { paintOfflineStatus, planContext, type OfflineHandle } from './engine.ts'
 import { forgetCachedDocuments } from './forgetDocuments.ts'
+import { viewingPlanVersion } from '../versionView.ts'
 
 type SyncWrite = {
   begin: (options?: { snapshot?: boolean }) => void
@@ -76,7 +80,8 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
     settings: RowWriter<SettingsRow>
     account: RowWriter<AccountRow>
     dashboards: RowWriter<DashboardStoreRow>
-  } = { plans: null, comments: null, catalog: null, settings: null, account: null, dashboards: null }
+    versions: RowWriter<VersionRow>
+  } = { plans: null, comments: null, catalog: null, settings: null, account: null, dashboards: null, versions: null }
 
   /**
    * `full` makes a put replace the whole row. `partial` merges it into the stored row when it is
@@ -120,9 +125,10 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
   const settings = createCollection(persistedCollectionOptions<SettingsRow, string>(syncOptions<SettingsRow>('settings', (apply) => { writers.settings = apply })))
   const account = createCollection(persistedCollectionOptions<AccountRow, string>(syncOptions<AccountRow>('account', (apply) => { writers.account = apply })))
   const dashboards = createCollection(persistedCollectionOptions<DashboardStoreRow, string>(syncOptions<DashboardStoreRow>('dashboards', (apply) => { writers.dashboards = apply })))
+  const versions = createCollection(persistedCollectionOptions<VersionRow, string>(syncOptions<VersionRow>('versions', (apply) => { writers.versions = apply })))
 
   const executor: OfflineExecutor = startOfflineExecutor({
-    collections: { plans, comments, catalog, settings, account, dashboards },
+    collections: { plans, comments, catalog, settings, account, dashboards, versions },
     mutationFns: {
       submit: async ({ transaction, idempotencyKey }) => {
         const meta = transaction.metadata as QueuedMutation
@@ -181,6 +187,8 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
 
   async function refreshPlan(): Promise<void> {
     if (!document.getElementById('living-plan-mdx') && !document.getElementById('plan-mdx-root')) return
+    // A version page embeds an old source. It is stored as a version, never as the live plan row.
+    if (viewingPlanVersion() !== null) return
     const context = planContext()
     try {
       const response = await fetch(`${context.basePath}/api/snapshot`, { cache: 'no-store' })
@@ -220,6 +228,7 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
   }
 
   function seedFromDocument(): void {
+    if (viewingPlanVersion() !== null) return
     const context = planContext()
     if (plans.get(context.id)) return
     const node = document.getElementById('living-plan-mdx')
@@ -371,6 +380,10 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
       // warmedAt is left out so this merge keeps the time markWarmed wrote, even one still being saved.
       writers.catalog?.({ put: rows.map(({ warmedAt: _warmedAt, ...row }) => row as CatalogRow), drop: released })
       const drop = new Set(plansToEvict([...plans.toArray], openPlanId(), 4, rows.map((row) => row.id), released))
+      // Versions are kept for owned plans only.
+      const releasedSet = new Set(released)
+      const staleVersions = [...versions.toArray].filter((row) => releasedSet.has(row.planId)).map((row) => row.id)
+      if (staleVersions.length > 0) writers.versions?.({ drop: staleVersions })
       if (drop.size > 0) {
         writers.plans?.({ drop: [...drop] })
         writers.comments?.({ drop: [...comments.toArray].filter((row) => drop.has(row.planId)).map((row) => row.id) })
@@ -390,6 +403,17 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
     },
     storePlanSnapshot: (id, basePath, snapshot) => {
       publishSnapshot({ id, host: basePath.startsWith('/plans/') ? 'cloud' : 'local', basePath }, snapshot)
+    },
+    versions: (planId) =>
+      [...versions.toArray].filter((row) => row.planId === planId).sort((left, right) => right.seq - left.seq),
+    rememberVersions: (planId, listed) => {
+      const change = versionRowsFromList(planId, listed, [...versions.toArray])
+      writers.versions?.(change)
+      notify()
+    },
+    rememberVersion: (row) => {
+      writers.versions?.({ put: [{ ...row, id: versionRowId(row.planId, row.seq) }] })
+      notify()
     },
     markWarmed: (id, versionKey, warmedAt) => {
       // Catalog puts merge, so this changes only these two fields of a row that is still listed.
@@ -414,6 +438,7 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
       writers.settings?.({ replace: [] })
       writers.account?.({ replace: [] })
       writers.dashboards?.({ replace: [] })
+      writers.versions?.({ replace: [] })
       forgetCachedDocuments()
       notify()
       return true
@@ -482,7 +507,7 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
     }
   }
 
-  await Promise.all([plans.preload(), comments.preload(), catalog.preload(), settings.preload(), account.preload(), dashboards.preload()].map((job) => job.catch(() => undefined)))
+  await Promise.all([plans.preload(), comments.preload(), catalog.preload(), settings.preload(), account.preload(), dashboards.preload(), versions.preload()].map((job) => job.catch(() => undefined)))
   handle.hydrated = true
   seedFromDocument()
   void refreshPlan()
@@ -509,6 +534,7 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
     if (navigator.onLine && document.visibilityState !== 'hidden') void loadCatalog()
   }, 60_000)
   comments.subscribeChanges(() => notify())
+  versions.subscribeChanges(() => notify())
   plans.subscribeChanges(() => notify())
   notify()
   return handle

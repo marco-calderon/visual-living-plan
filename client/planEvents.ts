@@ -1,3 +1,5 @@
+import { viewingPlanVersion } from './versionView.ts'
+
 type PlanEventsWindow = Window & {
   __LIVE_PLAN_BASE__?: string
   __LIVE_PLAN_TRANSPORT__?: 'sse' | 'websocket'
@@ -136,6 +138,8 @@ export function subscribePlanEvents(
   type: string,
   listener: (event: MessageEvent) => void,
 ): () => void {
+  // A saved version never changes, so it opens no live stream.
+  if (viewingPlanVersion() !== null) return () => {}
   const source = ensurePlanEvents()
   source.addEventListener(type, listener as EventListener)
   return () => {

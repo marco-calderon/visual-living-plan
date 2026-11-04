@@ -18,6 +18,8 @@ test('TanStack Start renders every page', () => {
   assert.equal(tanstackPage('/settings', 'GET'), 'app')
   assert.equal(tanstackPage('/plans/rate-limit-sample/history', 'GET'), 'app')
   assert.equal(tanstackPage('/plans/rate-limit-sample/history/', 'HEAD'), 'app')
+  assert.equal(tanstackPage('/plans/rate-limit-sample/versions/3', 'GET'), 'app')
+  assert.equal(tanstackPage('/plans/rate-limit-sample/versions/3/', 'GET'), 'app')
 })
 
 test('the Worker keeps the session, downloads, and plan writes', () => {
@@ -28,7 +30,8 @@ test('the Worker keeps the session, downloads, and plan writes', () => {
   assert.equal(tanstackPage('/api/account', 'GET'), null)
   assert.equal(tanstackPage('/plans/rate-limit-sample/view/abc', 'GET'), null)
   assert.equal(tanstackPage('/plans/rate-limit-sample/document', 'GET'), null)
-  assert.equal(tanstackPage('/plans/rate-limit-sample/versions/1', 'GET'), null)
+  assert.equal(tanstackPage('/plans/rate-limit-sample/versions/1/document', 'GET'), null)
+  assert.equal(tanstackPage('/plans/rate-limit-sample/versions/abc', 'GET'), null)
   assert.equal(tanstackPage('/plans/rate-limit-sample/', 'POST'), null)
   assert.equal(tanstackPage('/dashboard', 'POST'), null)
 })
