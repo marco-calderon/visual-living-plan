@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { pwaIconName } from './pwaIcons.ts'
+import { pwaIconName } from './pwaIcons'
 
 /**
  * Disk reads for the local plan service. The hosted Worker serves the same
