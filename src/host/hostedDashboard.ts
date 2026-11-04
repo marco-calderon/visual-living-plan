@@ -1,5 +1,5 @@
 import { buildDashboard, type DashboardPayload, type DashboardPeriod } from '../../src/dashboard'
-import { emptyGitSnapshot, isPlanMode, type PlanRecord } from '../../src/processRecord'
+import { emptyGitSnapshot, isPlanMode, readProgress, type PlanRecord, type ProgressFields } from '../../src/processRecord'
 
 export type HostedPlanRow = {
   id: string
@@ -10,6 +10,42 @@ export type HostedPlanRow = {
   version_seq: number | null
   version_title: string | null
   version_at: number | null
+  /** `plans.meta` JSON. Progress is saved there after each write to the plan. */
+  meta?: string | null
+}
+
+const PROGRESS_KEYS = ['phaseTotal', 'phaseDone', 'interactionTotal', 'interactionDone', 'completionRatio', 'completionState'] as const
+
+export const NO_PROGRESS: ProgressFields = {
+  phaseTotal: 0,
+  phaseDone: 0,
+  interactionTotal: 0,
+  interactionDone: 0,
+  completionRatio: 0,
+  completionState: 'idle',
+}
+
+/** Progress saved on a plan row, or null when none was saved yet. */
+export function hostedProgress(meta: string | null | undefined): ProgressFields | null {
+  if (!meta) return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(meta)
+  } catch {
+    return null
+  }
+  const progress = readProgress(parsed)
+  if (!progress.completionState) return null
+  return { ...NO_PROGRESS, ...progress }
+}
+
+/** Save progress into `plans.meta` beside the other keys, the same fields the local store keeps. */
+export async function saveHostedProgress(db: D1Database, planId: string, progress: ProgressFields): Promise<void> {
+  const paths = PROGRESS_KEYS.map((key) => `'$.${key}', ?`).join(', ')
+  await db
+    .prepare(`UPDATE plans SET meta = json_set(COALESCE(meta, '{}'), ${paths}) WHERE id = ?`)
+    .bind(...PROGRESS_KEYS.map((key) => progress[key]), planId)
+    .run()
 }
 
 export type HostedDashboardPlan = PlanRecord & {
@@ -52,12 +88,7 @@ export function hostedDashboard(
       storedPath: version == null ? null : `version ${version}`,
       endedAt,
       durationMs: Math.max(0, (endedAt ?? now) - startedAt),
-      phaseTotal: 0,
-      phaseDone: 0,
-      interactionTotal: 0,
-      interactionDone: 0,
-      completionRatio: 0,
-      completionState: 'idle',
+      ...(hostedProgress(row.meta) ?? NO_PROGRESS),
       filesModified: 0,
       outcome: null,
     }

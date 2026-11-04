@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { allows, planCapReached } from '../src/host/access.ts'
 import { sessionFromToken } from '../src/host/auth.ts'
 import { mergeAccountSettings, readAccountSettings, saveAccountSettings } from '../src/host/accountSettings.ts'
-import { hostedDashboard } from '../src/host/hostedDashboard.ts'
+import { NO_PROGRESS, hostedDashboard, hostedProgress, saveHostedProgress } from '../src/host/hostedDashboard.ts'
 import { LATEST_PLAN_VERSION_SQL, PLAN_VERSION_LIMIT, ensurePlanVersions, publishPlanVersion, readPlanVersion } from '../src/host/planVersions.ts'
 import type { HostedPlanRow } from '../src/host/hostedDashboard.ts'
 import {
@@ -22,6 +22,7 @@ import {
   putExecution,
   pendingEvents,
   planHosted,
+  planProgress,
   putSource,
   touchPlan,
   StaleRevision,
@@ -349,6 +350,89 @@ test('plan room stores a submission until it is acked', () => {
   const id = String((sent.outbound[0]?.data as { id: string }).id)
   ackEvents(sql, [id])
   assert.equal(pendingEvents(sql).length, 0)
+})
+
+test('plan room measures progress from its source, answers, and live run', async () => {
+  const db = new Database(':memory:')
+  const sql = sqlOf(db)
+  const source = readFileSync(new URL('../examples/rate-limit.plan.md', import.meta.url), 'utf8')
+  initPlan(sql, { token: 'plan-token', title: 'Rate limiting rollout', mode: 'watch', tier: 'free', source })
+  const first = await planProgress(sql)
+  assert.equal(first?.phaseTotal, 3)
+  assert.equal(first?.interactionTotal, 4)
+  assert.equal(first?.completionRatio, 21)
+  assert.equal(first?.completionState, 'in_progress')
+
+  submitInteraction(sql, 'fail-mode', { kind: 'choice', id: 'fail-mode', optionId: 'open', label: 'Open' })
+  putExecution(sql, { active: true, graph: { nodes: [{ id: 'implement', label: 'Implement', status: 'done' }] } })
+  const later = await planProgress(sql)
+  assert.equal(later?.interactionDone, 1)
+  assert.equal(later?.phaseDone, 2)
+  // Phases 1 + 1 + 0, one answer: 3 of 7.
+  assert.equal(later?.completionRatio, 43)
+
+  // Old tag syntax does not parse.
+  putSource(sql, { markdown: '{% phase id="x" %}', revision: planView(sql).revision })
+  assert.equal(await planProgress(sql), null)
+})
+
+test('the hosted dashboard shows the progress saved on the plan row', async () => {
+  const db = new Database(':memory:')
+  db.exec(`CREATE TABLE plans (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    token TEXT,
+    title TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    status TEXT NOT NULL,
+    plan_path TEXT,
+    started_at INTEGER NOT NULL,
+    ended_at INTEGER,
+    heartbeat_at INTEGER NOT NULL,
+    meta TEXT NOT NULL
+  )`)
+  const now = Date.UTC(2026, 10, 4, 18, 0, 0)
+  db.query(
+    `INSERT INTO plans (id, user_id, token, title, mode, status, plan_path, started_at, ended_at, heartbeat_at, meta)
+     VALUES (?, ?, ?, ?, ?, 'running', NULL, ?, NULL, ?, ?)`,
+  ).run('rate-limit-rollout', 'user-1', 'token', 'Rate limiting rollout', 'watch', now, now, JSON.stringify({ tier: 'pro' }))
+  const store = d1Of(db)
+  await ensurePlanVersions(store)
+
+  const before = await store.prepare(LATEST_PLAN_VERSION_SQL).bind('user-1').all<HostedPlanRow>()
+  assert.equal(hostedProgress(before.results?.[0]?.meta), null)
+  assert.equal(hostedDashboard(before.results ?? [], 'day', 'https://plan.example', now).plans[0]?.completionRatio, 0)
+
+  await saveHostedProgress(store, 'rate-limit-rollout', {
+    phaseTotal: 3,
+    phaseDone: 1,
+    interactionTotal: 4,
+    interactionDone: 1,
+    completionRatio: 36,
+    completionState: 'in_progress',
+  })
+  const after = await store.prepare(LATEST_PLAN_VERSION_SQL).bind('user-1').all<HostedPlanRow>()
+  const meta = JSON.parse(String(after.results?.[0]?.meta)) as Record<string, unknown>
+  // Progress sits beside the keys already on the row.
+  assert.equal(meta.tier, 'pro')
+  const row = hostedDashboard(after.results ?? [], 'day', 'https://plan.example', now).plans[0]
+  assert.equal(row?.completionRatio, 36)
+  assert.equal(row?.completionState, 'in_progress')
+  assert.equal(row?.phaseDone, 1)
+  assert.equal(row?.interactionTotal, 4)
+
+  // Saved "no progress" counts as measured, so the dashboard does not measure it again.
+  await saveHostedProgress(store, 'rate-limit-rollout', NO_PROGRESS)
+  const zero = await store.prepare(LATEST_PLAN_VERSION_SQL).bind('user-1').all<HostedPlanRow>()
+  assert.deepEqual(hostedProgress(zero.results?.[0]?.meta), NO_PROGRESS)
+  // A row with bad values is clamped or ignored.
+  assert.deepEqual(hostedProgress(JSON.stringify({ completionState: 'complete', completionRatio: 400, phaseDone: -2 })), {
+    ...NO_PROGRESS,
+    completionState: 'complete',
+    completionRatio: 100,
+    phaseDone: 0,
+  })
+  assert.equal(hostedProgress(JSON.stringify({ completionState: 'nope', completionRatio: 10 })), null)
 })
 
 test('serving an existing plan opens it again', () => {

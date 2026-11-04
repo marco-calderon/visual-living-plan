@@ -20,7 +20,7 @@ import { registryDatabasePath, registryPlansDir, registryStartingPath, writeRegi
 import { renderRegistryPage } from './registryPage'
 import { openRegistryStore, type RegistryStore, type RunWindow } from './registryStore'
 import type { GitSnapshot, PlanRecord, ProcessRecord, ReviewOutcome } from './processRecord'
-import { emptyGitSnapshot, finishedPlan, runningPlan } from './processRecord'
+import { emptyGitSnapshot, finishedPlan, readProgress, runningPlan, type ProgressFields } from './processRecord'
 
 export type RegistryServer = {
   url: string
@@ -93,7 +93,7 @@ function parseGit(value: unknown): GitSnapshot {
   return snapshot
 }
 
-function parseRegistration(body: unknown, now: number): ProcessRecord | { error: string } {
+function parseRegistration(body: unknown, now: number): (ProcessRecord & Partial<ProgressFields>) | { error: string } {
   if (!body || typeof body !== 'object') return { error: 'Expected a JSON object' }
   const raw = body as Record<string, unknown>
   const id = typeof raw.id === 'string' ? raw.id.trim() : ''
@@ -133,6 +133,7 @@ function parseRegistration(body: unknown, now: number): ProcessRecord | { error:
     executionActive: Boolean(raw.executionActive),
     executionStep: clip(raw.executionStep, 200),
     git: parseGit(raw.git),
+    ...readProgress(raw),
   }
 }
 
@@ -144,10 +145,10 @@ function parsePulse(body: unknown): {
   executionActive?: boolean
   executionStep?: string | null
   git?: GitSnapshot
-} {
+} & Partial<ProgressFields> {
   if (!body || typeof body !== 'object') return {}
   const raw = body as Record<string, unknown>
-  const pulse: ReturnType<typeof parsePulse> = {}
+  const pulse: ReturnType<typeof parsePulse> = { ...readProgress(raw) }
   const title = clip(raw.title, 200)
   if (title) pulse.title = title
   if ('summary' in raw) pulse.summary = clip(raw.summary, 500)
