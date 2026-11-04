@@ -271,7 +271,8 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
     const context = planContext()
     const onPlan = Boolean(document.getElementById('living-plan-mdx') || document.getElementById('plan-mdx-root'))
     try {
-      if (onPlan) {
+      // A hosted plan takes its appearance from the account (`/api/account/settings`). Only the local service has a per-plan theme.
+      if (onPlan && context.host !== 'cloud') {
         const response = await fetch(`${context.basePath}/api/theme`, { cache: 'no-store' })
         if (!response.ok) return
         const theme = (await response.json()) as Partial<SettingsRow>
@@ -284,7 +285,7 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
           updatedAt: typeof theme.updatedAt === 'number' ? theme.updatedAt : 0,
         }
         writers.settings?.({ put: [settingsWinner(settings.get(row.id) ?? row, row)] })
-      } else if (location.pathname.startsWith('/settings') || location.pathname.startsWith('/account')) {
+      } else if (!onPlan && (location.pathname.startsWith('/settings') || location.pathname.startsWith('/account'))) {
         const response = await fetch('/api/account', { cache: 'no-store' })
         if (!response.ok) return
         const payload = (await response.json()) as { settings?: Partial<SettingsRow> }

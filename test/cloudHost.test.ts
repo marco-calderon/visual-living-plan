@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -14,7 +15,9 @@ import { LATEST_PLAN_VERSION_SQL, PLAN_VERSION_LIMIT, ensurePlanVersions, publis
 import type { HostedPlanRow } from '../src/host/hostedDashboard.ts'
 import {
   ackEvents,
+  executionView,
   initPlan,
+  putExecution,
   pendingEvents,
   planHosted,
   putSource,
@@ -476,4 +479,19 @@ test('serve --cloud rejects --no-registry', async () => {
   assert.equal(code, 1)
   assert.equal(await readRegistryLock(home), null)
   await rm(home, { recursive: true, force: true })
+})
+
+test('plan room execution read includes the expected workflow and the run state', async () => {
+  const db = new Database(':memory:')
+  const sql = sqlOf(db)
+  const source = readFileSync(fileURLToPath(new URL('../examples/rate-limit.plan.md', import.meta.url)), 'utf8')
+  initPlan(sql, { token: 'plan-token', title: 'Demo', mode: 'watch', tier: 'free', source })
+  const idle = await executionView(sql)
+  assert.equal(idle.active, false)
+  assert.ok(idle.planned && idle.planned.nodes.length > 0)
+  putExecution(sql, { active: true, step: 'Build' })
+  const running = await executionView(sql)
+  assert.equal(running.active, true)
+  assert.equal(running.step, 'Build')
+  assert.ok(running.planned)
 })

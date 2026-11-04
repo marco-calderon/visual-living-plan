@@ -1,3 +1,4 @@
+import type { ExecutionState } from '../execution'
 import {
   inspectMutation,
   readBaseRevision,
@@ -333,6 +334,20 @@ export function putExecution(sql: PlanSql, body: unknown): { outbound: Outbound[
   if (Boolean(previous.active) !== Boolean(next.active)) bumpRevision(sql)
   touchPlan(sql)
   return { outbound: [{ event: 'execution', data: body }], body: { ok: true, execution: body } }
+}
+
+/** Execution state for the Workflow tab, with the expected workflow from the current source, as the local session returns it. */
+export async function executionView(sql: PlanSql): Promise<ExecutionState> {
+  const view = planView(sql)
+  const execution = { active: false, ...(view.execution as Partial<ExecutionState> | null) } as ExecutionState
+  try {
+    // Loaded on first use. A top-level import of the parser stops the Worker from starting.
+    const [{ parsePlan }, { withPlannedWorkflow }] = await Promise.all([import('../parse'), import('../workflow')])
+    return withPlannedWorkflow(execution, parsePlan(view.source))
+  } catch {
+    // A source that does not parse still has a run state to show.
+    return execution
+  }
 }
 
 export function planSnapshot(sql: PlanSql): PlanSnapshot {

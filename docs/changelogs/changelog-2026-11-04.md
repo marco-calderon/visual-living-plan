@@ -13,6 +13,9 @@ Picking an older version from the versions menu, on the plan page or on the dash
 ### Bugs fixed
 
 - `/plans/<id>/versions/<n>` showed the raw `.plan.md` text. It now renders the saved version with the same plan renderer as the live plan. It is read-only: forms are locked, comments are off, and it does not follow the live plan.
+- A hosted plan page no longer gets a 500 from `/api/execution`. The hosted plan now answers that read with the run state and the expected workflow, as the local service does, so the Workflow tab is current when the page opens.
+- A hosted plan page no longer calls `/api/theme`, which only the local service has. Hosted appearance comes from the account settings.
+- A route the hosted plan does not serve returns 404 instead of 500.
 
 ### Improvements
 
