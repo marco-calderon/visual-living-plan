@@ -16,7 +16,7 @@ const VARIANT_CLASS: Record<ButtonVariant, string | undefined> = {
   ghost: 'plan-btn-ghost',
 }
 
-/** 36px pill. Primary is the near-black MiniMax control; quiet pills keep an ink border. */
+/** 36px pill. Primary is the near-black MiniMax control; outline pills use a gray hairline-strong border. */
 export function Button({ variant = 'tertiary', className, ...props }: ButtonProps) {
   const classes = ['plan-btn', VARIANT_CLASS[variant], className].filter(Boolean).join(' ')
   return <ButtonPrimitive data-slot="button" className={classes} {...props} />
