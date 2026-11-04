@@ -37,7 +37,10 @@
   --accent-2: var(--brand-coral);
   --danger: #ef4d3e;
   --ok: #0a7a38;
-  --on-accent: var(--on-primary);
+  --on-accent: #1b2b37;
+  --accent-fill: #0094fc;
+  --accent-fill-hover: #1fa1fc;
+  --accent-fill-active: #3daefd;
   --shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
   --shadow-modal: 0 12px 16px -4px rgba(36, 36, 36, 0.08);
   --radius: 16px;
@@ -110,7 +113,10 @@
   --accent-2: #fdba74;
   --danger: #ffc9bd;
   --ok: #6edb8f;
-  --on-accent: #171717;
+  --on-accent: #1b2b37;
+  --accent-fill: #0094fc;
+  --accent-fill-hover: #1fa1fc;
+  --accent-fill-active: #3daefd;
   --shadow: 0 4px 6px rgba(0, 0, 0, 0.28);
   --shadow-modal: 0 12px 16px -4px rgba(0, 0, 0, 0.45);
   --focus: #0094fc;

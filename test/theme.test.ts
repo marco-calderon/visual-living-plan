@@ -4,8 +4,11 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
+  ACCENT_PRESETS,
   accentCssCustomProperties,
+  contrastRatio,
   DEFAULT_ACCENT,
+  deriveAccentVars,
   DEFAULT_DIFFS_THEME,
   diffsThemePair,
   normalizeDiffsTheme,
@@ -166,4 +169,29 @@ test('saveThemeConfig persists wrapCode and drops a top-level twin', async () =>
   assert.equal(onDisk.wrapCode, undefined)
   assert.equal(onDisk.theme.wrapCode, true)
   assert.equal(onDisk.theme.note, 'keep')
+})
+
+test('accent buttons keep a readable label at rest, hover and active in both modes', () => {
+  const rgb = (hex: string) => ({
+    r: Number.parseInt(hex.slice(1, 3), 16),
+    g: Number.parseInt(hex.slice(3, 5), 16),
+    b: Number.parseInt(hex.slice(5, 7), 16),
+  })
+  const accents = ['#0094fc', '#facc15', '#ffffff', '#000000', ...ACCENT_PRESETS.map((preset) => preset.accent)]
+  for (const accent of accents) {
+    for (const mode of ['light', 'dark'] as const) {
+      const vars = deriveAccentVars(accent, mode)
+      for (const fill of [vars.accentFill, vars.accentFillHover, vars.accentFillActive]) {
+        const ratio = contrastRatio(rgb(fill), rgb(vars.onAccent))
+        assert.ok(ratio >= 4.5, `${accent} ${mode}: ${vars.onAccent} on ${fill} is ${ratio.toFixed(2)}:1`)
+      }
+      assert.notEqual(vars.accentFillHover, vars.accentFill, `${accent} ${mode}: hover must differ`)
+    }
+  }
+  const css = accentCssCustomProperties(DEFAULT_ACCENT)
+  for (const mode of ['light', 'dark'] as const) {
+    for (const name of ['--accent-fill', '--accent-fill-hover', '--accent-fill-active']) {
+      assert.match(cssColor(css, mode, name), /^#[0-9a-f]{6}$/)
+    }
+  }
 })
