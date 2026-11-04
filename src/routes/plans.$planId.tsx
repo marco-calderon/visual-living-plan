@@ -46,6 +46,7 @@ function CloudPlanPage() {
       diffsTheme={page.diffsTheme}
       wrapCode={page.wrapCode}
       accountLabel={page.owner ? page.name || page.email : undefined}
+      owner={page.owner}
       basePath={`/plans/${planId}`}
       transport="websocket"
       bootstrap={page.bootstrap}

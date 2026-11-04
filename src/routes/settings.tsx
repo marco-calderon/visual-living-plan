@@ -1,4 +1,5 @@
 import { createFileRoute, isRedirect, redirect } from '@tanstack/react-router'
+import { applyAppearance } from '../appearanceDom.ts'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
 import { useEffect, useLayoutEffect, useState, type CSSProperties } from 'react'
@@ -188,12 +189,7 @@ function SettingsPage() {
   useLayoutEffect(() => {
     const root = document.documentElement
     root.dataset.planHost = 'cloud'
-    root.dataset.accent = settings.accent
-    root.dataset.layout = settings.pageWidth
-    root.dataset.diffsTheme = settings.diffsTheme
-    root.dataset.wrapCode = settings.wrapCode ? 'true' : 'false'
-    document.body.classList.remove('layout-default', 'layout-wide', 'layout-full')
-    document.body.classList.add(`layout-${settings.pageWidth}`)
+    applyAppearance(settings)
     ;(window as Window & { __LIVE_PLAN_THEME_URL__?: string }).__LIVE_PLAN_THEME_URL__ = THEME_URL
   }, [settings.accent, settings.diffsTheme, settings.pageWidth, settings.wrapCode])
 
