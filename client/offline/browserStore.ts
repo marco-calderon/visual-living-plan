@@ -513,9 +513,6 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
   void refreshPlan()
   void loadCatalog()
   void flushSettings().then(() => loadSettings())
-  if (account.get('me') && !location.pathname.startsWith('/settings')) {
-    void import('./warmPlans.ts').then(({ warmSettingsPage }) => warmSettingsPage(handle))
-  }
   window.addEventListener('offline', () => {
     reachable = false
     notify()

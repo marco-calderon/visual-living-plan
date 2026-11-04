@@ -19,6 +19,8 @@ export const Route = createFileRoute('/plans_/$planId/versions/$seq')({
     }
     return result.page
   },
+  // Opening settings only changes the search. Keep the loaded page.
+  shouldReload: ({ cause }) => cause !== 'stay',
   component: PlanVersionPage,
 })
 
