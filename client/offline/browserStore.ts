@@ -13,6 +13,7 @@ import {
   planRowFromSnapshot,
   plansToEvict,
   settingsWinner,
+  settingsRowFrom,
   accountWithSettings,
   type AccountRow,
   type CatalogRow,
@@ -29,6 +30,7 @@ import {
 import { paintOfflineStatus, planContext, type OfflineHandle } from './engine.ts'
 import { forgetCachedDocuments } from './forgetDocuments.ts'
 import { viewingPlanVersion } from '../versionView.ts'
+import { applyAppearance } from '../../src/appearanceDom.ts'
 
 type SyncWrite = {
   begin: (options?: { snapshot?: boolean }) => void
@@ -271,19 +273,24 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
     const context = planContext()
     const onPlan = Boolean(document.getElementById('living-plan-mdx') || document.getElementById('plan-mdx-root'))
     try {
-      // A hosted plan takes its appearance from the account (`/api/account/settings`). Only the local service has a per-plan theme.
-      if (onPlan && context.host !== 'cloud') {
+      if (onPlan && context.host === 'cloud') {
+        // A hosted plan uses the owner's account appearance. A viewer of someone else's plan keeps the look the page was rendered with.
+        if (document.body.dataset.planOwner !== 'true') return
+        const response = await fetch('/api/account/settings', { cache: 'no-store', credentials: 'include' })
+        if (!response.ok) return
+        const payload = (await response.json()) as { settings?: Partial<SettingsRow> }
+        const row = settingsRowFrom('account', payload.settings)
+        const winner = settingsWinner(settings.get(row.id) ?? row, row)
+        writeSettings(winner)
+        patchStoredAccount(winner)
+        // A page served from the device cache can be older than the account settings.
+        applyAppearance(winner, { notify: true })
+      } else if (onPlan) {
+        // The local service keeps a theme per plan.
         const response = await fetch(`${context.basePath}/api/theme`, { cache: 'no-store' })
         if (!response.ok) return
         const theme = (await response.json()) as Partial<SettingsRow>
-        const row: SettingsRow = {
-          id: `local:${context.id}`,
-          accent: theme.accent ?? '#0f766e',
-          pageWidth: theme.pageWidth ?? 'default',
-          diffsTheme: theme.diffsTheme ?? 'pierre',
-          wrapCode: Boolean(theme.wrapCode),
-          updatedAt: typeof theme.updatedAt === 'number' ? theme.updatedAt : 0,
-        }
+        const row = settingsRowFrom(`local:${context.id}`, theme)
         writers.settings?.({ put: [settingsWinner(settings.get(row.id) ?? row, row)] })
       } else if (!onPlan && (location.pathname.startsWith('/settings') || location.pathname.startsWith('/account'))) {
         const response = await fetch('/api/account', { cache: 'no-store' })
@@ -291,15 +298,7 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
         const payload = (await response.json()) as { settings?: Partial<SettingsRow> }
         const local = settings.get('account')
         handle.rememberAccount(accountWithSettings(payload, local?.pending ? local : undefined))
-        const theme = payload.settings ?? {}
-        const row: SettingsRow = {
-          id: 'account',
-          accent: theme.accent ?? '#0f766e',
-          pageWidth: theme.pageWidth ?? 'default',
-          diffsTheme: theme.diffsTheme ?? 'pierre',
-          wrapCode: Boolean(theme.wrapCode),
-          updatedAt: typeof theme.updatedAt === 'number' ? theme.updatedAt : 0,
-        }
+        const row = settingsRowFrom('account', payload.settings)
         writers.settings?.({ put: [settingsWinner(settings.get(row.id) ?? row, row)] })
       }
       reachable = true

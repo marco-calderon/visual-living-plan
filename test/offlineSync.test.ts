@@ -33,6 +33,7 @@ import {
   planRowFromSnapshot,
   plansToEvict,
   plansToWarm,
+  settingsRowFrom,
   settingsWinner,
   versionRowId,
   versionRowsFromList,
@@ -403,4 +404,23 @@ test('a version list keeps saved sources and drops versions the host no longer l
   ])
   assert.deepEqual(change.drop, ['plan1234:1'])
   assert.equal(versionRowId('plan1234', 4), 'plan1234:4')
+})
+
+test('a settings row from a host payload fills the host defaults', () => {
+  assert.deepEqual(settingsRowFrom('account', { accent: '#123456', pageWidth: 'wide', wrapCode: true, updatedAt: 5 }), {
+    id: 'account',
+    accent: '#123456',
+    pageWidth: 'wide',
+    diffsTheme: 'pierre',
+    wrapCode: true,
+    updatedAt: 5,
+  })
+  assert.deepEqual(settingsRowFrom('local:abc', undefined), {
+    id: 'local:abc',
+    accent: '#0f766e',
+    pageWidth: 'default',
+    diffsTheme: 'pierre',
+    wrapCode: false,
+    updatedAt: 0,
+  })
 })

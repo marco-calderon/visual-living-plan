@@ -53,6 +53,7 @@ export function createHostApp(env: HostEnv, options: { auth?: (request: Request)
     })
     .get('/api/health', () => ({ ok: true }))
     .get('/api/account', ({ request }) => accountRead(request, env, authFor(request)))
+    .get('/api/account/settings', ({ request }) => accountSettingsRead(request, env, authFor(request)))
     .put('/api/account/settings', ({ request }) => accountSave(request, env, authFor(request)))
     .get('/api/account/dashboard', ({ request }) =>
       accountDashboardApi(request, env, authFor(request), originFor(request, env)),
@@ -178,6 +179,13 @@ async function accountRead(request: Request, env: HostEnv, auth: ReturnType<type
     accounts: await listLinkedAccounts(env.DB, session.user.id),
     plans: await listOpenPlans(env, session.user.id),
   })
+}
+
+/** Appearance only. Plan pages read this instead of the whole account. */
+async function accountSettingsRead(request: Request, env: HostEnv, auth: ReturnType<typeof createAuth>): Promise<Response> {
+  const session = await readSession(auth, request, env.DB)
+  if (!session) return text(401, 'Sign in required')
+  return Response.json({ settings: await readAccountSettings(env.DB, session.user.id) })
 }
 
 async function accountSave(request: Request, env: HostEnv, auth: ReturnType<typeof createAuth>): Promise<Response> {

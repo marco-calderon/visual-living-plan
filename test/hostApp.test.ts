@@ -240,3 +240,36 @@ test('a saved version is a page for the owner and its raw file is a separate dow
   assert.match(raw.headers.get('content-type') ?? '', /text\/markdown/)
   assert.equal(await raw.text(), '# Second\n')
 })
+
+test('the account appearance is a read of its own for plan pages', async () => {
+  const sqlite = new Database(':memory:')
+  const db = authDatabase(sqlite)
+  const now = new Date().toISOString()
+  const later = new Date(Date.now() + 60 * 60 * 1000).toISOString()
+  sqlite.run('INSERT INTO user (id, name, email, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)', ['owner', 'owner', 'owner@example.com', now, now])
+  sqlite.run('INSERT INTO session (id, expiresAt, token, createdAt, updatedAt, userId) VALUES (?, ?, ?, ?, ?, ?)', [
+    'session-owner',
+    later,
+    'owner-token',
+    now,
+    now,
+    'owner',
+  ])
+  const app = createHostApp({ ...env(), DB: db })
+  const read = (headers: Record<string, string>) => app.fetch(new Request('https://plans.example/api/account/settings', { headers }))
+  assert.equal((await read({})).status, 401)
+  const saved = await app.fetch(
+    new Request('https://plans.example/api/account/settings', {
+      method: 'PUT',
+      headers: { authorization: 'Bearer owner-token', 'content-type': 'application/json' },
+      body: JSON.stringify({ pageWidth: 'wide', wrapCode: true }),
+    }),
+  )
+  assert.equal(saved.status, 200)
+  const response = await read({ authorization: 'Bearer owner-token' })
+  assert.equal(response.status, 200)
+  const body = (await response.json()) as { settings: { pageWidth: string; wrapCode: boolean; accent: string } }
+  assert.equal(body.settings.pageWidth, 'wide')
+  assert.equal(body.settings.wrapCode, true)
+  assert.match(body.settings.accent, /^#/)
+})

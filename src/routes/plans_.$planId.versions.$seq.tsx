@@ -63,6 +63,7 @@ function PlanVersionPage() {
       basePath={`/plans/${planId}`}
       bootstrap={page.bootstrap}
       version={page.seq}
+      owner
     >
       <script type="application/json" id="living-plan-mdx" dangerouslySetInnerHTML={{ __html: jsonScript(boot) }} />
       <script type="application/json" id="living-plan-comments" dangerouslySetInnerHTML={{ __html: '[]' }} />

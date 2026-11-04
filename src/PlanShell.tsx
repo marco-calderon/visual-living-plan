@@ -23,6 +23,8 @@ export type PlanShellProps = {
   bootstrap?: string
   /** A saved version number. The page is read-only and does not follow the live plan. */
   version?: number
+  /** The signed-in account owns this hosted plan, so the account appearance applies to it. */
+  owner?: boolean
   children?: ReactNode
 }
 
@@ -40,6 +42,7 @@ export function PlanShell({
   transport,
   bootstrap,
   version,
+  owner = false,
   children,
 }: PlanShellProps) {
   const started = useRef(false)
@@ -71,6 +74,8 @@ export function PlanShell({
     document.documentElement.dataset.accent = accent
     document.body.dataset.planMode = mode
     document.body.dataset.planHost = host
+    if (owner) document.body.dataset.planOwner = 'true'
+    else delete document.body.dataset.planOwner
     document.body.classList.remove('layout-default', 'layout-wide', 'layout-full')
     document.body.classList.add(`layout-${pageWidth}`)
     const win = window as Window & {
@@ -104,7 +109,7 @@ export function PlanShell({
     if (sourceFlags.mermaid) void import('../client/mermaid.ts')
     if (sourceFlags.code) void import('../client/highlight.tsx')
     return () => media.removeEventListener('change', applyTheme)
-  }, [accent, basePath, diffsTheme, host, mode, pageWidth, source, transport, version, wrapCode])
+  }, [accent, basePath, diffsTheme, host, mode, pageWidth, owner, source, transport, version, wrapCode])
 
   return (
     <>

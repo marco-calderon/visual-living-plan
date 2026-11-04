@@ -148,6 +148,19 @@ export type SettingsRow = {
   url?: string
 }
 
+/** A device settings row from a host theme or settings payload, with the same defaults the host uses. */
+export function settingsRowFrom(id: string, theme: Partial<SettingsRow> | null | undefined): SettingsRow {
+  const value = theme ?? {}
+  return {
+    id,
+    accent: typeof value.accent === 'string' && value.accent ? value.accent : '#0f766e',
+    pageWidth: typeof value.pageWidth === 'string' && value.pageWidth ? value.pageWidth : 'default',
+    diffsTheme: typeof value.diffsTheme === 'string' && value.diffsTheme ? value.diffsTheme : 'pierre',
+    wrapCode: Boolean(value.wrapCode),
+    updatedAt: typeof value.updatedAt === 'number' ? value.updatedAt : 0,
+  }
+}
+
 /** The settings fields of a stored account payload, replaced by a newer device row. */
 export function accountWithSettings<T>(payload: T, row: SettingsRow | undefined): T {
   if (!row || !payload || typeof payload !== 'object') return payload
