@@ -219,7 +219,7 @@ No registry restart needed beyond the usual version check. The shell cache name 
 
 ## 2.3.1
 
-**PR:** pending
+**PR:** #151
 
 **Bump:** patch
 
