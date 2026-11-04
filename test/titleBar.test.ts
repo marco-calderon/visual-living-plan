@@ -229,7 +229,7 @@ test('the host title bar uses the dark hairline', () => {
   const styles = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
   assert.match(styles, /--line:\s*var\(--hairline\)/)
   const dark = styles.split('@media (prefers-color-scheme: dark)')[1] ?? ''
-  assert.match(dark, /--hairline:\s*#27272a/)
+  assert.match(dark, /--hairline:\s*#2c2c2c/)
   assert.doesNotMatch(dark, /--line:\s*#e4e4e7/)
 })
 

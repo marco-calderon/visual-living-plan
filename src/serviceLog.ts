@@ -161,22 +161,57 @@ function winstonLevel(level: LogLevel): 'error' | 'warn' | 'info' {
   return level === 'log' ? 'info' : level
 }
 
-function fileHas(path: string, needle: string): boolean {
+function readText(path: string): string {
   try {
-    return readFileSync(path, 'utf8').includes(needle)
+    return readFileSync(path, 'utf8')
   } catch {
-    return false
+    return ''
   }
 }
 
-async function waitForLine(files: string[], id: string): Promise<void> {
-  const needle = `"id":"${id}"`
-  const deadline = Date.now() + WRITE_TIMEOUT_MS
-  while (Date.now() < deadline) {
-    if (files.every((file) => fileHas(file, needle))) return
-    await new Promise((resolve) => setTimeout(resolve, 5))
+type LineWaiter = {
+  id: string
+  files: string[]
+  deadline: number
+  resolve: () => void
+  reject: (error: Error) => void
+}
+
+const waiters = new Set<LineWaiter>()
+let pollTimer: ReturnType<typeof setTimeout> | null = null
+
+// One poll serves every pending write, so each file is read once per tick
+// no matter how many lines are waiting on it.
+function pollWaiters(): void {
+  pollTimer = null
+  const texts = new Map<string, string>()
+  const now = Date.now()
+  for (const waiter of waiters) {
+    const needle = `"id":"${waiter.id}"`
+    const written = waiter.files.every((file) => {
+      let text = texts.get(file)
+      if (text === undefined) {
+        text = readText(file)
+        texts.set(file, text)
+      }
+      return text.includes(needle)
+    })
+    if (written) {
+      waiters.delete(waiter)
+      waiter.resolve()
+    } else if (now >= waiter.deadline) {
+      waiters.delete(waiter)
+      waiter.reject(new Error(`Log ${waiter.id} was not written to ${waiter.files.join(', ')}`))
+    }
   }
-  throw new Error(`Log ${id} was not written to ${files.join(', ')}`)
+  if (waiters.size > 0) pollTimer = setTimeout(pollWaiters, 5)
+}
+
+function waitForLine(files: string[], id: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    waiters.add({ id, files, deadline: Date.now() + WRITE_TIMEOUT_MS, resolve, reject })
+    if (!pollTimer) pollTimer = setTimeout(pollWaiters, 5)
+  })
 }
 
 function track<T>(promise: Promise<T>): Promise<T> {

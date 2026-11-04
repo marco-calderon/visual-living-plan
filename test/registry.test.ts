@@ -33,6 +33,8 @@ import { openRegistryStore, type StoredPlanSession } from '../src/registryStore.
 import { createIdleExecutionState } from '../src/execution.ts'
 import { startLivingPlanServer } from '../src/server.ts'
 
+const examplePlan = fileURLToPath(new URL('../examples/rate-limit.plan.md', import.meta.url))
+
 const entryFile = fileURLToPath(new URL('../src/cli.ts', import.meta.url))
 
 function sample(overrides: Partial<ProcessRecord> = {}): ProcessRecord {
@@ -44,7 +46,7 @@ function sample(overrides: Partial<ProcessRecord> = {}): ProcessRecord {
     summary: 'Add a limiter',
     agent: 'local-cursor',
     mode: 'watch',
-    planPath: '/workspace/examples/rate-limit.plan.md',
+    planPath: examplePlan,
     directory: '/workspace/examples',
     cwd: '/workspace',
     url: 'http://127.0.0.1:9410',

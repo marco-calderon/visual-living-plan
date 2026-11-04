@@ -27,3 +27,25 @@ Picking an older version from the versions menu, on the plan page or on the dash
 ### Notes
 
 No registry restart needed beyond the usual version check. The shell cache name is 1.14.3.
+
+## 1.14.4
+
+**PR:** pending
+
+**Bump:** patch
+
+### Summary
+
+The service log keeps up when many lines are written at once, and the test suite passes again on any machine.
+
+### Bugs fixed
+
+- A burst of log lines (for example hundreds of console messages at once) could time out with "Log … was not written". Each pending line read the full log files every 5 ms on its own. One shared check now reads each file once per tick for every waiting line.
+
+### Improvements
+
+- Tests no longer assume the repo lives at `/workspace`, and two style tests now match the current shell spacing and the `#2c2c2c` dark hairline from DESIGN.md.
+
+### Notes
+
+No registry restart needed beyond the usual version check. The shell cache name is 1.14.4.
