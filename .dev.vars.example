@@ -6,3 +6,5 @@ BETTER_AUTH_SECRET=local-dev-secret-at-least-32-characters
 # GITHUB_CLIENT_SECRET=
 # GOOGLE_CLIENT_ID=
 # GOOGLE_CLIENT_SECRET=
+# Same value on production and previews. Lets a preview sign in with GitHub or Google through production.
+# OAUTH_PROXY_SECRET=

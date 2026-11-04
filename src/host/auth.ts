@@ -1,5 +1,6 @@
 import { betterAuth } from 'better-auth'
 import { bearer } from 'better-auth/plugins/bearer'
+import { oAuthProxy } from 'better-auth/plugins/oauth-proxy'
 import { organization } from 'better-auth/plugins/organization'
 import { accountLinkingConfig } from '../accountLinking'
 import type { Tier } from './access'
@@ -11,6 +12,22 @@ export type AuthEnv = {
   GOOGLE_CLIENT_SECRET?: string
   GITHUB_CLIENT_ID?: string
   GITHUB_CLIENT_SECRET?: string
+  /** Production origin. Previews inherit it. */
+  PUBLIC_URL?: string
+  /** Shared by production and previews so a preview's GitHub or Google sign-in can go through production. */
+  OAUTH_PROXY_SECRET?: string
+}
+
+/**
+ * GitHub and Google only know the production callback. A preview, which runs on
+ * another host, sends the provider round trip through production. Production
+ * exchanges the code and hands the encrypted profile back. The preview then
+ * creates the session in its own database. Previews use a different
+ * `BETTER_AUTH_SECRET`, so the proxy needs its own shared secret.
+ */
+export function oAuthProxyPlugin(env: Pick<AuthEnv, 'PUBLIC_URL' | 'OAUTH_PROXY_SECRET'>) {
+  if (!env.PUBLIC_URL || !env.OAUTH_PROXY_SECRET) return null
+  return oAuthProxy({ productionURL: new URL(env.PUBLIC_URL).origin, secret: env.OAUTH_PROXY_SECRET })
 }
 
 /** D1 rejects Date and boolean bindings. Better Auth sends both. */
@@ -44,6 +61,7 @@ function bindValue(value: unknown): unknown {
 }
 
 export function createAuth(env: AuthEnv, baseURL: string) {
+  const proxy = oAuthProxyPlugin(env)
   return betterAuth({
     database: bindableD1(env.DB),
     secret: env.BETTER_AUTH_SECRET,
@@ -72,7 +90,7 @@ export function createAuth(env: AuthEnv, baseURL: string) {
         tier: { type: 'string', defaultValue: 'free', input: false },
       },
     },
-    plugins: [bearer(), organization()],
+    plugins: [bearer(), organization(), ...(proxy ? [proxy] : [])],
     rateLimit: { enabled: false },
   })
 }
