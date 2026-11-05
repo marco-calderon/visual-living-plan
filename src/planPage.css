@@ -541,22 +541,26 @@ a.logo-btn:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
 }
 /* Plan status dot. Colors match PLAN_STATUS_COLOR in src/planStatus.ts, which draws the tab icon. */
 body {
-  --status-approval: #f59e0b;
-  --status-running: #04b54b;
-  --status-stopped: #a1a1aa;
+  --status-review: #f59e0b;
+  --status-executing: #04b54b;
+  --status-paused: #a1a1aa;
+  --status-stopped: #ef4d3e;
+  --status-completed: #7c3aed;
 }
 .chip-status,
 .status-dot {
   display: none;
   border-radius: 50%;
-  background: var(--status-color, var(--status-stopped));
+  background: var(--status-color, var(--status-paused));
   pointer-events: none;
 }
 body[data-plan-status] .chip-status,
 body[data-plan-status] .status-dot { display: block; }
-body[data-plan-status="approval"] { --status-color: var(--status-approval); }
-body[data-plan-status="running"] { --status-color: var(--status-running); }
+body[data-plan-status="review"] { --status-color: var(--status-review); }
+body[data-plan-status="executing"] { --status-color: var(--status-executing); }
+body[data-plan-status="paused"] { --status-color: var(--status-paused); }
 body[data-plan-status="stopped"] { --status-color: var(--status-stopped); }
+body[data-plan-status="completed"] { --status-color: var(--status-completed); }
 .chip-status {
   flex: 0 0 auto;
   width: 8px;
@@ -568,15 +572,15 @@ body[data-plan-status="stopped"] { --status-color: var(--status-stopped); }
   height: 8px;
 }
 body:not([data-plan-status]) [data-plan-status-fact] { display: none; }
-body[data-plan-status="running"] .chip-status {
+body[data-plan-status="executing"] .chip-status {
   animation: plan-status-pulse 1.6s var(--ease-out) infinite;
 }
 @keyframes plan-status-pulse {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--status-running) 55%, transparent); }
-  100% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--status-running) 0%, transparent); }
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--status-executing) 55%, transparent); }
+  100% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--status-executing) 0%, transparent); }
 }
 @media (prefers-reduced-motion: reduce) {
-  body[data-plan-status="running"] .chip-status { animation: none; }
+  body[data-plan-status="executing"] .chip-status { animation: none; }
 }
 .plan-card {
   position: absolute;

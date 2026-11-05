@@ -8,7 +8,8 @@ import { bindPlanChrome } from './bindPlanChrome.ts'
 import './planPage.css'
 import { themeBootstrapScript } from './themeBootstrap.ts'
 import { LOCK_BANNER_TEXT } from './lockBanner.ts'
-import { PLAN_STATUS_LABEL, planStatus } from './planStatus.ts'
+import { PLAN_STATUS_LABEL, planStatus, workState } from './planStatus.ts'
+import type { ExecutionState } from './execution.ts'
 
 export type PlanShellProps = {
   title: string
@@ -54,7 +55,7 @@ export function PlanShell({
   children,
 }: PlanShellProps) {
   // The status the page opens with. client/planStatusMark.ts keeps it current from then on.
-  const openingStatus = planStatus({ mode, decision: reviewDecision ?? null, active: executionActive })
+  const openingStatus = planStatus({ mode, decision: reviewDecision ?? null, active: executionActive, work: workState(readExecution(bootstrap)) })
   const openingLabel = PLAN_STATUS_LABEL[openingStatus]
   const started = useRef(false)
   const [tab, setTab] = useState<'plan' | 'workflow'>('plan')
@@ -239,4 +240,14 @@ export function PlanShell({
       {children}
     </>
   )
+}
+
+/** The embedded execution view, or nothing when it does not parse. */
+function readExecution(bootstrap: string | undefined): ExecutionState | null {
+  if (!bootstrap) return null
+  try {
+    return JSON.parse(bootstrap) as ExecutionState
+  } catch {
+    return null
+  }
 }
