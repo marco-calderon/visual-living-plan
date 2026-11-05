@@ -7,6 +7,7 @@ import { AgentMessageTray, type AgentMessage, type AgentMessageStatus } from './
 import { ApproveButton } from './ApproveButton.tsx'
 import { CommentPopover } from './CommentPopover.tsx'
 import { CommentToggle } from './CommentToggle.tsx'
+import { withoutSettled } from '../src/offlineSync.ts'
 import { GrabOverlay } from './GrabOverlay.tsx'
 import {
   blockIdFromPart,
@@ -116,7 +117,22 @@ function messageStatus(comment: PlanComment): AgentMessageStatus {
 
 function upsert(comments: PlanComment[], comment: PlanComment): PlanComment[] {
   const index = comments.findIndex((entry) => entry.id === comment.id)
-  if (index === -1) return [...comments, comment]
+  if (index === -1) {
+    const pending = comment.id.startsWith('pending:')
+    const same = (entry: PlanComment) => entry.partId === comment.partId && entry.text === comment.text
+    // A placeholder for a comment whose host copy is already here adds nothing.
+    if (pending) {
+      const placeholders = comments.filter((entry) => entry.id.startsWith('pending:') && same(entry)).length
+      const hosted = comments.filter((entry) => !entry.id.startsWith('pending:') && same(entry)).length
+      return hosted > placeholders ? comments : [...comments, comment]
+    }
+    // The host's copy of a comment this page queued replaces the queued placeholder.
+    const placeholder = comments.findIndex((entry) => entry.id.startsWith('pending:') && same(entry))
+    if (placeholder === -1) return [...comments, comment]
+    const next = comments.slice()
+    next[placeholder] = comment
+    return next
+  }
   const next = comments.slice()
   next[index] = comment
   return next
@@ -555,8 +571,11 @@ export function PlanSelector() {
           setMode(stored)
           setCommentsOn(stored !== 'watch')
         }
-        const rows = engine.comments(context.id)
-        if (rows.length === 0 && !plan) return
+        const saved = engine.comments(context.id)
+        if (saved.length === 0 && !plan) return
+        // A placeholder can sit beside the host's copy until the send settles. Show the comment once.
+        const kept = new Set(withoutSettled(saved.filter((row) => row.pending), saved.filter((row) => !row.pending)))
+        const rows = saved.filter((row) => !row.pending || kept.has(row))
         commitComments(() => rows.map((row) => row.comment as PlanComment))
       }
       paint()

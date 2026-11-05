@@ -1,5 +1,5 @@
-import { spawn, type ChildProcess } from 'node:child_process'
 import { expect, test, type Page } from '@playwright/test'
+import { useOwnPlanServer } from './fixtures/ownServer.ts'
 
 /**
  * The page follows a run as the agent starts and stops it, without a reload, and catches up on
@@ -9,45 +9,8 @@ import { expect, test, type Page } from '@playwright/test'
  * e2e servers alone.
  */
 
-const PORT = 9481
-const ORIGIN = `http://127.0.0.1:${PORT}`
-
-test.use({ baseURL: ORIGIN })
+const server = useOwnPlanServer(9481)
 test.describe.configure({ mode: 'serial' })
-
-function startServer(): Promise<ChildProcess> {
-  const child = spawn('bun', ['scripts/e2e-server.ts'], {
-    env: { ...process.env, E2E_PORT: String(PORT), E2E_MODE: 'watch' },
-    stdio: ['ignore', 'pipe', 'inherit'],
-  })
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('e2e server did not start')), 30_000)
-    child.stdout?.on('data', (chunk: Buffer) => {
-      if (!String(chunk).includes('e2e watch')) return
-      clearTimeout(timer)
-      resolve(child)
-    })
-    child.once('exit', () => reject(new Error('e2e server exited')))
-  })
-}
-
-function stopServer(child: ChildProcess | undefined): Promise<void> {
-  return new Promise((resolve) => {
-    if (!child || child.exitCode !== null) return resolve()
-    child.once('exit', () => resolve())
-    child.kill('SIGTERM')
-  })
-}
-
-let server: ChildProcess | undefined
-
-test.beforeEach(async () => {
-  server = await startServer()
-})
-
-test.afterEach(async () => {
-  await stopServer(server)
-})
 
 async function execution(page: Page, action: 'start' | 'push' | 'stop', body: Record<string, unknown> = {}) {
   const response = await page.request.post(`/api/execution/${action}`, { data: body })
@@ -67,14 +30,22 @@ test('a start and a stop show on the open page without a reload', async ({ page 
   // A reload would clear this marker.
   await page.evaluate(() => ((window as unknown as { __noReload: boolean }).__noReload = true))
 
+  // The Plan tab is in the URL when the run starts. The run opens the Workflow tab.
+  await page.getByRole('tab', { name: 'Plan' }).click()
+  await expect(page).toHaveURL(/#plan$/)
   await execution(page, 'start', { step: 'Build the limiter' })
   await expect(status(page)).toHaveAttribute('data-plan-status', 'running')
+  await expect(page.getByRole('tab', { name: 'Workflow' })).toHaveAttribute('aria-selected', 'true')
   await expect(label(page)).toHaveText('Running')
   await expect(status(page)).toHaveAttribute('data-plan-execution', 'live')
   await expect(page.locator('[data-tab-panel="plan"]')).toHaveClass(/plan-locked/)
   await expect(banner(page)).not.toHaveAttribute('hidden', '')
   await expect(page.locator('.execution-kicker')).toHaveText('Live workflow')
   await expect(page.getByRole('heading', { name: 'Build the limiter' })).toBeVisible()
+  // The Plan tab opens again though the URL already names it, and shows the lock.
+  await page.getByRole('tab', { name: 'Plan' }).click()
+  await expect(banner(page)).toBeVisible()
+  await page.getByRole('tab', { name: 'Workflow' }).click()
 
   await execution(page, 'push', { detail: 'Halfway there' })
   await expect(page.getByText('Halfway there')).toBeVisible()
@@ -97,13 +68,13 @@ test('a page follows the plan again after its service restarts', async ({ page }
   await expect(status(page)).toHaveAttribute('data-plan-status', 'running')
 
   // The service goes away, the way it does when the CLI restarts it for a new version.
-  await stopServer(server)
+  await server.stop()
   await expect(status(page)).toHaveAttribute('data-plan-connection', 'reconnecting')
   // A drop longer than a moment says so, because the status shown may be out of date.
   await expect(label(page)).toHaveText('Reconnecting')
 
   // The new service has no run. The page hears that from hello when it reconnects, with no event sent.
-  server = await startServer()
+  await server.restart()
   await expect(status(page)).toHaveAttribute('data-plan-connection', 'open', { timeout: 30_000 })
   await expect(status(page)).toHaveAttribute('data-plan-status', 'stopped')
   await expect(label(page)).toHaveText('Stopped')

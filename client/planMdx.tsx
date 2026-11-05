@@ -262,13 +262,19 @@ function PlanMdxApp() {
     const paintFrom = (engine: NonNullable<ReturnType<typeof currentOfflineHandle>>) => {
       const row = engine.plan(context.id)
       if (!row?.source || row.sourceOmitted) return
-      setBoot((current) => ({
-        ...current,
-        source: row.source,
-        title: row.title,
-        responses: row.responses as Boot['responses'],
-        locked: row.locked,
-      }))
+      setBoot((current) => {
+        const responses = row.responses as Boot['responses']
+        // The store repaints on every write. Keep the page as it is when nothing it shows changed.
+        if (
+          current.source === row.source &&
+          current.title === row.title &&
+          current.locked === row.locked &&
+          JSON.stringify(current.responses) === JSON.stringify(responses)
+        ) {
+          return current
+        }
+        return { ...current, source: row.source, title: row.title, responses, locked: row.locked }
+      })
     }
     const ready = currentOfflineHandle()
     if (ready) paintFrom(ready)
@@ -405,11 +411,16 @@ function PlanMdxApp() {
     if (root) stampPlanParts(root)
   })
 
+  // Announce a new document only when the compiled plan changed. A re-render for an answer or a
+  // lock leaves the parts where they were, and an open comment box on one of them must stay open.
+  const announced = useRef<ReactNode>(null)
   useEffect(() => {
     const root = document.getElementById('plan-mdx-root')
     if (!root) return
     stampPlanParts(root)
     root.classList.remove('plan-mdx-pending')
+    if (announced.current === content) return
+    announced.current = content
     window.dispatchEvent(new CustomEvent('living-plan-document', { detail: { root } }))
   })
 

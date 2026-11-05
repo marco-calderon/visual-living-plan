@@ -352,7 +352,33 @@ export function commentRowsFromSnapshot(planId: string, comments: unknown[], pen
     })
   }
   const ids = new Set(server.map((row) => row.id))
-  return [...server, ...pending.filter((row) => row.pending && row.planId === planId && !ids.has(row.id))]
+  const unsent = pending.filter((row) => row.pending && row.planId === planId && !ids.has(row.id))
+  return [...server, ...withoutSettled(unsent, server)]
+}
+
+function commentKey(comment: unknown): string {
+  const record = comment && typeof comment === 'object' ? (comment as Record<string, unknown>) : {}
+  return `${String(record.partId ?? '')}\u0000${String(record.text ?? '')}`
+}
+
+/**
+ * Drop the device's placeholder for a comment the host now has. The placeholder's id comes from the
+ * outbox and never matches the host's id, so it is matched on part and text, one placeholder for each
+ * host comment, so two equal comments still show as two.
+ */
+export function withoutSettled<T extends { comment: unknown }>(placeholders: readonly T[], server: readonly { comment: unknown }[]): T[] {
+  const available = new Map<string, number>()
+  for (const row of server) {
+    const key = commentKey(row.comment)
+    available.set(key, (available.get(key) ?? 0) + 1)
+  }
+  return placeholders.filter((row) => {
+    const key = commentKey(row.comment)
+    const left = available.get(key) ?? 0
+    if (left === 0) return true
+    available.set(key, left - 1)
+    return false
+  })
 }
 
 export function planVersionKey(plan: { heartbeatAt?: number | null; storedPath?: string | null }): string {

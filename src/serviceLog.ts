@@ -161,22 +161,54 @@ function winstonLevel(level: LogLevel): 'error' | 'warn' | 'info' {
   return level === 'log' ? 'info' : level
 }
 
-function fileHas(path: string, needle: string): boolean {
-  try {
-    return readFileSync(path, 'utf8').includes(needle)
-  } catch {
-    return false
-  }
+type LineWaiter = {
+  needle: string
+  files: string[]
+  deadline: number
+  resolve: () => void
+  reject: (error: Error) => void
 }
 
-async function waitForLine(files: string[], id: string): Promise<void> {
-  const needle = `"id":"${id}"`
-  const deadline = Date.now() + WRITE_TIMEOUT_MS
-  while (Date.now() < deadline) {
-    if (files.every((file) => fileHas(file, needle))) return
-    await new Promise((resolve) => setTimeout(resolve, 5))
+const lineWaiters = new Set<LineWaiter>()
+let lineTimer: ReturnType<typeof setTimeout> | null = null
+
+/**
+ * One poller for every write that is waiting to land. Each tick reads each file once, however many
+ * writes wait on it, so a burst of writes does not turn into a burst of reads.
+ */
+function pollLines(): void {
+  lineTimer = null
+  const contents = new Map<string, string>()
+  const read = (file: string): string => {
+    let text = contents.get(file)
+    if (text === undefined) {
+      try {
+        text = readFileSync(file, 'utf8')
+      } catch {
+        text = ''
+      }
+      contents.set(file, text)
+    }
+    return text
   }
-  throw new Error(`Log ${id} was not written to ${files.join(', ')}`)
+  const now = Date.now()
+  for (const waiter of lineWaiters) {
+    if (waiter.files.every((file) => read(file).includes(waiter.needle))) {
+      lineWaiters.delete(waiter)
+      waiter.resolve()
+    } else if (now >= waiter.deadline) {
+      lineWaiters.delete(waiter)
+      waiter.reject(new Error(`Log line was not written to ${waiter.files.join(', ')}`))
+    }
+  }
+  if (lineWaiters.size > 0) lineTimer = setTimeout(pollLines, 5)
+}
+
+function waitForLine(files: string[], id: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    lineWaiters.add({ needle: `"id":"${id}"`, files, deadline: Date.now() + WRITE_TIMEOUT_MS, resolve, reject })
+    lineTimer ??= setTimeout(pollLines, 5)
+  })
 }
 
 function track<T>(promise: Promise<T>): Promise<T> {
@@ -184,9 +216,10 @@ function track<T>(promise: Promise<T>): Promise<T> {
   return promise.finally(() => pending.delete(promise))
 }
 
+/** Wait for every write in flight. A write that failed has already been reported to its caller. */
 export async function flushAppLogs(): Promise<void> {
   while (pending.size > 0) {
-    await Promise.all([...pending])
+    await Promise.allSettled([...pending])
   }
 }
 

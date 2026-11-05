@@ -566,7 +566,12 @@ function clientScript(
   }
 
   function pinScroll(x, y) {
-    const apply = () => window.scrollTo({ left: x, top: y, behavior: 'instant' });
+    // A later jump (a quick Forward after Back) starts a new generation. Its scroll must not be undone here.
+    const generation = scrollGeneration;
+    const apply = () => {
+      if (generation !== scrollGeneration) return;
+      window.scrollTo({ left: x, top: y, behavior: 'instant' });
+    };
     apply();
     requestAnimationFrame(() => {
       apply();
@@ -612,11 +617,15 @@ function clientScript(
       const next = new URL(window.location.href);
       next.hash = '#' + page;
       const sameEntry = history.state && history.state.livingPlanPage === page && location.hash === next.hash;
-      if (sameEntry || jumpDepth > 0) return;
-      jumpDepth += 1;
-      snapshotView();
-      history.pushState({ livingPlanPage: page }, '', next);
-      jumpDepth -= 1;
+      if (jumpDepth > 0) return;
+      // The URL can already name this tab while another one shows, for example after a run opened
+      // the Workflow tab. The tab still opens. Only the history entry is skipped.
+      if (!sameEntry) {
+        jumpDepth += 1;
+        snapshotView();
+        history.pushState({ livingPlanPage: page }, '', next);
+        jumpDepth -= 1;
+      }
     }
     highlightPlanTarget(null);
     window.livingPlanPendingWorkflowFocus = null;

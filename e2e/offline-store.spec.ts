@@ -1,4 +1,8 @@
 import { expect, test } from '@playwright/test'
+import { useOwnPlanServer } from './fixtures/ownServer.ts'
+
+// Counts and checks the plan as it is on disk, so it does not share a server with other specs.
+useOwnPlanServer(9482)
 
 type OfflineWindow = Window & {
   __livingPlanOffline?: {

@@ -65,6 +65,11 @@ The open plan page now shows Running and Stopped reliably. It follows an agent's
 - A local plan page reloaded itself on every start and stop, losing scroll and anything typed. It now updates in place.
 - The Workflow tab of a hosted plan showed the sample loop instead of the plan's workflow, and hosted plan progress was not measured. The hosted plan loaded a layout library a Worker cannot run. It now builds the workflow without it, and the page lays it out.
 - `live-plan close` on a hosted plan failed with `Unexpected end of JSON input`. It now closes the plan.
+- The comment box on a plan part could close by itself while you typed. The page treated every re-render as a new document. It now does that only when the plan itself changed.
+- A comment sent while the connection was slow could show twice, and could stay doubled on that device. The queued copy now gives way to the one the host saved.
+- Clicking the Plan, Workflow, or Settings tab did nothing when the address already named that tab but another one was showing. The tab now opens.
+- A quick Forward right after Back could land away from the section it opened.
+- A burst of log lines on a busy machine could miss its write deadline, and a failed line stopped the logs from being cleared. Waiting writes now share one reader, and one failed line no longer blocks the rest.
 
 ### Improvements
 
@@ -80,4 +85,4 @@ The open plan page now shows Running and Stopped reliably. It follows an agent's
 
 ### Notes
 
-No registry restart needed beyond the usual version check. The shell cache name is 2.5.0. Hosted plans need this Worker deployed for `execution push` and `stop` to work from this CLI.
+The unit and browser suites pass again: stale expectations were updated, and specs that count submissions run on a plan server of their own. No registry restart needed beyond the usual version check. The shell cache name is 2.5.0. Hosted plans need this Worker deployed for `execution push` and `stop` to work from this CLI.
