@@ -58,6 +58,55 @@ export function createIdleExecutionState(): ExecutionState {
   }
 }
 
+export type ExecutionAction = 'start' | 'push' | 'stop'
+
+/** Fields an agent may send with `execution start`, `push`, or `stop`. */
+export type ExecutionPatch = Partial<Pick<ExecutionState, 'step' | 'detail' | 'graph' | 'scene'>>
+
+function text(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed ? value : undefined
+}
+
+/** The fields of a request body that `applyExecutionChange` reads. Anything else is dropped. */
+export function readExecutionPatch(body: unknown): ExecutionPatch {
+  if (!body || typeof body !== 'object') return {}
+  const record = body as Record<string, unknown>
+  const patch: ExecutionPatch = {}
+  const step = text(record.step)
+  const detail = text(record.detail)
+  if (step) patch.step = step
+  if (detail) patch.detail = detail
+  if (record.graph && typeof record.graph === 'object') patch.graph = record.graph as ExecutionGraph
+  if (record.scene && typeof record.scene === 'object') patch.scene = record.scene as Record<string, unknown>
+  return patch
+}
+
+/**
+ * The run after an agent's start, push, or stop, worked out on the host so the agent does not
+ * have to read the run first. Fields the agent leaves out keep their current value.
+ *
+ * - `start` turns the run on.
+ * - `push` updates the run and leaves it on or off as it is.
+ * - `stop` turns the run off and keeps the last step and graph on the Workflow tab.
+ */
+export function applyExecutionChange(
+  current: ExecutionState | null | undefined,
+  action: ExecutionAction,
+  patch: ExecutionPatch = {},
+): ExecutionState {
+  const previous = current ?? createIdleExecutionState()
+  const active = action === 'start' ? true : action === 'stop' ? false : Boolean(previous.active)
+  return {
+    active,
+    step: patch.step ?? previous.step ?? (action === 'start' ? 'Executing' : undefined),
+    detail: patch.detail ?? previous.detail,
+    graph: patch.graph ?? previous.graph,
+    scene: patch.scene ?? previous.scene,
+  }
+}
+
 const STATUS_RANK: Record<ExecutionNodeStatus, number> = {
   pending: 0,
   failed: 1,

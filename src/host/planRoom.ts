@@ -1,4 +1,4 @@
-import type { ExecutionState } from '../execution'
+import { applyExecutionChange, readExecutionPatch, type ExecutionAction, type ExecutionState } from '../execution'
 import type { PlanProgress } from '../planProgress'
 import {
   inspectMutation,
@@ -234,7 +234,8 @@ export function putSource(
           source: view.source,
           title: view.title,
           responses: view.responses,
-          locked: false,
+          // An edit during a run must not unlock the page's forms.
+          locked: executionActive(view),
           snapshots: [],
           headSnapshotId: null,
         },
@@ -342,14 +343,42 @@ export function putExecution(sql: PlanSql, body: unknown): { outbound: Outbound[
   return { outbound: [{ event: 'execution', data: body }], body: { ok: true, execution: body } }
 }
 
+/** An agent's `execution start`, `push`, or `stop`. Fields left out keep their stored value. */
+export function changeExecution(sql: PlanSql, action: ExecutionAction, body: unknown): { outbound: Outbound[]; body: unknown } {
+  const current = { active: false, ...(planView(sql).execution as Partial<ExecutionState> | null) } as ExecutionState
+  return putExecution(sql, applyExecutionChange(current, action, readExecutionPatch(body)))
+}
+
+export function executionActive(view: Pick<PlanView, 'execution'>): boolean {
+  return Boolean((view.execution as { active?: boolean } | null)?.active)
+}
+
+/**
+ * The first frame a page's socket gets: the state it needs to show, so a reconnect catches up on
+ * what it missed. It is read without awaiting, so no write lands between the read and the send.
+ * The run carries no expected workflow. The Workflow tab reads that from GET /api/execution.
+ */
+export function browserHello(sql: PlanSql): Outbound {
+  const view = planView(sql)
+  return {
+    event: 'hello',
+    data: {
+      mode: view.mode,
+      review: view.review,
+      execution: { active: false, ...(view.execution as Partial<ExecutionState> | null) },
+    },
+  }
+}
+
 /** Execution state for the Workflow tab, with the expected workflow from the current source, as the local session returns it. */
 export async function executionView(sql: PlanSql): Promise<ExecutionState> {
   const view = planView(sql)
   const execution = { active: false, ...(view.execution as Partial<ExecutionState> | null) } as ExecutionState
   try {
     // Loaded on first use. A top-level import of the parser stops the Worker from starting.
-    const [{ parsePlan }, { withPlannedWorkflow }] = await Promise.all([import('../parse'), import('../workflow')])
-    return withPlannedWorkflow(execution, parsePlan(view.source), Object.keys(view.responses))
+    // Not ../workflow: its layout loads ELK, which a Worker cannot run. The page lays the graph out.
+    const [{ parsePlan }, { buildExpectedGraph }] = await Promise.all([import('../parse'), import('../expectedWorkflow')])
+    return { ...execution, planned: buildExpectedGraph(parsePlan(view.source), undefined, Object.keys(view.responses)) }
   } catch {
     // A source that does not parse still has a run state to show.
     return execution

@@ -1,18 +1,35 @@
 import { PLAN_STATUS_COLOR, PLAN_STATUS_LABEL, planStatus, type PlanStatus } from '../src/planStatus.ts'
-import { subscribePlanEvents } from './planEvents.ts'
+import { subscribePlanConnection, subscribePlanEvents, type PlanConnectionState } from './planEvents.ts'
 
 /**
- * Keeps `body[data-plan-status]` and the tab icon in step with the plan.
+ * Keeps `body[data-plan-status]`, the tab icon, and the execution lock in step with the plan.
  * The title bar dot is CSS on that attribute. The tab icon is the logo with
  * the same dot, drawn on a canvas.
+ *
+ * The state comes from the page's embedded JSON first, then from the stream: `hello` each time
+ * the stream opens, and `mode`, `review`, and `execution` as they happen. While the stream is
+ * down the label says so, because the status shown may be out of date.
  */
+
+/** Fired on window when the run turns on or off. `detail.active` is the new state. */
+export const EXECUTION_LOCK_EVENT = 'living-plan-execution-lock'
+/** A short drop is not worth a label change. */
+const RECONNECTING_LABEL_AFTER_MS = 3000
 
 const LOGO_SRC = '/favicon.png'
 const ICON_SIZE = 64
 
 type StatusWindow = Window & { __livingPlanStatusBound?: boolean }
 
-const state: { mode: string; decision: string; active: boolean } = { mode: 'watch', decision: '', active: false }
+const state: { mode: string; decision: string; active: boolean; connection: PlanConnectionState } = {
+  mode: 'watch',
+  decision: '',
+  active: false,
+  connection: 'open',
+}
+let lockApplied: boolean | undefined
+let reconnectingTimer = 0
+let showReconnecting = false
 
 function readJson<T>(id: string): T | null {
   const text = document.getElementById(id)?.textContent
@@ -89,15 +106,53 @@ async function setFavicon(status: PlanStatus): Promise<void> {
   }
 }
 
+/** The lock banner and the locked plan panel, on the local page and the hosted page alike. */
+function applyLock(active: boolean): void {
+  document.body.dataset.planExecution = active ? 'live' : 'idle'
+  document.querySelectorAll<HTMLElement>('[data-tab-panel="plan"]').forEach((panel) => {
+    panel.classList.toggle('plan-locked', active)
+  })
+  document.querySelectorAll<HTMLElement>('[data-lock-banner]').forEach((banner) => {
+    banner.hidden = !active
+  })
+  if (lockApplied === active) return
+  const first = lockApplied === undefined
+  lockApplied = active
+  if (!first) window.dispatchEvent(new CustomEvent(EXECUTION_LOCK_EVENT, { detail: { active } }))
+}
+
 function apply(): void {
   const status = planStatus(state)
   document.body.dataset.planStatus = status
-  document.querySelectorAll('[data-plan-status-label]').forEach((node) => {
-    node.textContent = PLAN_STATUS_LABEL[status]
+  const label = PLAN_STATUS_LABEL[status]
+  document.querySelectorAll<HTMLElement>('[data-plan-status-label]').forEach((node) => {
+    node.textContent = showReconnecting ? 'Reconnecting' : label
+    if (showReconnecting) node.title = `Last known: ${label}`
+    else node.removeAttribute('title')
   })
+  applyLock(state.active)
   if (status === applied) return
   applied = status
   void setFavicon(status)
+}
+
+function setConnection(next: PlanConnectionState): void {
+  state.connection = next
+  window.clearTimeout(reconnectingTimer)
+  reconnectingTimer = 0
+  if (next === 'open' || next === 'connecting') {
+    if (showReconnecting) {
+      showReconnecting = false
+      apply()
+    }
+    return
+  }
+  reconnectingTimer = window.setTimeout(() => {
+    reconnectingTimer = 0
+    if (state.connection === 'open') return
+    showReconnecting = true
+    apply()
+  }, RECONNECTING_LABEL_AFTER_MS)
 }
 
 function parse(event: MessageEvent): Record<string, unknown> | null {
@@ -124,6 +179,17 @@ export function startPlanStatusMark(): void {
   state.active = Boolean(readJson<{ active?: boolean }>('living-plan-bootstrap')?.active)
   apply()
 
+  subscribePlanConnection(setConnection)
+  // Sent each time the stream opens, so a page that missed a start or a stop catches up.
+  subscribePlanEvents('hello', (event) => {
+    const payload = parse(event)
+    if (!payload) return
+    if (typeof payload.mode === 'string') state.mode = payload.mode
+    if ('review' in payload) state.decision = decisionOf(payload.review)
+    const execution = payload.execution as { active?: unknown } | null | undefined
+    if (execution && typeof execution === 'object') state.active = Boolean(execution.active)
+    apply()
+  })
   subscribePlanEvents('mode', (event) => {
     const payload = parse(event)
     if (!payload || typeof payload.mode !== 'string') return

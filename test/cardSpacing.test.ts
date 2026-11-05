@@ -70,7 +70,7 @@ test('documentation cards use the space scale in both color schemes', () => {
   assert.match(css, /\.plan-document > :is\(\.plan-entry[^)]*\)[\s\S]*?margin-top:\s*var\(--space-md\)/)
   assert.match(css, /\.vlp-stack,\s*\.vlp-box\s*\{[^}]*gap:\s*var\(--space-md\)/)
   assert.match(css, /\.vlp-row\s*\{\s*gap:\s*var\(--space-sm\)/)
-  assert.match(css, /\.shell\s*\{[^}]*padding:\s*calc\(var\(--titlebar-offset\) \+ var\(--space-md\)\)/)
+  assert.match(css, /\.shell\s*\{[^}]*padding(?:-top)?:\s*calc\(var\(--titlebar-offset\) \+ var\(--space-md\)\)/)
   assert.match(css, /\.code-block\s*\{[^}]*padding:\s*var\(--space-sm\) var\(--space-md\)/)
   assert.match(css, /\.titlebar\s*\{/)
   assert.match(css, /\.plan-card\s*\{[^}]*box-shadow:\s*var\(--shadow\)/)

@@ -16,7 +16,7 @@ import {
 } from './agentEvents'
 import type { PlanSubmissionEvent } from './types'
 import { startLivingPlanServer } from './server'
-import type { ExecutionGraph, ExecutionState } from './execution'
+import { applyExecutionChange, type ExecutionAction, type ExecutionGraph, type ExecutionPatch, type ExecutionState } from './execution'
 import { cwdThemeConfigPath, globalThemeConfigPath } from './configHome'
 import {
   configPathBesidePlan,
@@ -324,18 +324,21 @@ async function cloudRequestHeaders(url: string, args: string[]): Promise<Record<
   return { authorization: `Bearer ${token}` }
 }
 
-async function putExecution(url: string, body: ExecutionState): Promise<ExecutionState> {
+async function executionRequest(
+  url: string,
+  path: string,
+  init: { method: string; body?: unknown },
+): Promise<Response> {
   const planId = planIdFromPlanUrl(url) ?? undefined
-  let response: Response
   try {
     const headers = {
       'content-type': 'application/json',
       ...(await cloudRequestHeaders(url, process.argv.slice(2))),
     }
-    response = await fetch(planApiUrl(url, '/api/execution'), {
-      method: 'PUT',
+    return await fetch(planApiUrl(url, path), {
+      method: init.method,
       headers,
-      body: JSON.stringify(body),
+      body: init.body === undefined ? undefined : JSON.stringify(init.body),
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Execution request failed'
@@ -348,19 +351,48 @@ async function putExecution(url: string, body: ExecutionState): Promise<Executio
     }).catch(() => undefined)
     throw error
   }
-  if (!response.ok) {
-    const text = await response.text()
-    await recordLog({
-      level: 'error',
-      message: `Execution request failed: ${text || response.status}`,
-      source: 'execution',
-      planId,
-      echo: false,
-    }).catch(() => undefined)
-    throw new Error(text || `Execution request failed (${response.status})`)
-  }
+}
+
+async function executionFailure(url: string, response: Response): Promise<Error> {
+  const text = await response.text()
+  await recordLog({
+    level: 'error',
+    message: `Execution request failed: ${text || response.status}`,
+    source: 'execution',
+    planId: planIdFromPlanUrl(url) ?? undefined,
+    echo: false,
+  }).catch(() => undefined)
+  return new Error(text || `Execution request failed (${response.status})`)
+}
+
+async function readExecution(url: string): Promise<ExecutionState> {
+  const response = await executionRequest(url, '/api/execution', { method: 'GET' })
+  if (!response.ok) throw await executionFailure(url, response)
+  return (await response.json()) as ExecutionState
+}
+
+async function putExecution(url: string, body: ExecutionState): Promise<ExecutionState> {
+  const response = await executionRequest(url, '/api/execution', { method: 'PUT', body })
+  if (!response.ok) throw await executionFailure(url, response)
   const payload = (await response.json()) as { execution: ExecutionState }
   return payload.execution
+}
+
+/**
+ * Start, push, or stop the run. The host merges the fields it is sent into the run it has,
+ * so the agent never has to read the run first. A host without that route gets the older
+ * read and replace.
+ */
+async function changeExecution(url: string, action: ExecutionAction, patch: ExecutionPatch): Promise<ExecutionState> {
+  const response = await executionRequest(url, `/api/execution/${action}`, { method: 'POST', body: patch })
+  if (response.ok) {
+    const payload = (await response.json()) as { execution: ExecutionState }
+    return payload.execution
+  }
+  if (response.status !== 404 && response.status !== 405) throw await executionFailure(url, response)
+  await response.body?.cancel().catch(() => undefined)
+  const current = action === 'start' ? null : await readExecution(url)
+  return putExecution(url, applyExecutionChange(current, action, patch))
 }
 
 async function cmdCheck(file: string): Promise<number> {
@@ -948,21 +980,17 @@ async function cmdClose(args: string[]): Promise<number> {
   return 0
 }
 
-async function buildExecutionPayload(
-  args: string[],
-  active: boolean,
-): Promise<ExecutionState> {
+async function buildExecutionPatch(args: string[]): Promise<ExecutionPatch> {
   const graphPath = getFlag(args, '--graph')
   const scenePath = getFlag(args, '--scene')
-  const graph = graphPath ? await readJsonFile<ExecutionGraph>(graphPath) : undefined
-  const scene = scenePath ? await readJsonFile<Record<string, unknown>>(scenePath) : undefined
-  return {
-    active,
-    step: getFlag(args, '--step'),
-    detail: getFlag(args, '--detail'),
-    graph,
-    scene,
-  }
+  const patch: ExecutionPatch = {}
+  const step = getFlag(args, '--step')
+  const detail = getFlag(args, '--detail')
+  if (step) patch.step = step
+  if (detail) patch.detail = detail
+  if (graphPath) patch.graph = await readJsonFile<ExecutionGraph>(graphPath)
+  if (scenePath) patch.scene = await readJsonFile<Record<string, unknown>>(scenePath)
+  return patch
 }
 
 async function cmdExecution(args: string[]): Promise<number> {
@@ -975,34 +1003,8 @@ async function cmdExecution(args: string[]): Promise<number> {
   }
   const url = await localServiceUrl(published)
 
-  if (action === 'start') {
-    const execution = await putExecution(url, await buildExecutionPayload(rest, true))
-    console.log(JSON.stringify(execution, null, 2))
-    return 0
-  }
-
-  if (action === 'push') {
-    const currentResponse = await fetch(planApiUrl(url, '/api/execution'))
-    const current = (await currentResponse.json()) as ExecutionState
-    const next = await buildExecutionPayload(rest, current.active ?? true)
-    const execution = await putExecution(url, {
-      active: next.active,
-      step: next.step ?? current.step,
-      detail: next.detail ?? current.detail,
-      graph: next.graph ?? current.graph,
-      scene: next.scene ?? current.scene,
-    })
-    console.log(JSON.stringify(execution, null, 2))
-    return 0
-  }
-
-  if (action === 'stop') {
-    const currentResponse = await fetch(planApiUrl(url, '/api/execution'))
-    const current = (await currentResponse.json()) as ExecutionState
-    const execution = await putExecution(url, {
-      ...current,
-      active: false,
-    })
+  if (action === 'start' || action === 'push' || action === 'stop') {
+    const execution = await changeExecution(url, action, await buildExecutionPatch(rest))
     console.log(JSON.stringify(execution, null, 2))
     return 0
   }

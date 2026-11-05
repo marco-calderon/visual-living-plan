@@ -10,7 +10,8 @@ test('review mode accepts a verdict on the desktop page', async ({ page }) => {
   const review = page.getByRole('region', { name: 'Review this plan' })
   await expect(review).toBeVisible()
   await review.getByRole('button', { name: 'Deny' }).click()
-  await expect(page.getByRole('status')).toHaveText(/Review deny|Review submitted/)
+  // The plan toast is a Sonner toast.
+  await expect(page.locator('[data-sonner-toast]')).toHaveText(/Review deny|Review submitted/)
   await expect(review).toBeHidden()
   await page.getByRole('button', { name: 'Plan details' }).click()
   await expect(page.locator('[data-review-chip]')).toContainText('deny')

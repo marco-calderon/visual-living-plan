@@ -7,6 +7,8 @@ import { buildPlanToc, renderPlanTocHtml } from './planToc.ts'
 import { bindPlanChrome } from './bindPlanChrome.ts'
 import './planPage.css'
 import { themeBootstrapScript } from './themeBootstrap.ts'
+import { LOCK_BANNER_TEXT } from './lockBanner.ts'
+import { PLAN_STATUS_LABEL, planStatus } from './planStatus.ts'
 
 export type PlanShellProps = {
   title: string
@@ -25,6 +27,10 @@ export type PlanShellProps = {
   version?: number
   /** The signed-in account owns this hosted plan, so the account appearance applies to it. */
   owner?: boolean
+  /** A run is live when the page is served. The page then opens with Running and its forms locked. */
+  executionActive?: boolean
+  /** The review decision when the page is served, for the opening status. */
+  reviewDecision?: string
   children?: ReactNode
 }
 
@@ -43,8 +49,13 @@ export function PlanShell({
   bootstrap,
   version,
   owner = false,
+  executionActive = false,
+  reviewDecision,
   children,
 }: PlanShellProps) {
+  // The status the page opens with. client/planStatusMark.ts keeps it current from then on.
+  const openingStatus = planStatus({ mode, decision: reviewDecision ?? null, active: executionActive })
+  const openingLabel = PLAN_STATUS_LABEL[openingStatus]
   const started = useRef(false)
   const [tab, setTab] = useState<'plan' | 'workflow'>('plan')
   const cloudPlanId = host === 'cloud' && basePath.startsWith('/plans/') ? (basePath.slice('/plans/'.length).split('/')[0] ?? '') : ''
@@ -74,6 +85,7 @@ export function PlanShell({
     document.documentElement.dataset.accent = accent
     document.body.dataset.planMode = mode
     document.body.dataset.planHost = host
+    document.body.dataset.planStatus ??= openingStatus
     if (owner) document.body.dataset.planOwner = 'true'
     else delete document.body.dataset.planOwner
     document.body.classList.remove('layout-default', 'layout-wide', 'layout-full')
@@ -132,13 +144,17 @@ export function PlanShell({
             aria-label="Plan details"
           >
             <span className="chip-status" aria-hidden="true" />
-            <span className="plan-status-chip-label" data-plan-status-label="" />
+            <span className="plan-status-chip-label" data-plan-status-label="">
+              {openingLabel}
+            </span>
           </button>
           <div className="plan-card" id="plan-card" data-plan-card="" hidden>
             <div className="facts">
               <span className="fact" data-plan-status-fact="" title="Status">
                 <span className="status-dot" aria-hidden="true" />
-                <span className="val" data-plan-status-label="" />
+                <span className="val" data-plan-status-label="">
+                  {openingLabel}
+                </span>
               </span>
               <span className="fact" title={`Mode · ${mode}`}>
                 <span className="val">{mode}</span>
@@ -202,7 +218,11 @@ export function PlanShell({
       </header>
       <div dangerouslySetInnerHTML={{ __html: tocHtml }} />
       <div className="shell">
-        <section className="tab-panel" data-tab-panel="plan" role="tabpanel">
+        <section className={executionActive ? 'tab-panel plan-locked' : 'tab-panel'} data-tab-panel="plan" role="tabpanel">
+          {/* Shown and hidden by client/planStatusMark.ts as the run starts and stops. */}
+          <div className="lock-banner" data-lock-banner="" role="status" hidden={!executionActive}>
+            {LOCK_BANNER_TEXT}
+          </div>
           <main className="stack">
             <div id="plan-mdx-root" />
           </main>

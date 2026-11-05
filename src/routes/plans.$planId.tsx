@@ -28,11 +28,13 @@ function jsonScript(value: unknown): string {
 function CloudPlanPage() {
   const page = Route.useLoaderData()
   const { planId } = Route.useParams()
+  const running = Boolean(page.execution?.active)
   const boot = {
     source: page.source,
     title: page.title,
     responses: page.responses ?? {},
-    locked: false,
+    // Forms open locked while a run is live.
+    locked: running,
     snapshots: [],
     headSnapshotId: null,
   }
@@ -52,6 +54,8 @@ function CloudPlanPage() {
       basePath={`/plans/${planId}`}
       transport="websocket"
       bootstrap={page.bootstrap}
+      executionActive={running}
+      reviewDecision={(page.review as { decision?: string } | null)?.decision}
     >
       <script type="application/json" id="living-plan-mdx" dangerouslySetInnerHTML={{ __html: jsonScript(boot) }} />
       <script type="application/json" id="living-plan-comments" dangerouslySetInnerHTML={{ __html: jsonScript(page.comments ?? []) }} />

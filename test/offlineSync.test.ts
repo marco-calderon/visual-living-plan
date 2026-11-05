@@ -424,3 +424,18 @@ test('a settings row from a host payload fills the host defaults', () => {
     updatedAt: 0,
   })
 })
+
+test('a queued comment placeholder gives way to the host comment it became', async () => {
+  const { commentRowsFromSnapshot } = await import('../src/offlineSync.ts')
+  const placeholder = (key: string, text: string) => ({
+    id: `pending:${key}`,
+    planId: 'plan-1',
+    partId: 'callout:risk',
+    pending: true,
+    comment: { id: `pending:${key}`, partId: 'callout:risk', text },
+  })
+  const host = [{ id: 'cmt_1', partId: 'callout:risk', text: 'Same words' }]
+  // One host comment settles one placeholder. A second equal comment still waiting stays.
+  const rows = commentRowsFromSnapshot('plan-1', host, [placeholder('a', 'Same words'), placeholder('b', 'Same words'), placeholder('c', 'Other')])
+  assert.deepEqual(rows.map((row) => row.id), ['cmt_1', 'pending:b', 'pending:c'])
+})

@@ -129,7 +129,10 @@ async function commentOn(
   await page.getByRole('button', { name: 'Send' }).click()
   const body = (await posted).postDataJSON() as { partId?: string; kind?: string; text?: string }
   expect(body).toMatchObject(expected)
-  await expect(page.getByText(expected.text)).toBeVisible()
+  // The sent comment shows in the thread, once. The box keeps the draft until the send settles.
+  const bubble = page.locator('.plan-bubble-content', { hasText: expected.text })
+  await expect(bubble).toHaveCount(1)
+  await expect(bubble).toBeVisible()
 }
 
 async function waitForUrl(url: string): Promise<void> {

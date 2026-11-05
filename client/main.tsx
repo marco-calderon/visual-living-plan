@@ -79,12 +79,29 @@ function ExecutionApp() {
         // ignore malformed events
       }
     })
+    // Sent each time the stream opens. A page that was disconnected gets the run it missed at once,
+    // then the full view with the plan's workflow, which a hosted hello leaves out.
+    const stopHello = subscribePlanEvents('hello', (event) => {
+      try {
+        const execution = (JSON.parse(event.data) as { execution?: ExecutionState } | null)?.execution
+        if (execution && typeof execution === 'object') {
+          client.setQueryData<ExecutionState>(key, (current) => ({
+            ...execution,
+            planned: execution.planned ?? current?.planned,
+          }))
+        }
+      } catch {
+        // ignore malformed events
+      }
+      void client.refetchQueries({ queryKey: key, exact: true })
+    })
     const stopReload = subscribePlanEvents('reload', () => {
       void client.invalidateQueries({ queryKey: key, exact: true })
     })
 
     return () => {
       stopExecution()
+      stopHello()
       stopReload()
     }
   }, [])

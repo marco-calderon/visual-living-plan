@@ -168,9 +168,11 @@ export async function uploadJson(planUrl: string, token: string, path: string, b
 }
 
 export async function closeCloudPlan(planUrl: string, token: string): Promise<void> {
+  // No body, so no content type. The host parses a JSON content type and rejects an empty body.
+  const { 'content-type': _json, ...headers } = bearer(token, planUrl)
   const response = await fetch(planApiUrl(planUrl, ''), {
     method: 'DELETE',
-    headers: bearer(token, planUrl),
+    headers,
   })
   if (response.status === 404 || response.ok) return
   throw new Error(await errorText(response))

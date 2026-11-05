@@ -35,6 +35,8 @@ import { startLivingPlanServer } from '../src/server.ts'
 
 const entryFile = fileURLToPath(new URL('../src/cli.ts', import.meta.url))
 
+const samplePlanPath = resolve('examples/rate-limit.plan.md')
+
 function sample(overrides: Partial<ProcessRecord> = {}): ProcessRecord {
   const now = Date.now()
   return {
@@ -44,7 +46,8 @@ function sample(overrides: Partial<ProcessRecord> = {}): ProcessRecord {
     summary: 'Add a limiter',
     agent: 'local-cursor',
     mode: 'watch',
-    planPath: '/workspace/examples/rate-limit.plan.md',
+    // A real file: the registry copies it into its home when the plan is registered.
+    planPath: samplePlanPath,
     directory: '/workspace/examples',
     cwd: '/workspace',
     url: 'http://127.0.0.1:9410',

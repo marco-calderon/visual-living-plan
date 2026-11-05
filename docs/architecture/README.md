@@ -232,7 +232,7 @@ flowchart TD
 | Surface | Path |
 |---|---|
 | Plan page | `/plans/<id>/` (`/plans/<id>` redirects here) |
-| Plan API | `/plans/<id>/api/plan`, `/api/interactions/:id`, `/api/comments`, `/api/comments/:id/address`, `/api/comments/:id/addressing`, `/api/comments/:id/reply`, `/api/review`, `/api/mode`, `/api/execution` (GET, PUT, `/start`, `/stop`), `/api/theme` (GET, PUT) |
+| Plan API | `/plans/<id>/api/plan`, `/api/interactions/:id`, `/api/comments`, `/api/comments/:id/address`, `/api/comments/:id/addressing`, `/api/comments/:id/reply`, `/api/review`, `/api/mode`, `/api/execution` (GET, PUT, `/start`, `/push`, `/stop`), `/api/theme` (GET, PUT) |
 | Browser events | `/plans/<id>/api/events` |
 | Agent events | `/plans/<id>/api/agent-events` (bearer token) and `POST /api/agent-events/ack` |
 | Plan list | `/api/processes` and `GET /` |
@@ -292,6 +292,12 @@ sequenceDiagram
 The agent stream on the shared service requires the plan token or the service token. The CLI reads the service token from `~/.config/living-plan/registry.json` when `--token` is omitted. Browser submission routes stay open without that token on loopback. Every request from a loopback peer must name this machine in `Host` (a loopback name, `living-plan.local`, or the `--host` value), so a DNS-rebound page is refused. A write that carries an `Origin` must come from the same host, so another website cannot submit through the browser. The CLI sends no `Origin`. Both checks are `src/requestGuard.ts` and return 403. With LAN publishing on, a non-loopback peer also needs the LAN secret before a plan page or plan API succeeds. The agent stream still checks the bearer token on every peer.
 
 While execution is active, plan forms and review return HTTP 409. Comments stay open. Addressing a comment (`POST /api/comments/:id/addressing` or `POST /api/comments/:id/address`) updates that comment and does not insert a new `plan_events` row. Address stores an outcome of `implemented` (the default), `errored`, or `issues`. `POST /api/comments/:id/reply` appends an agent reply to that same comment and also does not insert a `plan_events` row ([ADR 0014](decisions/0014-comment-replies.md)). `live-plan addressing` sets `addressingAt` (the page shows Addressing or Working). `live-plan reply` appends the reply text. `live-plan address` sets `addressedAt` and the outcome (the page shows Addressed, or Implemented, Errored, or Had issues on a minibar message). The reply is saved with the session and shown on the messages minibar or that part's comment thread.
+
+## How a page follows the plan
+
+One connection per page, in `client/planEvents.ts`, carries every event to one hub that the page's listeners attach to: SSE on the local service, the Durable Object socket on a hosted plan ([ADR 0029](decisions/0029-page-stream-catches-up.md)). Each time it opens, the host sends `hello` with the mode, the review, and the run, so a page that was disconnected catches up without a reload. The host pings an open page every 20 seconds (SSE `ping`, or `pong` to the page's `ping`). A stream quiet for 50 seconds, refused, or closed is opened again with a backoff of up to 15 seconds, and again on `online`, on `pageshow`, and when the tab becomes visible. `client/planStatusMark.ts` turns that state into the status, the tab icon, the lock banner, and the locked plan panel on both hosts. It reads Reconnecting while the stream has been down for three seconds.
+
+`execution start`, `push`, and `stop` post to `/api/execution/start`, `/push`, and `/stop`. The host merges the fields sent into the stored run with `applyExecutionChange` (`src/execution.ts`): `start` turns the run on, `push` keeps it as it is, `stop` turns it off and keeps the last step and graph.
 
 ## Dashboard
 

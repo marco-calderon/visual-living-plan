@@ -66,12 +66,12 @@ export const loadPlan = createServerFn({ method: 'GET' })
       pageWidth: 'default' | 'wide' | 'full'
       diffsTheme: string
       wrapCode: boolean
-      execution?: { active?: boolean }
+      execution?: { active?: boolean } | null
     }
     return { ok: true as const, page: { ...page, bootstrap: await workflowBootstrap(page.source, page.execution, page.responses) } }
   })
 
-async function workflowBootstrap(source: string, execution?: { active?: boolean }, responses?: unknown): Promise<string> {
+async function workflowBootstrap(source: string, execution?: { active?: boolean } | null, responses?: unknown): Promise<string> {
   try {
     const [{ parsePlan }, { createIdleExecutionState }, { buildExpectedGraph }] = await Promise.all([
       import('./parse.ts'),
@@ -83,7 +83,7 @@ async function workflowBootstrap(source: string, execution?: { active?: boolean 
     return JSON.stringify(state).replaceAll('<', '\\u003c')
   } catch (error) {
     console.error('workflow bootstrap failed', error)
-    return JSON.stringify({ active: false }).replaceAll('<', '\\u003c')
+    return JSON.stringify({ active: Boolean(execution?.active) }).replaceAll('<', '\\u003c')
   }
 }
 

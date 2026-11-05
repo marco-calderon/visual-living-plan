@@ -2,7 +2,8 @@ import { furthestStatus, mergePlannedExecution, type ExecutionGraphNode, type Ex
 import { planEntries } from './planEntries'
 import type { CompletionState } from './processRecord'
 import type { PhaseStatus, PlanDocument } from './types'
-import { planToExpectedGraph } from './workflow'
+// Not ./workflow: its layout needs ELK, which a Worker cannot load. Progress needs no positions.
+import { buildExpectedGraph } from './expectedWorkflow'
 
 export type PlanProgress = {
   phaseTotal: number
@@ -32,7 +33,7 @@ function liveSteps(plan: PlanDocument, execution: ExecutionState | undefined): E
   const live = execution?.graph?.nodes
   if (!live || live.length === 0) return []
   const liveIds = new Set(live.map((node) => node.id))
-  const merged = mergePlannedExecution(planToExpectedGraph(plan), execution?.graph)
+  const merged = mergePlannedExecution(buildExpectedGraph(plan), execution?.graph)
   return (merged?.nodes ?? []).filter((node) => liveIds.has(node.id))
 }
 

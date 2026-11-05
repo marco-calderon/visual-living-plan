@@ -27,6 +27,9 @@ import {
   submitInteraction,
   submitReview,
   addressComment,
+  browserHello,
+  changeExecution,
+  executionActive,
   replyToComment,
   touchPlan,
   updateMode,
@@ -34,12 +37,23 @@ import {
   type PlanSql,
 } from './planRoom'
 import type { UserMutationKind } from '../offlineSync'
+import type { ExecutionAction } from '../execution'
+
+/** A page sends this on its socket to check the line. The object answers without waking. */
+export const SOCKET_PING = 'ping'
+export const SOCKET_PONG = 'pong'
 
 type SqlExec = {
   exec(query: string, ...bindings: unknown[]): { toArray(): Array<Record<string, unknown>> }
 }
 
 export class PlanObject extends DurableObject {
+  constructor(ctx: DurableObjectState, env: unknown) {
+    super(ctx, env as never)
+    // Answered by the runtime, so a page can tell a live socket from a dead one without waking the object.
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(SOCKET_PING, SOCKET_PONG))
+  }
+
   private sql(): PlanSql {
     return this.ctx.storage.sql as unknown as SqlExec
   }
@@ -97,7 +111,10 @@ export class PlanObject extends DurableObject {
     const pair = new WebSocketPair()
     this.ctx.acceptWebSocket(pair[1])
     touchPlan(sql)
+    // Sent before anything else can run, so a write after it reaches this socket as its own event.
     if (action === 'agent') pair[1].send(JSON.stringify(agentHello(sql)))
+    // A page that reconnects catches up on the run, the mode, and the review it missed.
+    else pair[1].send(JSON.stringify(browserHello(sql)))
     await this.armAlarm()
     return new Response(null, { status: 101, webSocket: pair[0] })
   }
@@ -189,13 +206,21 @@ export class PlanObject extends DurableObject {
       })
       .put('/api/execution', async ({ request }) => {
         if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'upload')) return text(401, 'Sign in required')
-        const result = putExecution(sql, await request.json())
-        // Browsers get the run with the plan's workflow, the shape GET /api/execution returns.
-        this.publish([{ event: 'execution', data: await executionView(sql) }, ...result.outbound.filter((item) => item.event !== 'execution')])
-        return Response.json(result.body)
+        return this.publishExecution(putExecution(sql, await request.json()))
+      })
+      .post('/api/execution/:action', async ({ request, params }) => {
+        if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'upload')) return text(401, 'Sign in required')
+        const action = params.action as ExecutionAction
+        if (action !== 'start' && action !== 'push' && action !== 'stop') return text(404, 'Not found')
+        return this.publishExecution(changeExecution(sql, action, await readJson(request)))
       })
       .get('/api/execution', async ({ request }) => {
-        if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'read')) return text(401, 'Sign in required')
+        // The agent reads the run with its plan bearer, the page with the account.
+        const actor = actorOf(request)
+        const authorization = authorizationOf(request)
+        if (!actorAllows(actor, authorization, sql, 'read') && !actorAllows(actor, authorization, sql, 'upload')) {
+          return text(401, 'Sign in required')
+        }
         touchPlan(sql)
         return Response.json(await executionView(sql))
       })
@@ -211,7 +236,7 @@ export class PlanObject extends DurableObject {
           source: view.source,
           title: view.title,
           responses: view.responses,
-          locked: false,
+          locked: executionActive(view),
           snapshots: [],
           headSnapshotId: null,
         })
@@ -220,6 +245,15 @@ export class PlanObject extends DurableObject {
         if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'read')) return text(401, 'Sign in required')
         return Response.json({ pending: pendingEvents(sql) })
       })
+  }
+
+  /** Browsers get the run with the plan's workflow, the shape GET /api/execution returns. */
+  private async publishExecution(result: { outbound: Outbound[]; body: unknown }): Promise<Response> {
+    const sql = this.sql()
+    const view = await executionView(sql)
+    this.publish([{ event: 'execution', data: view }, ...result.outbound.filter((item) => item.event !== 'execution')])
+    await this.armAlarm()
+    return Response.json({ ok: true, execution: view })
   }
 
   private async putNamedBlob(request: Request, sql: PlanSql, key: 'theme' | 'git'): Promise<Response> {
