@@ -85,7 +85,9 @@ Flags:
 - `--timeout` defaults to 4 hours. Always include a unit: `30s`, `45m`, `4h`. A bare number is milliseconds.
 - `--iteration N` labels a review round (default `1`). Bump it when you re-open review after Iterate.
 - `--out <file>` writes the review JSON as well as printing it.
-- `--no-open` skips launching a browser. Use it only for headless or CI runs. A person should get the page opened.
+- `serve` and `review` open a plan page only the first time this machine sees that plan URL (recorded in `~/.config/living-plan/opened-pages.json`). Resuming the same plan does not open another tab.
+- `--no-open` skips launching a browser. Pass it when you resume a plan the person already has open, and for headless or CI runs.
+- `--open` opens the page again even when it was opened before. Use it only when the person asks.
 - `--detach` on `serve` registers the plan and returns. Omit it to print undelivered submissions and exit. Start `events` again each time that process exits. After an approval, `watch` stays up until execution is finished.
 - `--no-registry` serves this plan in its own process. By default `serve` and `review` use the machine service, so every planner page can list running plans.
 - `--cloud` on `serve` and `review` hosts that plan on the signed-in service. Run `account login` first. It does not start the local registry, and it does not fall back to loopback. It cannot be combined with `--no-registry`. The same `events`, `wait`, `watch`, `mode`, `execution`, `addressing`, `reply`, `address`, and `close` commands work on the printed https URL. `dashboard`, `tui`, `logs`, and `lan` stay on this machine.
