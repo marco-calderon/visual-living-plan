@@ -2,7 +2,7 @@ import { createContext, memo, useContext } from 'react'
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
 import type { ExecutionNodeStatus } from '../../../../src/execution.ts'
 import { planRefHash } from '../../../../src/planRefNavigation.ts'
-import { ProgressIcon } from './ProgressIcon.tsx'
+import { StatusIcon, statusLabel } from './StatusIcon.tsx'
 
 export type ExecutionStepNodeData = {
   label: string
@@ -46,10 +46,14 @@ function ExecutionStepNodeComponent({ data }: NodeProps<ExecutionStepNodeType>) 
           className="rf-handle"
         />
       ))}
-      <div className="rf-step-status">
-        {data.status === 'active' ? <ProgressIcon /> : null}
-        {data.status}
-      </div>
+      <span
+        className="rf-step-status"
+        role="img"
+        aria-label={statusLabel(data.status)}
+        title={statusLabel(data.status)}
+      >
+        <StatusIcon status={data.status} />
+      </span>
       {data.planRef ? (
         <a
           className="rf-step-label"

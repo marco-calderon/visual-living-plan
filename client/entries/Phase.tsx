@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { ProgressIcon } from '../execution-canvas/adapters/reactFlow/ProgressIcon.tsx'
+import { StatusIcon, statusLabel } from '../execution-canvas/adapters/reactFlow/StatusIcon.tsx'
 import { workflowStepHash } from '../../src/planRefNavigation.ts'
 import { splitStepHeading } from '../../src/planStepHeading.ts'
 import { Box } from './Box'
@@ -73,11 +73,15 @@ export function Phase({ id, title, status, children, className }: PhaseProps) {
                 ) : (
                   label
                 )}
+                <span
+                  className="plan-phase-status"
+                  role="img"
+                  aria-label={statusLabel(normalized)}
+                  title={statusLabel(normalized)}
+                >
+                  <StatusIcon status={normalized} />
+                </span>
               </h3>
-              <span className="plan-phase-status">
-                {normalized === 'active' ? <ProgressIcon /> : null}
-                {normalized}
-              </span>
             </div>
           </div>
           {children ? <div className="plan-rich">{children}</div> : null}

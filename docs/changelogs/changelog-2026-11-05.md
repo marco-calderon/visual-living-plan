@@ -109,3 +109,24 @@ Settings now offers every syntax theme `@pierre/diffs` can load, picked separate
 ### Notes
 
 Existing `diffsTheme` values keep working. Run `bun scripts/generate-diffs-themes.mjs` after upgrading `shiki`, `@pierre/theme`, or `@pierre/theming`. No registry restart needed.
+
+## 2.6.1
+
+**PR:** to be added when the PR opens
+
+**Bump:** patch
+
+### Summary
+
+Workflow cards and plan phases show their status as an icon instead of a word, so cards are easier to scan.
+
+### Improvements
+
+- Each workflow card has a small status icon pinned to its top-left border: a check for done, the spinner for active, a cross for failed, a ban sign for blocked, and a dashed circle for pending. The word "done", "pending", and so on no longer takes a line on the card.
+- Plan phases show the same icon right after the title, in place of the status word.
+- Hovering an icon shows the status name, and screen readers read it out.
+- A blocked phase in the plan now uses the blocked colour that the workflow card already uses, instead of the failed colour.
+
+### Notes
+
+No registry restart needed beyond the usual version check. The shell cache name is 2.6.1.
