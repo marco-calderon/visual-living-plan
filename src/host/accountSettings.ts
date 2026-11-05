@@ -1,8 +1,8 @@
 /** Account appearance stored in D1. A loopback plan keeps its own theme file. */
+import { isKnownDiffsTheme, normalizeDiffsTheme } from '../diffsTheme'
 export const PAGE_WIDTHS = ['default', 'wide', 'full'] as const
 export type PageWidth = (typeof PAGE_WIDTHS)[number]
 
-export const DIFFS_THEMES = ['pierre', 'soft', 'vibrant', 'protanopia-deuteranopia', 'tritanopia'] as const
 
 export const ACCENT_CHOICES = [
   { label: 'Teal', accent: '#0f766e' },
@@ -49,7 +49,7 @@ function isPageWidth(value: unknown): value is PageWidth {
 }
 
 function isDiffsTheme(value: unknown): value is string {
-  return typeof value === 'string' && (DIFFS_THEMES as readonly string[]).includes(value)
+  return typeof value === 'string' && isKnownDiffsTheme(value)
 }
 
 function readWrap(value: unknown): boolean {
@@ -65,7 +65,7 @@ export function mergeAccountSettings(current: AccountSettings, patch: unknown): 
   const next: AccountSettings = {
     accent: record.accent === undefined ? current.accent : (normalizeAccent(record.accent) ?? current.accent),
     pageWidth: record.pageWidth === undefined ? current.pageWidth : isPageWidth(record.pageWidth) ? record.pageWidth : current.pageWidth,
-    diffsTheme: record.diffsTheme === undefined ? current.diffsTheme : isDiffsTheme(record.diffsTheme) ? record.diffsTheme : current.diffsTheme,
+    diffsTheme: record.diffsTheme === undefined ? current.diffsTheme : isDiffsTheme(record.diffsTheme) ? normalizeDiffsTheme(record.diffsTheme) : current.diffsTheme,
     wrapCode: record.wrapCode === undefined ? current.wrapCode : readWrap(record.wrapCode),
   }
   if (incomingAt > 0) next.updatedAt = incomingAt

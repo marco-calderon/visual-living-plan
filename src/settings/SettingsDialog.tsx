@@ -4,7 +4,6 @@ import { Gauge, Info, Search, SlidersHorizontal, UserRound, X } from 'lucide-rea
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { applyAppearance } from '../appearanceDom.ts'
 import { versionSectionHtml } from '../changelogParse.ts'
-import { DIFFS_THEME_PRESETS, diffsThemePreset, type DiffsThemeSample } from '../diffsTheme.ts'
 import { ACCENT_CHOICES } from '../host/accountSettings.ts'
 import type { AccountUsage } from '../host/accountUsage.ts'
 import { loadHostedRelease } from '../hostedRelease.ts'
@@ -12,6 +11,7 @@ import { LinkSocialAccounts } from '../LinkSocialAccounts.tsx'
 import { accountWithSettings, isAccountNetworkFailure } from '../offlineSync.ts'
 import type { AccountPayload } from '../planFns.ts'
 import { Button } from '../../client/ui/button.tsx'
+import { DiffsThemePicker } from '../../client/chrome/DiffsThemePicker.tsx'
 import { Switch } from '../../client/ui/Switch.tsx'
 import { currentOfflineHandle, startOfflineEngine } from '../../client/offline/engine.ts'
 import {
@@ -289,42 +289,12 @@ function SettingsRow({
   )
 }
 
-function sampleStyle(sample: DiffsThemeSample): CSSProperties {
-  return {
-    '--sample-bg': sample.bg,
-    '--sample-fg': sample.fg,
-    '--sample-comment': sample.comment,
-    '--sample-string': sample.string,
-    '--sample-keyword': sample.keyword,
-    '--sample-function': sample.function,
-    '--sample-added': sample.added,
-    '--sample-deleted': sample.deleted,
-  } as CSSProperties
-}
-
-function DiffSample({ sample, mode }: { sample: DiffsThemeSample; mode: 'Light' | 'Dark' }) {
-  return (
-    <div className="diffs-theme-sample" style={sampleStyle(sample)} aria-hidden="true" title={mode}>
-      <span className="tok-comment">{`// ${mode}`}</span>
-      <span>
-        <span className="tok-keyword">const</span> <span className="tok-fn">n</span> ={' '}
-        <span className="tok-string">'ok'</span>
-      </span>
-      <span>
-        <span className="tok-added">+ keep</span> <span className="tok-deleted">- drop</span>
-      </span>
-    </div>
-  )
-}
-
 function GeneralSection({ account }: { account: AccountPayload }) {
   const queryClient = useQueryClient()
   const [settings, setSettings] = useState<Settings>(account.settings)
   const [picker, setPicker] = useState(account.settings.accent)
   const [error, setError] = useState('')
-  const [diffsOpen, setDiffsOpen] = useState(false)
   const appearance = useMutation({ mutationFn: saveHostedAppearance })
-  const currentDiffs = diffsThemePreset(settings.diffsTheme)
   const follows = typeof document === 'undefined' ? true : pageFollowsAccount()
 
   useEffect(() => {
@@ -447,60 +417,18 @@ function GeneralSection({ account }: { account: AccountPayload }) {
             onCheckedChange={(next) => void save({ wrapCode: next })}
           />
         </SettingsRow>
-        <SettingsRow title="Pierre theme" description="Syntax colors for code blocks and diffs." stacked>
-          <div className="settings-accordion" data-open={diffsOpen ? 'true' : 'false'}>
-            <button
-              type="button"
-              className="settings-accordion-trigger"
-              aria-expanded={diffsOpen}
-              aria-controls="settings-diffs-panel"
-              onClick={() => setDiffsOpen((value) => !value)}
-            >
-              <span className="settings-accordion-trigger-copy">
-                <strong>Diff theme</strong>
-                <span>
-                  Current: <strong>{currentDiffs.label}</strong>
-                </span>
-              </span>
-              <svg className="settings-accordion-chevron" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-                <path
-                  fill="currentColor"
-                  d="M5.2 7.5a.9.9 0 0 1 1.27-.05L10 10.74l3.53-3.29a.9.9 0 0 1 1.22 1.32l-4.14 3.86a.9.9 0 0 1-1.22 0L5.25 8.77a.9.9 0 0 1-.05-1.27z"
-                />
-              </svg>
-            </button>
-            <div className="settings-accordion-panel" id="settings-diffs-panel" inert={!diffsOpen}>
-              <div className="settings-accordion-panel-inner">
-                <div className="settings-accordion-body">
-                  <div className="diffs-theme-grid" role="radiogroup" aria-label="Pierre diff themes">
-                    {DIFFS_THEME_PRESETS.map((preset) => (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        className="diffs-theme-option"
-                        role="radio"
-                        aria-label={`${preset.label} theme`}
-                        aria-checked={preset.id === currentDiffs.id}
-                        title={preset.description}
-                        onClick={() => {
-                          if (preset.id !== currentDiffs.id) void save({ diffsTheme: preset.id })
-                        }}
-                      >
-                        <div className="diffs-theme-samples">
-                          <DiffSample sample={preset.lightSample} mode="Light" />
-                          <DiffSample sample={preset.darkSample} mode="Dark" />
-                        </div>
-                        <span className="diffs-theme-option-meta">
-                          <strong>{preset.label}</strong>
-                          <span>{preset.description}</span>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+        <SettingsRow
+          title="Syntax theme"
+          description="Colors for code blocks and diffs in each color mode. Only the chosen themes load."
+          stacked
+        >
+          <DiffsThemePicker
+            value={settings.diffsTheme}
+            followRoot={false}
+            onSelect={(next) => {
+              if (next !== settings.diffsTheme) void save({ diffsTheme: next })
+            }}
+          />
         </SettingsRow>
       </section>
       <p className="settings-meta">{SAVED}</p>

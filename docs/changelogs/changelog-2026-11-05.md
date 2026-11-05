@@ -86,3 +86,26 @@ The open plan page now shows Running and Stopped reliably. It follows an agent's
 ### Notes
 
 The unit and browser suites pass again: stale expectations were updated, and specs that count submissions run on a plan server of their own. No registry restart needed beyond the usual version check. The shell cache name is 2.5.0. Hosted plans need this Worker deployed for `execution push` and `stop` to work from this CLI.
+
+## 2.6.0
+
+**PR:** [#132](https://github.com/marco-calderon/visual-living-plan/pull/132)
+
+**Bump:** minor
+
+### Summary
+
+Settings now offers every syntax theme `@pierre/diffs` can load, picked separately for light and dark mode. Only the chosen themes download.
+
+### Improvements
+
+- The syntax theme picker in Settings and in the local plan's Settings tab is a fixed-height card with an inner scroll and Light and Dark tabs. Previews come from a generated catalog, so the picker does not load any theme files.
+- Code blocks that are already on the page switch to a newly saved theme without a reload.
+
+### New features
+
+- 75 syntax themes (26 light, 49 dark), including GitHub, Catppuccin, Rosé Pine, Tokyo Night, Dracula, Nord, Solarized, Gruvbox and Vitesse. `diffsTheme` saves a Pierre family id as before, or a `light/dark` pair such as `github-light/tokyo-night`.
+
+### Notes
+
+Existing `diffsTheme` values keep working. Run `bun scripts/generate-diffs-themes.mjs` after upgrading `shiki`, `@pierre/theme`, or `@pierre/theming`. No registry restart needed.

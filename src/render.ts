@@ -14,7 +14,7 @@ import { PROCESSES_PANEL_STYLES, processesPanelMarkup, processesPanelScript } fr
 import { accentCssCustomProperties, PAGE_WIDTH_OPTIONS, type PageWidth } from './theme'
 import {
   DEFAULT_DIFFS_THEME,
-  diffsThemePreset,
+  normalizeDiffsTheme,
   type DiffsThemePreset,
 } from './diffsTheme'
 import type {
@@ -425,11 +425,13 @@ function clientScript(
     const previous = currentDiffsTheme;
     const previousLabel = document.getElementById('diffs-theme-current')?.textContent || previous;
     applyDiffsTheme(next, label);
+    window.dispatchEvent(new CustomEvent('living-plan-theme', { detail: { diffsTheme: next } }));
     try {
       await putTheme({ diffsTheme: next });
       showToast('Diff theme saved');
     } catch (error) {
       applyDiffsTheme(previous, previousLabel);
+      window.dispatchEvent(new CustomEvent('living-plan-theme', { detail: { diffsTheme: previous } }));
       showToast(error instanceof Error ? error.message : 'Diff theme update failed');
     }
   });
@@ -1450,15 +1452,11 @@ export function renderPlanPage(options: {
   const bootstrap = JSON.stringify(withPlannedWorkflow(execution, plan, Object.keys(responses))).replaceAll('<', '\\u003c')
   const configName = theme.configPath.split(/[\\/]/).pop() || 'live-plan.config.json'
   const layoutMode: PageWidth = theme.pageWidth || 'default'
-  const diffsThemeId = theme.diffsTheme || DEFAULT_DIFFS_THEME
-  const diffsPresets = theme.diffsThemes?.length
-    ? theme.diffsThemes
-    : [diffsThemePreset(diffsThemeId)]
-  const currentDiffs = diffsThemePreset(diffsThemeId)
+  const diffsThemeId = normalizeDiffsTheme(theme.diffsTheme || DEFAULT_DIFFS_THEME)
   const wrapCode = theme.wrapCode === true
   const savedTo = escapeHtml(configName)
   return `<!doctype html>
-<html lang="en" data-plan-host="local" data-accent="${escapeHtml(theme.accent)}" data-layout="${layoutMode}" data-diffs-theme="${escapeHtml(currentDiffs.id)}" data-wrap-code="${wrapCode ? 'true' : 'false'}">
+<html lang="en" data-plan-host="local" data-accent="${escapeHtml(theme.accent)}" data-layout="${layoutMode}" data-diffs-theme="${escapeHtml(diffsThemeId)}" data-wrap-code="${wrapCode ? 'true' : 'false'}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -1536,11 +1534,10 @@ export function renderPlanPage(options: {
         ${appearanceSettingsHtml({
           accent: theme.accent,
           pageWidth: layoutMode,
-          diffsTheme: currentDiffs.id,
+          diffsTheme: diffsThemeId,
           wrapCode,
           presets: theme.presets,
           widths: PAGE_WIDTH_OPTIONS.map((option) => ({ id: option.id, label: option.label })),
-          diffsThemes: diffsPresets,
           accentNote: `Saved to <code>${savedTo}</code>. Agents can also run <code>live-plan theme set --accent #hex</code>.`,
           widthNote: `Saved to <code>${savedTo}</code> with the accent settings.`,
           wrapNote: `Saved to <code>${savedTo}</code> as <code>theme.wrapCode</code>.`,

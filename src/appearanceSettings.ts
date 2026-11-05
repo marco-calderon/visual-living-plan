@@ -1,4 +1,4 @@
-import { DEFAULT_DIFFS_THEME, DIFFS_THEME_PRESETS, diffsThemePreset, type DiffsThemePreset, type DiffsThemeSample } from './diffsTheme'
+import { DEFAULT_DIFFS_THEME, normalizeDiffsTheme } from './diffsTheme'
 
 export type AppearancePreset = { label: string; accent: string }
 
@@ -11,7 +11,6 @@ export type AppearanceSettingsInput = {
   wrapCode: boolean
   presets: AppearancePreset[]
   widths: AppearanceWidth[]
-  diffsThemes?: DiffsThemePreset[]
   /** Replaces the accent explanation. The plan page uses the theme-file sentence. */
   accentCopy?: string
   /** Trusted HTML for the line under each control. */
@@ -23,50 +22,6 @@ export type AppearanceSettingsInput = {
 
 function escapeHtml(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;')
-}
-
-function diffsThemeSampleMarkup(sample: DiffsThemeSample, mode: 'Light' | 'Dark'): string {
-  const style = [
-    `--sample-bg:${sample.bg}`,
-    `--sample-fg:${sample.fg}`,
-    `--sample-comment:${sample.comment}`,
-    `--sample-string:${sample.string}`,
-    `--sample-keyword:${sample.keyword}`,
-    `--sample-function:${sample.function}`,
-    `--sample-added:${sample.added}`,
-    `--sample-deleted:${sample.deleted}`,
-  ].join(';')
-  return `<div class="diffs-theme-sample" style="${escapeHtml(style)}" aria-hidden="true" title="${mode}">
-    <span class="tok-comment">// ${mode}</span>
-    <span><span class="tok-keyword">const</span> <span class="tok-fn">n</span> = <span class="tok-string">'ok'</span></span>
-    <span><span class="tok-added">+ keep</span> <span class="tok-deleted">- drop</span></span>
-  </div>`
-}
-
-function diffsThemeOptionsMarkup(presets: DiffsThemePreset[], selectedId: string): string {
-  return presets
-    .map((preset) => {
-      const selected = preset.id === selectedId
-      return `<button
-          type="button"
-          class="diffs-theme-option"
-          data-diffs-theme="${escapeHtml(preset.id)}"
-          data-diffs-theme-label="${escapeHtml(preset.label)}"
-          aria-label="${escapeHtml(preset.label)} theme"
-          aria-checked="${selected ? 'true' : 'false'}"
-          title="${escapeHtml(preset.description)}"
-        >
-          <div class="diffs-theme-samples">
-            ${diffsThemeSampleMarkup(preset.lightSample, 'Light')}
-            ${diffsThemeSampleMarkup(preset.darkSample, 'Dark')}
-          </div>
-          <span class="diffs-theme-option-meta">
-            <strong>${escapeHtml(preset.label)}</strong>
-            <span>${escapeHtml(preset.description)}</span>
-          </span>
-        </button>`
-    })
-    .join('')
 }
 
 /** Appearance controls from the plan Settings tab. Local and cloud both render this. */
@@ -91,9 +46,7 @@ export function appearanceSettingsHtml(input: AppearanceSettingsInput): string {
       return `<button type="button" class="width-choice" role="radio" data-page-width="${escapeHtml(option.id)}" aria-checked="${selected ? 'true' : 'false'}">${escapeHtml(option.label)}</button>`
     })
     .join('')
-  const diffsThemeId = input.diffsTheme || DEFAULT_DIFFS_THEME
-  const diffsPresets = input.diffsThemes?.length ? input.diffsThemes : DIFFS_THEME_PRESETS
-  const currentDiffs = diffsThemePreset(diffsThemeId)
+  const diffsThemeId = normalizeDiffsTheme(input.diffsTheme || DEFAULT_DIFFS_THEME)
   const wrapCode = input.wrapCode === true
   return `        <section class="block settings-section" data-section>
           <h3>Accent color</h3>
@@ -139,36 +92,12 @@ export function appearanceSettingsHtml(input: AppearanceSettingsInput): string {
             </button>
           </div>
           <p class="settings-meta">${input.wrapNote}</p>
-          <h3>Pierre theme</h3>
-          <p class="settings-copy">Choose the Pierre syntax theme used for code blocks and diffs. Light and dark samples follow the page color mode.</p>
-          <div class="settings-accordion" data-accordion data-open="false">
-            <button
-              type="button"
-              class="settings-accordion-trigger"
-              data-accordion-trigger
-              id="diffs-theme-toggle"
-              aria-expanded="false"
-              aria-controls="diffs-theme-panel"
-            >
-              <span class="settings-accordion-trigger-copy">
-                <strong>Diff theme</strong>
-                <span>Current: <strong id="diffs-theme-current">${escapeHtml(currentDiffs.label)}</strong></span>
-              </span>
-              <svg class="settings-accordion-chevron" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-                <path fill="currentColor" d="M5.2 7.5a.9.9 0 0 1 1.27-.05L10 10.74l3.53-3.29a.9.9 0 0 1 1.22 1.32l-4.14 3.86a.9.9 0 0 1-1.22 0L5.25 8.77a.9.9 0 0 1-.05-1.27z"/>
-              </svg>
-            </button>
-            <div class="settings-accordion-panel" id="diffs-theme-panel" data-accordion-panel inert>
-              <div class="settings-accordion-panel-inner">
-                <div class="settings-accordion-body">
-                  <div class="diffs-theme-grid" role="radiogroup" aria-label="Pierre diff themes">
-                    ${diffsThemeOptionsMarkup(diffsPresets, currentDiffs.id)}
-                  </div>
-                  <p class="settings-meta" style="margin-top:0.85rem">${input.diffsNote}</p>
-                </div>
-              </div>
-            </div>
+          <h3>Syntax theme</h3>
+          <p class="settings-copy">Choose the theme for code blocks and diffs in each color mode. Only the chosen themes load.</p>
+          <div class="diffs-theme-picker-host" data-diffs-theme-picker data-value="${escapeHtml(diffsThemeId)}">
+            <div class="diffs-theme-picker" aria-hidden="true"><div class="diffs-theme-list"></div></div>
           </div>
+          <p class="settings-meta" style="margin-top:0.85rem">${input.diffsNote}</p>
         </section>`
 }
 

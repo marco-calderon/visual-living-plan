@@ -117,6 +117,8 @@ export function PlanShell({
       // Comments and review belong to the live plan, not to a saved version.
       if (host === 'cloud' && !version) void import('../client/PlanSelector.tsx')
     }
+    // Code blocks and the canvas read these once. Announce them so a fresh loader result reaches mounted ones.
+    window.dispatchEvent(new CustomEvent('living-plan-theme', { detail: { accent, pageWidth, diffsTheme, wrapCode } }))
     const sourceFlags = planSourceFlags(source)
     if (sourceFlags.mermaid) void import('../client/mermaid.ts')
     if (sourceFlags.code) void import('../client/highlight.tsx')
