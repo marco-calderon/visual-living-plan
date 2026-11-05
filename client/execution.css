@@ -107,14 +107,32 @@
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+/* Status pin straddling the card's top-left border. */
+.rf-step {
+  position: relative;
+}
+
 .rf-step-status {
+  position: absolute;
+  top: -11px;
+  left: 12px;
   display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 12px;
-  font-weight: 700;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--node-bg);
+  box-shadow: 0 0 0 1px var(--line);
   color: var(--muted);
-  margin-bottom: 0.3rem;
+  line-height: 0;
+}
+
+.rf-step-status .status-icon,
+.rf-step-status .rf-progress-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.rf-step-label {
+  margin-top: 0.15rem;
 }
 
 .rf-progress-icon {

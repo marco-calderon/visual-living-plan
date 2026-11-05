@@ -364,6 +364,20 @@
   font-weight: 600;
 }
 
+/* Status icon after a phase title. */
+.plan-title .plan-phase-status {
+  margin-left: 0.4rem;
+  vertical-align: -0.1em;
+  color: var(--muted);
+  line-height: 0;
+}
+
+.plan-title .plan-phase-status .status-icon,
+.plan-title .plan-phase-status .rf-progress-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
 .plan-step-heading {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -629,8 +643,8 @@ a.plan-step-label:hover {
 
 .plan-phase[data-status="active"] .plan-phase-status { color: var(--accent); }
 .plan-phase[data-status="done"] .plan-phase-status { color: var(--ok); }
-.plan-phase[data-status="failed"] .plan-phase-status,
-.plan-phase[data-status="blocked"] .plan-phase-status { color: var(--danger); }
+.plan-phase[data-status="failed"] .plan-phase-status { color: var(--danger); }
+.plan-phase[data-status="blocked"] .plan-phase-status { color: var(--accent-2); }
 
 .plan-callout-label {
   font-size: 12px;

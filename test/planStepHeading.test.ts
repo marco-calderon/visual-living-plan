@@ -37,6 +37,9 @@ After the merge.
   assert.match(html, /aria-label="Step 2"><span class="plan-step-digit">2<\/span></)
   assert.match(html, /data-workflow-jump="next"/)
   assert.equal((html.match(/rf-progress-icon/g) ?? []).length, 1)
+  assert.match(html, /class="plan-phase-status" role="img" aria-label="Active"/)
+  assert.match(html, /class="plan-phase-status" role="img" aria-label="Pending"[^>]*><svg class="status-icon"/)
+  assert.doesNotMatch(html, />active</)
 })
 
 test('a workflow step needs a closer view when it is offscreen or tiny', () => {
