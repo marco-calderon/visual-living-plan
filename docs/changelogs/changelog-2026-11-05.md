@@ -154,7 +154,7 @@ No registry restart needed beyond the usual version check.
 
 ## 2.8.0
 
-**PR:** pending
+**PR:** [#157](https://github.com/marco-calderon/visual-living-plan/pull/157)
 
 **Bump:** minor
 
