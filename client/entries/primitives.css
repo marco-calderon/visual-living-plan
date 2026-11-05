@@ -656,6 +656,60 @@ a.plan-step-label:hover {
 .plan-callout[data-kind="warning"] .plan-callout-label { color: var(--danger); }
 .plan-callout[data-kind="decision"] .plan-callout-label { color: var(--accent-2); }
 
+/* Card label with an icon: an outlined square like the phase number, then the label in capitals. */
+.plan-card-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+  color: var(--muted);
+}
+
+.plan-card-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  box-sizing: border-box;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--canvas);
+  color: inherit;
+  line-height: 0;
+}
+
+.plan-card-icon svg { width: 16px; height: 16px; }
+
+.plan-card-label-text {
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.plan-callout[data-kind="tip"] .plan-card-icon {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+  border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+}
+
+.plan-callout[data-kind="risk"] .plan-card-icon,
+.plan-callout[data-kind="warning"] .plan-card-icon {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: var(--danger-border);
+}
+
+.plan-callout[data-kind="decision"] .plan-card-icon {
+  color: var(--accent-2);
+  background: color-mix(in srgb, var(--accent-2) 12%, transparent);
+  border-color: color-mix(in srgb, var(--accent-2) 40%, transparent);
+}
+
 .plan-choice-group {
   display: grid;
   width: 100%;

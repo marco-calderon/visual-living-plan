@@ -2,6 +2,7 @@ import { Pencil } from 'lucide-react'
 import { Children, isValidElement, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Button } from '../ui/button.tsx'
 import { Box } from './Box'
+import { CardLabel, type CardIcon } from './CardLabel'
 import { FormContext } from './entryContext'
 import { Field } from './Field'
 import { anchorId } from './planEntry'
@@ -17,6 +18,8 @@ export type FormProps = {
   locked?: boolean
   children?: ReactNode
   className?: string
+  /** Icon name or element shown in a square before the card label. */
+  icon?: CardIcon
   onSubmit?: (response: FormResponse) => void
 }
 
@@ -102,7 +105,7 @@ function firstEmptyRequiredCheckbox(form: HTMLFormElement): HTMLInputElement | n
   return null
 }
 
-export function Form({ id, prompt, fields, values, locked, children, className, onSubmit }: FormProps) {
+export function Form({ id, prompt, fields, values, locked, children, className, icon, onSubmit }: FormProps) {
   const [sent, setSent] = useState(false)
   const [editing, setEditing] = useState(false)
   const [progress, setProgress] = useState<{ checked: number; total: number } | null>(null)
@@ -215,9 +218,9 @@ export function Form({ id, prompt, fields, values, locked, children, className, 
               </div>
             ) : (
               <>
-                <span className="plan-kicker">
+                <CardLabel icon={icon}>
                   {locked ? 'Locked' : editing ? 'Editing' : submitted ? 'Saved' : 'Needs input'}
-                </span>
+                </CardLabel>
                 <h3 className="plan-title">{prompt}</h3>
               </>
             )}

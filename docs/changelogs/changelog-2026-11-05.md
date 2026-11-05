@@ -151,3 +151,22 @@ The plan status chip and tab icon now show what the plan is doing: Review, Execu
 ### Notes
 
 No registry restart needed beyond the usual version check.
+
+## 2.8.0
+
+**PR:** [#157](https://github.com/marco-calderon/visual-living-plan/pull/157)
+
+**Bump:** minor
+
+### Summary
+
+Plan cards can show an icon at their top left corner. The icon sits in an outlined square like a phase number, and the card label follows it in capitals.
+
+### New features
+
+- `callout`, `choice`, `form`, `questions`, and `approve` take an optional `icon` attribute, such as `icon="alert"` or `icon="shield"`. The 25 names are listed in the `live-plan` skill's primitives.
+- A callout's icon square takes the callout's colour: red for risk and warning, coral for decision, green for tip.
+
+### Notes
+
+Cards without `icon`, or with an unknown name, look the same as before. `package-lock.json` and the shell cache now match the package version again; both had stayed on 2.6.1. The shell cache name is 2.8.0. No registry restart needed beyond the usual version check.

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Box } from './Box'
+import { CardLabel, type CardIcon } from './CardLabel'
 import { anchorId } from './planEntry'
 import { cx } from './styles'
 import { calloutKind } from './types'
@@ -9,11 +10,13 @@ export type CalloutProps = {
   id?: string
   kind?: string
   title?: string
+  /** Icon name or element shown in a square before the label. */
+  icon?: CardIcon
   children?: ReactNode
   className?: string
 }
 
-export function Callout({ id, kind, title, children, className }: CalloutProps) {
+export function Callout({ id, kind, title, icon, children, className }: CalloutProps) {
   const normalized = calloutKind(kind)
   const label = title ? `${normalized} · ${title}` : normalized
   return (
@@ -27,13 +30,14 @@ export function Callout({ id, kind, title, children, className }: CalloutProps) 
       data-kind={normalized}
     >
       <VStack gap="sm">
-        <div
+        <CardLabel
+          icon={icon}
           className="plan-callout-label"
           data-plan-part={id ? `callout:${id}/label` : undefined}
           data-plan-kind="label"
         >
           {label}
-        </div>
+        </CardLabel>
         {children ? <div className="plan-rich">{children}</div> : null}
       </VStack>
     </Box>

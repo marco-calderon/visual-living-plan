@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Button } from '../ui/button.tsx'
 import { Box } from './Box'
+import { CardLabel, type CardIcon } from './CardLabel'
 import { anchorId, keyedEntries, partitionEntries } from './planEntry'
 import { cx } from './styles'
 import type { WorkflowEdgeSpec, WorkflowNodeSpec } from './types'
@@ -14,6 +15,8 @@ export type WorkflowProps = {
   edges?: WorkflowEdgeSpec[]
   children?: ReactNode
   className?: string
+  /** Icon name or element shown in a square before the card label. */
+  icon?: CardIcon
   onOpenDiagram?: () => void
 }
 
@@ -30,6 +33,7 @@ export function Workflow({
   edges,
   children,
   className,
+  icon,
   onOpenDiagram,
 }: WorkflowProps) {
   const { matches, rest } = partitionEntries(children, 'step')
@@ -43,7 +47,7 @@ export function Workflow({
       data-entry-id={id}
     >
       <VStack gap="sm">
-        <span className="plan-kicker">Expected workflow</span>
+        <CardLabel icon={icon}>Expected workflow</CardLabel>
         <h3 className="plan-title">{title}</h3>
         <p className="plan-note">
           These steps are the execution plan before the run is laid down. The workflow diagram draws the same path.
