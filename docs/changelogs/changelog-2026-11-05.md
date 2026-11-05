@@ -2,7 +2,7 @@
 
 ## 2.3.2
 
-**PR:** pending
+**PR:** #153
 
 **Bump:** patch
 
