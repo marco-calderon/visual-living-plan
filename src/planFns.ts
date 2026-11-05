@@ -68,10 +68,10 @@ export const loadPlan = createServerFn({ method: 'GET' })
       wrapCode: boolean
       execution?: { active?: boolean }
     }
-    return { ok: true as const, page: { ...page, bootstrap: await workflowBootstrap(page.source, page.execution) } }
+    return { ok: true as const, page: { ...page, bootstrap: await workflowBootstrap(page.source, page.execution, page.responses) } }
   })
 
-async function workflowBootstrap(source: string, execution?: { active?: boolean }): Promise<string> {
+async function workflowBootstrap(source: string, execution?: { active?: boolean }, responses?: unknown): Promise<string> {
   try {
     const [{ parsePlan }, { createIdleExecutionState }, { buildExpectedGraph }] = await Promise.all([
       import('./parse.ts'),
@@ -79,12 +79,20 @@ async function workflowBootstrap(source: string, execution?: { active?: boolean 
       import('./expectedWorkflow.ts'),
     ])
     const plan = parsePlan(source)
-    const state = { ...createIdleExecutionState(), ...(execution ?? {}), planned: buildExpectedGraph(plan) }
+    const state = { ...createIdleExecutionState(), ...(execution ?? {}), planned: buildExpectedGraph(plan, undefined, answeredIds(responses)) }
     return JSON.stringify(state).replaceAll('<', '\\u003c')
   } catch (error) {
     console.error('workflow bootstrap failed', error)
     return JSON.stringify({ active: false }).replaceAll('<', '\\u003c')
   }
+}
+
+/** Interaction ids that have a response, from a responses map or list. */
+function answeredIds(responses: unknown): string[] {
+  if (Array.isArray(responses)) {
+    return responses.flatMap((entry) => (entry && typeof (entry as { id?: unknown }).id === 'string' ? [(entry as { id: string }).id] : []))
+  }
+  return responses && typeof responses === 'object' ? Object.keys(responses) : []
 }
 
 export const planBootstrap = createServerFn({ method: 'POST' })

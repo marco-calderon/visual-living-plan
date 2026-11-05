@@ -349,7 +349,7 @@ export async function executionView(sql: PlanSql): Promise<ExecutionState> {
   try {
     // Loaded on first use. A top-level import of the parser stops the Worker from starting.
     const [{ parsePlan }, { withPlannedWorkflow }] = await Promise.all([import('../parse'), import('../workflow')])
-    return withPlannedWorkflow(execution, parsePlan(view.source))
+    return withPlannedWorkflow(execution, parsePlan(view.source), Object.keys(view.responses))
   } catch {
     // A source that does not parse still has a run state to show.
     return execution
