@@ -51,6 +51,18 @@ A Redis outage must not take down the API.
 </callout>
 ```
 
+### Card icons
+
+`callout`, `choice`, `form`, `questions`, and `approve` take an optional `icon`. The icon sits in an outlined square at the top left of the card, and the card label follows it in capitals. A callout tints the square by `kind`. Without `icon`, or with an unknown name, the card shows its plain label.
+
+`icon`: `alert` | `branch` | `bug` | `check` | `clock` | `database` | `decision` | `file` | `flag` | `globe` | `help` | `idea` | `info` | `key` | `list` | `lock` | `message` | `package` | `rocket` | `server` | `shield` | `sparkles` | `users` | `wrench` | `zap`.
+
+```mdx
+<callout kind="risk" title="Redis dependency" icon="alert">
+A Redis outage must not take down the API.
+</callout>
+```
+
 ## choice
 
 The human picks one option. `wait` prints:

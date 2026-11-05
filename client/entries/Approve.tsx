@@ -1,6 +1,7 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { Button } from '../ui/button.tsx'
 import { Box } from './Box'
+import { CardLabel, type CardIcon } from './CardLabel'
 import { HStack } from './HStack'
 import { anchorId } from './planEntry'
 import { cx } from './styles'
@@ -15,10 +16,12 @@ export type ApproveProps = {
   approved?: boolean
   locked?: boolean
   className?: string
+  /** Icon name or element shown in a square before the card label. */
+  icon?: CardIcon
   onDecide?: (response: ApproveResponse) => void
 }
 
-export function Approve({ id, prompt, children, note, approved, locked, className, onDecide }: ApproveProps) {
+export function Approve({ id, prompt, children, note, approved, locked, className, icon, onDecide }: ApproveProps) {
   const [noteText, setNoteText] = useState(note ?? '')
   const [localDecision, setLocalDecision] = useState<boolean | undefined>(undefined)
   const picked = useRef(false)
@@ -58,7 +61,7 @@ export function Approve({ id, prompt, children, note, approved, locked, classNam
       data-locked={locked ? 'true' : undefined}
     >
       <VStack gap="sm">
-        <span className="plan-kicker">Approval gate</span>
+        <CardLabel icon={icon}>Approval gate</CardLabel>
         <h3 className="plan-title">{prompt}</h3>
         {children ? <div className="plan-rich">{children}</div> : null}
         <label className="plan-field">

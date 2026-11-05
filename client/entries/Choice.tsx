@@ -1,6 +1,7 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { RadioGroup } from '../ui/radio-group.tsx'
 import { Box } from './Box'
+import { CardLabel, type CardIcon } from './CardLabel'
 import { ChoiceContext } from './entryContext'
 import { Option } from './Option'
 import { anchorId, keyedEntries, partitionEntries } from './planEntry'
@@ -17,6 +18,8 @@ export type ChoiceProps = {
   locked?: boolean
   children?: ReactNode
   className?: string
+  /** Icon name or element shown in a square before the card label. */
+  icon?: CardIcon
   onSelect?: (response: ChoiceResponse) => void
 }
 
@@ -29,6 +32,7 @@ export function Choice({
   locked,
   children,
   className,
+  icon,
   onSelect,
 }: ChoiceProps) {
   const [localSelected, setLocalSelected] = useState<{ id: string; label: string } | undefined>(undefined)
@@ -65,7 +69,7 @@ export function Choice({
       data-locked={locked ? 'true' : undefined}
     >
       <VStack gap="sm">
-        <span className="plan-kicker">Needs your choice</span>
+        <CardLabel icon={icon}>Needs your choice</CardLabel>
         <h3 className="plan-title" id={promptId}>
           {prompt}
         </h3>
