@@ -56,6 +56,7 @@ import {
   syncCloudUrl,
 } from './cloudCommand'
 import { cloudCredential, planRecordForUrl, readCloudFile, writeCloudFile } from './cloudStore'
+import { choosePlanOpen, rememberPageOpened } from './openedPages'
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -72,8 +73,8 @@ function printHelp(): void {
   console.log(`live-plan — agent-authored plans humans can interact with
 
 Usage:
-  live-plan serve <file.plan.md> [--port N] [--host HOST] [--config file] [--no-open] [--detach]
-  live-plan review <file.plan.md> [--port N] [--iteration N] [--timeout 30m] [--config file] [--no-open]
+  live-plan serve <file.plan.md> [--port N] [--host HOST] [--config file] [--no-open|--open] [--detach]
+  live-plan review <file.plan.md> [--port N] [--iteration N] [--timeout 30m] [--config file] [--no-open|--open]
   live-plan wait <id> --url <plan-url> [--token TOKEN] [--timeout 30m]
   live-plan events --url <plan-url> [--token TOKEN]
   live-plan watch --url <plan-url> [--token TOKEN]
@@ -126,6 +127,7 @@ Per-plan accent color is saved in live-plan.config.json beside the plan (overrid
 Without --plan or --config, theme get/set uses ~/.config/living-plan/live-plan.config.json.
 Service state and diagnostic logs live under ~/.config/living-plan (LIVE_PLAN_HOME / LIVE_PLAN_LOG_HOME override).
 --no-open skips launching a browser.
+serve and review open a plan page only the first time on this machine. Resuming the same plan leaves the open tab alone. --open opens it again.
 --version prints the package version and exits. -v is the short flag.
 --detach registers the plan and returns. Without it, serve prints the next undelivered submissions and exits. The page stays up on the service.
 events does the same on a URL you already have. A submission that arrived while it was stopped is printed immediately, then the process exits. Start events again after every comment, denial, or approval so a pending event is not left on the server.
@@ -174,6 +176,24 @@ async function openBrowser(url: string): Promise<void> {
     // A missing opener must not take down the server.
   })
   child.unref()
+}
+
+/**
+ * Open a plan page only the first time. A resumed `serve` or `review` reuses
+ * the tab the person already has. `--open` forces it, `--no-open` skips it.
+ */
+async function openPlanPage(url: string): Promise<void> {
+  const argv = process.argv.slice(2)
+  const choice = await choosePlanOpen(url, {
+    noOpen: hasFlag(argv, '--no-open'),
+    forceOpen: hasFlag(argv, '--open'),
+  }).catch(() => 'open' as const)
+  if (choice === 'skip') {
+    if (!hasFlag(argv, '--no-open')) console.log('Page already opened before. Not opening it again (pass --open to reopen).')
+    return
+  }
+  await openBrowser(url)
+  await rememberPageOpened(url).catch(() => undefined)
 }
 
 async function ensureClientBuild(): Promise<void> {
@@ -420,7 +440,7 @@ async function cmdCloudServe(file: string, args: string[], mode: 'watch' | 'revi
     console.log(`Living Plan (${mode}): ${record.url}`)
     console.log(`Plan file: ${resolve(file)}`)
     console.log('Hosted plan. The local registry was not started.')
-    await openBrowser(record.url)
+    await openPlanPage(record.url)
     if (mode === 'watch' && hasFlag(args, '--detach')) {
       const pid = spawnCloudWatch(fileURLToPath(import.meta.url), record)
       const stored = await readCloudFile()
@@ -468,7 +488,7 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
     console.log(`Plan file: ${planPath}`)
     console.log(`Service: ${registry.url}`)
     console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent, page width).')
-    await openBrowser(hosted.url)
+    await openPlanPage(hosted.url)
     if (hasFlag(args, '--detach')) {
       console.log(`Events: live-plan events --url ${hosted.url}`)
       return 0
@@ -489,7 +509,7 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
   console.log(`Plan file: ${planPath}`)
   console.log(`Theme config: ${server.getState().theme.configPath}`)
   console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent, page width).')
-  await openBrowser(server.url)
+  await openPlanPage(server.url)
   console.log('Listening for the next submission. This command exits when one arrives.')
   const code = await listenForSubmissions(server.url)
   await server.close()
@@ -642,7 +662,7 @@ async function privateReview(file: string, args: string[]): Promise<number> {
     if (stdout && 'unref' in stdout) (stdout as { unref: () => void }).unref()
     console.log(`Living Plan (review): ${url}`)
     console.log(`Plan file: ${planPath}`)
-    await openBrowser(url)
+    await openPlanPage(url)
     const held = await readReviewEvent(url, undefined, timeoutMs)
     await writeReviewOutput(args, held.review)
     await acknowledgeSubmissions(url, undefined, held.eventIds)
@@ -674,7 +694,7 @@ async function cmdReview(file: string, args: string[]): Promise<number> {
     console.log(`Living Plan (review): ${hosted.url}`)
     console.log(`Plan file: ${planPath}`)
     console.log(`Service: ${registry.url}`)
-    await openBrowser(hosted.url)
+    await openPlanPage(hosted.url)
     try {
       const apiUrl = rewriteToBindUrl(registry, hosted.url)
       const held = await readReviewEvent(apiUrl, hosted.token, timeoutMs)
