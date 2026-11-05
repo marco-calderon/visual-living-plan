@@ -47,7 +47,7 @@ No registry restart needed beyond the usual version check. The shell cache name 
 
 ## 2.5.0
 
-**PR:** pending
+**PR:** [#154](https://github.com/marco-calderon/visual-living-plan/pull/154)
 
 **Bump:** minor
 
