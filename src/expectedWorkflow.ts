@@ -1,4 +1,4 @@
-import type { ExecutionGraph, ExecutionGraphEdge, ExecutionGraphNode, ExecutionNodeStatus, ExecutionPortSide } from './execution'
+import { furthestStatus, type ExecutionGraph, type ExecutionGraphEdge, type ExecutionGraphNode, type ExecutionNodeStatus, type ExecutionPortSide } from './execution'
 import {
   entryAnchor,
   entryInAutoWorkflow,
@@ -17,8 +17,14 @@ function asStatus(value: string | undefined): ExecutionNodeStatus | undefined {
   return undefined
 }
 
-function phaseStatus(status: string): ExecutionNodeStatus {
-  return asStatus(status) ?? 'pending'
+/** Status a plan block gives its workflow step: a phase's own status, or done for an answered interaction. */
+function linkedStatus(
+  entry: PlanEntry | undefined,
+  ref: string | undefined,
+  answered: ReadonlySet<string>,
+): ExecutionNodeStatus | undefined {
+  if (ref && answered.has(ref)) return 'done'
+  return entry ? asStatus(entryPhaseStatus(entry)) : undefined
 }
 
 function asPortSide(value: string | undefined): ExecutionPortSide | undefined {
@@ -52,9 +58,17 @@ export type ExpectedWorkflowLayout = (
   edges: Array<{ from: string; to: string }>,
 ) => ExecutionGraphNode[]
 
-/** Expected execution diagram. Layout is optional; the plan page lays the nodes out in the browser. */
-export function buildExpectedGraph(plan: PlanDocument, layout?: ExpectedWorkflowLayout): ExecutionGraph | undefined {
+/**
+ * Expected execution diagram. Layout is optional; the plan page lays the nodes out in the browser.
+ * Each step follows the plan's state: a linked phase's status, and done once a linked interaction is answered.
+ */
+export function buildExpectedGraph(
+  plan: PlanDocument,
+  layout?: ExpectedWorkflowLayout,
+  answered: Iterable<string> = [],
+): ExecutionGraph | undefined {
   const anchors = indexAnchors(plan)
+  const answeredIds = new Set(answered)
   const workflow = planEntries(plan).find((entry) => entry.type === 'workflow')
   const graph = workflow ? entryWorkflow(workflow) : undefined
   const place = layout ?? ((nodes: ExecutionGraphNode[]) => nodes)
@@ -64,12 +78,11 @@ export function buildExpectedGraph(plan: PlanDocument, layout?: ExpectedWorkflow
       const planRef = node.ref ?? (anchors.has(node.id) ? node.id : undefined)
       const linked = planRef ? anchors.get(planRef) : undefined
       const linkedLabel = linked ? entryLabel(linked) : undefined
-      const linkedStatus = linked ? entryPhaseStatus(linked) : undefined
       return {
         id: node.id,
         label: node.label ?? linkedLabel ?? node.id,
         detail: node.detail ?? (linked ? entryKindLabel(linked) : undefined),
-        status: asStatus(node.status) ?? (linkedStatus ? phaseStatus(linkedStatus) : undefined) ?? 'pending',
+        status: furthestStatus(asStatus(node.status), linkedStatus(linked, planRef, answeredIds)) ?? 'pending',
         x: node.x,
         y: node.y,
         planRef,
@@ -90,12 +103,11 @@ export function buildExpectedGraph(plan: PlanDocument, layout?: ExpectedWorkflow
     const anchor = entryAnchor(entry, index)
     if (!anchor) return
     const label = entryLabel(entry) ?? anchor
-    const status = entryPhaseStatus(entry)
     nodes.push({
       id: anchor,
       label,
       detail: entryKindLabel(entry),
-      status: status ? phaseStatus(status) : 'pending',
+      status: linkedStatus(entry, anchor, answeredIds) ?? 'pending',
       planRef: anchor,
       planLabel: label,
     })

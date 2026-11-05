@@ -58,6 +58,24 @@ export function createIdleExecutionState(): ExecutionState {
   }
 }
 
+const STATUS_RANK: Record<ExecutionNodeStatus, number> = {
+  pending: 0,
+  failed: 1,
+  blocked: 2,
+  active: 3,
+  done: 4,
+}
+
+/** The further along of two statuses, so a run never moves a plan step backwards. */
+export function furthestStatus(
+  left: ExecutionNodeStatus | undefined,
+  right: ExecutionNodeStatus | undefined,
+): ExecutionNodeStatus | undefined {
+  if (!left) return right
+  if (!right) return left
+  return STATUS_RANK[right] > STATUS_RANK[left] ? right : left
+}
+
 function edgeKey(edge: ExecutionGraphEdge): string {
   return `${edge.from}\0${edge.to}`
 }
@@ -65,6 +83,8 @@ function edgeKey(edge: ExecutionGraphEdge): string {
 /**
  * Keep the plan's expected workflow, then overlay a live execution graph.
  * Matching ids update status and copy. Steps that exist only on one side stay visible.
+ * A step linked to the plan keeps the further along of its plan status and its run status,
+ * the same rule plan progress uses, so the diagram and the progress agree.
  */
 export function mergePlannedExecution(
   planned: ExecutionGraph | undefined,
@@ -83,7 +103,7 @@ export function mergePlannedExecution(
       ...node,
       label: node.label || overlay.label,
       detail: overlay.detail ?? node.detail,
-      status: overlay.status ?? node.status,
+      status: node.planRef ? furthestStatus(node.status, overlay.status) : (overlay.status ?? node.status),
       x: node.x ?? overlay.x,
       y: node.y ?? overlay.y,
       planRef: overlay.planRef ?? node.planRef,

@@ -1380,7 +1380,7 @@ export function renderPlanPage(options: {
   const locked = Boolean(execution.active)
   const pendingCount = pendingInteractionIds.length
   const showReviewBar = mode === 'review' && !reviewDecision && !locked
-  const planned = planToExpectedGraph(plan)
+  const planned = planToExpectedGraph(plan, Object.keys(responses))
   const workflowState = locked ? 'live' : planned ? 'planned' : 'idle'
   const status = planStatus({ mode, decision: reviewDecision, active: locked })
   const flags = planSourceFlags(plan.source)
@@ -1426,7 +1426,7 @@ export function renderPlanPage(options: {
   const executionFallback = clientAssets
     ? ''
     : `<div class="execution-empty">Build the client with <code>npm run build:client</code> to enable the workflow canvas.</div>`
-  const bootstrap = JSON.stringify(withPlannedWorkflow(execution, plan)).replaceAll('<', '\\u003c')
+  const bootstrap = JSON.stringify(withPlannedWorkflow(execution, plan, Object.keys(responses))).replaceAll('<', '\\u003c')
   const configName = theme.configPath.split(/[\\/]/).pop() || 'live-plan.config.json'
   const layoutMode: PageWidth = theme.pageWidth || 'default'
   const diffsThemeId = theme.diffsTheme || DEFAULT_DIFFS_THEME

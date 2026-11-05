@@ -165,7 +165,10 @@ export class PlanObject extends DurableObject {
       })
       .post('/api/interactions/:id', async ({ request, params }) => {
         if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'submit')) return text(401, 'Sign in required')
-        return this.userWrite(request, sql, 'interaction', (body) => submitInteraction(sql, params.id, body))
+        const response = await this.userWrite(request, sql, 'interaction', (body) => submitInteraction(sql, params.id, body))
+        // An answered step is done on the workflow too.
+        if (response.ok) this.publish([{ event: 'execution', data: await executionView(sql) }])
+        return response
       })
       .post('/api/comments', async ({ request }) => {
         if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'submit')) return text(401, 'Sign in required')
@@ -187,7 +190,8 @@ export class PlanObject extends DurableObject {
       .put('/api/execution', async ({ request }) => {
         if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'upload')) return text(401, 'Sign in required')
         const result = putExecution(sql, await request.json())
-        this.publish(result.outbound)
+        // Browsers get the run with the plan's workflow, the shape GET /api/execution returns.
+        this.publish([{ event: 'execution', data: await executionView(sql) }, ...result.outbound.filter((item) => item.event !== 'execution')])
         return Response.json(result.body)
       })
       .get('/api/execution', async ({ request }) => {

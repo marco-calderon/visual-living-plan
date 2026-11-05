@@ -401,7 +401,7 @@ export async function openPlanSession(options: {
   }
 
   function executionView(): ExecutionState {
-    return withPlannedWorkflow(execution, plan)
+    return withPlannedWorkflow(execution, plan, Object.keys(responses))
   }
 
   function snapshot(): PlanSessionSnapshot {
@@ -593,6 +593,8 @@ export async function openPlanSession(options: {
     }
     pushEvent('interaction', response)
     broadcast('interaction', response)
+    // An answered step is done on the workflow too.
+    broadcast('execution', executionView())
     persist()
   }
 
@@ -706,7 +708,7 @@ export async function openPlanSession(options: {
       comments,
       diffs,
       execution: executionView(),
-      planned: planToExpectedGraph(plan) ?? null,
+      planned: planToExpectedGraph(plan, Object.keys(responses)) ?? null,
       theme: currentTheme(),
     }
   }

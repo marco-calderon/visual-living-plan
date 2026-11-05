@@ -1,4 +1,4 @@
-import { mergePlannedExecution, type ExecutionGraphNode, type ExecutionNodeStatus, type ExecutionState } from './execution'
+import { furthestStatus, mergePlannedExecution, type ExecutionGraphNode, type ExecutionNodeStatus, type ExecutionState } from './execution'
 import { planEntries } from './planEntries'
 import type { CompletionState } from './processRecord'
 import type { PhaseStatus, PlanDocument } from './types'
@@ -22,18 +22,9 @@ const STATUS_WEIGHT: Record<ExecutionNodeStatus, number> = {
   done: 1,
 }
 
-const STATUS_RANK: Record<ExecutionNodeStatus, number> = {
-  pending: 0,
-  failed: 1,
-  blocked: 2,
-  active: 3,
-  done: 4,
-}
-
 /** The further along of two statuses, so a run never moves a phase backwards. */
 function furthest(left: PhaseStatus, right: ExecutionNodeStatus | undefined): PhaseStatus {
-  if (!right) return left
-  return STATUS_RANK[right] > STATUS_RANK[left] ? right : left
+  return furthestStatus(left, right) ?? left
 }
 
 /** Steps of the live run, with each step's plan block resolved through the plan's workflow. */
