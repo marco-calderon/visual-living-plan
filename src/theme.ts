@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path'
 import {
   DEFAULT_DIFFS_THEME,
   DIFFS_THEME_PRESETS,
-  diffsThemePreset,
+  diffsThemePair,
   normalizeDiffsTheme,
 } from './diffsTheme'
 
@@ -477,7 +477,7 @@ ${lines(dark, 'dark')}
 
 export function themePayload(config: ThemeConfig, configPath: string) {
   const diffsTheme = normalizeDiffsTheme(config.diffsTheme)
-  const diffs = diffsThemePreset(diffsTheme)
+  const diffs = diffsThemePair(diffsTheme)
   return {
     accent: config.accent,
     pageWidth: isPageWidth(config.pageWidth) ? config.pageWidth : DEFAULT_PAGE_WIDTH,

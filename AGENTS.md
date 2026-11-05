@@ -5,6 +5,10 @@ Architecture: [docs/architecture/README.md](docs/architecture/README.md).
 Design system: [DESIGN.md](DESIGN.md).
 Authoring living plans (consumers): [skills/live-plan/SKILL.md](skills/live-plan/SKILL.md).
 
+## Runtime
+
+This project uses Bun, not Node. Install with `bun install`, run scripts with `bun run <script>`, and test with `bun test ./test`. Run the built CLI with `bun dist/cli.js`, not `node`. Keep `bun.lock` as the lockfile.
+
 ## Project skills
 
 | Skill | When |
@@ -13,4 +17,4 @@ Authoring living plans (consumers): [skills/live-plan/SKILL.md](skills/live-plan
 
 Follow that skill for every qualifying PR. Changelogs use the template defined inside the skill.
 
-`npm run skills:install` copies the project skills (`skills/` and `.cursor/skills/`) into `~/.agents/skills`. Run it again to refresh those copies. It leaves other skills in that folder in place.
+`bun run skills:install` copies the project skills (`skills/` and `.cursor/skills/`) into `~/.agents/skills`. Run it again to refresh those copies. It leaves other skills in that folder in place.

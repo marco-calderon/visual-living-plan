@@ -50,6 +50,8 @@ type SqlExec = {
 export class PlanObject extends DurableObject {
   constructor(ctx: DurableObjectState, env: unknown) {
     super(ctx, env as never)
+    // A new room, such as one on a Worker Preview, has no tables until something creates them.
+    migratePlan(this.sql())
     // Answered by the runtime, so a page can tell a live socket from a dead one without waking the object.
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(SOCKET_PING, SOCKET_PONG))
   }
