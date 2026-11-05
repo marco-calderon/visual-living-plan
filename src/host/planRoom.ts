@@ -376,8 +376,9 @@ export async function executionView(sql: PlanSql): Promise<ExecutionState> {
   const execution = { active: false, ...(view.execution as Partial<ExecutionState> | null) } as ExecutionState
   try {
     // Loaded on first use. A top-level import of the parser stops the Worker from starting.
-    const [{ parsePlan }, { withPlannedWorkflow }] = await Promise.all([import('../parse'), import('../workflow')])
-    return withPlannedWorkflow(execution, parsePlan(view.source), Object.keys(view.responses))
+    // Not ../workflow: its layout loads ELK, which a Worker cannot run. The page lays the graph out.
+    const [{ parsePlan }, { buildExpectedGraph }] = await Promise.all([import('../parse'), import('../expectedWorkflow')])
+    return { ...execution, planned: buildExpectedGraph(parsePlan(view.source), undefined, Object.keys(view.responses)) }
   } catch {
     // A source that does not parse still has a run state to show.
     return execution

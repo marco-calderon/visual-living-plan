@@ -174,3 +174,61 @@ test('the local service starts, pushes, and stops a run, and a page stream opens
     await rm(home, { recursive: true, force: true })
   }
 })
+
+/** Relative imports reachable from one module, static and dynamic. */
+function reachable(entry: string): Set<string> {
+  const seen = new Set<string>()
+  const queue = [resolve(entry)]
+  while (queue.length > 0) {
+    const file = queue.pop()!
+    if (seen.has(file)) continue
+    seen.add(file)
+    const text = readFileSync(file, 'utf8')
+    for (const match of text.matchAll(/(?:from|import\()\s*['"](\.{1,2}\/[^'"]+)['"]/g)) {
+      const spec = match[1]!
+      if (/^import\s+type\b/m.test(text.slice(Math.max(0, match.index! - 200), match.index!).split('\n').pop() ?? '')) continue
+      const base = resolve(file, '..', spec)
+      for (const candidate of [base, `${base}.ts`, `${base}.tsx`, join(base, 'index.ts')]) {
+        try {
+          readFileSync(candidate)
+          if (!candidate.endsWith('.css')) queue.push(candidate)
+          break
+        } catch {
+          // Try the next extension.
+        }
+      }
+    }
+  }
+  return seen
+}
+
+test('the hosted plan reads its workflow and progress without the ELK layout a Worker cannot load', async () => {
+  const files = [...reachable('src/host/planRoom.ts')].map((file) => file.replace(`${resolve('.')}/`, ''))
+  assert.ok(!files.includes('src/elkRuntime.node.ts'), files.filter((file) => file.includes('layout') || file.includes('workflow')).join(', '))
+
+  const sql = sqlOf(new Database(':memory:'))
+  initPlan(sql, { token: 'plan-token', title: 'Demo', mode: 'watch', tier: 'free', source: readFileSync(planPath, 'utf8') })
+  const { executionView, planProgress } = await import('../src/host/planRoom.ts')
+  const view = await executionView(sql)
+  assert.ok(view.planned && view.planned.nodes.length > 0, 'the Workflow tab gets the plan workflow')
+  assert.ok(await planProgress(sql), 'the dashboard gets progress')
+})
+
+test('closing a hosted plan sends no JSON content type on its empty DELETE', async () => {
+  const { closeCloudPlan } = await import('../src/cloudClient.ts')
+  let seen: { method: string; type: string | null; auth: string | null } | undefined
+  const server = Bun.serve({
+    port: 0,
+    hostname: '127.0.0.1',
+    fetch(request) {
+      seen = { method: request.method, type: request.headers.get('content-type'), auth: request.headers.get('authorization') }
+      return Response.json({ ok: true })
+    },
+  })
+  try {
+    await closeCloudPlan(`http://127.0.0.1:${server.port}/plans/plan-1234/`, 'plan-token')
+    assert.deepEqual(seen, { method: 'DELETE', type: null, auth: 'Bearer plan-token' })
+  } finally {
+    server.stop(true)
+  }
+})

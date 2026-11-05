@@ -63,6 +63,8 @@ The open plan page now shows Running and Stopped reliably. It follows an agent's
 - A hosted plan page opened during a run showed Stopped with its forms unlocked. It now opens on Running with its forms locked.
 - An agent edit to a hosted plan during a run unlocked the page's forms. They now stay locked until the run stops.
 - A local plan page reloaded itself on every start and stop, losing scroll and anything typed. It now updates in place.
+- The Workflow tab of a hosted plan showed the sample loop instead of the plan's workflow, and hosted plan progress was not measured. The hosted plan loaded a layout library a Worker cannot run. It now builds the workflow without it, and the page lays it out.
+- `live-plan close` on a hosted plan failed with `Unexpected end of JSON input`. It now closes the plan.
 
 ### Improvements
 
