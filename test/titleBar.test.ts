@@ -89,7 +89,7 @@ test('the status chip opens a card; the title sits on the solid bar', () => {
   assert.match(bar, /<h1 class="brand" id="plan-title">POS-22 Google Ads scripts migration \(AI-DLC\)<\/h1>/)
   assert.ok(logoAt >= 0 && titleAt > logoAt && chipAt > titleAt && cardAt > chipAt && toolsAt > cardAt)
   assert.doesNotMatch(bar.slice(cardAt, toolsAt), /<h1 /)
-  assert.match(bar, /class="plan-status-chip"[\s\S]*?data-plan-status-label>Stopped</)
+  assert.match(bar, /class="plan-status-chip"[\s\S]*?data-plan-status-label>Review</)
   assert.match(html, /\.brand\s*\{[^}]*flex:\s*0 1 auto;/)
   assert.match(html, /\.brand\s*\{[^}]*text-overflow:\s*ellipsis;/)
   assert.match(html, /@media \(max-width: 640px\)\s*\{[^}]*\.plan-status-chip \{[^}]*\}\s*\.plan-status-chip-label \{ display: none; \}/)

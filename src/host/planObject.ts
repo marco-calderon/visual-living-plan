@@ -171,7 +171,8 @@ export class PlanObject extends DurableObject {
           revision: Number(body.revision ?? -1),
           title: body.title,
         })
-        this.publish(result.outbound)
+        // A phase marked done in the file moves its workflow step, and the page's status with it.
+        this.publish([...result.outbound, { event: 'execution', data: await executionView(sql) }])
         await this.armAlarm()
         return Response.json({ revision: result.revision })
       })

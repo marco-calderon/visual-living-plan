@@ -1,4 +1,5 @@
-import { PLAN_STATUS_COLOR, PLAN_STATUS_LABEL, planStatus, type PlanStatus } from '../src/planStatus.ts'
+import type { ExecutionState } from '../src/execution.ts'
+import { PLAN_STATUS_COLOR, PLAN_STATUS_LABEL, planStatus, workState, type PlanStatus, type WorkState } from '../src/planStatus.ts'
 import { subscribePlanConnection, subscribePlanEvents, type PlanConnectionState } from './planEvents.ts'
 
 /**
@@ -7,7 +8,8 @@ import { subscribePlanConnection, subscribePlanEvents, type PlanConnectionState 
  * the same dot, drawn on a canvas.
  *
  * The state comes from the page's embedded JSON first, then from the stream: `hello` each time
- * the stream opens, and `mode`, `review`, and `execution` as they happen. While the stream is
+ * the stream opens, and `mode`, `review`, and `execution` as they happen. Paused, Stopped, and
+ * Completed are read from the workflow step statuses that `execution` carries. While the stream is
  * down the label says so, because the status shown may be out of date.
  */
 
@@ -21,12 +23,15 @@ const ICON_SIZE = 64
 
 type StatusWindow = Window & { __livingPlanStatusBound?: boolean }
 
-const state: { mode: string; decision: string; active: boolean; connection: PlanConnectionState } = {
+const state: { mode: string; decision: string; active: boolean; work: WorkState; connection: PlanConnectionState } = {
   mode: 'watch',
   decision: '',
   active: false,
+  work: 'idle',
   connection: 'open',
 }
+/** The last execution view, so an update that leaves out the plan's workflow keeps it. */
+let execution: Partial<ExecutionState> = {}
 let lockApplied: boolean | undefined
 let reconnectingTimer = 0
 let showReconnecting = false
@@ -164,6 +169,13 @@ function parse(event: MessageEvent): Record<string, unknown> | null {
   }
 }
 
+/** Takes a run update. A hosted `hello` carries no expected workflow, so the last one stays. */
+function setExecution(next: Partial<ExecutionState>): void {
+  execution = { ...next, planned: next.planned ?? execution.planned }
+  state.active = Boolean(execution.active)
+  state.work = workState(execution)
+}
+
 function decisionOf(review: unknown): string {
   const decision = (review as { decision?: unknown } | null)?.decision
   return typeof decision === 'string' ? decision : ''
@@ -176,7 +188,7 @@ export function startPlanStatusMark(): void {
 
   state.mode = document.body.dataset.planMode || 'watch'
   state.decision = decisionOf(readJson('living-plan-review'))
-  state.active = Boolean(readJson<{ active?: boolean }>('living-plan-bootstrap')?.active)
+  setExecution(readJson<Partial<ExecutionState>>('living-plan-bootstrap') ?? {})
   apply()
 
   subscribePlanConnection(setConnection)
@@ -186,8 +198,8 @@ export function startPlanStatusMark(): void {
     if (!payload) return
     if (typeof payload.mode === 'string') state.mode = payload.mode
     if ('review' in payload) state.decision = decisionOf(payload.review)
-    const execution = payload.execution as { active?: unknown } | null | undefined
-    if (execution && typeof execution === 'object') state.active = Boolean(execution.active)
+    const next = payload.execution as Partial<ExecutionState> | null | undefined
+    if (next && typeof next === 'object') setExecution(next)
     apply()
   })
   subscribePlanEvents('mode', (event) => {
@@ -208,7 +220,7 @@ export function startPlanStatusMark(): void {
   subscribePlanEvents('execution', (event) => {
     const payload = parse(event)
     if (!payload) return
-    state.active = Boolean(payload.active)
+    setExecution(payload as Partial<ExecutionState>)
     apply()
   })
 }
