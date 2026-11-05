@@ -130,3 +130,24 @@ Workflow cards and plan phases show their status as an icon instead of a word, s
 ### Notes
 
 No registry restart needed beyond the usual version check. The shell cache name is 2.6.1.
+
+## 2.7.0
+
+**PR:** pending
+
+**Bump:** minor
+
+### Summary
+
+The plan status chip and tab icon now show what the plan is doing: Review, Executing, Paused, Stopped, or Completed. It is read from the review verdict, the run, and the workflow step statuses, instead of falling back to Stopped.
+
+### Improvements
+
+- The status shows Review while a plan waits for a verdict, after Iterate, and before any work starts, instead of Waiting for approval or Stopped.
+- After a run stops, the status shows Completed when every workflow step is done, Paused when work is left or the plan was approved and not started, and Stopped when a step failed or the plan was denied.
+- Each status has its own dot color on the chip and the tab icon: amber Review, pulsing green Executing, gray Paused, red Stopped, purple Completed.
+- A hosted plan's status and Workflow tab follow phase statuses edited in the file without waiting for the next run update.
+
+### Notes
+
+No registry restart needed beyond the usual version check.

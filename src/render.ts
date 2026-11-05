@@ -8,7 +8,7 @@ import type { PlanMode } from './processRecord'
 import { clientLogScript } from './clientLog'
 import { faviconLink } from './favicon'
 import { webManifestHead } from './webManifest'
-import { PLAN_STATUS_LABEL, planStatus } from './planStatus'
+import { PLAN_STATUS_LABEL, planStatus, workState } from './planStatus'
 import { LOCK_BANNER_TEXT } from './lockBanner'
 import { PROCESSES_PANEL_STYLES, processesPanelMarkup, processesPanelScript } from './processesPanel'
 import { accentCssCustomProperties, PAGE_WIDTH_OPTIONS, type PageWidth } from './theme'
@@ -26,7 +26,7 @@ import type {
   SectionDiff,
 } from './types'
 import { buildPlanToc, renderPlanTocHtml } from './planToc'
-import { planToExpectedGraph, withPlannedWorkflow } from './workflow'
+import { planToExpectedGraph } from './workflow'
 import { versionSectionHtml, type ChangelogRelease } from './changelog'
 import { appearanceSettingsHtml } from './appearanceSettings'
 
@@ -1405,7 +1405,8 @@ export function renderPlanPage(options: {
   const showReviewBar = mode === 'review' && !reviewDecision && !locked
   const planned = planToExpectedGraph(plan, Object.keys(responses))
   const workflowState = locked ? 'live' : planned ? 'planned' : 'idle'
-  const status = planStatus({ mode, decision: reviewDecision, active: locked })
+  const executionView: ExecutionState = { ...execution, planned }
+  const status = planStatus({ mode, decision: reviewDecision, active: locked, work: workState(executionView) })
   const flags = planSourceFlags(plan.source)
   const hasMermaid = flags.mermaid
   const hasCode = flags.code
@@ -1449,7 +1450,7 @@ export function renderPlanPage(options: {
   const executionFallback = clientAssets
     ? ''
     : `<div class="execution-empty">Build the client with <code>npm run build:client</code> to enable the workflow canvas.</div>`
-  const bootstrap = JSON.stringify(withPlannedWorkflow(execution, plan, Object.keys(responses))).replaceAll('<', '\\u003c')
+  const bootstrap = JSON.stringify(executionView).replaceAll('<', '\\u003c')
   const configName = theme.configPath.split(/[\\/]/).pop() || 'live-plan.config.json'
   const layoutMode: PageWidth = theme.pageWidth || 'default'
   const diffsThemeId = normalizeDiffsTheme(theme.diffsTheme || DEFAULT_DIFFS_THEME)
