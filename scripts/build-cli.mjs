@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { chmodSync, copyFileSync, existsSync } from 'node:fs'
+import { chmodSync, copyFileSync, cpSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -11,7 +11,7 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)))
  *
  * 1. Install build tools into this package if they are missing
  * 2. Compile TypeScript
- * 3. Copy the favicon into dist/
+ * 3. Copy the favicon and install icons into dist/
  * 4. Bundle the Vite client
  * 5. Mark dist/cli.js executable
  *
@@ -66,6 +66,7 @@ run('bun', [
   '// Generated from src/shellWorker.ts. Do not edit.',
 ])
 copyFileSync(join(root, 'src/favicon.png'), join(root, 'dist/favicon.png'))
+cpSync(join(root, 'public/icons'), join(root, 'dist/icons'), { recursive: true })
 copyFileSync(join(root, 'src/planPage.css'), join(root, 'dist/planPage.css'))
 copyFileSync(join(root, 'src/shellWorker.js'), join(root, 'dist/shellWorker.js'))
 

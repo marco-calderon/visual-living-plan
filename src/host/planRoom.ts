@@ -1,3 +1,5 @@
+import { applyExecutionChange, readExecutionPatch, type ExecutionAction, type ExecutionState } from '../execution'
+import type { PlanProgress } from '../planProgress'
 import {
   inspectMutation,
   readBaseRevision,
@@ -59,12 +61,6 @@ export function migratePlan(sql: PlanSql): void {
   )
 }
 
-/** True once a host has published this plan into the room. A new Preview room is empty. */
-export function planHosted(sql: PlanSql): boolean {
-  migratePlan(sql)
-  return meta(sql, 'token') !== null
-}
-
 function meta(sql: PlanSql, key: string): string | null {
   const row = sql.exec(`SELECT value FROM meta WHERE key = ?`, key).toArray()[0]
   return typeof row?.value === 'string' ? row.value : null
@@ -96,6 +92,11 @@ export function initPlan(
   const existing = meta(sql, 'token')
   if (existing) {
     if (!secretEquals(existing, input.token)) throw new PlanRoomError(409, 'This plan is already hosted.')
+    setMeta(sql, 'closed', '0')
+    setMeta(sql, 'title', input.title)
+    setMeta(sql, 'mode', input.mode)
+    setMeta(sql, 'tier', normalizeTier(input.tier))
+    setMeta(sql, 'last_seen', String(Date.now()))
     return { revision: Number(meta(sql, 'revision') ?? '0') }
   }
   setMeta(sql, 'token', input.token)
@@ -118,6 +119,12 @@ export function planToken(sql: PlanSql): string {
   const token = meta(sql, 'token')
   if (!token) throw new PlanRoomError(404, 'Plan not found')
   return token
+}
+
+/** False for an object that was never registered, such as a production plan opened on a Worker Preview. */
+export function planHosted(sql: PlanSql): boolean {
+  migratePlan(sql)
+  return meta(sql, 'token') !== null
 }
 
 export function touchPlan(sql: PlanSql): void {
@@ -227,7 +234,8 @@ export function putSource(
           source: view.source,
           title: view.title,
           responses: view.responses,
-          locked: false,
+          // An edit during a run must not unlock the page's forms.
+          locked: executionActive(view),
           snapshots: [],
           headSnapshotId: null,
         },
@@ -333,6 +341,61 @@ export function putExecution(sql: PlanSql, body: unknown): { outbound: Outbound[
   if (Boolean(previous.active) !== Boolean(next.active)) bumpRevision(sql)
   touchPlan(sql)
   return { outbound: [{ event: 'execution', data: body }], body: { ok: true, execution: body } }
+}
+
+/** An agent's `execution start`, `push`, or `stop`. Fields left out keep their stored value. */
+export function changeExecution(sql: PlanSql, action: ExecutionAction, body: unknown): { outbound: Outbound[]; body: unknown } {
+  const current = { active: false, ...(planView(sql).execution as Partial<ExecutionState> | null) } as ExecutionState
+  return putExecution(sql, applyExecutionChange(current, action, readExecutionPatch(body)))
+}
+
+export function executionActive(view: Pick<PlanView, 'execution'>): boolean {
+  return Boolean((view.execution as { active?: boolean } | null)?.active)
+}
+
+/**
+ * The first frame a page's socket gets: the state it needs to show, so a reconnect catches up on
+ * what it missed. It is read without awaiting, so no write lands between the read and the send.
+ * The run carries no expected workflow. The Workflow tab reads that from GET /api/execution.
+ */
+export function browserHello(sql: PlanSql): Outbound {
+  const view = planView(sql)
+  return {
+    event: 'hello',
+    data: {
+      mode: view.mode,
+      review: view.review,
+      execution: { active: false, ...(view.execution as Partial<ExecutionState> | null) },
+    },
+  }
+}
+
+/** Execution state for the Workflow tab, with the expected workflow from the current source, as the local session returns it. */
+export async function executionView(sql: PlanSql): Promise<ExecutionState> {
+  const view = planView(sql)
+  const execution = { active: false, ...(view.execution as Partial<ExecutionState> | null) } as ExecutionState
+  try {
+    // Loaded on first use. A top-level import of the parser stops the Worker from starting.
+    // Not ../workflow: its layout loads ELK, which a Worker cannot run. The page lays the graph out.
+    const [{ parsePlan }, { buildExpectedGraph }] = await Promise.all([import('../parse'), import('../expectedWorkflow')])
+    return { ...execution, planned: buildExpectedGraph(parsePlan(view.source), undefined, Object.keys(view.responses)) }
+  } catch {
+    // A source that does not parse still has a run state to show.
+    return execution
+  }
+}
+
+/** Progress of the hosted plan, measured the way the local session measures it. Null when the source does not parse. */
+export async function planProgress(sql: PlanSql): Promise<PlanProgress | null> {
+  const view = planView(sql)
+  const execution = { active: false, ...(view.execution as Partial<ExecutionState> | null) } as ExecutionState
+  try {
+    // Loaded on first use, like the parser in executionView.
+    const [{ parsePlan }, { measurePlan }] = await Promise.all([import('../parse'), import('../planProgress')])
+    return measurePlan(parsePlan(view.source), Object.keys(view.responses), execution)
+  } catch {
+    return null
+  }
 }
 
 export function planSnapshot(sql: PlanSql): PlanSnapshot {

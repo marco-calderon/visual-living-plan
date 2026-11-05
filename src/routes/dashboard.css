@@ -206,28 +206,15 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-.dashboard .action.is-offline {
-  color: var(--muted);
-  cursor: not-allowed;
-  margin-right: 0.7rem;
-  white-space: nowrap;
+.dashboard .plan-actions-cell {
+  vertical-align: middle;
 }
 
-.dashboard a.action {
-  color: var(--accent);
-  font-weight: 600;
-  text-decoration: none;
-  margin-right: 0.7rem;
-  white-space: nowrap;
-}
-
-.dashboard a.action:hover {
-  text-decoration: underline;
-}
-
-.dashboard a.action:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+.dashboard .plan-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-xxs);
 }
 
 .dashboard .empty {

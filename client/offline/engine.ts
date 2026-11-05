@@ -8,6 +8,7 @@ import {
   type PlanSnapshot,
   type SettingsRow,
   type UserMutationKind,
+  type VersionRow,
 } from '../../src/offlineSync.ts'
 
 export type PlanPostResult = {
@@ -34,10 +35,17 @@ export type OfflineHandle = {
   dashboard: (period: string) => DashboardStoreRow | null
   rememberDashboard: (period: string, payload: unknown) => void
   storePlanSnapshot: (id: string, basePath: string, snapshot: PlanSnapshot) => void
+  /** Saved versions of one plan on this device, newest first. */
+  versions: (planId: string) => VersionRow[]
+  /** The host's version list for a plan. Sources already on this device are kept. */
+  rememberVersions: (planId: string, listed: ReadonlyArray<{ seq: number; title?: string; createdAt?: number }>) => void
+  /** One opened version, with its source. */
+  rememberVersion: (row: Omit<VersionRow, 'id'>) => void
   markWarmed: (id: string, versionKey: string, warmedAt: number) => void
   pendingCount: () => number
   noteNetwork: (online: boolean) => void
   clearDevice: (options?: { force?: boolean }) => Promise<boolean>
+  settings: (scope: string) => SettingsRow | undefined
   saveSettings: (scope: string, patch: Partial<SettingsRow> & { url: string }) => Promise<void>
 }
 

@@ -3,6 +3,7 @@ import { Eye, EyeOff, LogIn } from "lucide-react";
 import { useState } from "react";
 import { Button } from "../../client/ui/button.tsx";
 import { AuthScreen } from "../AuthScreen.tsx";
+import { useMutation } from "@tanstack/react-query";
 import { authClient } from "../authClient.ts";
 import { authPath, authSearch, finishAuth, type AuthSearch } from "../authSearch.ts";
 import { SocialAuthButton } from "../SocialAuthButton.tsx";
@@ -18,16 +19,19 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(search.error ? "Sign-in did not finish. Try again." : "");
-  const [pending, setPending] = useState(false);
+  // Social buttons report their own redirect as pending. The email form is a mutation.
+  const [socialPending, setPending] = useState(false);
+  const emailAuth = useMutation({ mutationFn: () => authClient.signIn.email({ email, password }) });
+  const pending = socialPending || emailAuth.isPending;
   const [invalid, setInvalid] = useState(false);
   const describedBy = error ? "auth-error" : undefined;
 
   async function submit() {
     setError("");
     setInvalid(false);
-    setPending(true);
-    const result = await authClient.signIn.email({ email, password });
-    setPending(false);
+    const result = await emailAuth.mutateAsync().catch((cause: unknown) => ({
+      error: { message: cause instanceof Error ? cause.message : "" },
+    }));
     if (result.error) {
       setInvalid(true);
       setError(result.error.message || "Sign-in failed");

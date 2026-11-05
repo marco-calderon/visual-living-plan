@@ -35,14 +35,18 @@ export function workflowRequirementError(plan: PlanDocument): string | undefined
   return undefined
 }
 
-/** Expected execution diagram for a plan, available before a live run starts. */
-export function planToExpectedGraph(plan: PlanDocument): ExecutionGraph | undefined {
-  return buildExpectedGraph(plan, (nodes, edges) => layoutWorkflowNodes(nodes, edges))
+/** Expected execution diagram for a plan, available before a live run starts. `answered` marks answered interaction steps done. */
+export function planToExpectedGraph(plan: PlanDocument, answered: Iterable<string> = []): ExecutionGraph | undefined {
+  return buildExpectedGraph(plan, (nodes, edges) => layoutWorkflowNodes(nodes, edges), answered)
 }
 
-export function withPlannedWorkflow(execution: ExecutionState, plan: PlanDocument): ExecutionState {
+export function withPlannedWorkflow(
+  execution: ExecutionState,
+  plan: PlanDocument,
+  answered: Iterable<string> = [],
+): ExecutionState {
   return {
     ...execution,
-    planned: planToExpectedGraph(plan),
+    planned: planToExpectedGraph(plan, answered),
   }
 }

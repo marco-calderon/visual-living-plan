@@ -46,7 +46,7 @@ npx wrangler secret put GITHUB_CLIENT_SECRET
 
 Leave Cloudflare Access off this hostname. Access can gate a separate staging hostname for your team. It is not the product login.
 
-A signed-in email account links GitHub or Google from Settings. Each control starts Better Auth's account linking and returns to `/settings`. The provider is attached only when its email matches the signed-in account. A provider that is already linked stays disabled. A loopback plan does not show this section.
+A signed-in email account links GitHub or Google from the Account section of Settings. Each control starts Better Auth's account linking and returns to `/settings`, which opens Settings over the dashboard. The provider is attached only when its email matches the signed-in account. A provider that is already linked stays disabled. A loopback plan does not show this section.
 
 Run `npx wrangler d1 migrations apply living-plan --remote` again after you update the Worker. Account settings use the `user_settings` table. Published plan documents use the `plan_versions` table.
 
@@ -61,13 +61,34 @@ The Worker deploys from GitHub through Workers Builds (Worker → Settings → B
 | Deploy command | `npx wrangler deploy` |
 | Non-production branch deploy command | `npx wrangler preview` |
 
-A pull request then gets a Worker Preview and never replaces production. Previews use the `previews` block in `wrangler.jsonc` and the same D1 database. They inherit the production `PUBLIC_URL`. `TRUSTED_ORIGINS` lists comma-separated origin patterns (the preview host pattern and `https://*.plan.logspace.qzz.io`), so a request on a matching origin keeps that origin, and email and password sign-in stays on the preview's own origin. GitHub and Google sign-in only work on the production domain, where those callbacks are registered. If a preview reports that `BETTER_AUTH_SECRET` is not set, run `npx wrangler preview secret put BETTER_AUTH_SECRET` with a value different from production's. Workers Builds does not run D1 migrations. Apply them with the command above when a change adds one.
+Workers Builds installs with the Bun version in the `packageManager` field of `package.json` (`bun@1.4.4`). Without it, the build uses the build image's default Bun, and an older image cannot read `bun.lock`. Keep that field in step with the Bun you use locally.
+
+A pull request then gets a Worker Preview and never replaces production. Previews use the `previews` block in `wrangler.jsonc`. Nothing a Preview writes reaches production:
+
+- **D1:** Previews use their own database, `living-plan-preview` (id `8032bdc3-3b3e-4381-9b9c-a93837d244c8`). Accounts, plan rows, settings, and saved versions there are separate from production, so sign up once on a Preview.
+- **Durable Objects:** Cloudflare gives each Preview its own empty plan storage. The `previews` block declares the `PLANS` binding again because Previews do not inherit it. Without it every plan page in a Preview fails with error 1101.
+
+To check a rendered plan on a Preview, publish one to it: `live-plan account login --url <preview URL>`, then `live-plan serve <file> --cloud`. Previews share `living-plan-preview` and its rows. Each one still starts with empty plan storage, so a plan published to one Preview says "Plan not found on this host." on another.
+
+When a change adds a migration, apply it to both databases: `npx wrangler d1 migrations apply living-plan --remote` and `npx wrangler d1 migrations apply living-plan-preview --remote`. If wrangler cannot find `living-plan-preview` by name, run the second command with `-c` pointing at a config whose top-level `d1_databases` names it, with `migrations_dir` set to `src/migrations`.
+
+Previews inherit the production `PUBLIC_URL`. `TRUSTED_ORIGINS` lists comma-separated origin patterns (the preview host pattern and `https://*.plan.logspace.qzz.io`), so a request on a matching origin keeps that origin, and email and password sign-in stays on the preview's own origin.
+
+GitHub and Google only know the production callbacks. A preview's GitHub or Google sign-in goes through production with Better Auth's OAuth proxy. Production exchanges the code and sends the encrypted profile back to the preview, and the preview creates the account and session in `living-plan-preview`. Production stores nothing. Previews use a different `BETTER_AUTH_SECRET`, so the proxy has its own secret. Set the same value for production and for previews:
+
+```bash
+openssl rand -base64 32   # copy the output
+npx wrangler secret put OAUTH_PROXY_SECRET
+npx wrangler preview secret put OAUTH_PROXY_SECRET
+```
+
+Deploy production after setting it, because production must answer the proxy callback. Without `OAUTH_PROXY_SECRET`, or without `PUBLIC_URL`, the proxy stays off and GitHub and Google sign-in only work on the production domain. Leave the providers' callback lists at the production URLs. Do not add preview URLs. If a preview reports that `BETTER_AUTH_SECRET` is not set, run `npx wrangler preview secret put BETTER_AUTH_SECRET` with a value different from production's. Workers Builds does not run D1 migrations.
 
 `wrangler.jsonc` pins `account_id`, so the build's Worker lookup always runs in this account. When a build fails with "The name in your wrangler.json file (visual-living-plan) must match the name of your Worker" and the name is correct, the Git connection points at a Worker that no longer exists. Add the build variable `WRANGLER_LOG=debug` to see the expected and actual Worker tags. Disconnect and reconnect the repository under Settings → Build to fix it.
 
 ## Signed-in pages
 
-TanStack Start serves `/dashboard`, `/account`, `/settings`, `/login`, `/signup`, `/plans/:id`, and `/plans/:id/history`. `/` and `/review` redirect to `/dashboard`. The Worker does not return those documents. Elysia in `src/host/app.ts` serves the account and plan APIs those pages call, including `GET /api/account`, `GET /api/account/dashboard`, and `PUT /api/account/settings`, plus plan writes, the viewer link, and the Durable Object. A loopback plan keeps writing the theme file beside that plan and does not ask for an account. `/local` stays that sample, with no sign-in.
+TanStack Start serves `/dashboard`, `/account`, `/settings` (a redirect that opens the settings modal), `/login`, `/signup`, `/plans/:id`, and `/plans/:id/history`. `/` and `/review` redirect to `/dashboard`. The Worker does not return those documents. Elysia in `src/host/app.ts` serves the account and plan APIs those pages call, including `GET /api/account`, `GET /api/account/dashboard`, `GET /api/account/usage`, and `PUT /api/account/settings`, plus plan writes and the Durable Object. Only the account that owns a plan can open it ([ADR 0028](architecture/decisions/0028-owner-only-hosted-plans.md)). A loopback plan keeps writing the theme file beside that plan and does not ask for an account. `/local` stays that sample, with no sign-in.
 
 When an agent publishes a plan (`serve --cloud`, `review --cloud`, or a later file upload), the host stores that markdown in D1. It keeps the latest 10 versions and drops the oldest on the 11th. The dashboard links to the current plan file and the version list. Loopback publish writes the same machine's `registry.sqlite`.
 

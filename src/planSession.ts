@@ -15,10 +15,10 @@ import {
   type UserMutationKind,
 } from './offlineSync'
 import { diffSections } from './diff'
-import { createIdleExecutionState, type ExecutionState } from './execution'
+import { applyExecutionChange, createIdleExecutionState, readExecutionPatch, type ExecutionAction, type ExecutionState } from './execution'
 import { collectSectionSources, parsePlan } from './parse'
 import { recordLog } from './serviceLog'
-import { loadLatestChangelog } from './changelog'
+import { loadLatestChangelog, loadPackageVersion } from './changelog'
 import { defaultRegistryHome } from './configHome'
 import { openPlanSnapshots, type PlanSnapshotStore } from './planSnapshots'
 import { registryDatabasePath } from './registryLock'
@@ -76,6 +76,9 @@ const MIME: Record<string, string> = {
   // The browser SQLite store compiles this with streaming only when it is served as wasm.
   '.wasm': 'application/wasm',
 }
+
+/** How often an open page hears from the stream when nothing else happens. */
+export const BROWSER_KEEPALIVE_MS = 20_000
 
 export type PlanSessionSnapshot = {
   id: string
@@ -143,7 +146,8 @@ export type PlanSession = {
   executionPayload: () => ExecutionState
   updateExecution: (body: unknown) => unknown
   startExecution: (body: unknown) => unknown
-  stopExecution: () => unknown
+  pushExecution: (body: unknown) => unknown
+  stopExecution: (body?: unknown) => unknown
   browserEvents: (request: Request) => Response
   agentEvents: (request: Request) => Response
   submitInteraction: (interactionId: string, body: unknown, request?: Request) => unknown
@@ -190,6 +194,8 @@ export async function openPlanSession(options: {
   configPath?: string
   /** Prefix for browser API calls. Empty when this session owns the origin. */
   basePath?: string
+  /** Logo link. Omit to use `/dashboard` under the service; null for none. */
+  dashboardHref?: string | null
   selfId?: string
   startedAt?: number
   lastSeenAt?: number
@@ -399,7 +405,7 @@ export async function openPlanSession(options: {
   }
 
   function executionView(): ExecutionState {
-    return withPlannedWorkflow(execution, plan)
+    return withPlannedWorkflow(execution, plan, Object.keys(responses))
   }
 
   function snapshot(): PlanSessionSnapshot {
@@ -433,9 +439,19 @@ export async function openPlanSession(options: {
     for (const client of browserClients) client.write(event, data)
   }
 
-  function eventStream(bucket: Set<SseClient>, hello: unknown, signal: AbortSignal): Response {
+  function eventStream(
+    bucket: Set<SseClient>,
+    hello: unknown,
+    signal: AbortSignal,
+    options: { keepAliveMs?: number } = {},
+  ): Response {
     const encoder = new TextEncoder()
     let client: SseClient | undefined
+    let keepAlive: ReturnType<typeof setInterval> | undefined
+    const stopKeepAlive = () => {
+      if (keepAlive) clearInterval(keepAlive)
+      keepAlive = undefined
+    }
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
         let closed = false
@@ -452,6 +468,7 @@ export async function openPlanSession(options: {
           close() {
             if (closed) return
             closed = true
+            stopKeepAlive()
             if (client) bucket.delete(client)
             try {
               controller.close()
@@ -462,6 +479,8 @@ export async function openPlanSession(options: {
         }
         bucket.add(client)
         client.write('hello', hello)
+        // A page tells a live stream from a dead one by these pings, and reconnects when they stop.
+        if (options.keepAliveMs) keepAlive = setInterval(() => client?.write('ping', { at: Date.now() }), options.keepAliveMs)
         touch()
         persist()
         signal.addEventListener(
@@ -591,6 +610,8 @@ export async function openPlanSession(options: {
     }
     pushEvent('interaction', response)
     broadcast('interaction', response)
+    // An answered step is done on the workflow too.
+    broadcast('execution', executionView())
     persist()
   }
 
@@ -649,8 +670,10 @@ export async function openPlanSession(options: {
         clientAssets,
         theme: currentTheme(),
         basePath,
+        dashboardHref: options.dashboardHref,
         selfId,
         changelog: loadLatestChangelog(fileURLToPath(import.meta.url)),
+        appVersion: loadPackageVersion(fileURLToPath(import.meta.url)),
         mdxSnapshots: mdxStore?.list() ?? [],
         mdxHeadSnapshotId: mdxStore?.head()?.headSnapshotId ?? null,
       }),
@@ -702,7 +725,7 @@ export async function openPlanSession(options: {
       comments,
       diffs,
       execution: executionView(),
-      planned: planToExpectedGraph(plan) ?? null,
+      planned: planToExpectedGraph(plan, Object.keys(responses)) ?? null,
       theme: currentTheme(),
     }
   }
@@ -787,29 +810,23 @@ export async function openPlanSession(options: {
     return { ok: true, execution: view }
   }
 
-  function startExecution(body: unknown): unknown {
+  function changeExecution(action: ExecutionAction, body: unknown): unknown {
     touch()
-    const payload = jsonBody(body, false) as Partial<ExecutionState>
-    const view = setExecution({
-      active: true,
-      step: payload.step ? String(payload.step) : execution.step ?? 'Executing',
-      detail: payload.detail ? String(payload.detail) : execution.detail,
-      graph: payload.graph ?? execution.graph,
-      scene: payload.scene ?? execution.scene,
-    })
+    const patch = readExecutionPatch(jsonBody(body, false))
+    const view = setExecution(applyExecutionChange(execution, action, patch))
     return { ok: true, execution: view }
   }
 
-  function stopExecution(): unknown {
-    touch()
-    const view = setExecution({
-      active: false,
-      step: execution.step,
-      detail: execution.detail,
-      graph: execution.graph,
-      scene: execution.scene,
-    })
-    return { ok: true, execution: view }
+  function startExecution(body: unknown): unknown {
+    return changeExecution('start', body)
+  }
+
+  function pushExecution(body: unknown): unknown {
+    return changeExecution('push', body)
+  }
+
+  function stopExecution(body?: unknown): unknown {
+    return changeExecution('stop', body)
   }
 
   function browserEvents(request: Request): Response {
@@ -819,11 +836,13 @@ export async function openPlanSession(options: {
       {
         mode,
         pendingInteractionIds: pendingInteractionIds(),
+        review: reviewResult ?? null,
         comments,
         execution: executionView(),
         theme: currentTheme(),
       },
       request.signal,
+      { keepAliveMs: BROWSER_KEEPALIVE_MS },
     )
   }
 
@@ -1091,6 +1110,7 @@ export async function openPlanSession(options: {
     executionPayload,
     updateExecution,
     startExecution,
+    pushExecution,
     stopExecution,
     browserEvents,
     agentEvents,

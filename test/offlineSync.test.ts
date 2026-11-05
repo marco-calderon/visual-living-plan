@@ -18,6 +18,7 @@ import {
   OWNED_PLAN_CAP,
   SOURCE_BODY_CAP,
   WARM_INTERVAL_MS,
+  accountWithSettings,
   applyLiveToPlan,
   catalogFromOwned,
   catalogRows,
@@ -28,11 +29,16 @@ import {
   isAccountNetworkFailure,
   mergeAgentDocument,
   offlineStatusText,
+  planPageCacheReady,
   planRowFromSnapshot,
   plansToEvict,
   plansToWarm,
+  settingsRowFrom,
   settingsWinner,
+  versionRowId,
+  versionRowsFromList,
   type PlanRow,
+  type VersionRow,
 } from '../src/offlineSync.ts'
 import { openPlanSession } from '../src/planSession.ts'
 
@@ -251,6 +257,9 @@ test('live plan data and catalog rows stay free of the source body', () => {
   assert.equal(warm.length, OWNED_PLAN_CAP)
   assert.equal(warm[0], 'w00')
   assert.equal(warm.includes('w50'), false)
+  assert.equal(planPageCacheReady({ serviceWorker: true, controller: false }), false)
+  assert.equal(planPageCacheReady({ serviceWorker: true, controller: true }), true)
+  assert.equal(planPageCacheReady({ serviceWorker: false, controller: false }), true)
   const listed = catalogFromOwned(
     [{ id: 'p1', title: 'Owned' }],
     [{ id: 'p1', heartbeatAt: 9, storedPath: 'plans/p1.md', status: 'running' }],
@@ -362,3 +371,71 @@ function sqlOf(db: Database): PlanSql {
     },
   }
 }
+
+test('a newer device settings row replaces the stored account settings', () => {
+  const account = { user: { email: 'a@b.c' }, settings: { accent: '#0f766e', pageWidth: 'default', diffsTheme: 'pierre', wrapCode: false, updatedAt: 10 } }
+  const row = { id: 'account', accent: '#be123c', pageWidth: 'wide', diffsTheme: 'soft', wrapCode: true, updatedAt: 20, pending: true }
+  const next = accountWithSettings(account, row)
+  assert.deepEqual(next.settings, { accent: '#be123c', pageWidth: 'wide', diffsTheme: 'soft', wrapCode: true, updatedAt: 20 })
+  assert.equal(next.user, account.user)
+  assert.equal(accountWithSettings(account, { ...row, updatedAt: 5 }), account)
+  assert.equal(accountWithSettings(account, undefined), account)
+})
+
+test('a version list keeps saved sources and drops versions the host no longer lists', () => {
+  const stored: VersionRow[] = [
+    { id: 'plan1234:1', planId: 'plan1234', seq: 1, title: 'Old', createdAt: 1 },
+    { id: 'plan1234:2', planId: 'plan1234', seq: 2, title: 'Two', createdAt: 2, source: '# Two\n' },
+    { id: 'other999:1', planId: 'other999', seq: 1, title: 'Other', createdAt: 1 },
+  ]
+  const change = versionRowsFromList(
+    'plan1234',
+    [
+      { seq: 3, title: 'Three', createdAt: 3 },
+      { seq: 2, title: 'Two', createdAt: 2 },
+      { seq: 3, title: 'Duplicate', createdAt: 3 },
+      { seq: 0, title: 'Bad' },
+    ],
+    stored,
+  )
+  assert.deepEqual(change.put, [
+    { id: 'plan1234:3', planId: 'plan1234', seq: 3, title: 'Three', createdAt: 3 },
+    { id: 'plan1234:2', planId: 'plan1234', seq: 2, title: 'Two', createdAt: 2, source: '# Two\n' },
+  ])
+  assert.deepEqual(change.drop, ['plan1234:1'])
+  assert.equal(versionRowId('plan1234', 4), 'plan1234:4')
+})
+
+test('a settings row from a host payload fills the host defaults', () => {
+  assert.deepEqual(settingsRowFrom('account', { accent: '#123456', pageWidth: 'wide', wrapCode: true, updatedAt: 5 }), {
+    id: 'account',
+    accent: '#123456',
+    pageWidth: 'wide',
+    diffsTheme: 'pierre',
+    wrapCode: true,
+    updatedAt: 5,
+  })
+  assert.deepEqual(settingsRowFrom('local:abc', undefined), {
+    id: 'local:abc',
+    accent: '#0f766e',
+    pageWidth: 'default',
+    diffsTheme: 'pierre',
+    wrapCode: false,
+    updatedAt: 0,
+  })
+})
+
+test('a queued comment placeholder gives way to the host comment it became', async () => {
+  const { commentRowsFromSnapshot } = await import('../src/offlineSync.ts')
+  const placeholder = (key: string, text: string) => ({
+    id: `pending:${key}`,
+    planId: 'plan-1',
+    partId: 'callout:risk',
+    pending: true,
+    comment: { id: `pending:${key}`, partId: 'callout:risk', text },
+  })
+  const host = [{ id: 'cmt_1', partId: 'callout:risk', text: 'Same words' }]
+  // One host comment settles one placeholder. A second equal comment still waiting stays.
+  const rows = commentRowsFromSnapshot('plan-1', host, [placeholder('a', 'Same words'), placeholder('b', 'Same words'), placeholder('c', 'Other')])
+  assert.deepEqual(rows.map((row) => row.id), ['cmt_1', 'pending:b', 'pending:c'])
+})

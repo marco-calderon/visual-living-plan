@@ -5,10 +5,15 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import {
+  changelogDirectory,
   changelogSectionHtml,
+  latestChangelogPath,
+  loadPackageVersion,
+  versionSectionHtml,
   loadLatestChangelog,
   parseChangelog,
 } from '../src/changelog.ts'
+import { hostedReleaseFrom } from '../src/changelogParse.ts'
 import { createIdleExecutionState } from '../src/execution.ts'
 import { parsePlan } from '../src/parse.ts'
 import { renderPlanPage } from '../src/render.ts'
@@ -74,6 +79,8 @@ test('kind headings become three cards and ignore the summary', () => {
   assert.doesNotMatch(html, /data-kind="changes"/)
   assert.doesNotMatch(html, /The fixed header is gone/)
   assert.doesNotMatch(html, /<script>/)
+  assert.doesNotMatch(html, /class="ver"/)
+  assert.match(html, /<li>Click the logo to open a card\.<\/li>/)
 })
 
 test('a flat Changes list stays one card', () => {
@@ -145,35 +152,13 @@ test('the newest dated file wins, and a missing directory is empty', () => {
   }
 })
 
-test('the repo changelog is classified and Settings renders it above Appearance', () => {
-  const release = loadLatestChangelog(fileURLToPath(new URL('../src/cli.ts', import.meta.url)))
+test('Settings shows the version and repo changelog in one card at the bottom', () => {
+  const entry = fileURLToPath(new URL('../src/cli.ts', import.meta.url))
+  const release = loadLatestChangelog(entry)
   assert.ok(release)
-  assert.equal(release.fileName, 'changelog-2026-10-30.md')
-  assert.equal(release.classified, true)
-  assert.equal(release.bugs.length, 4)
-  assert.equal(release.features.length, 10)
-  assert.equal(release.versions[0], '1.5.11')
-  assert.equal(release.versions.at(-1), '1.6.10')
-  assert.ok(release.improvements.some((line) => line.version === '1.5.11' && line.text.includes('18px square')))
-  assert.ok(release.improvements.some((line) => line.version === '1.5.12' && line.text.includes('skills:install')))
-  assert.ok(release.improvements.some((line) => line.version === '1.5.13' && line.text.includes('Plans button')))
-  assert.ok(release.bugs.some((line) => line.version === '1.5.14' && line.text.includes('settings tab')))
-  assert.ok(release.improvements.some((line) => line.version === '1.5.14' && line.text.includes('history step')))
-  assert.ok(release.features.some((line) => line.version === '1.5.15' && line.text.includes('40%')))
-  assert.ok(release.features.some((line) => line.version === '1.6.0' && line.text.includes('serve --cloud')))
-  assert.ok(release.bugs.some((line) => line.version === '1.6.2' && line.text.includes('signed in')))
-  assert.ok(release.bugs.some((line) => line.version === '1.6.3' && line.text.includes('row count')))
-  assert.ok(release.features.some((line) => line.version === '1.6.3' && line.text.includes('Column search')))
-  assert.ok(release.improvements.some((line) => line.version === '1.6.5' && line.text.includes('account login')))
-  assert.ok(release.features.some((line) => line.version === '1.6.6' && line.text.includes('appearance settings')))
-  assert.ok(release.features.some((line) => line.version === '1.6.8' && line.text.includes('markdown table cell')))
-  assert.ok(release.features.some((line) => line.version === '1.6.9' && line.text.includes('plans dashboard')))
-  assert.ok(release.features.some((line) => line.version === '1.6.9' && line.text.includes('latest 10 versions')))
-  assert.ok(release.bugs.some((line) => line.version === '1.6.9' && line.text.includes('Sign in required')))
-  assert.ok(release.improvements.some((line) => line.version === '1.6.10' && line.text.includes('user menu')))
-  assert.ok(release.improvements.some((line) => line.version === '1.6.10' && line.text.includes('collapse')))
-  assert.ok(release.improvements.some((line) => line.version === '1.6.10' && line.text.includes('toolbar')))
-  assert.ok(release.improvements.some((line) => line.version === '1.6.10' && line.text.includes('Pierre theme')))
+  assert.equal(release.fileName, latestChangelogPath(changelogDirectory(entry))?.split(/[\\/]/).pop())
+  const version = loadPackageVersion(entry)
+  assert.match(version ?? '', /^\d+\.\d+\.\d+/)
 
   const plan = parsePlan('---\ntitle: Sample\n---\n\n# Scope\n\nKeep it.\n', 'sample.plan.md')
   const html = renderPlanPage({
@@ -187,13 +172,50 @@ test('the repo changelog is classified and Settings renders it above Appearance'
     clientAssets: null,
     theme: themePayload(defaultThemeConfig(), 'live-plan.config.json'),
     changelog: release,
+    appVersion: version,
   })
+  const cardAt = html.indexOf('data-version-section')
   const releaseAt = html.indexOf('data-changelog')
   const appearanceAt = html.indexOf('Accent color')
-  assert.ok(releaseAt >= 0 && appearanceAt > releaseAt)
-  assert.match(html, /data-kind="features"/)
-  assert.match(html, /data-kind="bugs"/)
-  assert.match(html, /data-kind="improvements"/)
-  assert.match(html, /18px square/)
-  assert.match(html, /40% of the table/)
+  const settingsEnd = html.indexOf('</main>', cardAt)
+  assert.ok(appearanceAt >= 0 && cardAt > appearanceAt, 'version card sits below Appearance')
+  assert.ok(releaseAt > cardAt && releaseAt < settingsEnd, 'changelog lives inside the version card')
+  assert.equal(html.slice(cardAt, settingsEnd).match(/<section /g)?.length ?? 0, 0, 'version card is the last section')
+  assert.ok(html.includes(`data-app-version>${version}<`))
+})
+
+test('the version card shows the version alone and hides when empty', () => {
+  const html = versionSectionHtml('1.2.3', null)
+  assert.match(html, /<h3>Version<\/h3>/)
+  assert.match(html, /data-app-version>1\.2\.3</)
+  assert.doesNotMatch(html, /data-changelog/)
+  assert.equal(versionSectionHtml(null, null), '')
+})
+
+test('the hosted card loads only the newest built-in changelog', async () => {
+  const loaded: string[] = []
+  const loader = (name: string, body: string) => async () => {
+    loaded.push(name)
+    return body
+  }
+  const about = await hostedReleaseFrom('2.0.0', {
+    '../docs/changelogs/changelog-2026-01-02.md': loader('old', '## 1.0.0\n\n### Improvements\n\n- Older\n'),
+    '../docs/changelogs/changelog-2026-10-27.md': loader('new', '## 2.0.0\n\n### New features\n\n- Newest\n'),
+  })
+  assert.deepEqual(loaded, ['new'])
+  assert.equal(about.version, '2.0.0')
+  assert.equal(about.release?.fileName, 'changelog-2026-10-27.md')
+
+  const html = versionSectionHtml(about.version, about.release, 'hosted')
+  assert.match(html, /data-release-source="hosted"/)
+  assert.match(html, /deployed to this host/)
+  assert.match(html, /Built in from <code>docs\/changelogs\/changelog-2026-10-27\.md<\/code>/)
+  assert.match(versionSectionHtml('2.0.0', about.release), /installed on this machine[\s\S]*Read from/)
+
+  const failing = await hostedReleaseFrom(null, {
+    '../docs/changelogs/changelog-2026-10-27.md': async () => {
+      throw new Error('offline')
+    },
+  })
+  assert.deepEqual(failing, { version: null, release: null })
 })

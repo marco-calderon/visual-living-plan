@@ -51,9 +51,10 @@ function pageMode(): DiffsThemeMode {
 }
 
 /** Follow the saved value on <html>, which the plan page updates after a save or a live theme event. */
-function useRootDiffsTheme(initial: string): string {
+function useRootDiffsTheme(initial: string, followRoot: boolean): string {
   const [value, setValue] = useState(initial)
   useEffect(() => {
+    if (!followRoot) return
     const root = document.documentElement
     const sync = () => {
       const next = root.dataset.diffsTheme
@@ -62,7 +63,7 @@ function useRootDiffsTheme(initial: string): string {
     const observer = new MutationObserver(sync)
     observer.observe(root, { attributes: true, attributeFilter: ['data-diffs-theme'] })
     return () => observer.disconnect()
-  }, [])
+  }, [followRoot])
   useEffect(() => setValue(normalizeDiffsTheme(initial)), [initial])
   return value
 }
@@ -126,11 +127,14 @@ function ThemeGroup({
 export function DiffsThemePicker({
   value: initial = DEFAULT_DIFFS_THEME,
   onSelect,
+  followRoot = true,
 }: {
   value?: string
   onSelect?: (next: string, label: string) => void
+  /** Track the page's data-diffs-theme. Off where the page may show someone else's plan. */
+  followRoot?: boolean
 }) {
-  const value = useRootDiffsTheme(initial)
+  const value = useRootDiffsTheme(initial, followRoot)
   const pair = diffsThemePair(value)
   const [mode, setMode] = useState<DiffsThemeMode>('light')
   const listRef = useRef<HTMLDivElement>(null)

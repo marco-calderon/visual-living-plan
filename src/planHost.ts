@@ -260,7 +260,7 @@ export async function createPlanHost(options: {
 
   function dashboardRecord(session: PlanSession, status: 'running' | 'executed' | 'interrupted' = 'running'): PlanRecord {
     const state = session.getState()
-    const progress = measurePlan(state.plan, Object.keys(state.responses))
+    const progress = measurePlan(state.plan, Object.keys(state.responses), state.execution)
     const now = Date.now()
     const base = runningPlan(toRecord(session), now)
     return {

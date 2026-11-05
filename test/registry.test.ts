@@ -35,6 +35,8 @@ import { startLivingPlanServer } from '../src/server.ts'
 
 const entryFile = fileURLToPath(new URL('../src/cli.ts', import.meta.url))
 
+const samplePlanPath = resolve('examples/rate-limit.plan.md')
+
 function sample(overrides: Partial<ProcessRecord> = {}): ProcessRecord {
   const now = Date.now()
   return {
@@ -44,7 +46,8 @@ function sample(overrides: Partial<ProcessRecord> = {}): ProcessRecord {
     summary: 'Add a limiter',
     agent: 'local-cursor',
     mode: 'watch',
-    planPath: '/workspace/examples/rate-limit.plan.md',
+    // A real file: the registry copies it into its home when the plan is registered.
+    planPath: samplePlanPath,
     directory: '/workspace/examples',
     cwd: '/workspace',
     url: 'http://127.0.0.1:9410',
@@ -296,7 +299,8 @@ test('planner page lists registered plans and links their directories', async ()
     const html = await (await fetch(planServer.url)).text()
     assert.match(html, /data-processes-root/)
     assert.match(html, /\/api\/processes/)
-    assert.match(html, /data-processes-dashboard/)
+    assert.doesNotMatch(html, /data-processes-dashboard/)
+    assert.match(html, /<a class="logo-btn" href="[^"]*\/dashboard" aria-label="Dashboard"/)
 
     const missingAsset = await fetch(new URL('/client/assets/missing.js', planServer.url))
     assert.equal(missingAsset.status, 404)

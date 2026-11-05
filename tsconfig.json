@@ -16,6 +16,7 @@
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": [
     "src/routes",
+    "src/settings",
     "src/entry.ts",
     "src/client.tsx",
     "src/router.tsx",
@@ -27,6 +28,7 @@
     "src/planFns.ts",
     "src/authClient.ts",
     "src/LinkSocialAccounts.tsx",
+    "src/hostedRelease.ts",
     "src/SocialAuthButton.tsx",
     "src/cloudflare.d.ts",
     "src/host"

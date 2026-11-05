@@ -4,8 +4,10 @@ import { AccountMenu } from './AccountMenu.tsx'
 import { CodeWrapSwitch } from './CodeWrapSwitch.tsx'
 import { DiffsThemePicker } from './DiffsThemePicker.tsx'
 import { PlanDetails } from './PlanDetails.tsx'
+import { PlanVersionsMenu } from './PlanVersionsMenu.tsx'
 import { PlansMenu } from './PlansMenu.tsx'
 import { SettingsAccordion } from './SettingsAccordion.tsx'
+import { QueryProvider } from '../queryClient.tsx'
 import 'sonner/dist/styles.css'
 
 declare global {
@@ -19,7 +21,11 @@ function mountPlans() {
   if (!(host instanceof HTMLElement) || host.dataset.plansMounted === 'true') return
   host.dataset.plansMounted = 'true'
   const selfId = host.getAttribute('data-self-id')
-  createRoot(host).render(<PlansMenu selfId={selfId} />)
+  createRoot(host).render(
+    <QueryProvider>
+      <PlansMenu selfId={selfId} />
+    </QueryProvider>,
+  )
 }
 
 function mountPlanDetails() {
@@ -78,7 +84,31 @@ function mountCodeWrap() {
   slot.className = 'code-wrap-control'
   host.replaceWith(slot)
   document.documentElement.dataset.codeWrapControl = 'react'
-  createRoot(slot).render(<CodeWrapSwitch initialChecked={checked} />)
+  createRoot(slot).render(
+    <QueryProvider>
+      <CodeWrapSwitch initialChecked={checked} />
+    </QueryProvider>,
+  )
+}
+
+/** The title bar is server HTML that other chrome rearranges, so the menu gets its own root like the account menu. */
+function mountVersionsMenu() {
+  const host = document.querySelector('[data-plan-versions]')
+  if (!(host instanceof HTMLElement) || host.dataset.versionsMounted === 'true') return
+  const planId = host.getAttribute('data-plan-id') ?? ''
+  if (!planId) return
+  const liveHref = host.getAttribute('data-live-href') || `/plans/${planId}`
+  const label = host.getAttribute('data-label') || 'Live'
+  const current = Number(host.getAttribute('data-version') ?? '') || null
+  host.dataset.versionsMounted = 'true'
+  const slot = document.createElement('div')
+  slot.className = 'plan-versions-menu'
+  host.replaceWith(slot)
+  createRoot(slot).render(
+    <QueryProvider>
+      <PlanVersionsMenu planId={planId} label={label} current={current} triggerClassName="titlebar-action" liveHref={liveHref} prefetch />
+    </QueryProvider>,
+  )
 }
 
 function mountAccountMenu() {
@@ -89,7 +119,11 @@ function mountAccountMenu() {
   const slot = document.createElement('div')
   slot.className = 'account-menu'
   host.replaceWith(slot)
-  createRoot(slot).render(<AccountMenu label={label} />)
+  createRoot(slot).render(
+    <QueryProvider>
+      <AccountMenu label={label} />
+    </QueryProvider>,
+  )
 }
 
 function mountToaster() {
@@ -120,6 +154,7 @@ if (typeof document !== 'undefined') {
   mountAccordions()
   mountDiffsThemePicker()
   mountCodeWrap()
+  mountVersionsMenu()
   mountAccountMenu()
   mountToaster()
 }

@@ -42,21 +42,21 @@ live-plan processes
 
 ### Install the command
 
-This is the same kind of install as [Visual Plan](https://visualplan.dev/)'s `npm i -g vplan`. The package name on the registry is `visual-living-plan`. Publishing runs `prepack`, which compiles `dist/cli.js` into the tarball. `npm i -g` downloads that tarball and links the `live-plan`, `living-plan`, and `visual-living-plan` commands onto your PATH. It does not clone the repo and does not compile anything on your machine.
+This is the same kind of install as [Visual Plan](https://visualplan.dev/)'s `npm i -g vplan`. The package name on the registry is `visual-living-plan`. Publishing runs `prepack`, which compiles `dist/cli.js` into the tarball. `npm i -g` downloads that tarball and links the `live-plan` and `visual-living-plan` commands onto your PATH. It does not clone the repo and does not compile anything on your machine.
 
 Bun has to be on `PATH`. The published command's shebang is `bun`.
 
 ```bash
 npm i -g visual-living-plan
-living-plan --help
-living-plan check "$(npm root -g)/visual-living-plan/examples/rate-limit.plan.md"
+live-plan --help
+live-plan check "$(npm root -g)/visual-living-plan/examples/rate-limit.plan.md"
 ```
 
-`check` prints the workflow block. That block is required: it is the execution path. `serve` and `review` draw it on the Workflow tab before a run starts. Pass `--no-open` when a browser should not launch.
+`check` prints the workflow block. That block is required: it is the execution path. `serve` and `review` draw it on the Workflow tab before a run starts. The page opens in a browser the first time a plan is served. Serving or reviewing the same plan again leaves the open tab alone. Pass `--no-open` when a browser should not launch, or `--open` to open it again.
 
 The name is not on the registry until it is published. From a checkout, `npm publish --access public` packs the built CLI and uploads it. A GitHub release runs the same publish through `.github/workflows/publish.yml`, after a trusted publisher for `visual-living-plan` is configured on npm.
 
-`check` prints the workflow block. That block is required: it is the execution path. `serve` and `review` draw it on the Workflow tab before a run starts. Pass `--no-open` when a browser should not launch.
+`check` prints the workflow block. That block is required: it is the execution path. `serve` and `review` draw it on the Workflow tab before a run starts. The page opens in a browser the first time a plan is served. Serving or reviewing the same plan again leaves the open tab alone. Pass `--no-open` when a browser should not launch, or `--open` to open it again.
 
 ### Review mode
 
@@ -163,8 +163,8 @@ live-plan theme set --accent #0369a1 --url <printed-plan-url>
 - `GET /api/plan` — plan metadata, responses, pending interaction ids, execution state, `planned` workflow graph, and `theme`
 - `GET /api/execution` — current execution canvas state, including `planned` (the expected workflow from the plan) even while execution is idle
 - `PUT /api/execution` — set execution state (`active`, `step`, `detail`, `graph`, `scene`)
-- `POST /api/execution/start` / `POST /api/execution/stop` — convenience toggles
-- `GET /api/events` — browser SSE (`hello`, `reload`, `interaction`, `review`, `comment`, `mode`, `execution`, `theme`, `error`)
+- `POST /api/execution/start` / `push` / `stop` — what `execution start`, `push`, and `stop` call. Send any of `step`, `detail`, `graph`, `scene`; the host keeps the rest
+- `GET /api/events` — browser SSE (`hello`, `reload`, `interaction`, `review`, `comment`, `mode`, `execution`, `theme`, `error`, `ping`). `hello` is first on every connection, so a page that reconnects catches up
 - `GET /api/agent-events` — agent SSE. On the shared service this requires the plan token or the service token. `hello` includes responses, review, comments, execution, and `pending` (`plan_events` rows whose `delivered_at` is empty). A live submission arrives as `notice`.
 - `POST /api/agent-events/ack` — `{ "ids": ["evt_..."] }` sets `delivered_at`. The CLI calls this after it prints.
 - `POST /api/comments` — comment on one plan part. `live-plan addressing` (`POST /api/comments/:id/addressing`) marks it reviewing. `live-plan reply` (`POST /api/comments/:id/reply`) appends the reply text. `live-plan address` (`POST /api/comments/:id/address`) marks it answered with outcome `implemented` (default), `errored`, or `issues`.
@@ -179,7 +179,7 @@ live-plan theme set --accent #0369a1 --url <printed-plan-url>
 
 ## For agents
 
-Agents should invoke the published CLI with bunx, or `live-plan` when that command is installed. `living-plan` is the same binary. Bun has to be installed. Do not use the `npm run` scripts above unless you are developing this repository.
+Agents should invoke the published CLI with bunx, or `live-plan` when that command is installed. Bun has to be installed. Do not use the `npm run` scripts above unless you are developing this repository.
 
 ```bash
 bunx visual-living-plan serve path/to/work.plan.md
@@ -191,7 +191,7 @@ live-plan events --url <printed-plan-url>
 - Skill: from this repo, `npm run skills:install` copies [`skills/live-plan/`](skills/live-plan/SKILL.md) and the other project skills into `~/.agents/skills`. Run it again to refresh those copies. [`skills/live-plan/SKILL.md`](skills/live-plan/SKILL.md)
 - Primitive schemas: [`skills/live-plan/primitives.md`](skills/live-plan/primitives.md)
 
-`npm install -g visual-living-plan` installs the `live-plan` command (`living-plan` and `visual-living-plan` remain aliases). Every plan includes a `workflow` block. That block is the execution path.
+`npm install -g visual-living-plan` installs the `live-plan` command (`visual-living-plan` is the same program). Every plan includes a `workflow` block. That block is the execution path.
 
 ## License
 

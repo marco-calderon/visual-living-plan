@@ -121,6 +121,15 @@ export async function registerCloudPlan(
   }
 }
 
+function jsonRevision(raw: string): number | null {
+  try {
+    const parsed = JSON.parse(raw) as { revision?: unknown }
+    return typeof parsed.revision === 'number' ? parsed.revision : null
+  } catch {
+    return null
+  }
+}
+
 export async function uploadSource(options: {
   planUrl: string
   token: string
@@ -138,9 +147,10 @@ export async function uploadSource(options: {
     })
   let response = await send(options.revision)
   if (response.status === 409) {
-    const stale = (await response.json().catch(() => null)) as { revision?: number } | null
-    if (typeof stale?.revision !== 'number') throw new Error('The hosted plan rejected a stale revision.')
-    response = await send(stale.revision)
+    const raw = await response.text()
+    const stale = jsonRevision(raw)
+    if (stale == null) throw new Error(raw.trim() || 'The hosted plan rejected the upload.')
+    response = await send(stale)
   }
   if (!response.ok) throw new Error(await errorText(response))
   const payload = (await response.json()) as { revision?: number }
@@ -157,27 +167,12 @@ export async function uploadJson(planUrl: string, token: string, path: string, b
   if (!response.ok) throw new Error(await errorText(response))
 }
 
-/** Browser URL that sets the viewer cookie, so the opened plan is not asked to sign in again. */
-export async function hostedViewUrl(planUrl: string, accountToken: string): Promise<string | null> {
-  try {
-    const response = await fetch(planApiUrl(planUrl, 'share'), {
-      headers: bearer(accountToken, planUrl),
-    })
-    if (!response.ok) return null
-    const payload = (await response.json()) as { url?: string }
-    if (!payload.url) return null
-    const target = new URL(payload.url)
-    if (target.origin !== new URL(planUrl).origin) return null
-    return target.toString()
-  } catch {
-    return null
-  }
-}
-
 export async function closeCloudPlan(planUrl: string, token: string): Promise<void> {
+  // No body, so no content type. The host parses a JSON content type and rejects an empty body.
+  const { 'content-type': _json, ...headers } = bearer(token, planUrl)
   const response = await fetch(planApiUrl(planUrl, ''), {
     method: 'DELETE',
-    headers: bearer(token, planUrl),
+    headers,
   })
   if (response.status === 404 || response.ok) return
   throw new Error(await errorText(response))

@@ -8,6 +8,8 @@ import type { PlanMode } from './processRecord'
 import { clientLogScript } from './clientLog'
 import { faviconLink } from './favicon'
 import { webManifestHead } from './webManifest'
+import { PLAN_STATUS_LABEL, planStatus } from './planStatus'
+import { LOCK_BANNER_TEXT } from './lockBanner'
 import { PROCESSES_PANEL_STYLES, processesPanelMarkup, processesPanelScript } from './processesPanel'
 import { accentCssCustomProperties, PAGE_WIDTH_OPTIONS, type PageWidth } from './theme'
 import {
@@ -25,7 +27,7 @@ import type {
 } from './types'
 import { buildPlanToc, renderPlanTocHtml } from './planToc'
 import { planToExpectedGraph, withPlannedWorkflow } from './workflow'
-import { changelogSectionHtml, type ChangelogRelease } from './changelog'
+import { versionSectionHtml, type ChangelogRelease } from './changelog'
 import { appearanceSettingsHtml } from './appearanceSettings'
 
 const planPageStyles = readFileSync(new URL('./planPage.css', import.meta.url), 'utf8')
@@ -74,7 +76,7 @@ function clientScript(
   document.documentElement.classList.add('js');
   let mode = ${JSON.stringify(mode)};
   const apiBase = ${JSON.stringify(basePath)};
-  const interactionsLocked = ${JSON.stringify(executionActive)};
+  let interactionsLocked = ${JSON.stringify(executionActive)};
   let currentAccent = ${JSON.stringify(theme.accent)};
   const toast = document.getElementById('toast');
   function showToast(message) {
@@ -566,7 +568,12 @@ function clientScript(
   }
 
   function pinScroll(x, y) {
-    const apply = () => window.scrollTo({ left: x, top: y, behavior: 'instant' });
+    // A later jump (a quick Forward after Back) starts a new generation. Its scroll must not be undone here.
+    const generation = scrollGeneration;
+    const apply = () => {
+      if (generation !== scrollGeneration) return;
+      window.scrollTo({ left: x, top: y, behavior: 'instant' });
+    };
     apply();
     requestAnimationFrame(() => {
       apply();
@@ -612,11 +619,15 @@ function clientScript(
       const next = new URL(window.location.href);
       next.hash = '#' + page;
       const sameEntry = history.state && history.state.livingPlanPage === page && location.hash === next.hash;
-      if (sameEntry || jumpDepth > 0) return;
-      jumpDepth += 1;
-      snapshotView();
-      history.pushState({ livingPlanPage: page }, '', next);
-      jumpDepth -= 1;
+      if (jumpDepth > 0) return;
+      // The URL can already name this tab while another one shows, for example after a run opened
+      // the Workflow tab. The tab still opens. Only the history entry is skipped.
+      if (!sameEntry) {
+        jumpDepth += 1;
+        snapshotView();
+        history.pushState({ livingPlanPage: page }, '', next);
+        jumpDepth -= 1;
+      }
     }
     highlightPlanTarget(null);
     window.livingPlanPendingWorkflowFocus = null;
@@ -1055,12 +1066,36 @@ function clientScript(
     showToast('Answers sent');
   });
 
+  // A run that starts or stops changes the page in place. The banner and the locked panel are
+  // client/planStatusMark.ts. This keeps the page's own guards and the review bar in step.
+  let reviewDecision = null;
+  function currentDecision() {
+    if (reviewDecision !== null) return reviewDecision;
+    try {
+      const review = JSON.parse(document.getElementById('living-plan-review')?.textContent || 'null');
+      return (review && review.decision) || '';
+    } catch {
+      return '';
+    }
+  }
+  function setInteractionsLocked(locked) {
+    if (locked === interactionsLocked) return;
+    interactionsLocked = locked;
+    const decision = currentDecision();
+    const showBar = mode === 'review' && !decision && !interactionsLocked;
+    document.body.classList.toggle('has-review-bar', showBar);
+    const dock = document.getElementById('review-dock');
+    if (dock) dock.hidden = !showBar;
+    if (locked) activateTab('workflow');
+  }
+
   function applyMode(payload) {
     if (!payload || (payload.mode !== 'watch' && payload.mode !== 'comment' && payload.mode !== 'review')) return;
     mode = payload.mode;
     setModeChip(mode);
     document.body.dataset.planMode = mode;
     const decision = payload.review && payload.review.decision;
+    reviewDecision = decision || '';
     setReview(decision || '');
     const showBar = mode === 'review' && !decision && !interactionsLocked;
     document.body.classList.toggle('has-review-bar', showBar);
@@ -1208,31 +1243,22 @@ function clientScript(
     }
   }
 
-  // One EventSource per page — shared with PlanSelector / execution canvas via
-  // window.__livingPlanEvents. Three streams × three tabs saturates Chromium's
-  // ~6 HTTP/1.1 connections/host and hangs simultaneous reloads.
-  const existing = window.__livingPlanEvents;
-  const source =
-    existing && existing.readyState !== EventSource.CLOSED
-      ? existing
-      : new EventSource(apiBase + '/api/events');
-  window.__livingPlanEvents = source;
-  const releaseEvents = () => {
-    if (window.__livingPlanEvents !== source) return;
-    source.close();
-    delete window.__livingPlanEvents;
-  };
-  window.addEventListener('pagehide', releaseEvents);
-  window.addEventListener('beforeunload', releaseEvents);
-  let streamWarnedAt = 0;
-  source.addEventListener('error', (event) => {
-    if (event && event.data) return;
-    const report = window.__livingPlanReport;
-    if (typeof report !== 'function') return;
-    const now = Date.now();
-    if (now - streamWarnedAt < 10000) return;
-    streamWarnedAt = now;
-    report('warn', 'The plan event stream is not connected.', '', 'page');
+  // Listeners go on the page's one event hub. client/planEvents.ts owns the connection under it,
+  // reconnects it, and sends hello each time it opens, so these listeners outlive a dropped stream.
+  const source = window.__livingPlanHub || (window.__livingPlanHub = new EventTarget());
+  function applyExecutionState(payload) {
+    if (!payload || typeof payload !== 'object') return;
+    tocExecution = payload;
+    applyTocStepProgress(payload);
+    setInteractionsLocked(Boolean(payload.active));
+  }
+  source.addEventListener('hello', (event) => {
+    try {
+      const payload = JSON.parse(event.data);
+      if (!payload) return;
+      applyExecutionState(payload.execution);
+      if (payload.mode) applyMode({ mode: payload.mode, review: payload.review });
+    } catch {}
   });
   source.addEventListener('reload', () => {
     void refreshPlan();
@@ -1244,12 +1270,7 @@ function clientScript(
   });
   source.addEventListener('execution', (event) => {
     try {
-      const payload = JSON.parse(event.data);
-      tocExecution = payload;
-      applyTocStepProgress(payload);
-      if (Boolean(payload.active) !== interactionsLocked) {
-        window.location.reload();
-      }
+      applyExecutionState(JSON.parse(event.data));
     } catch {}
   });
   source.addEventListener('interaction', (event) => {
@@ -1279,6 +1300,7 @@ function clientScript(
     showToast('Review submitted');
     try {
       const payload = JSON.parse(event.data);
+      if (payload && typeof payload.decision === 'string') reviewDecision = payload.decision;
       if (!payload || payload.decision !== 'iterate') return;
       document.body.classList.remove('has-review-bar');
       const dock = document.getElementById('review-dock');
@@ -1340,10 +1362,14 @@ export function renderPlanPage(options: {
   theme: RenderTheme
   /** Prefix for this plan's API. Empty when the plan owns the origin. */
   basePath?: string
+  /** Where the logo goes. Defaults to the service dashboard when the plan sits under `/plans/<id>`. The private server has no dashboard. */
+  dashboardHref?: string | null
   selfId?: string
   comments?: PlanComment[]
   /** Newest changelog, already parsed. Omit to hide the release block. */
   changelog?: ChangelogRelease | null
+  /** Package version shown in the Version card at the bottom of Settings. */
+  appVersion?: string | null
   /** Append-only source history for the MDX page. */
   mdxSnapshots?: PlanSnapshotRecord[]
   mdxHeadSnapshotId?: string | null
@@ -1361,6 +1387,7 @@ export function renderPlanPage(options: {
     theme,
   } = options
   const basePath = options.basePath ?? ''
+  const dashboardHref = options.dashboardHref === undefined ? (basePath ? '/dashboard' : null) : options.dashboardHref
   const selfId = options.selfId
   const commentsJson = JSON.stringify(options.comments ?? []).replaceAll('<', '\\u003c')
   const reviewJson = JSON.stringify(options.review ?? null).replaceAll('<', '\\u003c')
@@ -1376,8 +1403,9 @@ export function renderPlanPage(options: {
   const locked = Boolean(execution.active)
   const pendingCount = pendingInteractionIds.length
   const showReviewBar = mode === 'review' && !reviewDecision && !locked
-  const planned = planToExpectedGraph(plan)
+  const planned = planToExpectedGraph(plan, Object.keys(responses))
   const workflowState = locked ? 'live' : planned ? 'planned' : 'idle'
+  const status = planStatus({ mode, decision: reviewDecision, active: locked })
   const flags = planSourceFlags(plan.source)
   const hasMermaid = flags.mermaid
   const hasCode = flags.code
@@ -1421,7 +1449,7 @@ export function renderPlanPage(options: {
   const executionFallback = clientAssets
     ? ''
     : `<div class="execution-empty">Build the client with <code>npm run build:client</code> to enable the workflow canvas.</div>`
-  const bootstrap = JSON.stringify(withPlannedWorkflow(execution, plan)).replaceAll('<', '\\u003c')
+  const bootstrap = JSON.stringify(withPlannedWorkflow(execution, plan, Object.keys(responses))).replaceAll('<', '\\u003c')
   const configName = theme.configPath.split(/[\\/]/).pop() || 'live-plan.config.json'
   const layoutMode: PageWidth = theme.pageWidth || 'default'
   const diffsThemeId = normalizeDiffsTheme(theme.diffsTheme || DEFAULT_DIFFS_THEME)
@@ -1445,16 +1473,24 @@ export function renderPlanPage(options: {
   ${accentStyleTag(theme.accent)}
   ${planMdxHref ? '<style>.plan-mdx-pending{display:none}</style><noscript><style>.plan-mdx-pending{display:block}</style></noscript>' : ''}
 </head>
-<body class="${showReviewBar ? 'has-review-bar ' : ''}layout-${layoutMode}" data-plan-mode="${escapeHtml(mode)}">
+<body class="${showReviewBar ? 'has-review-bar ' : ''}layout-${layoutMode}" data-plan-mode="${escapeHtml(mode)}" data-plan-status="${status}">
   <header class="titlebar">
+    ${
+      dashboardHref
+        ? `<a class="logo-btn" href="${escapeHtml(dashboardHref)}" aria-label="Dashboard" title="Dashboard"><img class="titlebar-logo" src="/favicon.png" alt="" width="29" height="29" /></a>`
+        : `<span class="logo-btn"><img class="titlebar-logo" src="/favicon.png" alt="" width="29" height="29" /></span>`
+    }
+    <h1 class="brand" id="plan-title">${escapeHtml(plan.title)}</h1>
     <div class="plan-details" data-plan-details>
-      <button type="button" class="logo-btn" data-plan-details-toggle aria-expanded="false" aria-controls="plan-card" aria-label="${pendingCount > 0 ? `Plan details, ${pendingCount} pending` : 'Plan details'}">
-        <img class="titlebar-logo" src="/favicon.png" alt="" width="29" height="29" />
-        <span class="logo-badge" data-pending-badge${pendingCount > 0 ? '' : ' hidden'}>${pendingCount}</span>
+      <button type="button" class="plan-status-chip" data-plan-details-toggle aria-expanded="false" aria-controls="plan-card" aria-label="${pendingCount > 0 ? `Plan details, ${pendingCount} pending` : 'Plan details'}">
+        <span class="chip-status" aria-hidden="true"></span>
+        <span class="plan-status-chip-label" data-plan-status-label>${PLAN_STATUS_LABEL[status]}</span>
+        <span class="chip-badge" data-pending-badge${pendingCount > 0 ? '' : ' hidden'}>${pendingCount}</span>
       </button>
       <div class="plan-card" id="plan-card" data-plan-card role="dialog" aria-labelledby="plan-title" hidden>
         ${plan.summary ? `<p class="lede">${escapeHtml(plan.summary)}</p>` : ''}
         <div class="facts">
+          <span class="fact" data-plan-status-fact title="Status"><span class="status-dot" aria-hidden="true"></span><span class="val" data-plan-status-label>${PLAN_STATUS_LABEL[status]}</span></span>
           <span class="fact solo" data-plan-mode-chip data-mode="${escapeHtml(mode)}" title="Mode · ${escapeHtml(mode)}" aria-label="Mode · ${escapeHtml(mode)}">${MODE_ICON.watch}${MODE_ICON.review}${MODE_ICON.comment}<span class="sr" data-plan-mode-value>${escapeHtml(mode)}</span></span>
           ${plan.agent ? `<span class="fact" title="Agent · ${escapeHtml(plan.agent)}" aria-label="Agent · ${escapeHtml(plan.agent)}">${AGENT_ICON}<span class="val">${escapeHtml(plan.agent)}</span></span>` : ''}
           <span class="fact" data-file-version title="${escapeHtml(versionName)}" aria-label="${escapeHtml(versionName)}">${FILE_VERSION_ICON}<span class="val" data-file-version-value>${escapeHtml(versionText)}</span></span>
@@ -1465,7 +1501,6 @@ export function renderPlanPage(options: {
         </div>
       </div>
     </div>
-    <h1 class="brand" id="plan-title">${escapeHtml(plan.title)}</h1>
     <div class="chrome-tools">
       <p class="offline-state" data-offline-state hidden></p>
       <div class="tabs" role="tablist" aria-label="Living Plan views">
@@ -1479,11 +1514,7 @@ export function renderPlanPage(options: {
   ${tocHtml}
   <div class="shell">
     <section class="tab-panel${locked ? ' plan-locked' : ''}" data-tab-panel="plan" role="tabpanel">
-      ${
-        locked
-          ? `<div class="lock-banner">Execution is live. Plan forms and gates are disabled until the agent stops execution. Switch to the Workflow tab to follow the live canvas.</div>`
-          : ''
-      }
+      <div class="lock-banner" data-lock-banner role="status"${locked ? '' : ' hidden'}>${LOCK_BANNER_TEXT}</div>
       <main class="stack">
         ${body}
       </main>
@@ -1496,7 +1527,6 @@ export function renderPlanPage(options: {
     </section>
     <section class="tab-panel" data-tab-panel="settings" role="tabpanel" hidden>
       <main class="settings-stack">
-        ${options.changelog ? changelogSectionHtml(options.changelog) : ''}
         <section class="block settings-section" data-host-panel="local" data-plan-host="local">
           <h3>Local plan</h3>
           <p class="settings-copy">This plan is on loopback. Appearance stays in the theme file on this machine. An account is not required.</p>
@@ -1513,6 +1543,7 @@ export function renderPlanPage(options: {
           wrapNote: `Saved to <code>${savedTo}</code> as <code>theme.wrapCode</code>.`,
           diffsNote: `Saved to <code>${savedTo}</code> as <code>theme.diffsTheme</code>.`,
         })}
+        ${versionSectionHtml(options.appVersion, options.changelog)}
       </main>
     </section>
   </div>

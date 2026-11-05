@@ -5,6 +5,8 @@
  * browser's own install prompt on a secure origin (HTTPS or loopback).
  */
 
+import { manifestIcons, pwaIconHead, type ManifestIcon } from './pwaIcons'
+
 export const WEB_MANIFEST_PATH = '/manifest.webmanifest'
 
 export const THEME_COLOR_LIGHT = '#ffffff'
@@ -20,7 +22,7 @@ export type WebManifest = {
   display: 'standalone'
   background_color: string
   theme_color: string
-  icons: Array<{ src: string; sizes: string; type: string; purpose: string }>
+  icons: ManifestIcon[]
 }
 
 export function webManifest(): WebManifest {
@@ -34,7 +36,7 @@ export function webManifest(): WebManifest {
     display: 'standalone',
     background_color: THEME_COLOR_LIGHT,
     theme_color: THEME_COLOR_LIGHT,
-    icons: [{ src: '/favicon.png', sizes: '1024x1024', type: 'image/png', purpose: 'any' }],
+    icons: manifestIcons,
   }
 }
 
@@ -47,10 +49,10 @@ export function webManifestResponse(): Response {
   })
 }
 
-/** Head tags for every app page: manifest, theme color, and the home screen icon. */
+/** Head tags for every app page: manifest, theme color, tab icons, and the home screen icon. */
 export const webManifestHead = [
   `<link rel="manifest" href="${WEB_MANIFEST_PATH}" />`,
   `<meta name="theme-color" content="${THEME_COLOR_LIGHT}" media="(prefers-color-scheme: light)" />`,
   `<meta name="theme-color" content="${THEME_COLOR_DARK}" media="(prefers-color-scheme: dark)" />`,
-  '<link rel="apple-touch-icon" href="/favicon.png" />',
+  pwaIconHead,
 ].join('\n  ')

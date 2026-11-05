@@ -17,6 +17,8 @@
   --surface: #f5f5f5;
   --surface-soft: #fafafa;
   --hairline: #e9e9e9;
+  --hairline-strong: #d4d4d8;
+  --hairline-strong-hover: #a1a1aa;
   --ink: #181e25;
   --charcoal: #34393f;
   --steel: #666666;
@@ -35,7 +37,10 @@
   --accent-2: var(--brand-coral);
   --danger: #ef4d3e;
   --ok: #0a7a38;
-  --on-accent: var(--on-primary);
+  --on-accent: #1b2b37;
+  --accent-fill: #0094fc;
+  --accent-fill-hover: #1fa1fc;
+  --accent-fill-active: #3daefd;
   --shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
   --shadow-modal: 0 12px 16px -4px rgba(36, 36, 36, 0.08);
   --radius: 16px;
@@ -88,6 +93,8 @@
   --surface: #1c1c1c;
   --surface-soft: #262626;
   --hairline: #2c2c2c;
+  --hairline-strong: #4a4a4a;
+  --hairline-strong-hover: #666666;
   --ink: #ededed;
   --charcoal: #ededed;
   --steel: #949494;
@@ -106,7 +113,10 @@
   --accent-2: #fdba74;
   --danger: #ffc9bd;
   --ok: #6edb8f;
-  --on-accent: #171717;
+  --on-accent: #1b2b37;
+  --accent-fill: #0094fc;
+  --accent-fill-hover: #1fa1fc;
+  --accent-fill-active: #3daefd;
   --shadow: 0 4px 6px rgba(0, 0, 0, 0.28);
   --shadow-modal: 0 12px 16px -4px rgba(0, 0, 0, 0.45);
   --focus: #0094fc;
@@ -1102,7 +1112,8 @@ a.plan-step-label:hover {
 }
 .plan-btn-primary,
 .plan-btn-primary:hover:not(:disabled) { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
-.plan-btn-secondary { background: transparent; border-color: var(--ink); color: var(--ink); }
+.plan-btn-secondary { background: transparent; border-color: var(--hairline-strong); color: var(--ink); }
+.plan-btn-secondary:hover:not(:disabled) { border-color: var(--hairline-strong-hover); }
 .plan-btn-danger { background: var(--danger-soft); border-color: var(--danger-border); color: var(--danger); }
 
 .plan-chip {

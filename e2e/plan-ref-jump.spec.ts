@@ -2,14 +2,23 @@ import { expect, test } from '@playwright/test'
 
 test('a workflow node title jumps to the plan entry and Back returns', async ({ page }) => {
   await page.goto('/')
-  const step = page.locator('a.workflow-step[data-plan-jump="design"]')
-  await step.evaluate((node) => node.scrollIntoView({ block: 'center', behavior: 'auto' }))
+  // The plan's workflow diagram links each step to its entry.
+  const step = page.locator('#plan-mdx-root a[data-plan-jump="design"]').first()
+  await expect(step).toBeAttached()
+  // Start far from the entry, so the jump moves the page and Back has a position to restore.
+  // The plan grows as it renders, so scroll until the bottom holds.
+  await expect
+    .poll(() => page.evaluate(() => {
+      window.scrollTo(0, document.documentElement.scrollHeight)
+      return window.scrollY
+    }))
+    .toBeGreaterThan(1000)
   const before = await page.evaluate(() => window.scrollY)
-  expect(before).toBeGreaterThan(200)
 
-  await step.click({ force: true })
+  await step.dispatchEvent('click')
   await expect(page).toHaveURL(/#plan-design$/)
   await expect(page.locator('#plan-design')).toBeInViewport()
+  expect(await page.evaluate(() => window.scrollY)).toBeLessThan(before - 200)
   const origin = new URL(page.url())
   expect(origin.pathname).toBe('/')
 
@@ -28,7 +37,8 @@ test('a workflow node title jumps to the plan entry and Back returns', async ({ 
   await expect(page.locator('#plan-design')).toBeInViewport()
   expect(new URL(page.url()).pathname).toBe('/')
 
+  // Opening the Workflow tab was its own history step, so Back from the jump returns to that tab.
   await page.evaluate(() => history.back())
   await expect(page.getByRole('tab', { name: 'Workflow' })).toHaveAttribute('aria-selected', 'true')
-  await expect(page).toHaveURL('/')
+  await expect(page).toHaveURL(/\/#workflow$/)
 })

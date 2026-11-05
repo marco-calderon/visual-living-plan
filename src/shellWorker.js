@@ -2,12 +2,13 @@
 
 // src/shellCache.ts
 var SHELL_CACHE_PREFIX = "visual-living-plan-shell-";
-var SHELL_CACHE_VERSION = "1.12.1";
-var SHELL_CACHE_NAME = "visual-living-plan-shell-1.12.1";
+var SHELL_CACHE_VERSION = "2.6.0";
+var SHELL_CACHE_NAME = "visual-living-plan-shell-2.6.0";
 var DOCUMENT_CACHE_MARKER = "device";
 var PRECACHE_BATCH = 16;
 var ASSET_EXTENSION = /\.(?:js|mjs|css|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|wasm)$/i;
 var PLAN_NETWORK = /^\/plans\/[^/]+\/(?:api|view|share|document|versions)(?:\/|$)/;
+var VERSION_PAGE = /^\/plans\/[^/]+\/versions\/[1-9]\d*\/?$/;
 function classifyShellRequest(request, origin) {
   if (request.method !== "GET")
     return "network";
@@ -35,7 +36,7 @@ function classifyShellRequest(request, origin) {
     return "network";
   if (path === "/api" || path.startsWith("/api/"))
     return "network";
-  if (PLAN_NETWORK.test(path))
+  if (PLAN_NETWORK.test(path) && !VERSION_PAGE.test(path))
     return "network";
   if (path === "/archive" || path.startsWith("/archive/"))
     return "network";
@@ -59,6 +60,8 @@ function documentCacheRequest(request) {
 }
 function shouldStoreDocument(response) {
   if (response.status !== 200)
+    return false;
+  if (response.redirected)
     return false;
   if (response.type !== "basic" && response.type !== "default")
     return false;

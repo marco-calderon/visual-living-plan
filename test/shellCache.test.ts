@@ -13,6 +13,7 @@ import {
   precacheShell,
   SHELL_CACHE_NAME,
   SHELL_CACHE_VERSION,
+  shouldStoreDocument,
   type ShellCacheStorage,
   type ShellRuntime,
 } from '../src/shellCache.ts'
@@ -58,7 +59,8 @@ test('navigation and static assets are the shell, and API and auth stay on the n
     ['execution', json('/api/execution'), 'network'],
     ['events', json('/api/events'), 'network'],
     ['download', document('/plans/abcdefgh/document'), 'network'],
-    ['version download', document('/plans/abcdefgh/versions/3'), 'network'],
+    ['version page', document('/plans/abcdefgh/versions/3'), 'document'],
+    ['version download', document('/plans/abcdefgh/versions/3/document'), 'network'],
     ['viewer link', document('/plans/abcdefgh/view/sig'), 'network'],
     ['share', document('/plans/abcdefgh/share'), 'network'],
     ['worker script', asset('/sw.js'), 'network'],
@@ -398,3 +400,11 @@ function memoryCaches(): ShellCacheStorage {
     },
   }
 }
+
+test('a document reached through a redirect is not stored under the asked-for page', () => {
+  const page = new Response('<html></html>', { status: 200, headers: { 'content-type': 'text/html' } })
+  assert.equal(shouldStoreDocument(page), true)
+  const redirected = new Response('<html></html>', { status: 200, headers: { 'content-type': 'text/html' } })
+  Object.defineProperty(redirected, 'redirected', { value: true })
+  assert.equal(shouldStoreDocument(redirected), false)
+})

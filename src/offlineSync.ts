@@ -70,6 +70,53 @@ export type CatalogRow = {
   recency?: number
 }
 
+/** One saved version of an owned plan. `source` is present once that version was opened on this device. */
+export type VersionRow = {
+  /** `planId:seq` */
+  id: string
+  planId: string
+  seq: number
+  title: string
+  createdAt: number
+  source?: string
+}
+
+export function versionRowId(planId: string, seq: number): string {
+  return `${planId}:${seq}`
+}
+
+/**
+ * Rows to write and drop after the host listed a plan's versions. A listed row keeps a source this
+ * device already saved. A stored row the host no longer lists is dropped.
+ */
+export function versionRowsFromList(
+  planId: string,
+  listed: ReadonlyArray<{ seq: number; title?: string; createdAt?: number }>,
+  stored: readonly VersionRow[],
+): { put: VersionRow[]; drop: string[] } {
+  const mine = stored.filter((row) => row.planId === planId)
+  const byId = new Map(mine.map((row) => [row.id, row]))
+  const put: VersionRow[] = []
+  const keep = new Set<string>()
+  for (const version of listed) {
+    if (!Number.isInteger(version.seq) || version.seq <= 0) continue
+    const id = versionRowId(planId, version.seq)
+    if (keep.has(id)) continue
+    keep.add(id)
+    const previous = byId.get(id)
+    put.push({
+      id,
+      planId,
+      seq: version.seq,
+      title: version.title ?? previous?.title ?? '',
+      createdAt: version.createdAt ?? previous?.createdAt ?? 0,
+      ...(previous?.source !== undefined ? { source: previous.source } : {}),
+    })
+  }
+  const drop = mine.filter((row) => !keep.has(row.id)).map((row) => row.id)
+  return { put, drop }
+}
+
 export type AccountRow = {
   id: string
   payload: unknown
@@ -95,6 +142,43 @@ export type SettingsRow = {
   diffsTheme: string
   wrapCode: boolean
   updatedAt: number
+  /** Set while the host has not confirmed this change. Sent again when the network returns. */
+  pending?: boolean
+  /** Where a pending change is sent. */
+  url?: string
+}
+
+/** A device settings row from a host theme or settings payload, with the same defaults the host uses. */
+export function settingsRowFrom(id: string, theme: Partial<SettingsRow> | null | undefined): SettingsRow {
+  const value = theme ?? {}
+  return {
+    id,
+    accent: typeof value.accent === 'string' && value.accent ? value.accent : '#0f766e',
+    pageWidth: typeof value.pageWidth === 'string' && value.pageWidth ? value.pageWidth : 'default',
+    diffsTheme: typeof value.diffsTheme === 'string' && value.diffsTheme ? value.diffsTheme : 'pierre',
+    wrapCode: Boolean(value.wrapCode),
+    updatedAt: typeof value.updatedAt === 'number' ? value.updatedAt : 0,
+  }
+}
+
+/** The settings fields of a stored account payload, replaced by a newer device row. */
+export function accountWithSettings<T>(payload: T, row: SettingsRow | undefined): T {
+  if (!row || !payload || typeof payload !== 'object') return payload
+  const record = payload as Record<string, unknown>
+  const current = record.settings && typeof record.settings === 'object' ? (record.settings as Record<string, unknown>) : {}
+  const currentAt = typeof current.updatedAt === 'number' ? current.updatedAt : 0
+  if (row.updatedAt <= currentAt) return payload
+  return {
+    ...record,
+    settings: {
+      ...current,
+      accent: row.accent,
+      pageWidth: row.pageWidth,
+      diffsTheme: row.diffsTheme,
+      wrapCode: row.wrapCode,
+      updatedAt: row.updatedAt,
+    },
+  } as T
 }
 
 export type MutationInspection = {
@@ -268,7 +352,33 @@ export function commentRowsFromSnapshot(planId: string, comments: unknown[], pen
     })
   }
   const ids = new Set(server.map((row) => row.id))
-  return [...server, ...pending.filter((row) => row.pending && row.planId === planId && !ids.has(row.id))]
+  const unsent = pending.filter((row) => row.pending && row.planId === planId && !ids.has(row.id))
+  return [...server, ...withoutSettled(unsent, server)]
+}
+
+function commentKey(comment: unknown): string {
+  const record = comment && typeof comment === 'object' ? (comment as Record<string, unknown>) : {}
+  return `${String(record.partId ?? '')}\u0000${String(record.text ?? '')}`
+}
+
+/**
+ * Drop the device's placeholder for a comment the host now has. The placeholder's id comes from the
+ * outbox and never matches the host's id, so it is matched on part and text, one placeholder for each
+ * host comment, so two equal comments still show as two.
+ */
+export function withoutSettled<T extends { comment: unknown }>(placeholders: readonly T[], server: readonly { comment: unknown }[]): T[] {
+  const available = new Map<string, number>()
+  for (const row of server) {
+    const key = commentKey(row.comment)
+    available.set(key, (available.get(key) ?? 0) + 1)
+  }
+  return placeholders.filter((row) => {
+    const key = commentKey(row.comment)
+    const left = available.get(key) ?? 0
+    if (left === 0) return true
+    available.set(key, left - 1)
+    return false
+  })
 }
 
 export function planVersionKey(plan: { heartbeatAt?: number | null; storedPath?: string | null }): string {
@@ -314,6 +424,15 @@ export function plansToEvict(
   if (openId) kept.add(openId)
   for (const row of shared.slice(0, sharedRoom)) kept.add(row.id)
   return rows.map((row) => row.id).filter((id) => !kept.has(id))
+}
+
+/**
+ * Plan HTML is cached by the service worker only after that worker controls the page.
+ * With no worker support, the device snapshot is the offline copy.
+ */
+export function planPageCacheReady(input: { serviceWorker: boolean; controller: boolean }): boolean {
+  if (!input.serviceWorker) return true
+  return input.controller
 }
 
 /** Most recent owned plans that are new, changed, or last warmed longer ago than the interval. */
@@ -476,6 +595,16 @@ export function applyLiveToPlan(row: PlanRow, event: string, data: unknown): Pla
   }
   if (event === 'execution') return { ...row, locked: Boolean(record.active) }
   if (event === 'review') return { ...row, review: data }
+  if (event === 'hello') {
+    // Sent each time the page's stream opens: the run, the mode, and the review as they are now.
+    let next = row
+    const execution = record.execution
+    if (execution && typeof execution === 'object') next = { ...next, locked: Boolean((execution as { active?: unknown }).active) }
+    const mode = record.mode
+    if (mode === 'watch' || mode === 'comment' || mode === 'review') next = { ...next, mode }
+    if ('review' in record) next = { ...next, review: record.review }
+    return next
+  }
   return row
 }
 

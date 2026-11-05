@@ -1,9 +1,15 @@
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
+import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
+import { QueryProvider } from '../../client/queryClient.tsx'
+import { SettingsLayer } from '../settings/SettingsLayer.tsx'
+import { rootSearch, type RootSearch } from '../settings/settingsSections.ts'
 import appCss from '../styles.css?url'
+import { APPLE_TOUCH_ICON, FAVICON_16, FAVICON_32, FAVICON_ICO } from '../pwaIcons.ts'
 import { THEME_COLOR_DARK, THEME_COLOR_LIGHT, WEB_MANIFEST_PATH } from '../webManifest.ts'
 
 export const Route = createRootRoute({
+  // `?settings=<section>` opens the settings modal over any page.
+  validateSearch: (search: Record<string, unknown>): RootSearch => rootSearch(search),
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
@@ -15,7 +21,10 @@ export const Route = createRootRoute({
     links: [
       { rel: 'manifest', href: WEB_MANIFEST_PATH },
       { rel: 'icon', type: 'image/png', href: '/favicon.png' },
-      { rel: 'apple-touch-icon', href: '/favicon.png' },
+      { rel: 'icon', href: FAVICON_ICO, sizes: '48x48' },
+      { rel: 'icon', type: 'image/png', href: FAVICON_32, sizes: '32x32' },
+      { rel: 'icon', type: 'image/png', href: FAVICON_16, sizes: '16x16' },
+      { rel: 'apple-touch-icon', href: APPLE_TOUCH_ICON },
       { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
       { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossOrigin: 'anonymous' },
       {
@@ -26,7 +35,17 @@ export const Route = createRootRoute({
     ],
   }),
   shellComponent: RootDocument,
+  component: RootLayout,
 })
+
+function RootLayout() {
+  return (
+    <>
+      <Outlet />
+      <SettingsLayer />
+    </>
+  )
+}
 
 function RootDocument({ children }: { children: ReactNode }) {
   return (
@@ -35,7 +54,7 @@ function RootDocument({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        {children}
+        <QueryProvider>{children}</QueryProvider>
         <Scripts />
       </body>
     </html>

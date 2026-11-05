@@ -13,6 +13,8 @@ import {
   planRowFromSnapshot,
   plansToEvict,
   settingsWinner,
+  settingsRowFrom,
+  accountWithSettings,
   type AccountRow,
   type CatalogRow,
   type CommentRow,
@@ -21,13 +23,18 @@ import {
   type PlanSnapshot,
   type SettingsRow,
   type UserMutationKind,
+  type VersionRow,
+  versionRowId,
+  versionRowsFromList,
 } from '../../src/offlineSync.ts'
 import { paintOfflineStatus, planContext, type OfflineHandle } from './engine.ts'
 import { forgetCachedDocuments } from './forgetDocuments.ts'
+import { viewingPlanVersion } from '../versionView.ts'
+import { applyAppearance } from '../../src/appearanceDom.ts'
 
 type SyncWrite = {
   begin: (options?: { snapshot?: boolean }) => void
-  write: (message: { type: 'insert'; value: object }) => void
+  write: (message: { type: 'insert' | 'update'; value: object } | { type: 'delete'; key: string }) => void
   commit: () => unknown
   markReady: () => void
   fail: (error: unknown) => void
@@ -39,6 +46,16 @@ type SyncWrite = {
 // collection (TanStack's default mismatch policy) and would drop plan rows the
 // outbox still points at. The outbox itself lives in IndexedDB, not this file.
 const SCHEMA = 1
+
+/**
+ * One write to a device collection. `put` and `drop` touch only the rows they name, so two writes
+ * close together cannot erase each other. A write only shows in `toArray` once the one before it
+ * has been saved, so a full snapshot built from `toArray` could drop a row that was still saving.
+ * `replace` is a full snapshot and is kept for clearing the device.
+ */
+type RowChange<T> = { put?: readonly T[]; drop?: readonly string[]; replace?: readonly T[] }
+
+type RowWriter<T> = ((change: RowChange<T>) => void) | null
 
 type QueuedMutation = {
   kind: UserMutationKind
@@ -59,15 +76,24 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
   let reachable = navigator.onLine
   const results = new Map<string, unknown>()
   const writers: {
-    plans: ((rows: PlanRow[]) => void) | null
-    comments: ((rows: CommentRow[]) => void) | null
-    catalog: ((rows: CatalogRow[]) => void) | null
-    settings: ((rows: SettingsRow[]) => void) | null
-    account: ((rows: AccountRow[]) => void) | null
-    dashboards: ((rows: DashboardStoreRow[]) => void) | null
-  } = { plans: null, comments: null, catalog: null, settings: null, account: null, dashboards: null }
+    plans: RowWriter<PlanRow>
+    comments: RowWriter<CommentRow>
+    catalog: RowWriter<CatalogRow>
+    settings: RowWriter<SettingsRow>
+    account: RowWriter<AccountRow>
+    dashboards: RowWriter<DashboardStoreRow>
+    versions: RowWriter<VersionRow>
+  } = { plans: null, comments: null, catalog: null, settings: null, account: null, dashboards: null, versions: null }
 
-  function syncOptions<T extends object>(id: string, assign: (apply: (rows: T[]) => void) => void) {
+  /**
+   * `full` makes a put replace the whole row. `partial` merges it into the stored row when it is
+   * applied, so a put can leave out a field another write owns.
+   */
+  function syncOptions<T extends object>(
+    id: string,
+    assign: (apply: (change: RowChange<T>) => void) => void,
+    rowUpdateMode: 'full' | 'partial' = 'full',
+  ) {
     return {
       id,
       getKey: (row: T & { id: string }) => row.id,
@@ -75,10 +101,18 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
       schemaVersion: SCHEMA,
       initialRender: { strategy: 'network-first' as const, networkTimeoutMs: 0 },
       sync: {
+        rowUpdateMode,
         sync: (params: SyncWrite) => {
-          assign((rows) => {
-            params.begin({ snapshot: true })
-            for (const row of rows) params.write({ type: 'insert', value: row })
+          assign((change) => {
+            if (change.replace) {
+              params.begin({ snapshot: true })
+              for (const row of change.replace) params.write({ type: 'insert', value: row })
+            } else {
+              params.begin()
+            }
+            // An update writes the row whether or not it is stored yet.
+            for (const row of change.put ?? []) params.write({ type: 'update', value: row })
+            for (const key of change.drop ?? []) params.write({ type: 'delete', key })
             params.commit()
           })
           params.markReady()
@@ -89,13 +123,14 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
 
   const plans = createCollection(persistedCollectionOptions<PlanRow, string>(syncOptions<PlanRow>('plans', (apply) => { writers.plans = apply })))
   const comments = createCollection(persistedCollectionOptions<CommentRow, string>(syncOptions<CommentRow>('comments', (apply) => { writers.comments = apply })))
-  const catalog = createCollection(persistedCollectionOptions<CatalogRow, string>(syncOptions<CatalogRow>('catalog', (apply) => { writers.catalog = apply })))
+  const catalog = createCollection(persistedCollectionOptions<CatalogRow, string>(syncOptions<CatalogRow>('catalog', (apply) => { writers.catalog = apply }, 'partial')))
   const settings = createCollection(persistedCollectionOptions<SettingsRow, string>(syncOptions<SettingsRow>('settings', (apply) => { writers.settings = apply })))
   const account = createCollection(persistedCollectionOptions<AccountRow, string>(syncOptions<AccountRow>('account', (apply) => { writers.account = apply })))
   const dashboards = createCollection(persistedCollectionOptions<DashboardStoreRow, string>(syncOptions<DashboardStoreRow>('dashboards', (apply) => { writers.dashboards = apply })))
+  const versions = createCollection(persistedCollectionOptions<VersionRow, string>(syncOptions<VersionRow>('versions', (apply) => { writers.versions = apply })))
 
   const executor: OfflineExecutor = startOfflineExecutor({
-    collections: { plans, comments, catalog, settings, account, dashboards },
+    collections: { plans, comments, catalog, settings, account, dashboards, versions },
     mutationFns: {
       submit: async ({ transaction, idempotencyKey }) => {
         const meta = transaction.metadata as QueuedMutation
@@ -154,6 +189,8 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
 
   async function refreshPlan(): Promise<void> {
     if (!document.getElementById('living-plan-mdx') && !document.getElementById('plan-mdx-root')) return
+    // A version page embeds an old source. It is stored as a version, never as the live plan row.
+    if (viewingPlanVersion() !== null) return
     const context = planContext()
     try {
       const response = await fetch(`${context.basePath}/api/snapshot`, { cache: 'no-store' })
@@ -178,17 +215,22 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
     const nextPlans = [...keptPlans, row]
     const ownedIds = [...catalog.toArray].map((entry) => entry.id)
     const drop = new Set(plansToEvict(nextPlans, openPlanId(), 4, ownedIds))
-    const visiblePlans = nextPlans.filter((entry) => !drop.has(entry.id))
     if (drop.size > 0) forgetCachedDocuments([...drop].map((id) => `/plans/${id}`))
-    const pending = [...comments.toArray].filter((entry) => entry.pending)
-    const keptComments = [...comments.toArray].filter((entry) => entry.planId !== context.id && !drop.has(entry.planId) && !entry.pending)
-    const nextComments = [...keptComments, ...commentRowsFromSnapshot(context.id, snapshot.comments, pending).filter((entry) => !drop.has(entry.planId))]
-    writers.plans?.(visiblePlans)
-    writers.comments?.(nextComments)
+    const stored = [...comments.toArray]
+    const pending = stored.filter((entry) => entry.pending)
+    const nextComments = commentRowsFromSnapshot(context.id, snapshot.comments, pending).filter((entry) => !drop.has(entry.planId))
+    const nextIds = new Set(nextComments.map((entry) => entry.id))
+    const staleComments = stored
+      .filter((entry) => entry.planId === context.id || drop.has(entry.planId) || entry.pending)
+      .filter((entry) => !nextIds.has(entry.id))
+      .map((entry) => entry.id)
+    writers.plans?.({ put: drop.has(row.id) ? [] : [row], drop: [...drop] })
+    writers.comments?.({ put: nextComments, drop: staleComments })
     notify()
   }
 
   function seedFromDocument(): void {
+    if (viewingPlanVersion() !== null) return
     const context = planContext()
     if (plans.get(context.id)) return
     const node = document.getElementById('living-plan-mdx')
@@ -213,53 +255,51 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
   }
 
   async function loadCatalog(): Promise<void> {
-    if (location.pathname !== '/dashboard' && !location.pathname.startsWith('/dashboard/')) return
-    const period = new URLSearchParams(location.search).get('period')
-    const selected = period === 'week' || period === 'month' ? period : 'day'
-    const { refreshDeviceDashboards } = await import('./warmPlans.ts')
-    const result = await refreshDeviceDashboards(handle, { period: selected })
-    if ('offline' in result && result.offline) {
-      reachable = false
-      notify()
+    const { refreshDeviceDashboards, syncOwnedPlans } = await import('./warmPlans.ts')
+    if (location.pathname === '/dashboard' || location.pathname.startsWith('/dashboard/')) {
+      const period = new URLSearchParams(location.search).get('period')
+      const selected = period === 'week' || period === 'month' ? period : 'day'
+      const result = await refreshDeviceDashboards(handle, { period: selected })
+      if ('offline' in result && result.offline) {
+        reachable = false
+        notify()
+      }
+      return
     }
+    await syncOwnedPlans(handle)
   }
 
   async function loadSettings(): Promise<void> {
     const context = planContext()
     const onPlan = Boolean(document.getElementById('living-plan-mdx') || document.getElementById('plan-mdx-root'))
     try {
-      if (onPlan) {
+      if (onPlan && context.host === 'cloud') {
+        // A hosted plan uses the owner's account appearance. A viewer of someone else's plan keeps the look the page was rendered with.
+        if (document.body.dataset.planOwner !== 'true') return
+        const response = await fetch('/api/account/settings', { cache: 'no-store', credentials: 'include' })
+        if (!response.ok) return
+        const payload = (await response.json()) as { settings?: Partial<SettingsRow> }
+        const row = settingsRowFrom('account', payload.settings)
+        const winner = settingsWinner(settings.get(row.id) ?? row, row)
+        writeSettings(winner)
+        patchStoredAccount(winner)
+        // A page served from the device cache can be older than the account settings.
+        applyAppearance(winner, { notify: true })
+      } else if (onPlan) {
+        // The local service keeps a theme per plan.
         const response = await fetch(`${context.basePath}/api/theme`, { cache: 'no-store' })
         if (!response.ok) return
         const theme = (await response.json()) as Partial<SettingsRow>
-        const row: SettingsRow = {
-          id: `local:${context.id}`,
-          accent: theme.accent ?? '#0f766e',
-          pageWidth: theme.pageWidth ?? 'default',
-          diffsTheme: theme.diffsTheme ?? 'pierre',
-          wrapCode: Boolean(theme.wrapCode),
-          updatedAt: typeof theme.updatedAt === 'number' ? theme.updatedAt : 0,
-        }
-        const current = [...settings.toArray].filter((entry) => entry.id !== row.id)
-        writers.settings?.([...current, settingsWinner(settings.get(row.id) ?? row, row)])
-      } else if (location.pathname.startsWith('/settings') || location.pathname.startsWith('/account')) {
+        const row = settingsRowFrom(`local:${context.id}`, theme)
+        writers.settings?.({ put: [settingsWinner(settings.get(row.id) ?? row, row)] })
+      } else if (!onPlan && (location.pathname.startsWith('/settings') || location.pathname.startsWith('/account'))) {
         const response = await fetch('/api/account', { cache: 'no-store' })
         if (!response.ok) return
         const payload = (await response.json()) as { settings?: Partial<SettingsRow> }
-        const theme = payload.settings ?? {}
-        const row: SettingsRow = {
-          id: 'account',
-          accent: theme.accent ?? '#0f766e',
-          pageWidth: theme.pageWidth ?? 'default',
-          diffsTheme: theme.diffsTheme ?? 'pierre',
-          wrapCode: Boolean(theme.wrapCode),
-          updatedAt: typeof theme.updatedAt === 'number' ? theme.updatedAt : 0,
-        }
-        const current = [...settings.toArray].filter((entry) => entry.id !== row.id)
-        writers.settings?.([...current, settingsWinner(settings.get(row.id) ?? row, row)])
-      } else {
-        writers.settings?.([...settings.toArray])
-        writers.catalog?.([...catalog.toArray])
+        const local = settings.get('account')
+        handle.rememberAccount(accountWithSettings(payload, local?.pending ? local : undefined))
+        const row = settingsRowFrom('account', payload.settings)
+        writers.settings?.({ put: [settingsWinner(settings.get(row.id) ?? row, row)] })
       }
       reachable = true
     } catch {
@@ -283,17 +323,14 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
       const current = plans.get(context.id)
       if (!current) return
       const next = applyLiveToPlan(current, event, data)
-      const rest = [...plans.toArray].filter((row) => row.id !== context.id)
-      writers.plans?.([...rest, next])
+      writers.plans?.({ put: [next] })
       if (event === 'comment' && data && typeof data === 'object') {
         const comment = data as Record<string, unknown>
         const id = typeof comment.id === 'string' ? comment.id : ''
         if (!id) return
-        const others = [...comments.toArray].filter((row) => row.id !== id)
-        writers.comments?.([
-          ...others,
-          { id, planId: context.id, partId: typeof comment.partId === 'string' ? comment.partId : '', pending: false, comment },
-        ])
+        writers.comments?.({
+          put: [{ id, planId: context.id, partId: typeof comment.partId === 'string' ? comment.partId : '', pending: false, comment }],
+        })
       }
     },
     submit: async ({ kind, path, body }) => {
@@ -340,32 +377,48 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
       const previous = [...catalog.toArray].map((row) => row.id)
       const nextIds = new Set(rows.map((row) => row.id))
       const released = previous.filter((id) => !nextIds.has(id))
-      writers.catalog?.(rows)
+      // warmedAt is left out so this merge keeps the time markWarmed wrote, even one still being saved.
+      writers.catalog?.({ put: rows.map(({ warmedAt: _warmedAt, ...row }) => row as CatalogRow), drop: released })
       const drop = new Set(plansToEvict([...plans.toArray], openPlanId(), 4, rows.map((row) => row.id), released))
+      // Versions are kept for owned plans only.
+      const releasedSet = new Set(released)
+      const staleVersions = [...versions.toArray].filter((row) => releasedSet.has(row.planId)).map((row) => row.id)
+      if (staleVersions.length > 0) writers.versions?.({ drop: staleVersions })
       if (drop.size > 0) {
-        writers.plans?.([...plans.toArray].filter((row) => !drop.has(row.id)))
-        writers.comments?.([...comments.toArray].filter((row) => !drop.has(row.planId)))
+        writers.plans?.({ drop: [...drop] })
+        writers.comments?.({ drop: [...comments.toArray].filter((row) => drop.has(row.planId)).map((row) => row.id) })
         forgetCachedDocuments([...drop].map((id) => `/plans/${id}`))
       }
       notify()
     },
     account: () => account.get('me') ?? null,
     rememberAccount: (payload) => {
-      writers.account?.([{ id: 'me', payload, savedAt: Date.now() }])
+      writers.account?.({ put: [{ id: 'me', payload, savedAt: Date.now() }] })
       notify()
     },
     dashboard: (period) => dashboards.get(period) ?? null,
     rememberDashboard: (period, payload) => {
-      const rest = [...dashboards.toArray].filter((row) => row.id !== period)
-      writers.dashboards?.([...rest, { id: period, payload, savedAt: Date.now() }])
+      writers.dashboards?.({ put: [{ id: period, payload, savedAt: Date.now() }] })
       notify()
     },
     storePlanSnapshot: (id, basePath, snapshot) => {
       publishSnapshot({ id, host: basePath.startsWith('/plans/') ? 'cloud' : 'local', basePath }, snapshot)
     },
+    versions: (planId) =>
+      [...versions.toArray].filter((row) => row.planId === planId).sort((left, right) => right.seq - left.seq),
+    rememberVersions: (planId, listed) => {
+      const change = versionRowsFromList(planId, listed, [...versions.toArray])
+      writers.versions?.(change)
+      notify()
+    },
+    rememberVersion: (row) => {
+      writers.versions?.({ put: [{ ...row, id: versionRowId(row.planId, row.seq) }] })
+      notify()
+    },
     markWarmed: (id, versionKey, warmedAt) => {
-      const rows = [...catalog.toArray].map((row) => (row.id === id ? { ...row, versionKey, warmedAt } : row))
-      writers.catalog?.(rows)
+      // Catalog puts merge, so this changes only these two fields of a row that is still listed.
+      if (!catalog.get(id)) return
+      writers.catalog?.({ put: [{ id, versionKey, warmedAt } as CatalogRow] })
     },
     pendingCount: () => executor.getPendingCount(),
     noteNetwork: (online) => {
@@ -379,50 +432,87 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
         if (!window.confirm(`${noun} not been sent. Sign out anyway?`)) return false
       }
       if (executor.getPendingCount() > 0) await executor.clearOutbox()
-      writers.plans?.([])
-      writers.comments?.([])
-      writers.catalog?.([])
-      writers.settings?.([])
-      writers.account?.([])
-      writers.dashboards?.([])
+      writers.plans?.({ replace: [] })
+      writers.comments?.({ replace: [] })
+      writers.catalog?.({ replace: [] })
+      writers.settings?.({ replace: [] })
+      writers.account?.({ replace: [] })
+      writers.dashboards?.({ replace: [] })
+      writers.versions?.({ replace: [] })
       forgetCachedDocuments()
       notify()
       return true
     },
+    settings: (scope) => settings.get(scope),
     saveSettings: async (scope, patch) => {
       const current = settings.get(scope)
-      const next: SettingsRow = settingsWinner(current ?? emptySettings(scope), {
+      const next: SettingsRow = {
         id: scope,
         accent: patch.accent ?? current?.accent ?? '#0f766e',
         pageWidth: patch.pageWidth ?? current?.pageWidth ?? 'default',
         diffsTheme: patch.diffsTheme ?? current?.diffsTheme ?? 'pierre',
         wrapCode: patch.wrapCode ?? current?.wrapCode ?? false,
-        updatedAt: Date.now(),
-      })
-      const rest = [...settings.toArray].filter((row) => row.id !== scope)
-      writers.settings?.([...rest, next])
-      try {
-        const response = await fetch(patch.url, {
-          method: 'PUT',
-          credentials: 'include',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ ...next, url: undefined }),
-        })
-        if (!response.ok) throw new Error(await response.text())
-        reachable = true
-      } catch {
-        reachable = false
-        notify()
+        updatedAt: Math.max(Date.now(), (current?.updatedAt ?? 0) + 1),
+        pending: true,
+        url: patch.url,
       }
+      writeSettings(next)
+      if (scope === 'account') patchStoredAccount(next)
+      await pushSettings(next)
     },
   }
 
-  await Promise.all([plans.preload(), comments.preload(), catalog.preload(), settings.preload(), account.preload(), dashboards.preload()].map((job) => job.catch(() => undefined)))
+  function writeSettings(row: SettingsRow): void {
+    writers.settings?.({ put: [row] })
+  }
+
+  /** Keep the stored account in step, so the settings page and dashboard read the change offline. */
+  function patchStoredAccount(row: SettingsRow): void {
+    const stored = account.get('me')
+    if (!stored) return
+    writers.account?.({ put: [{ ...stored, payload: accountWithSettings(stored.payload, row) }] })
+  }
+
+  /** Send one settings row. It stays pending on a network failure and is sent again when the network returns. */
+  async function pushSettings(row: SettingsRow): Promise<void> {
+    if (!row.url) return
+    try {
+      const response = await fetch(row.url, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          accent: row.accent,
+          pageWidth: row.pageWidth,
+          diffsTheme: row.diffsTheme,
+          wrapCode: row.wrapCode,
+          updatedAt: row.updatedAt,
+        }),
+      })
+      reachable = true
+      const latest = settings.get(row.id)
+      // A rejected change (signed out, bad value) is dropped. Only a newer edit keeps the pending flag.
+      if (latest && latest.updatedAt === row.updatedAt) writeSettings({ ...latest, pending: false })
+      if (!response.ok) window.showPlanToast?.('Could not save those settings.')
+    } catch {
+      reachable = false
+    }
+    notify()
+  }
+
+  async function flushSettings(): Promise<void> {
+    if (!navigator.onLine) return
+    for (const row of [...settings.toArray]) {
+      if (row.pending) await pushSettings(row)
+    }
+  }
+
+  await Promise.all([plans.preload(), comments.preload(), catalog.preload(), settings.preload(), account.preload(), dashboards.preload(), versions.preload()].map((job) => job.catch(() => undefined)))
   handle.hydrated = true
   seedFromDocument()
   void refreshPlan()
   void loadCatalog()
-  void loadSettings()
+  void flushSettings().then(() => loadSettings())
   window.addEventListener('offline', () => {
     reachable = false
     notify()
@@ -430,9 +520,18 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
   window.addEventListener('online', () => {
     reachable = true
     void refreshPlan()
+    void flushSettings()
+    void loadCatalog()
     notify()
   })
+  navigator.serviceWorker?.addEventListener('controllerchange', () => {
+    void loadCatalog()
+  })
+  window.setInterval(() => {
+    if (navigator.onLine && document.visibilityState !== 'hidden') void loadCatalog()
+  }, 60_000)
   comments.subscribeChanges(() => notify())
+  versions.subscribeChanges(() => notify())
   plans.subscribeChanges(() => notify())
   notify()
   return handle

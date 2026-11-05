@@ -1,5 +1,6 @@
 import { faviconResponse } from './favicon'
 import { readShellWorkerSource, shellWorkerResponse } from './shellWorkerResponse'
+import { pwaIconResponse } from './pwaIconFile'
 import { WEB_MANIFEST_PATH, webManifestResponse } from './webManifest'
 import { HttpError, jsonBody } from './http'
 import { acceptClientLog, readLogs } from './serviceLog'
@@ -86,6 +87,8 @@ export function registerPlanRoutes(app: any, options: PlanRouteOptions): any {
   }
 
   app.get('/favicon.png', () => faviconResponse())
+  app.get('/favicon.ico', () => pwaIconResponse('/favicon.ico'))
+  app.get('/icons/:name', ({ params }: RouteContext) => pwaIconResponse(`/icons/${params.name ?? ''}`))
   app.get('/sw.js', () => shellWorkerResponse(readShellWorkerSource()))
   app.get(WEB_MANIFEST_PATH, () => webManifestResponse())
 
@@ -110,7 +113,8 @@ export function registerPlanRoutes(app: any, options: PlanRouteOptions): any {
     .get(route('/api/execution'), (context: RouteContext) => sessionFor(idOf(context)).executionPayload())
     .put(route('/api/execution'), (context: RouteContext) => sessionFor(idOf(context)).updateExecution(context.body))
     .post(route('/api/execution/start'), (context: RouteContext) => sessionFor(idOf(context)).startExecution(context.body))
-    .post(route('/api/execution/stop'), (context: RouteContext) => sessionFor(idOf(context)).stopExecution())
+    .post(route('/api/execution/push'), (context: RouteContext) => sessionFor(idOf(context)).pushExecution(context.body))
+    .post(route('/api/execution/stop'), (context: RouteContext) => sessionFor(idOf(context)).stopExecution(context.body))
     .get(route('/api/events'), (context: RouteContext) => sessionFor(idOf(context)).browserEvents(context.request))
     .get(route('/api/agent-events'), (context: RouteContext) => {
       const session = sessionFor(idOf(context))

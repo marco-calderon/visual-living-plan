@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -9,20 +10,26 @@ import { fileURLToPath } from 'node:url'
 import { allows, planCapReached } from '../src/host/access.ts'
 import { sessionFromToken } from '../src/host/auth.ts'
 import { mergeAccountSettings, readAccountSettings, saveAccountSettings } from '../src/host/accountSettings.ts'
-import { hostedDashboard } from '../src/host/hostedDashboard.ts'
+import { NO_PROGRESS, hostedDashboard, hostedProgress, saveHostedProgress } from '../src/host/hostedDashboard.ts'
 import { LATEST_PLAN_VERSION_SQL, PLAN_VERSION_LIMIT, ensurePlanVersions, publishPlanVersion, readPlanVersion } from '../src/host/planVersions.ts'
 import type { HostedPlanRow } from '../src/host/hostedDashboard.ts'
 import {
   ackEvents,
+  closePlan,
+  executionView,
   initPlan,
+  planView,
+  putExecution,
   pendingEvents,
   planHosted,
+  planProgress,
   putSource,
+  touchPlan,
   StaleRevision,
   submitInteraction,
   type PlanSql,
 } from '../src/host/planRoom.ts'
-import { hostedViewUrl, planUrlOnCalledOrigin, registerCloudPlan, uploadSource } from '../src/cloudClient.ts'
+import { planUrlOnCalledOrigin, registerCloudPlan, uploadSource } from '../src/cloudClient.ts'
 import { requestOrigin } from '../src/host/requestOrigin.ts'
 import { renderDashboardPage } from '../src/dashboardPage.ts'
 import { cloudIdInSource, sourceWithCloudId } from '../src/cloudFrontmatter.ts'
@@ -223,23 +230,6 @@ test('a local Worker uses the loopback origin the CLI called', () => {
   assert.equal(requestOrigin(hintedPublic), 'http://127.0.0.1:8787')
 })
 
-test('the opened cloud plan uses the signed view link', async () => {
-  const previous = globalThis.fetch
-  globalThis.fetch = (async (input: RequestInfo | URL) => {
-    const url = new URL(String(input))
-    assert.equal(url.pathname, '/plans/plan1234/share')
-    return Response.json({ url: 'https://plans.example/plans/plan1234/view/sig' })
-  }) as typeof fetch
-  try {
-    assert.equal(
-      await hostedViewUrl('https://plans.example/plans/plan1234/', 'account-token'),
-      'https://plans.example/plans/plan1234/view/sig',
-    )
-  } finally {
-    globalThis.fetch = previous
-  }
-})
-
 test('account settings stay on the hosted database', async () => {
   const db = new Database(':memory:')
   const saved = await saveAccountSettings(d1Of(db), 'user-1', { accent: '#b45309', pageWidth: 'full', wrapCode: true, diffsTheme: 'nope' })
@@ -333,12 +323,18 @@ test('a stale source upload retries once', async () => {
   assert.equal(next, 5)
 })
 
-test('a new plan room has its tables and is not hosted until a plan is published', () => {
-  const db = new Database(':memory:')
-  const sql = sqlOf(db)
-  assert.equal(planHosted(sql), false)
-  initPlan(sql, { token: 'plan-token', title: 'Demo', mode: 'watch', tier: 'free', source: '# Demo\n' })
-  assert.equal(planHosted(sql), true)
+test('a closed plan reports the host message instead of a stale revision', async () => {
+  const fetchImpl: typeof fetch = async () => new Response('This plan is closed.', { status: 409 })
+  await assert.rejects(
+    () => uploadSource({
+      planUrl: 'https://plans.example/plans/abc12345/',
+      token: 'plan-token',
+      markdown: '# Demo\n',
+      revision: 1,
+      fetchImpl,
+    }),
+    /This plan is closed\./,
+  )
 })
 
 test('plan room stores a submission until it is acked', () => {
@@ -354,6 +350,118 @@ test('plan room stores a submission until it is acked', () => {
   const id = String((sent.outbound[0]?.data as { id: string }).id)
   ackEvents(sql, [id])
   assert.equal(pendingEvents(sql).length, 0)
+})
+
+test('plan room measures progress from its source, answers, and live run', async () => {
+  const db = new Database(':memory:')
+  const sql = sqlOf(db)
+  const source = readFileSync(new URL('../examples/rate-limit.plan.md', import.meta.url), 'utf8')
+  initPlan(sql, { token: 'plan-token', title: 'Rate limiting rollout', mode: 'watch', tier: 'free', source })
+  const first = await planProgress(sql)
+  assert.equal(first?.phaseTotal, 3)
+  assert.equal(first?.interactionTotal, 4)
+  assert.equal(first?.completionRatio, 21)
+  assert.equal(first?.completionState, 'in_progress')
+
+  submitInteraction(sql, 'fail-mode', { kind: 'choice', id: 'fail-mode', optionId: 'open', label: 'Open' })
+  putExecution(sql, { active: true, graph: { nodes: [{ id: 'implement', label: 'Implement', status: 'done' }] } })
+  const later = await planProgress(sql)
+  assert.equal(later?.interactionDone, 1)
+  assert.equal(later?.phaseDone, 2)
+  // Phases 1 + 1 + 0, one answer: 3 of 7.
+  assert.equal(later?.completionRatio, 43)
+
+  // Old tag syntax does not parse.
+  putSource(sql, { markdown: '{% phase id="x" %}', revision: planView(sql).revision })
+  assert.equal(await planProgress(sql), null)
+})
+
+test('the hosted dashboard shows the progress saved on the plan row', async () => {
+  const db = new Database(':memory:')
+  db.exec(`CREATE TABLE plans (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    token TEXT,
+    title TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    status TEXT NOT NULL,
+    plan_path TEXT,
+    started_at INTEGER NOT NULL,
+    ended_at INTEGER,
+    heartbeat_at INTEGER NOT NULL,
+    meta TEXT NOT NULL
+  )`)
+  const now = Date.UTC(2026, 10, 4, 18, 0, 0)
+  db.query(
+    `INSERT INTO plans (id, user_id, token, title, mode, status, plan_path, started_at, ended_at, heartbeat_at, meta)
+     VALUES (?, ?, ?, ?, ?, 'running', NULL, ?, NULL, ?, ?)`,
+  ).run('rate-limit-rollout', 'user-1', 'token', 'Rate limiting rollout', 'watch', now, now, JSON.stringify({ tier: 'pro' }))
+  const store = d1Of(db)
+  await ensurePlanVersions(store)
+
+  const before = await store.prepare(LATEST_PLAN_VERSION_SQL).bind('user-1').all<HostedPlanRow>()
+  assert.equal(hostedProgress(before.results?.[0]?.meta), null)
+  assert.equal(hostedDashboard(before.results ?? [], 'day', 'https://plan.example', now).plans[0]?.completionRatio, 0)
+
+  await saveHostedProgress(store, 'rate-limit-rollout', {
+    phaseTotal: 3,
+    phaseDone: 1,
+    interactionTotal: 4,
+    interactionDone: 1,
+    completionRatio: 36,
+    completionState: 'in_progress',
+  })
+  const after = await store.prepare(LATEST_PLAN_VERSION_SQL).bind('user-1').all<HostedPlanRow>()
+  const meta = JSON.parse(String(after.results?.[0]?.meta)) as Record<string, unknown>
+  // Progress sits beside the keys already on the row.
+  assert.equal(meta.tier, 'pro')
+  const row = hostedDashboard(after.results ?? [], 'day', 'https://plan.example', now).plans[0]
+  assert.equal(row?.completionRatio, 36)
+  assert.equal(row?.completionState, 'in_progress')
+  assert.equal(row?.phaseDone, 1)
+  assert.equal(row?.interactionTotal, 4)
+
+  // Saved "no progress" counts as measured, so the dashboard does not measure it again.
+  await saveHostedProgress(store, 'rate-limit-rollout', NO_PROGRESS)
+  const zero = await store.prepare(LATEST_PLAN_VERSION_SQL).bind('user-1').all<HostedPlanRow>()
+  assert.deepEqual(hostedProgress(zero.results?.[0]?.meta), NO_PROGRESS)
+  // A row with bad values is clamped or ignored.
+  assert.deepEqual(hostedProgress(JSON.stringify({ completionState: 'complete', completionRatio: 400, phaseDone: -2 })), {
+    ...NO_PROGRESS,
+    completionState: 'complete',
+    completionRatio: 100,
+    phaseDone: 0,
+  })
+  assert.equal(hostedProgress(JSON.stringify({ completionState: 'nope', completionRatio: 10 })), null)
+})
+
+test('serving an existing plan opens it again', () => {
+  const db = new Database(':memory:')
+  const sql = sqlOf(db)
+  initPlan(sql, { token: 'plan-token', title: 'Demo', mode: 'watch', tier: 'free', source: '# Demo\n' })
+  putSource(sql, { markdown: '# Demo\n', revision: 0 })
+  closePlan(sql)
+  const again = initPlan(sql, { token: 'plan-token', title: 'Cloud showcase', mode: 'watch', tier: 'pro', source: '# Cloud showcase\n' })
+  const view = planView(sql)
+  assert.equal(again.revision, 1)
+  assert.equal(view.closed, false)
+  assert.equal(view.title, 'Cloud showcase')
+  assert.equal(view.mode, 'watch')
+  assert.equal(view.tier, 'pro')
+  assert.equal(view.source, '# Demo\n')
+  assert.throws(
+    () => initPlan(sql, { token: 'other-token', title: 'Cloud showcase', mode: 'watch', tier: 'pro', source: '# Cloud showcase\n' }),
+    /already hosted/,
+  )
+})
+
+test('a plan room that was never registered reports not hosted instead of a SQL error', () => {
+  const db = new Database(':memory:')
+  const sql = sqlOf(db)
+  assert.equal(planHosted(sql), false)
+  touchPlan(sql)
+  initPlan(sql, { token: 'plan-token', title: 'Demo', mode: 'watch', tier: 'free', source: '# Demo\n' })
+  assert.equal(planHosted(sql), true)
 })
 
 test('tier caps and viewer access', () => {
@@ -477,6 +585,33 @@ test('serve --cloud without a session does not start the registry', async () => 
   await rm(home, { recursive: true, force: true })
 })
 
+test('account login prints the sign-in link and saves the session from its callback', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'live-plan-login-'))
+  const child = spawn(process.execPath, [entry, 'account', 'login', '--url', 'https://plan.example', '--no-open'], {
+    env: { ...process.env, LIVE_PLAN_HOME: home, HOME: home },
+  })
+  let stdout = ''
+  const link = await new Promise<URL>((resolveLink, reject) => {
+    child.stdout?.on('data', (chunk) => {
+      stdout += String(chunk)
+      const match = stdout.match(/https:\/\/plan\.example\/login\?\S+/)
+      if (match) resolveLink(new URL(match[0]))
+    })
+    child.on('exit', () => reject(new Error(`login exited before printing a link: ${stdout}`)))
+  })
+  assert.match(stdout, /sign up/i)
+  const callback = link.searchParams.get('cli')
+  assert.ok(callback)
+  const exited = new Promise<number>((resolveExit) => child.on('exit', (code) => resolveExit(code ?? 1)))
+  const reply = await fetch(`${callback}?token=account-token`)
+  assert.equal(reply.status, 200)
+  assert.equal(await exited, 0)
+  assert.match(stdout, /Signed in to https:\/\/plan\.example/)
+  const saved = JSON.parse(await readFile(join(home, 'cloud.json'), 'utf8'))
+  assert.deepEqual(saved.account, { baseUrl: 'https://plan.example', token: 'account-token' })
+  await rm(home, { recursive: true, force: true })
+})
+
 test('serve --cloud rejects --no-registry', async () => {
   const home = await mkdtemp(join(tmpdir(), 'living-plan-cloud-'))
   const plan = join(home, 'demo.plan.md')
@@ -491,4 +626,19 @@ test('serve --cloud rejects --no-registry', async () => {
   assert.equal(code, 1)
   assert.equal(await readRegistryLock(home), null)
   await rm(home, { recursive: true, force: true })
+})
+
+test('plan room execution read includes the expected workflow and the run state', async () => {
+  const db = new Database(':memory:')
+  const sql = sqlOf(db)
+  const source = readFileSync(fileURLToPath(new URL('../examples/rate-limit.plan.md', import.meta.url)), 'utf8')
+  initPlan(sql, { token: 'plan-token', title: 'Demo', mode: 'watch', tier: 'free', source })
+  const idle = await executionView(sql)
+  assert.equal(idle.active, false)
+  assert.ok(idle.planned && idle.planned.nodes.length > 0)
+  putExecution(sql, { active: true, step: 'Build' })
+  const running = await executionView(sql)
+  assert.equal(running.active, true)
+  assert.equal(running.step, 'Build')
+  assert.ok(running.planned)
 })

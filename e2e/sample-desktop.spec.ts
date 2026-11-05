@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/test'
-import { mkdir } from 'node:fs/promises'
+import { useOwnPlanServer } from './fixtures/ownServer.ts'
+
+// Counts and checks the plan as it is on disk, so it does not share a server with other specs.
+useOwnPlanServer(9483)
 
 test.describe.configure({ mode: 'serial' })
 
@@ -151,38 +154,44 @@ test('sample plan works on a desktop viewport', async ({ page }) => {
     await expect(message).toBeVisible()
     await message.fill('Call out the fail-open choice in the runbook')
     await page.getByRole('button', { name: 'Send', exact: true }).click()
-    await expect(page.getByRole('paragraph').filter({ hasText: 'Call out the fail-open choice in the runbook' })).toBeVisible()
+    // A sent comment marks its part, and the mark follows the part on screen. The mark opens the thread.
+    await page.locator('[data-plan-part="callout:redis-dependency/label"]').evaluate((node) => node.scrollIntoView({ block: 'center' }))
+    await page.getByRole('button', { name: '1 unaddressed comment' }).click()
+    const thread = page.getByRole('dialog', { name: 'risk · Redis dependency' })
+    await expect(thread.getByText('Call out the fail-open choice in the runbook')).toBeVisible()
+    await page.keyboard.press('Escape')
     await page.getByRole('button', { name: 'Turn comments off' }).click()
   })
 
   await test.step('live execution locks the plan, then unlocks', async () => {
-    const started = page.waitForEvent('load')
+    // The open page follows a start and a stop in place. It does not reload.
+    await page.evaluate(() => ((window as unknown as { __sameDocument: boolean }).__sameDocument = true))
     const startResponse = await page.request.post('/api/execution/start', {
       data: { step: 'Implement middleware', detail: 'Editing gateway.ts' },
     })
     expect(startResponse.ok()).toBeTruthy()
-    await started
     const liveWorkflow = page.locator('[data-tab-panel="workflow"]')
+    await expect(page.getByRole('tab', { name: 'Workflow' })).toHaveAttribute('aria-selected', 'true')
     await expect(liveWorkflow.getByText('Live workflow')).toBeVisible()
     await expect(liveWorkflow.getByText('Forms locked on Plan tab')).toBeVisible()
     await expect(liveWorkflow.getByText('Implement middleware').first()).toBeVisible()
+    await expect(page.locator('.plan-status-chip [data-plan-status-label]')).toHaveText('Running')
     await page.getByRole('tab', { name: 'Plan' }).click()
     await expect(page.getByText('Execution is live')).toBeVisible()
 
-    const stopped = page.waitForEvent('load')
     const stopResponse = await page.request.post('/api/execution/stop')
     expect(stopResponse.ok()).toBeTruthy()
-    await stopped
-    await expect(page.getByText('Execution is live')).toHaveCount(0)
+    await expect(page.getByText('Execution is live')).toBeHidden()
+    await expect(page.locator('.plan-status-chip [data-plan-status-label]')).toHaveText('Stopped')
+    expect(await page.evaluate(() => (window as unknown as { __sameDocument?: boolean }).__sameDocument)).toBe(true)
     await page.getByRole('button', { name: 'Plan details' }).click()
     await expect(page.locator('[data-plan-mode-chip]')).toHaveText('watch')
     await page.keyboard.press('Escape')
   })
 
-  await mkdir('/opt/cursor/artifacts', { recursive: true })
   await page.getByRole('tab', { name: 'Plan' }).click()
-  await page.screenshot({ path: '/opt/cursor/artifacts/sample-desktop-plan.png', fullPage: true })
+  await page.screenshot({ path: test.info().outputPath('sample-desktop-plan.png'), fullPage: true })
   await page.getByRole('tab', { name: 'Workflow' }).click()
   await expect(page.locator('[data-tab-panel="workflow"]').getByText('Confirm limiter design').first()).toBeVisible()
-  await page.screenshot({ path: '/opt/cursor/artifacts/sample-desktop-workflow.png' })
+  await page.screenshot({ path: test.info().outputPath('sample-desktop-workflow.png') })
 })

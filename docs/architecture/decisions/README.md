@@ -25,11 +25,13 @@ Decisions are numbered in the order they were made. Superseded decisions stay he
 | [0019](0019-lan-publishing.md) | 2026-10-28 | Accepted | LAN publishing is opt-in and does not replace the loopback URL |
 | [0020](0020-mdx-plan-page.md) | 2026-10-28 | Accepted; fence rewrite superseded by 0021 | The plan page is the MDX React app; Markdoc is not on the render path |
 | [0021](0021-mdx-plan-entries.md) | 2026-10-28 | Accepted | Agents author MDX components; Markdoc tags and YAML entry fences are not parsed |
-| [0022](0022-opt-in-cloud-host.md) | 2026-10-30 | Accepted; page host updated by 0023 | `--cloud` hosts a plan on a signed-in Worker; the local service stays the default |
+| [0022](0022-opt-in-cloud-host.md) | 2026-10-30 | Accepted; page host updated by 0023; viewer cookie superseded by 0028 | `--cloud` hosts a plan on a signed-in Worker; the local service stays the default |
 | [0023](0023-tanstack-start-page.md) | 2026-10-30 | Accepted | TanStack Start is the web application; the browser still compiles MDX |
 | [0024](0024-one-plan-store.md) | 2026-11-01 | Accepted; plan tables updated by 0025 | One SQLite store for local plans and D1 for hosted plans; Elysia on every HTTP route |
 | [0025](0025-one-plan-schema.md) | 2026-11-01 | Accepted | One plan schema for the local registry and D1, with configuration in `meta` |
 | [0026](0026-browser-offline-store.md) | 2026-11-02 | Accepted | The browser keeps a device copy of the open plan; the registry, D1, and the Durable Object stay the authority |
 | [0027](0027-offline-dashboard-and-owned-plans.md) | 2026-11-02 | Accepted | The installed app opens the dashboard offline, and this device keeps the account's plans |
+| [0028](0028-owner-only-hosted-plans.md) | 2026-11-03 | Accepted | Hosted plans open only for the owning account; the signed view link is retired |
+| [0029](0029-page-stream-catches-up.md) | 2026-11-05 | Accepted | A plan page catches up from `hello` after a drop, and the host merges execution start, push, and stop |
 
-Add the next decision as `0027-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.
+Add the next decision as `0030-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.

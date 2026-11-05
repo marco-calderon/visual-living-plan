@@ -1,6 +1,7 @@
 import {
   catalogFromOwned,
   dashboardFetchDue,
+  planPageCacheReady,
   plansToWarm,
   type CatalogRow,
   type PlanSnapshot,
@@ -19,6 +20,7 @@ type AccountPlans = { plans?: Array<{ id?: unknown; title?: unknown; mode?: unkn
 type DashboardPlans = { plans?: Array<Record<string, unknown>> }
 
 let warming = false
+let warmAgain = false
 
 export function warmingAllowed(): boolean {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return false
@@ -52,8 +54,30 @@ export async function refreshDeviceDashboards(
   }
 }
 
+/** Pull the account's plans into the device store from any page, not only the dashboard. */
+export async function syncOwnedPlans(engine: OfflineHandle | null): Promise<void> {
+  if (!engine?.available || !warmingAllowed()) return
+  try {
+    await refreshAccount(engine, false)
+    if (!engine.account()) return
+    syncOwnedCatalog(engine)
+    engine.noteNetwork(true)
+    await warmOwnedPlans(engine)
+  } catch {
+    engine.noteNetwork(false)
+  }
+}
+
 export async function warmOwnedPlans(engine: OfflineHandle): Promise<void> {
-  if (!engine.available || !warmingAllowed() || warming) return
+  if (!engine.available || !warmingAllowed()) return
+  // The worker caches plan pages only once it controls this page. Its controllerchange runs this again.
+  const worker = typeof navigator !== 'undefined' && 'serviceWorker' in navigator
+  if (!planPageCacheReady({ serviceWorker: worker, controller: Boolean(worker && navigator.serviceWorker.controller) })) return
+  if (warming) {
+    // A newer catalog arrived mid-run. Check again when this run ends.
+    warmAgain = true
+    return
+  }
   const due = plansToWarm(warmPlans(engine.catalog()), engine.catalog(), Date.now())
   if (due.length === 0) return
   warming = true
@@ -72,6 +96,10 @@ export async function warmOwnedPlans(engine: OfflineHandle): Promise<void> {
     await Promise.all([worker(), worker()])
   } finally {
     warming = false
+    if (warmAgain) {
+      warmAgain = false
+      void warmOwnedPlans(engine)
+    }
   }
 }
 
@@ -162,7 +190,7 @@ async function warmOne(engine: OfflineHandle, id: string): Promise<void> {
     // instead of being fetched again on every 4 s dashboard poll.
     engine.markWarmed(id, row?.versionKey ?? '', Date.now())
   } catch {
-    // Network failure: the next online dashboard refresh tries this plan again.
+    // Network failure: the next online refresh tries this plan again.
   }
 }
 

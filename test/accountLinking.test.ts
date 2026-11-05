@@ -98,7 +98,7 @@ test('linked provider ids come from this user and ignore duplicates', async () =
 })
 
 test('hosted settings link GitHub and Google, and a loopback plan does not', () => {
-  const settings = readFileSync(new URL('../src/routes/settings.tsx', import.meta.url), 'utf8')
+  const settings = readFileSync(new URL('../src/settings/SettingsDialog.tsx', import.meta.url), 'utf8')
   const section = readFileSync(new URL('../src/LinkSocialAccounts.tsx', import.meta.url), 'utf8')
   assert.match(settings, /LinkSocialAccounts/)
   assert.match(section, /authClient\.linkSocial/)

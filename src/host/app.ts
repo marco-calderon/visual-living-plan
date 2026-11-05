@@ -1,9 +1,11 @@
 import { Elysia } from 'elysia'
+import type { ProgressFields } from '../processRecord'
 import { PLAN_CAPS, allows, normalizeTier, planCapReached } from './access'
 import { defaultAccountSettings, readAccountSettings, saveAccountSettings } from './accountSettings'
+import { readAccountUsage } from './accountUsage'
 import { createAuth, sessionFromToken, type AuthSession } from './auth'
 import { listLinkedAccounts } from './linkedAccounts'
-import { hostedDashboard, type HostedPlanRow } from './hostedDashboard'
+import { NO_PROGRESS, hostedDashboard, hostedProgress, saveHostedProgress, type HostedPlanRow } from './hostedDashboard'
 import { LATEST_PLAN_VERSION_SQL, ensurePlanVersions, listPlanVersions, publishPlanVersion, readPlanVersion } from './planVersions'
 import { rehydrateRequest } from './rehydrateRequest'
 import { requestOrigin } from './requestOrigin'
@@ -28,6 +30,7 @@ export interface HostEnv {
   GOOGLE_CLIENT_SECRET?: string
   GITHUB_CLIENT_ID?: string
   GITHUB_CLIENT_SECRET?: string
+  OAUTH_PROXY_SECRET?: string
 }
 
 const ID = /^[A-Za-z0-9_-]{8,80}$/
@@ -53,21 +56,21 @@ export function createHostApp(env: HostEnv, options: { auth?: (request: Request)
     })
     .get('/api/health', () => ({ ok: true }))
     .get('/api/account', ({ request }) => accountRead(request, env, authFor(request)))
+    .get('/api/account/settings', ({ request }) => accountSettingsRead(request, env, authFor(request)))
     .put('/api/account/settings', ({ request }) => accountSave(request, env, authFor(request)))
+    .get('/api/account/usage', ({ request }) => accountUsageApi(request, env, authFor(request)))
     .get('/api/account/dashboard', ({ request }) =>
       accountDashboardApi(request, env, authFor(request), originFor(request, env)),
     )
     .post('/api/plans', ({ request }) => registerPlan(request, env, authFor(request), originFor(request, env)))
+    .get('/api/plans/:planId/versions', ({ request, params }) => hostedPlanVersions(request, env, params.planId))
     .get('/api/auth/cli-session', ({ request }) => cliSession(request, env, authFor(request), new URL(request.url)))
-    .get('/plans/:planId/share', ({ request, params }) =>
-      sharePlan(request, env, authFor(request), originFor(request, env), params.planId),
-    )
-    .get('/plans/:planId/view/:sig', ({ request, params }) => acceptViewer(request, env, params.planId, params.sig))
+    .get('/plans/:planId/view/:sig', ({ params }) => retiredViewLink(params.planId))
     .get('/plans/:planId/document', ({ request, params }) =>
       planDocument(request, env, authFor(request), params.planId, 'latest'),
     )
-    .get('/plans/:planId/versions/:seq', ({ request, params }) =>
-      planDocument(request, env, authFor(request), params.planId, Number(params.seq)),
+    .get('/plans/:planId/versions/:seq/document', ({ request, params }) =>
+      planDocument(request, env, authFor(request), params.planId, versionSeq(params.seq)),
     )
     .all('/plans/:planId', ({ request, params }) => forwardPlan(request, env, authFor(request), params.planId, '/'))
     .all('/plans/:planId/*', ({ request, params }) => {
@@ -120,7 +123,7 @@ async function listHostedPlanRows(env: HostEnv, userId: string): Promise<HostedP
     return listed.results ?? []
   } catch {
     const listed = await env.DB.prepare(
-      'SELECT id, title, mode, ended_at, started_at FROM plans WHERE user_id = ? ORDER BY started_at DESC',
+      'SELECT id, title, mode, ended_at, started_at, meta FROM plans WHERE user_id = ? ORDER BY started_at DESC',
     )
       .bind(userId)
       .all<Omit<HostedPlanRow, 'version_seq' | 'version_title' | 'version_at'>>()
@@ -136,19 +139,55 @@ async function listHostedPlanRows(env: HostEnv, userId: string): Promise<HostedP
 /** A plan saved before the versions table existed still has its document on the Durable Object. */
 async function backfillHostedPlans(env: HostEnv, userId: string, rows: HostedPlanRow[]): Promise<HostedPlanRow[]> {
   const filled: HostedPlanRow[] = []
-  for (const row of rows) {
-    if (row.version_seq != null) {
-      filled.push(row)
-      continue
+  for (const source of rows) {
+    let row = source
+    if (row.version_seq == null) {
+      const version = await rememberPlanVersion(env, userId, row.id, row.title).catch(() => null)
+      if (version) row = { ...row, version_seq: version.seq, version_title: version.title, version_at: version.createdAt }
     }
-    const version = await rememberPlanVersion(env, userId, row.id, row.title).catch(() => null)
-    filled.push(
-      version
-        ? { ...row, version_seq: version.seq, version_title: version.title, version_at: version.createdAt }
-        : row,
-    )
+    // A plan last written before progress was saved is measured once here, then kept on its row.
+    if (!hostedProgress(row.meta)) {
+      const progress = await syncPlanProgress(env, row.id)
+      if (progress) row = { ...row, meta: JSON.stringify({ ...parseMeta(row.meta), ...progress }) }
+    }
+    filled.push(row)
   }
   return filled
+}
+
+function parseMeta(meta: string | null | undefined): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(meta ?? '{}') as unknown
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {}
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Measure the plan on its object and save the result on the D1 row the dashboard reads.
+ * Best effort: a failure leaves the last saved progress and never fails the write that called it.
+ */
+async function syncPlanProgress(env: HostEnv, planId: string): Promise<ProgressFields | null> {
+  try {
+    const stub = env.PLANS.get(env.PLANS.idFromName(planId))
+    const response = await stub.fetch(new Request('https://plan.internal/internal/progress'))
+    if (!response.ok) return null
+    const body = (await response.json()) as { progress?: ProgressFields | null }
+    // A source that does not parse is saved as no progress, so the dashboard does not measure it again on every load.
+    const progress = body.progress ?? NO_PROGRESS
+    await saveHostedProgress(env.DB, planId, progress)
+    return progress
+  } catch {
+    return null
+  }
+}
+
+/** Writes that can change how far along a plan is. */
+function changesProgress(method: string, rest: string): boolean {
+  if (method === 'POST' && rest.startsWith('/api/interactions/')) return true
+  if (method === 'POST' && /^\/api\/execution\/(start|push|stop)\/?$/.test(rest)) return true
+  return method === 'PUT' && (rest === '/api/execution' || rest === '/api/execution/')
 }
 
 async function rememberPlanVersion(
@@ -180,6 +219,24 @@ async function accountRead(request: Request, env: HostEnv, auth: ReturnType<type
     accounts: await listLinkedAccounts(env.DB, session.user.id),
     plans: await listOpenPlans(env, session.user.id),
   })
+}
+
+/** Appearance only. Plan pages read this instead of the whole account. */
+async function accountSettingsRead(request: Request, env: HostEnv, auth: ReturnType<typeof createAuth>): Promise<Response> {
+  const session = await readSession(auth, request, env.DB)
+  if (!session) return text(401, 'Sign in required')
+  return Response.json({ settings: await readAccountSettings(env.DB, session.user.id) })
+}
+
+async function accountUsageApi(request: Request, env: HostEnv, auth: ReturnType<typeof createAuth>): Promise<Response> {
+  const session = await readSession(auth, request, env.DB)
+  if (!session) return text(401, 'Sign in required')
+  try {
+    await ensurePlanVersions(env.DB)
+    return Response.json(await readAccountUsage(env.DB, session.user.id, session.user.tier))
+  } catch {
+    return text(500, 'Could not read storage usage.')
+  }
 }
 
 async function accountSave(request: Request, env: HostEnv, auth: ReturnType<typeof createAuth>): Promise<Response> {
@@ -259,6 +316,7 @@ async function registerPlan(request: Request, env: HostEnv, auth: ReturnType<typ
   )
   if (!init.ok) return text(init.status, await init.text())
   const payload = (await init.json()) as { revision?: number }
+  await syncPlanProgress(env, cloudId)
   await publishPlanVersion(env.DB, {
     planId: cloudId,
     userId: session.user.id,
@@ -271,26 +329,24 @@ async function registerPlan(request: Request, env: HostEnv, auth: ReturnType<typ
   })
 }
 
-async function sharePlan(
-  request: Request,
-  env: HostEnv,
-  auth: ReturnType<typeof createAuth>,
-  origin: string,
-  planId: string,
-): Promise<Response> {
-  const session = await readSession(auth, request, env.DB)
-  const row = await env.DB.prepare('SELECT user_id FROM plans WHERE id = ?').bind(planId).first<{ user_id: string }>()
-  if (!session || !row || row.user_id !== session.user.id) return text(401, 'Sign in required')
-  const sig = await signPlan(env.BETTER_AUTH_SECRET, planId)
-  return Response.json({ url: `${origin}/plans/${planId}/view/${sig}` })
+/** Old signed view links no longer grant access. Send them to the plan, which asks for the owner's sign-in, and drop the old cookie. */
+function retiredViewLink(planId: string): Response {
+  const headers = new Headers({ location: `/plans/${planId}/` })
+  headers.append('set-cookie', 'living_plan_view=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0')
+  return new Response(null, { status: 302, headers })
 }
 
-async function acceptViewer(request: Request, env: HostEnv, planId: string, sig: string): Promise<Response> {
-  const expected = await signPlan(env.BETTER_AUTH_SECRET, planId)
-  if (!timingSafe(expected, sig)) return text(401, 'This review link is not valid.')
-  const headers = new Headers({ location: `/plans/${planId}/` })
-  headers.append('set-cookie', viewerCookie(planId, sig, new URL(request.url).protocol === 'https:'))
-  return new Response(null, { status: 302, headers })
+type PlanAccess = { actor: PlanActor; signedIn: boolean }
+type PlanActor = 'account' | 'viewer' | ''
+
+/**
+ * The role this request has on a plan. Only the owning account has access.
+ * Sharing will return 'viewer' here for an account the owner added. The plan object already limits a viewer to read and submit.
+ */
+async function planAccess(session: AuthSession | null, env: HostEnv, planId: string): Promise<PlanAccess> {
+  if (!session) return { actor: '', signedIn: false }
+  const row = await env.DB.prepare('SELECT user_id FROM plans WHERE id = ?').bind(planId).first<{ user_id: string }>()
+  return { actor: row && row.user_id === session.user.id ? 'account' : '', signedIn: true }
 }
 
 async function forwardPlan(
@@ -301,10 +357,8 @@ async function forwardPlan(
   rest: string,
 ): Promise<Response> {
   const session = await readSession(auth, request, env.DB)
-  const row = await env.DB.prepare('SELECT user_id FROM plans WHERE id = ?').bind(planId).first<{ user_id: string }>()
-  const viewer = await viewerFor(request, env, planId)
-  const account = Boolean(session && row && row.user_id === session.user.id)
-  const actor = account ? 'account' : viewer ? 'viewer' : ''
+  const { actor } = await planAccess(session, env, planId)
+  const account = actor === 'account'
   if (request.method === 'DELETE') {
     if (!account && !bearerHeader(request)) return text(401, 'Sign in required')
     // The owner closes with the account. Anyone else must hold the plan bearer, which the object checks.
@@ -316,7 +370,9 @@ async function forwardPlan(
   if (request.method === 'PUT' && (rest === '/source' || rest === '/source/')) {
     return publishSource(request, env, planId, actor)
   }
-  return planFetch(env, planId, request, rest || '/', actor)
+  const response = await planFetch(env, planId, request, rest || '/', actor)
+  if (response.ok && changesProgress(request.method, rest)) await syncPlanProgress(env, planId)
+  return response
 }
 
 export type HostedPlanPage = {
@@ -327,6 +383,8 @@ export type HostedPlanPage = {
   responses: unknown
   comments: unknown
   review: unknown
+  /** The live run, so the page opens showing it. */
+  execution: { active?: boolean } | null
     owner: boolean
     email: string
     name: string
@@ -337,7 +395,7 @@ export type HostedPlanPage = {
   settings: Awaited<ReturnType<typeof readAccountSettings>>
 }
 
-/** Plan document and session for the signed-in account or a viewer cookie. */
+/** Plan document and session for the signed-in owner. */
 export async function hostedPlanPage(request: Request, env: HostEnv, planId: string): Promise<Response> {
   const loaded = await loadHostedPlan(request, env, planId)
   if (loaded instanceof Response) return loaded
@@ -348,15 +406,10 @@ async function loadHostedPlan(request: Request, env: HostEnv, planId: string): P
   const origin = originFor(request, env)
   const auth = createAuth(env, origin)
   const session = await readSession(auth, request, env.DB)
-  const row = await env.DB.prepare('SELECT user_id FROM plans WHERE id = ?').bind(planId).first<{ user_id: string }>()
-  const viewer = await viewerFor(request, env, planId)
-  const account = Boolean(session && row && row.user_id === session.user.id)
-  const actor = account ? 'account' : viewer ? 'viewer' : ''
-  if (!actor) return text(401, 'Sign in required')
-  let viewResponse = await planFetch(env, planId, request, '/view', actor)
-  if (viewResponse.status === 404 && (await seedPlanRoom(env, planId))) {
-    viewResponse = await planFetch(env, planId, request, '/view', actor)
-  }
+  const { actor, signedIn } = await planAccess(session, env, planId)
+  const account = actor === 'account'
+  if (!actor) return signedIn ? text(403, 'This plan belongs to another account.') : text(401, 'Sign in required')
+  const viewResponse = await planFetch(env, planId, request, '/view', actor)
   if (!viewResponse.ok) return viewResponse
   const view = (await viewResponse.json()) as {
     title: string
@@ -367,6 +420,7 @@ async function loadHostedPlan(request: Request, env: HostEnv, planId: string): P
     comments: unknown
     review: unknown
     theme: { accent?: string } | null
+    execution?: { active?: boolean } | null
   }
   const settings = account && session ? await readAccountSettings(env.DB, session.user.id) : defaultAccountSettings()
   return {
@@ -377,6 +431,7 @@ async function loadHostedPlan(request: Request, env: HostEnv, planId: string): P
     responses: view.responses,
     comments: view.comments,
     review: view.review,
+    execution: view.execution ?? null,
     owner: account,
     email: session?.user.email ?? '',
     name: session?.user.name || session?.user.email || '',
@@ -404,6 +459,7 @@ async function publishSource(request: Request, env: HostEnv, planId: string, act
     actor,
   )
   if (!forwarded.ok || typeof body.markdown !== 'string') return forwarded
+  await syncPlanProgress(env, planId)
   const row = await env.DB.prepare('SELECT user_id, title FROM plans WHERE id = ?')
     .bind(planId)
     .first<{ user_id: string; title: string | null }>()
@@ -450,6 +506,35 @@ async function planDocument(
   })
 }
 
+function versionSeq(value: string): number {
+  return /^[1-9]\d{0,8}$/.test(value) ? Number(value) : 0
+}
+
+/** One saved version with the owner's page settings, for the read-only version page. */
+export async function hostedPlanVersionPage(request: Request, env: HostEnv, planId: string, seq: string): Promise<Response> {
+  const origin = originFor(request, env)
+  const auth = createAuth(env, origin)
+  const session = await readSession(auth, request, env.DB)
+  if (!session || !(await planOwner(request, env, auth, planId))) return text(401, 'Sign in required')
+  const number = versionSeq(seq)
+  const version = number ? await readPlanVersion(env.DB, planId, number).catch(() => null) : null
+  if (!version) return text(404, 'This version is not saved.')
+  const settings = await readAccountSettings(env.DB, session.user.id)
+  return Response.json({
+    planId,
+    seq: version.seq,
+    title: version.title,
+    source: version.source,
+    createdAt: version.createdAt,
+    email: session.user.email,
+    name: session.user.name || session.user.email,
+    accent: settings.accent,
+    pageWidth: settings.pageWidth,
+    diffsTheme: settings.diffsTheme,
+    wrapCode: settings.wrapCode,
+  })
+}
+
 async function versionsForPlan(env: HostEnv, planId: string): Promise<Array<{ seq: number; title: string; createdAt: number }>> {
   let versions = await listPlanVersions(env.DB, planId).catch(() => [])
   if (versions.length > 0) return versions
@@ -476,34 +561,6 @@ export async function hostedPlanVersions(request: Request, env: HostEnv, planId:
   })
 }
 
-/**
- * Fill an empty plan room from the latest published version in D1.
- * A Worker Preview shares D1 with production but starts with empty Durable Objects,
- * so this lets a preview open existing plans. Changes made there stay in the preview's room.
- */
-export async function seedPlanRoom(env: HostEnv, planId: string): Promise<boolean> {
-  const row = await env.DB.prepare(`SELECT token, title, mode, json_extract(meta, '$.tier') AS tier FROM plans WHERE id = ?`)
-    .bind(planId)
-    .first<{ token: string | null; title: string | null; mode: string | null; tier: string | null }>()
-  if (!row?.token) return false
-  const version = await readPlanVersion(env.DB, planId, 'latest').catch(() => null)
-  if (!version) return false
-  const stub = env.PLANS.get(env.PLANS.idFromName(planId))
-  const init = await stub.fetch(
-    new Request('https://plan.internal/internal/init', {
-      method: 'POST',
-      body: JSON.stringify({
-        token: row.token,
-        title: version.title || row.title || 'Living plan',
-        mode: row.mode || 'watch',
-        tier: normalizeTier(row.tier ?? undefined),
-        source: version.source,
-      }),
-    }),
-  )
-  return init.ok
-}
-
 async function planFetch(env: HostEnv, planId: string, request: Request, path: string, actor: string): Promise<Response> {
   const target = new URL(path, 'https://plan.internal')
   // Routes under /internal/ are for this Worker only. They do not check a caller.
@@ -522,46 +579,6 @@ async function readSession(auth: ReturnType<typeof createAuth>, request: Request
   const match = /^Bearer\s+(\S+)$/i.exec(request.headers.get('authorization') ?? '')
   if (!match?.[1]) return null
   return sessionFromToken(db, match[1])
-}
-
-async function viewerFor(request: Request, env: HostEnv, planId: string): Promise<boolean> {
-  const cookie = readCookie(request.headers.get('cookie'), 'living_plan_view')
-  if (!cookie) return false
-  const split = cookie.indexOf('.')
-  if (split === -1) return false
-  if (cookie.slice(0, split) !== planId) return false
-  const expected = await signPlan(env.BETTER_AUTH_SECRET, planId)
-  return timingSafe(expected, cookie.slice(split + 1))
-}
-
-async function signPlan(secret: string, planId: string): Promise<string> {
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
-  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(planId))
-  return btoa(String.fromCharCode(...new Uint8Array(sig))).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')
-}
-
-function viewerCookie(planId: string, sig: string, secure: boolean): string {
-  return `living_plan_view=${planId}.${sig}; HttpOnly; Path=/; SameSite=Lax; Max-Age=2592000${secure ? '; Secure' : ''}`
-}
-
-function readCookie(header: string | null, name: string): string | null {
-  if (!header) return null
-  for (const part of header.split(';')) {
-    const separator = part.indexOf('=')
-    if (separator === -1) continue
-    if (part.slice(0, separator).trim() !== name) continue
-    return decodeURIComponent(part.slice(separator + 1).trim())
-  }
-  return null
-}
-
-function timingSafe(expected: string, actual: string): boolean {
-  const left = new TextEncoder().encode(expected)
-  const right = new TextEncoder().encode(actual)
-  if (left.length !== right.length || left.length === 0) return false
-  let diff = 0
-  for (let index = 0; index < left.length; index += 1) diff |= (left[index] ?? 0) ^ (right[index] ?? 0)
-  return diff === 0
 }
 
 function isInternalPath(pathname: string): boolean {

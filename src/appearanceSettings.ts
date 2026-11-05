@@ -184,6 +184,8 @@ export const settingsDocumentCss = `
   --canvas: #ffffff;
   --surface: #f5f5f5;
   --hairline: #e9e9e9;
+  --hairline-strong: #d4d4d8;
+  --hairline-strong-hover: #a1a1aa;
   --ink: #181e25;
   --charcoal: #34393f;
   --steel: #666666;
@@ -220,6 +222,8 @@ export const settingsDocumentCss = `
     --canvas: #171717;
     --surface: #1c1c1c;
     --hairline: #2c2c2c;
+    --hairline-strong: #4a4a4a;
+    --hairline-strong-hover: #666666;
     --ink: #ededed;
     --charcoal: #ededed;
     --steel: #949494;
@@ -254,7 +258,7 @@ body.layout-full main.settings-page { width: calc(100% - var(--space-xxl) * 2); 
   height: 36px;
   margin: 0 0 var(--space-md);
   padding: 0 16px;
-  border: 1px solid var(--ink);
+  border: 1px solid var(--hairline-strong);
   border-radius: 9999px;
   background: transparent;
   color: var(--ink);
@@ -293,7 +297,7 @@ h1 {
 .nav button.secondary,
 .nav .plan-btn-secondary {
   padding: 8px 12px;
-  border: 1px solid var(--ink);
+  border: 1px solid var(--hairline-strong);
   border-radius: 9999px;
   background: transparent;
   color: var(--ink);

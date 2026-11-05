@@ -20,8 +20,10 @@ import { Phase } from './entries/Phase.tsx'
 import { Questions } from './entries/Questions.tsx'
 import './entries/primitives.css'
 import { subscribePlanEvents } from './planEvents.ts'
-import { currentOfflineHandle, planContext, postPlanMutation, startOfflineEngine } from './offline/engine.ts'
+import { currentOfflineHandle, planContext, startOfflineEngine } from './offline/engine.ts'
 import { stampPlanParts } from './stampPlanParts.ts'
+import { viewingPlanVersion } from './versionView.ts'
+import { sendPlanMutation, sharedQueryClient } from './queryClient.tsx'
 
 type PlanWindow = Window & {
   __LIVE_PLAN_BASE__?: string
@@ -80,7 +82,7 @@ function compileMdx(source: string): Promise<PlanModule> {
 
 async function postInteraction(response: InteractionResponse): Promise<void> {
   // A static import: a lazy chunk is only fetched on the first answer, so it is missing from the shell cache when that answer is made offline.
-  const result = await postPlanMutation('interaction', apiPath(`/api/interactions/${encodeURIComponent(response.id)}`), response)
+  const result = await sendPlanMutation('interaction', apiPath(`/api/interactions/${encodeURIComponent(response.id)}`), response)
   if (!result.ok && !result.queued) throw new Error(result.text || 'Could not send')
 }
 
@@ -128,6 +130,111 @@ function PlanPre({ children }: { children?: ReactNode }) {
   )
 }
 
+type InteractionState = { responses: Boot['responses']; locked: boolean }
+
+// Answers and the lock reach the entries through context. The component functions stay the same
+// between renders, so a new answer re-renders the forms in place instead of remounting the plan.
+const InteractionContext = createContext<InteractionState>({ responses: {}, locked: false })
+
+function stopBubble(event: { stopPropagation: () => void }) {
+  event.stopPropagation()
+}
+
+function sendInteraction(response: InteractionResponse) {
+  void postInteraction(response)
+}
+
+function PlanChoice(props: { className?: string; id: string }) {
+  const { responses, locked } = useContext(InteractionContext)
+  const saved = responses[props.id]
+  return (
+    <div onClick={stopBubble} onSubmit={stopBubble}>
+      <Choice
+        {...props}
+        className={blockClass(props.className)}
+        locked={locked}
+        selectedId={saved?.kind === 'choice' ? saved.optionId : undefined}
+        selectedLabel={saved?.kind === 'choice' ? saved.label : undefined}
+        onSelect={sendInteraction}
+      />
+    </div>
+  )
+}
+
+function PlanForm(props: { className?: string; id: string }) {
+  const { responses, locked } = useContext(InteractionContext)
+  const saved = responses[props.id]
+  return (
+    <div onClick={stopBubble} onSubmit={stopBubble}>
+      <Form
+        {...props}
+        className={blockClass(props.className)}
+        locked={locked}
+        values={saved?.kind === 'form' ? saved.values : undefined}
+        onSubmit={sendInteraction}
+      />
+    </div>
+  )
+}
+
+function PlanQuestions(props: { className?: string; id: string }) {
+  const { responses, locked } = useContext(InteractionContext)
+  const saved = responses[props.id]
+  return (
+    <div onClick={stopBubble} onSubmit={stopBubble}>
+      <Questions
+        {...props}
+        className={blockClass(props.className)}
+        locked={locked}
+        answers={saved?.kind === 'questions' ? saved.answers : undefined}
+        onSubmit={sendInteraction}
+      />
+    </div>
+  )
+}
+
+function PlanApprove(props: { className?: string; id: string }) {
+  const { responses, locked } = useContext(InteractionContext)
+  const saved = responses[props.id]
+  return (
+    <div onClick={stopBubble} onSubmit={stopBubble}>
+      <Approve
+        {...props}
+        className={blockClass(props.className)}
+        locked={locked}
+        approved={saved?.kind === 'approve' ? saved.approved : undefined}
+        note={saved?.kind === 'approve' ? saved.note : undefined}
+        onDecide={sendInteraction}
+      />
+    </div>
+  )
+}
+
+const interactiveComponents = {
+  choice: PlanChoice,
+  form: PlanForm,
+  questions: PlanQuestions,
+  approve: PlanApprove,
+}
+
+function PlanPhase(props: { className?: string }) {
+  return <Phase {...props} className={blockClass(props.className)} />
+}
+
+function PlanCallout(props: { className?: string }) {
+  return <Callout {...props} className={blockClass(props.className)} />
+}
+
+function PlanChecklist(props: { className?: string }) {
+  return <Checklist {...props} className={blockClass(props.className)} />
+}
+
+async function readPlanMdx(): Promise<Boot> {
+  const response = await fetch(apiPath('/api/plan-mdx'), { cache: 'no-store' })
+  if (!response.ok) throw new Error('Request failed')
+  return (await response.json()) as Boot
+}
+
 function PlanMdxApp() {
   const [boot, setBoot] = useState<Boot>(readBoot)
   const [content, setContent] = useState<ReactNode>(null)
@@ -135,6 +242,7 @@ function PlanMdxApp() {
   const mdx = planSourceToMdx(boot.source)
   const responses = boot.responses
   const locked = boot.locked
+  const interaction = useMemo<InteractionState>(() => ({ responses, locked }), [responses, locked])
   const headingIds = useMemo(() => {
     try {
       return buildPlanToc(boot.source).flatMap((item) => (item.headingId ? [item.headingId] : []))
@@ -147,18 +255,26 @@ function PlanMdxApp() {
   tocCursor.current.ids = headingIds
 
   useLayoutEffect(() => {
+    // A saved version shows the source it was rendered with. The device copy and the stream are the live plan.
+    if (viewingPlanVersion() !== null) return
     let stopStore = () => {}
     const context = planContext()
     const paintFrom = (engine: NonNullable<ReturnType<typeof currentOfflineHandle>>) => {
       const row = engine.plan(context.id)
       if (!row?.source || row.sourceOmitted) return
-      setBoot((current) => ({
-        ...current,
-        source: row.source,
-        title: row.title,
-        responses: row.responses as Boot['responses'],
-        locked: row.locked,
-      }))
+      setBoot((current) => {
+        const responses = row.responses as Boot['responses']
+        // The store repaints on every write. Keep the page as it is when nothing it shows changed.
+        if (
+          current.source === row.source &&
+          current.title === row.title &&
+          current.locked === row.locked &&
+          JSON.stringify(current.responses) === JSON.stringify(responses)
+        ) {
+          return current
+        }
+        return { ...current, source: row.source, title: row.title, responses, locked: row.locked }
+      })
     }
     const ready = currentOfflineHandle()
     if (ready) paintFrom(ready)
@@ -184,16 +300,36 @@ function PlanMdxApp() {
         // Ignore a malformed plan event.
       }
     })
+    // Forms lock while a run is live. `hello` repeats the run each time the stream opens.
+    const applyRun = (execution: unknown) => {
+      if (!execution || typeof execution !== 'object') return
+      const locked = Boolean((execution as { active?: unknown }).active)
+      setBoot((current) => (current.locked === locked ? current : { ...current, locked }))
+    }
+    const stopExecution = subscribePlanEvents('execution', (event) => {
+      try {
+        applyRun(JSON.parse(event.data) as unknown)
+      } catch {
+        // Ignore a malformed execution event.
+      }
+    })
+    const stopHello = subscribePlanEvents('hello', (event) => {
+      try {
+        applyRun((JSON.parse(event.data) as { execution?: unknown } | null)?.execution)
+      } catch {
+        // Ignore a malformed hello.
+      }
+    })
     const stopReload = subscribePlanEvents('reload', () => {
       void startOfflineEngine().then(async (engine) => {
         if (engine?.available) {
           await engine.syncPlan()
           return
         }
-        const response = await fetch(apiPath('/api/plan-mdx'), { cache: 'no-store' }).catch(() => null)
-        if (!response?.ok) return
-        const payload = (await response.json()) as Boot
-        if (typeof payload.source === 'string') setBoot(payload)
+        const payload = await sharedQueryClient()
+          .fetchQuery({ queryKey: ['plan-mdx', apiPath('')], queryFn: readPlanMdx, staleTime: 0 })
+          .catch(() => null)
+        if (payload && typeof payload.source === 'string') setBoot(payload)
       })
     })
     const forward = (type: string) =>
@@ -211,21 +347,26 @@ function PlanMdxApp() {
     const stopForwardMode = forward('mode')
     const stopForwardExecution = forward('execution')
     const stopForwardComment = forward('comment')
+    const stopForwardHello = forward('hello')
     return () => {
       stopStore()
       stopPlan()
+      stopExecution()
+      stopHello()
       stopReload()
       stopForwardPlan()
       stopForwardMode()
       stopForwardExecution()
       stopForwardComment()
+      stopForwardHello()
     }
   }, [])
 
   useEffect(() => {
     let cancelled = false
+    // Hide only the first render. Hiding a rendered plan collapses the page and resets the scroll.
     const root = document.getElementById('plan-mdx-root')
-    root?.classList.add('plan-mdx-pending')
+    if (!root?.querySelector('[data-plan-rendered]')) root?.classList.add('plan-mdx-pending')
     compileMdx(mdx).then(
       async (Content) => {
         if (cancelled) return
@@ -235,75 +376,10 @@ function PlanMdxApp() {
           ...planComponents,
           pre: PlanPre,
           table: MarkdownTable,
-          phase: (props: { className?: string }) => <Phase {...props} className={blockClass(props.className)} />,
-          callout: (props: { className?: string }) => <Callout {...props} className={blockClass(props.className)} />,
-          choice: (props: { className?: string; id: string }) => {
-            const saved = responses[props.id]
-            return (
-              <div onClick={(event) => event.stopPropagation()} onSubmit={(event) => event.stopPropagation()}>
-                <Choice
-                  {...props}
-                  className={blockClass(props.className)}
-                  locked={locked}
-                  selectedId={saved?.kind === 'choice' ? saved.optionId : undefined}
-                  selectedLabel={saved?.kind === 'choice' ? saved.label : undefined}
-                  onSelect={(response) => {
-                    void postInteraction(response)
-                  }}
-                />
-              </div>
-            )
-          },
-          form: (props: { className?: string; id: string }) => {
-            const saved = responses[props.id]
-            return (
-              <div onClick={(event) => event.stopPropagation()} onSubmit={(event) => event.stopPropagation()}>
-                <Form
-                  {...props}
-                  className={blockClass(props.className)}
-                  locked={locked}
-                  values={saved?.kind === 'form' ? saved.values : undefined}
-                  onSubmit={(response) => {
-                    void postInteraction(response)
-                  }}
-                />
-              </div>
-            )
-          },
-          questions: (props: { className?: string; id: string }) => {
-            const saved = responses[props.id]
-            return (
-              <div onClick={(event) => event.stopPropagation()} onSubmit={(event) => event.stopPropagation()}>
-                <Questions
-                  {...props}
-                  className={blockClass(props.className)}
-                  locked={locked}
-                  answers={saved?.kind === 'questions' ? saved.answers : undefined}
-                  onSubmit={(response) => {
-                    void postInteraction(response)
-                  }}
-                />
-              </div>
-            )
-          },
-          approve: (props: { className?: string; id: string }) => {
-            const saved = responses[props.id]
-            return (
-              <div onClick={(event) => event.stopPropagation()} onSubmit={(event) => event.stopPropagation()}>
-                <Approve
-                  {...props}
-                  className={blockClass(props.className)}
-                  locked={locked}
-                  approved={saved?.kind === 'approve' ? saved.approved : undefined}
-                  note={saved?.kind === 'approve' ? saved.note : undefined}
-                  onDecide={(response) => {
-                    void postInteraction(response)
-                  }}
-                />
-              </div>
-            )
-          },
-          checklist: (props: { className?: string }) => <Checklist {...props} className={blockClass(props.className)} />,
+          phase: PlanPhase,
+          callout: PlanCallout,
+          ...interactiveComponents,
+          checklist: PlanChecklist,
         }
         setContent(
           <Content
@@ -328,18 +404,23 @@ function PlanMdxApp() {
     return () => {
       cancelled = true
     }
-  }, [locked, mdx, responses])
+  }, [mdx])
 
   useLayoutEffect(() => {
     const root = document.getElementById('plan-mdx-root')
     if (root) stampPlanParts(root)
   })
 
+  // Announce a new document only when the compiled plan changed. A re-render for an answer or a
+  // lock leaves the parts where they were, and an open comment box on one of them must stay open.
+  const announced = useRef<ReactNode>(null)
   useEffect(() => {
     const root = document.getElementById('plan-mdx-root')
     if (!root) return
     stampPlanParts(root)
     root.classList.remove('plan-mdx-pending')
+    if (announced.current === content) return
+    announced.current = content
     window.dispatchEvent(new CustomEvent('living-plan-document', { detail: { root } }))
   })
 
@@ -367,6 +448,7 @@ function PlanMdxApp() {
   }, [boot.source])
 
   return (
+    <InteractionContext.Provider value={interaction}>
     <TocHeadingCursor.Provider value={tocCursor}>
       {error ? (
         <p className="host-error" role="alert" data-plan-error="">
@@ -381,6 +463,7 @@ function PlanMdxApp() {
         <p data-plan-rendering="">Rendering plan…</p>
       )}
     </TocHeadingCursor.Provider>
+    </InteractionContext.Provider>
   )
 }
 

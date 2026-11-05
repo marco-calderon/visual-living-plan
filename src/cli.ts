@@ -16,7 +16,7 @@ import {
 } from './agentEvents'
 import type { PlanSubmissionEvent } from './types'
 import { startLivingPlanServer } from './server'
-import type { ExecutionGraph, ExecutionState } from './execution'
+import { applyExecutionChange, type ExecutionAction, type ExecutionGraph, type ExecutionPatch, type ExecutionState } from './execution'
 import { cwdThemeConfigPath, globalThemeConfigPath } from './configHome'
 import {
   configPathBesidePlan,
@@ -44,7 +44,7 @@ import {
 import { isPidAlive } from './pid'
 import { DEFAULT_REGISTRY_HOST, DEFAULT_REGISTRY_PORT } from './registryConstants'
 import { formatServiceLogLines, isLogDay, listLogs, recordLog, type LogLevel } from './serviceLog'
-import { closeCloudPlan, hostedViewUrl } from './cloudClient'
+import { closeCloudPlan } from './cloudClient'
 import {
   cloudFlagConflict,
   prepareCloudPlan,
@@ -56,6 +56,7 @@ import {
   syncCloudUrl,
 } from './cloudCommand'
 import { cloudCredential, planRecordForUrl, readCloudFile, writeCloudFile } from './cloudStore'
+import { choosePlanOpen, rememberPageOpened } from './openedPages'
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -72,8 +73,8 @@ function printHelp(): void {
   console.log(`live-plan — agent-authored plans humans can interact with
 
 Usage:
-  live-plan serve <file.plan.md> [--port N] [--host HOST] [--config file] [--no-open] [--detach]
-  live-plan review <file.plan.md> [--port N] [--iteration N] [--timeout 30m] [--config file] [--no-open]
+  live-plan serve <file.plan.md> [--port N] [--host HOST] [--config file] [--no-open|--open] [--detach]
+  live-plan review <file.plan.md> [--port N] [--iteration N] [--timeout 30m] [--config file] [--no-open|--open]
   live-plan wait <id> --url <plan-url> [--token TOKEN] [--timeout 30m]
   live-plan events --url <plan-url> [--token TOKEN]
   live-plan watch --url <plan-url> [--token TOKEN]
@@ -126,6 +127,7 @@ Per-plan accent color is saved in live-plan.config.json beside the plan (overrid
 Without --plan or --config, theme get/set uses ~/.config/living-plan/live-plan.config.json.
 Service state and diagnostic logs live under ~/.config/living-plan (LIVE_PLAN_HOME / LIVE_PLAN_LOG_HOME override).
 --no-open skips launching a browser.
+serve and review open a plan page only the first time on this machine. Resuming the same plan leaves the open tab alone. --open opens it again.
 --version prints the package version and exits. -v is the short flag.
 --detach registers the plan and returns. Without it, serve prints the next undelivered submissions and exits. The page stays up on the service.
 events does the same on a URL you already have. A submission that arrived while it was stopped is printed immediately, then the process exits. Start events again after every comment, denial, or approval so a pending event is not left on the server.
@@ -174,6 +176,24 @@ async function openBrowser(url: string): Promise<void> {
     // A missing opener must not take down the server.
   })
   child.unref()
+}
+
+/**
+ * Open a plan page only the first time. A resumed `serve` or `review` reuses
+ * the tab the person already has. `--open` forces it, `--no-open` skips it.
+ */
+async function openPlanPage(url: string): Promise<void> {
+  const argv = process.argv.slice(2)
+  const choice = await choosePlanOpen(url, {
+    noOpen: hasFlag(argv, '--no-open'),
+    forceOpen: hasFlag(argv, '--open'),
+  }).catch(() => 'open' as const)
+  if (choice === 'skip') {
+    if (!hasFlag(argv, '--no-open')) console.log('Page already opened before. Not opening it again (pass --open to reopen).')
+    return
+  }
+  await openBrowser(url)
+  await rememberPageOpened(url).catch(() => undefined)
 }
 
 async function ensureClientBuild(): Promise<void> {
@@ -304,18 +324,21 @@ async function cloudRequestHeaders(url: string, args: string[]): Promise<Record<
   return { authorization: `Bearer ${token}` }
 }
 
-async function putExecution(url: string, body: ExecutionState): Promise<ExecutionState> {
+async function executionRequest(
+  url: string,
+  path: string,
+  init: { method: string; body?: unknown },
+): Promise<Response> {
   const planId = planIdFromPlanUrl(url) ?? undefined
-  let response: Response
   try {
     const headers = {
       'content-type': 'application/json',
       ...(await cloudRequestHeaders(url, process.argv.slice(2))),
     }
-    response = await fetch(planApiUrl(url, '/api/execution'), {
-      method: 'PUT',
+    return await fetch(planApiUrl(url, path), {
+      method: init.method,
       headers,
-      body: JSON.stringify(body),
+      body: init.body === undefined ? undefined : JSON.stringify(init.body),
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Execution request failed'
@@ -328,19 +351,48 @@ async function putExecution(url: string, body: ExecutionState): Promise<Executio
     }).catch(() => undefined)
     throw error
   }
-  if (!response.ok) {
-    const text = await response.text()
-    await recordLog({
-      level: 'error',
-      message: `Execution request failed: ${text || response.status}`,
-      source: 'execution',
-      planId,
-      echo: false,
-    }).catch(() => undefined)
-    throw new Error(text || `Execution request failed (${response.status})`)
-  }
+}
+
+async function executionFailure(url: string, response: Response): Promise<Error> {
+  const text = await response.text()
+  await recordLog({
+    level: 'error',
+    message: `Execution request failed: ${text || response.status}`,
+    source: 'execution',
+    planId: planIdFromPlanUrl(url) ?? undefined,
+    echo: false,
+  }).catch(() => undefined)
+  return new Error(text || `Execution request failed (${response.status})`)
+}
+
+async function readExecution(url: string): Promise<ExecutionState> {
+  const response = await executionRequest(url, '/api/execution', { method: 'GET' })
+  if (!response.ok) throw await executionFailure(url, response)
+  return (await response.json()) as ExecutionState
+}
+
+async function putExecution(url: string, body: ExecutionState): Promise<ExecutionState> {
+  const response = await executionRequest(url, '/api/execution', { method: 'PUT', body })
+  if (!response.ok) throw await executionFailure(url, response)
   const payload = (await response.json()) as { execution: ExecutionState }
   return payload.execution
+}
+
+/**
+ * Start, push, or stop the run. The host merges the fields it is sent into the run it has,
+ * so the agent never has to read the run first. A host without that route gets the older
+ * read and replace.
+ */
+async function changeExecution(url: string, action: ExecutionAction, patch: ExecutionPatch): Promise<ExecutionState> {
+  const response = await executionRequest(url, `/api/execution/${action}`, { method: 'POST', body: patch })
+  if (response.ok) {
+    const payload = (await response.json()) as { execution: ExecutionState }
+    return payload.execution
+  }
+  if (response.status !== 404 && response.status !== 405) throw await executionFailure(url, response)
+  await response.body?.cancel().catch(() => undefined)
+  const current = action === 'start' ? null : await readExecution(url)
+  return putExecution(url, applyExecutionChange(current, action, patch))
 }
 
 async function cmdCheck(file: string): Promise<number> {
@@ -420,8 +472,7 @@ async function cmdCloudServe(file: string, args: string[], mode: 'watch' | 'revi
     console.log(`Living Plan (${mode}): ${record.url}`)
     console.log(`Plan file: ${resolve(file)}`)
     console.log('Hosted plan. The local registry was not started.')
-    const account = await requireCloudAccount()
-    await openBrowser((await hostedViewUrl(record.url, account.token)) ?? record.url)
+    await openPlanPage(record.url)
     if (mode === 'watch' && hasFlag(args, '--detach')) {
       const pid = spawnCloudWatch(fileURLToPath(import.meta.url), record)
       const stored = await readCloudFile()
@@ -469,7 +520,7 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
     console.log(`Plan file: ${planPath}`)
     console.log(`Service: ${registry.url}`)
     console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent, page width).')
-    await openBrowser(hosted.url)
+    await openPlanPage(hosted.url)
     if (hasFlag(args, '--detach')) {
       console.log(`Events: live-plan events --url ${hosted.url}`)
       return 0
@@ -490,7 +541,7 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
   console.log(`Plan file: ${planPath}`)
   console.log(`Theme config: ${server.getState().theme.configPath}`)
   console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent, page width).')
-  await openBrowser(server.url)
+  await openPlanPage(server.url)
   console.log('Listening for the next submission. This command exits when one arrives.')
   const code = await listenForSubmissions(server.url)
   await server.close()
@@ -643,7 +694,7 @@ async function privateReview(file: string, args: string[]): Promise<number> {
     if (stdout && 'unref' in stdout) (stdout as { unref: () => void }).unref()
     console.log(`Living Plan (review): ${url}`)
     console.log(`Plan file: ${planPath}`)
-    await openBrowser(url)
+    await openPlanPage(url)
     const held = await readReviewEvent(url, undefined, timeoutMs)
     await writeReviewOutput(args, held.review)
     await acknowledgeSubmissions(url, undefined, held.eventIds)
@@ -675,7 +726,7 @@ async function cmdReview(file: string, args: string[]): Promise<number> {
     console.log(`Living Plan (review): ${hosted.url}`)
     console.log(`Plan file: ${planPath}`)
     console.log(`Service: ${registry.url}`)
-    await openBrowser(hosted.url)
+    await openPlanPage(hosted.url)
     try {
       const apiUrl = rewriteToBindUrl(registry, hosted.url)
       const held = await readReviewEvent(apiUrl, hosted.token, timeoutMs)
@@ -929,21 +980,17 @@ async function cmdClose(args: string[]): Promise<number> {
   return 0
 }
 
-async function buildExecutionPayload(
-  args: string[],
-  active: boolean,
-): Promise<ExecutionState> {
+async function buildExecutionPatch(args: string[]): Promise<ExecutionPatch> {
   const graphPath = getFlag(args, '--graph')
   const scenePath = getFlag(args, '--scene')
-  const graph = graphPath ? await readJsonFile<ExecutionGraph>(graphPath) : undefined
-  const scene = scenePath ? await readJsonFile<Record<string, unknown>>(scenePath) : undefined
-  return {
-    active,
-    step: getFlag(args, '--step'),
-    detail: getFlag(args, '--detail'),
-    graph,
-    scene,
-  }
+  const patch: ExecutionPatch = {}
+  const step = getFlag(args, '--step')
+  const detail = getFlag(args, '--detail')
+  if (step) patch.step = step
+  if (detail) patch.detail = detail
+  if (graphPath) patch.graph = await readJsonFile<ExecutionGraph>(graphPath)
+  if (scenePath) patch.scene = await readJsonFile<Record<string, unknown>>(scenePath)
+  return patch
 }
 
 async function cmdExecution(args: string[]): Promise<number> {
@@ -956,34 +1003,8 @@ async function cmdExecution(args: string[]): Promise<number> {
   }
   const url = await localServiceUrl(published)
 
-  if (action === 'start') {
-    const execution = await putExecution(url, await buildExecutionPayload(rest, true))
-    console.log(JSON.stringify(execution, null, 2))
-    return 0
-  }
-
-  if (action === 'push') {
-    const currentResponse = await fetch(planApiUrl(url, '/api/execution'))
-    const current = (await currentResponse.json()) as ExecutionState
-    const next = await buildExecutionPayload(rest, current.active ?? true)
-    const execution = await putExecution(url, {
-      active: next.active,
-      step: next.step ?? current.step,
-      detail: next.detail ?? current.detail,
-      graph: next.graph ?? current.graph,
-      scene: next.scene ?? current.scene,
-    })
-    console.log(JSON.stringify(execution, null, 2))
-    return 0
-  }
-
-  if (action === 'stop') {
-    const currentResponse = await fetch(planApiUrl(url, '/api/execution'))
-    const current = (await currentResponse.json()) as ExecutionState
-    const execution = await putExecution(url, {
-      ...current,
-      active: false,
-    })
+  if (action === 'start' || action === 'push' || action === 'stop') {
+    const execution = await changeExecution(url, action, await buildExecutionPatch(rest))
     console.log(JSON.stringify(execution, null, 2))
     return 0
   }
@@ -996,7 +1017,7 @@ async function cmdProcesses(): Promise<number> {
   const home = defaultRegistryHome()
   const lock = await readRegistryLock(home)
   if (!lock || !isPidAlive(lock.pid) || !(await registryHealthy(registryBindUrl(lock)))) {
-    console.log('No living-plan registry is running.')
+    console.log('No live-plan registry is running.')
     return 0
   }
   const processes = await listProcesses(registryBindUrl(lock))
@@ -1342,7 +1363,11 @@ async function main(): Promise<number> {
       return 1
     }
     try {
-      await signInToCloud(base, openBrowser)
+      await signInToCloud(base, async (url) => {
+        // Print the link too, so a person can open it when no browser launches.
+        console.log(`Sign in, or choose Sign up instead to create an account:\n${url}`)
+        await openBrowser(url)
+      })
       const account = await requireCloudAccount()
       console.log(`Signed in to ${account.baseUrl}`)
       return 0

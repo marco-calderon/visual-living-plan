@@ -10,6 +10,7 @@ export type AccountPayload = {
     pageWidth: 'default' | 'wide' | 'full'
     diffsTheme: string
     wrapCode: boolean
+    updatedAt?: number
   }
   accounts: Array<{ providerId: string }>
   plans: Array<{ id: string; title: string; mode: string }>
@@ -42,19 +43,6 @@ export const loadAccount = createServerFn({ method: 'GET' }).handler(async () =>
   return { ok: true as const, account }
 })
 
-export const loadHistory = createServerFn({ method: 'GET' })
-  .validator((planId: string) => planId)
-  .handler(async ({ data: planId }) => {
-    const request = getRequest()
-    const [{ hostedPlanVersions }, { env }] = await workerAndEnv()
-    const response = await hostedPlanVersions(request, env, planId)
-    if (!response.ok) {
-      return { ok: false as const, status: response.status, message: await response.text() }
-    }
-    const history = (await response.json()) as HistoryPayload
-    return { ok: true as const, history }
-  })
-
 export const loadPlan = createServerFn({ method: 'GET' })
   .validator((planId: string) => planId)
   .handler(async ({ data: planId }) => {
@@ -78,12 +66,12 @@ export const loadPlan = createServerFn({ method: 'GET' })
       pageWidth: 'default' | 'wide' | 'full'
       diffsTheme: string
       wrapCode: boolean
-      execution?: { active?: boolean }
+      execution?: { active?: boolean } | null
     }
-    return { ok: true as const, page: { ...page, bootstrap: await workflowBootstrap(page.source, page.execution) } }
+    return { ok: true as const, page: { ...page, bootstrap: await workflowBootstrap(page.source, page.execution, page.responses) } }
   })
 
-async function workflowBootstrap(source: string, execution?: { active?: boolean }): Promise<string> {
+async function workflowBootstrap(source: string, execution?: { active?: boolean } | null, responses?: unknown): Promise<string> {
   try {
     const [{ parsePlan }, { createIdleExecutionState }, { buildExpectedGraph }] = await Promise.all([
       import('./parse.ts'),
@@ -91,12 +79,20 @@ async function workflowBootstrap(source: string, execution?: { active?: boolean 
       import('./expectedWorkflow.ts'),
     ])
     const plan = parsePlan(source)
-    const state = { ...createIdleExecutionState(), ...(execution ?? {}), planned: buildExpectedGraph(plan) }
+    const state = { ...createIdleExecutionState(), ...(execution ?? {}), planned: buildExpectedGraph(plan, undefined, answeredIds(responses)) }
     return JSON.stringify(state).replaceAll('<', '\\u003c')
   } catch (error) {
     console.error('workflow bootstrap failed', error)
-    return JSON.stringify({ active: false }).replaceAll('<', '\\u003c')
+    return JSON.stringify({ active: Boolean(execution?.active) }).replaceAll('<', '\\u003c')
   }
+}
+
+/** Interaction ids that have a response, from a responses map or list. */
+function answeredIds(responses: unknown): string[] {
+  if (Array.isArray(responses)) {
+    return responses.flatMap((entry) => (entry && typeof (entry as { id?: unknown }).id === 'string' ? [(entry as { id: string }).id] : []))
+  }
+  return responses && typeof responses === 'object' ? Object.keys(responses) : []
 }
 
 export const planBootstrap = createServerFn({ method: 'POST' })
@@ -129,3 +125,31 @@ export const openSample = createServerFn({ method: 'POST' }).handler(async () =>
   const body = (await response.json()) as { plan: { id: string } }
   return { ok: true as const, id: body.plan.id }
 })
+
+export type PlanVersionPage = {
+  planId: string
+  seq: number
+  title: string
+  source: string
+  createdAt: number
+  email: string
+  name: string
+  accent: string
+  pageWidth: 'default' | 'wide' | 'full'
+  diffsTheme: string
+  wrapCode: boolean
+}
+
+/** One saved version of a plan, rendered read-only. */
+export const loadPlanVersion = createServerFn({ method: 'GET' })
+  .validator((input: { planId: string; seq: string }) => input)
+  .handler(async ({ data }) => {
+    const request = getRequest()
+    const [{ hostedPlanVersionPage }, { env }] = await workerAndEnv()
+    const response = await hostedPlanVersionPage(request, env, data.planId, data.seq)
+    if (!response.ok) {
+      return { ok: false as const, status: response.status, message: await response.text() }
+    }
+    const page = (await response.json()) as PlanVersionPage
+    return { ok: true as const, page: { ...page, bootstrap: await workflowBootstrap(page.source) } }
+  })
