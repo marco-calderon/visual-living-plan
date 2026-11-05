@@ -32,5 +32,6 @@ Decisions are numbered in the order they were made. Superseded decisions stay he
 | [0026](0026-browser-offline-store.md) | 2026-11-02 | Accepted | The browser keeps a device copy of the open plan; the registry, D1, and the Durable Object stay the authority |
 | [0027](0027-offline-dashboard-and-owned-plans.md) | 2026-11-02 | Accepted | The installed app opens the dashboard offline, and this device keeps the account's plans |
 | [0028](0028-owner-only-hosted-plans.md) | 2026-11-03 | Accepted | Hosted plans open only for the owning account; the signed view link is retired |
+| [0029](0029-page-stream-catches-up.md) | 2026-11-05 | Accepted | A plan page catches up from `hello` after a drop, and the host merges execution start, push, and stop |
 
-Add the next decision as `0029-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.
+Add the next decision as `0030-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.

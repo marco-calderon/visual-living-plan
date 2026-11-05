@@ -44,3 +44,38 @@ The workflow diagram now follows the state of the plan, the same way plan progre
 ### Notes
 
 No registry restart needed beyond the usual version check. The shell cache name is 2.4.1.
+
+## 2.5.0
+
+**PR:** pending
+
+**Bump:** minor
+
+### Summary
+
+The open plan page now shows Running and Stopped reliably. It follows an agent's start, push, and stop without reloading, and catches up on its own after a dropped connection or a service restart. `execution push` and `execution stop` now work on hosted plans.
+
+### Bugs fixed
+
+- On a hosted plan, `execution push` and `execution stop` failed, so the page stayed on Running after the work ended. Both now work the same as on a local plan.
+- A page whose connection dropped (sleep, a network change, a service restart, or going back to the tab) missed a start or a stop and kept showing the old state. It now catches up as soon as it reconnects.
+- A page whose stream the browser closed for good never reconnected. It now opens a new one and keeps every listener.
+- A hosted plan page opened during a run showed Stopped with its forms unlocked. It now opens on Running with its forms locked.
+- An agent edit to a hosted plan during a run unlocked the page's forms. They now stay locked until the run stops.
+- A local plan page reloaded itself on every start and stop, losing scroll and anything typed. It now updates in place.
+
+### Improvements
+
+- The status reads Reconnecting while the page has lost its connection for more than a few seconds, so an out-of-date status is not taken as current.
+- A connection that goes quiet is noticed and opened again. The host now pings an open page every 20 seconds.
+- A local plan page keeps its connection when the computer has no network.
+- A hosted plan page has the same lock banner as a local one while a run is live.
+- `execution push` keeps the run on or off as it is, and `execution stop` keeps the last step and graph on the Workflow tab. Flags you leave out keep their current value.
+
+### New features
+
+- `POST /api/execution/push` on both hosts, and `start`, `push`, and `stop` routes on hosted plans. The host merges the fields it is sent into the run, so a client does not have to read the run first.
+
+### Notes
+
+No registry restart needed beyond the usual version check. The shell cache name is 2.5.0. Hosted plans need this Worker deployed for `execution push` and `stop` to work from this CLI.

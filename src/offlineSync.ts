@@ -569,6 +569,16 @@ export function applyLiveToPlan(row: PlanRow, event: string, data: unknown): Pla
   }
   if (event === 'execution') return { ...row, locked: Boolean(record.active) }
   if (event === 'review') return { ...row, review: data }
+  if (event === 'hello') {
+    // Sent each time the page's stream opens: the run, the mode, and the review as they are now.
+    let next = row
+    const execution = record.execution
+    if (execution && typeof execution === 'object') next = { ...next, locked: Boolean((execution as { active?: unknown }).active) }
+    const mode = record.mode
+    if (mode === 'watch' || mode === 'comment' || mode === 'review') next = { ...next, mode }
+    if ('review' in record) next = { ...next, review: record.review }
+    return next
+  }
   return row
 }
 

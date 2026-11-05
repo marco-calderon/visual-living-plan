@@ -186,6 +186,7 @@ async function syncPlanProgress(env: HostEnv, planId: string): Promise<ProgressF
 /** Writes that can change how far along a plan is. */
 function changesProgress(method: string, rest: string): boolean {
   if (method === 'POST' && rest.startsWith('/api/interactions/')) return true
+  if (method === 'POST' && /^\/api\/execution\/(start|push|stop)\/?$/.test(rest)) return true
   return method === 'PUT' && (rest === '/api/execution' || rest === '/api/execution/')
 }
 
@@ -382,6 +383,8 @@ export type HostedPlanPage = {
   responses: unknown
   comments: unknown
   review: unknown
+  /** The live run, so the page opens showing it. */
+  execution: { active?: boolean } | null
     owner: boolean
     email: string
     name: string
@@ -417,6 +420,7 @@ async function loadHostedPlan(request: Request, env: HostEnv, planId: string): P
     comments: unknown
     review: unknown
     theme: { accent?: string } | null
+    execution?: { active?: boolean } | null
   }
   const settings = account && session ? await readAccountSettings(env.DB, session.user.id) : defaultAccountSettings()
   return {
@@ -427,6 +431,7 @@ async function loadHostedPlan(request: Request, env: HostEnv, planId: string): P
     responses: view.responses,
     comments: view.comments,
     review: view.review,
+    execution: view.execution ?? null,
     owner: account,
     email: session?.user.email ?? '',
     name: session?.user.name || session?.user.email || '',

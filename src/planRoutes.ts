@@ -113,7 +113,8 @@ export function registerPlanRoutes(app: any, options: PlanRouteOptions): any {
     .get(route('/api/execution'), (context: RouteContext) => sessionFor(idOf(context)).executionPayload())
     .put(route('/api/execution'), (context: RouteContext) => sessionFor(idOf(context)).updateExecution(context.body))
     .post(route('/api/execution/start'), (context: RouteContext) => sessionFor(idOf(context)).startExecution(context.body))
-    .post(route('/api/execution/stop'), (context: RouteContext) => sessionFor(idOf(context)).stopExecution())
+    .post(route('/api/execution/push'), (context: RouteContext) => sessionFor(idOf(context)).pushExecution(context.body))
+    .post(route('/api/execution/stop'), (context: RouteContext) => sessionFor(idOf(context)).stopExecution(context.body))
     .get(route('/api/events'), (context: RouteContext) => sessionFor(idOf(context)).browserEvents(context.request))
     .get(route('/api/agent-events'), (context: RouteContext) => {
       const session = sessionFor(idOf(context))

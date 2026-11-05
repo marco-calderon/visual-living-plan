@@ -9,6 +9,7 @@ import { clientLogScript } from './clientLog'
 import { faviconLink } from './favicon'
 import { webManifestHead } from './webManifest'
 import { PLAN_STATUS_LABEL, planStatus } from './planStatus'
+import { LOCK_BANNER_TEXT } from './lockBanner'
 import { PROCESSES_PANEL_STYLES, processesPanelMarkup, processesPanelScript } from './processesPanel'
 import { accentCssCustomProperties, PAGE_WIDTH_OPTIONS, type PageWidth } from './theme'
 import {
@@ -75,7 +76,7 @@ function clientScript(
   document.documentElement.classList.add('js');
   let mode = ${JSON.stringify(mode)};
   const apiBase = ${JSON.stringify(basePath)};
-  const interactionsLocked = ${JSON.stringify(executionActive)};
+  let interactionsLocked = ${JSON.stringify(executionActive)};
   let currentAccent = ${JSON.stringify(theme.accent)};
   const toast = document.getElementById('toast');
   function showToast(message) {
@@ -1054,12 +1055,36 @@ function clientScript(
     showToast('Answers sent');
   });
 
+  // A run that starts or stops changes the page in place. The banner and the locked panel are
+  // client/planStatusMark.ts. This keeps the page's own guards and the review bar in step.
+  let reviewDecision = null;
+  function currentDecision() {
+    if (reviewDecision !== null) return reviewDecision;
+    try {
+      const review = JSON.parse(document.getElementById('living-plan-review')?.textContent || 'null');
+      return (review && review.decision) || '';
+    } catch {
+      return '';
+    }
+  }
+  function setInteractionsLocked(locked) {
+    if (locked === interactionsLocked) return;
+    interactionsLocked = locked;
+    const decision = currentDecision();
+    const showBar = mode === 'review' && !decision && !interactionsLocked;
+    document.body.classList.toggle('has-review-bar', showBar);
+    const dock = document.getElementById('review-dock');
+    if (dock) dock.hidden = !showBar;
+    if (locked) activateTab('workflow');
+  }
+
   function applyMode(payload) {
     if (!payload || (payload.mode !== 'watch' && payload.mode !== 'comment' && payload.mode !== 'review')) return;
     mode = payload.mode;
     setModeChip(mode);
     document.body.dataset.planMode = mode;
     const decision = payload.review && payload.review.decision;
+    reviewDecision = decision || '';
     setReview(decision || '');
     const showBar = mode === 'review' && !decision && !interactionsLocked;
     document.body.classList.toggle('has-review-bar', showBar);
@@ -1207,31 +1232,22 @@ function clientScript(
     }
   }
 
-  // One EventSource per page — shared with PlanSelector / execution canvas via
-  // window.__livingPlanEvents. Three streams × three tabs saturates Chromium's
-  // ~6 HTTP/1.1 connections/host and hangs simultaneous reloads.
-  const existing = window.__livingPlanEvents;
-  const source =
-    existing && existing.readyState !== EventSource.CLOSED
-      ? existing
-      : new EventSource(apiBase + '/api/events');
-  window.__livingPlanEvents = source;
-  const releaseEvents = () => {
-    if (window.__livingPlanEvents !== source) return;
-    source.close();
-    delete window.__livingPlanEvents;
-  };
-  window.addEventListener('pagehide', releaseEvents);
-  window.addEventListener('beforeunload', releaseEvents);
-  let streamWarnedAt = 0;
-  source.addEventListener('error', (event) => {
-    if (event && event.data) return;
-    const report = window.__livingPlanReport;
-    if (typeof report !== 'function') return;
-    const now = Date.now();
-    if (now - streamWarnedAt < 10000) return;
-    streamWarnedAt = now;
-    report('warn', 'The plan event stream is not connected.', '', 'page');
+  // Listeners go on the page's one event hub. client/planEvents.ts owns the connection under it,
+  // reconnects it, and sends hello each time it opens, so these listeners outlive a dropped stream.
+  const source = window.__livingPlanHub || (window.__livingPlanHub = new EventTarget());
+  function applyExecutionState(payload) {
+    if (!payload || typeof payload !== 'object') return;
+    tocExecution = payload;
+    applyTocStepProgress(payload);
+    setInteractionsLocked(Boolean(payload.active));
+  }
+  source.addEventListener('hello', (event) => {
+    try {
+      const payload = JSON.parse(event.data);
+      if (!payload) return;
+      applyExecutionState(payload.execution);
+      if (payload.mode) applyMode({ mode: payload.mode, review: payload.review });
+    } catch {}
   });
   source.addEventListener('reload', () => {
     void refreshPlan();
@@ -1243,12 +1259,7 @@ function clientScript(
   });
   source.addEventListener('execution', (event) => {
     try {
-      const payload = JSON.parse(event.data);
-      tocExecution = payload;
-      applyTocStepProgress(payload);
-      if (Boolean(payload.active) !== interactionsLocked) {
-        window.location.reload();
-      }
+      applyExecutionState(JSON.parse(event.data));
     } catch {}
   });
   source.addEventListener('interaction', (event) => {
@@ -1278,6 +1289,7 @@ function clientScript(
     showToast('Review submitted');
     try {
       const payload = JSON.parse(event.data);
+      if (payload && typeof payload.decision === 'string') reviewDecision = payload.decision;
       if (!payload || payload.decision !== 'iterate') return;
       document.body.classList.remove('has-review-bar');
       const dock = document.getElementById('review-dock');
@@ -1495,11 +1507,7 @@ export function renderPlanPage(options: {
   ${tocHtml}
   <div class="shell">
     <section class="tab-panel${locked ? ' plan-locked' : ''}" data-tab-panel="plan" role="tabpanel">
-      ${
-        locked
-          ? `<div class="lock-banner">Execution is live. Plan forms and gates are disabled until the agent stops execution. Switch to the Workflow tab to follow the live canvas.</div>`
-          : ''
-      }
+      <div class="lock-banner" data-lock-banner role="status"${locked ? '' : ' hidden'}>${LOCK_BANNER_TEXT}</div>
       <main class="stack">
         ${body}
       </main>

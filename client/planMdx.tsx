@@ -294,6 +294,26 @@ function PlanMdxApp() {
         // Ignore a malformed plan event.
       }
     })
+    // Forms lock while a run is live. `hello` repeats the run each time the stream opens.
+    const applyRun = (execution: unknown) => {
+      if (!execution || typeof execution !== 'object') return
+      const locked = Boolean((execution as { active?: unknown }).active)
+      setBoot((current) => (current.locked === locked ? current : { ...current, locked }))
+    }
+    const stopExecution = subscribePlanEvents('execution', (event) => {
+      try {
+        applyRun(JSON.parse(event.data) as unknown)
+      } catch {
+        // Ignore a malformed execution event.
+      }
+    })
+    const stopHello = subscribePlanEvents('hello', (event) => {
+      try {
+        applyRun((JSON.parse(event.data) as { execution?: unknown } | null)?.execution)
+      } catch {
+        // Ignore a malformed hello.
+      }
+    })
     const stopReload = subscribePlanEvents('reload', () => {
       void startOfflineEngine().then(async (engine) => {
         if (engine?.available) {
@@ -321,14 +341,18 @@ function PlanMdxApp() {
     const stopForwardMode = forward('mode')
     const stopForwardExecution = forward('execution')
     const stopForwardComment = forward('comment')
+    const stopForwardHello = forward('hello')
     return () => {
       stopStore()
       stopPlan()
+      stopExecution()
+      stopHello()
       stopReload()
       stopForwardPlan()
       stopForwardMode()
       stopForwardExecution()
       stopForwardComment()
+      stopForwardHello()
     }
   }, [])
 

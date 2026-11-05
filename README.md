@@ -163,8 +163,8 @@ live-plan theme set --accent #0369a1 --url <printed-plan-url>
 - `GET /api/plan` — plan metadata, responses, pending interaction ids, execution state, `planned` workflow graph, and `theme`
 - `GET /api/execution` — current execution canvas state, including `planned` (the expected workflow from the plan) even while execution is idle
 - `PUT /api/execution` — set execution state (`active`, `step`, `detail`, `graph`, `scene`)
-- `POST /api/execution/start` / `POST /api/execution/stop` — convenience toggles
-- `GET /api/events` — browser SSE (`hello`, `reload`, `interaction`, `review`, `comment`, `mode`, `execution`, `theme`, `error`)
+- `POST /api/execution/start` / `push` / `stop` — what `execution start`, `push`, and `stop` call. Send any of `step`, `detail`, `graph`, `scene`; the host keeps the rest
+- `GET /api/events` — browser SSE (`hello`, `reload`, `interaction`, `review`, `comment`, `mode`, `execution`, `theme`, `error`, `ping`). `hello` is first on every connection, so a page that reconnects catches up
 - `GET /api/agent-events` — agent SSE. On the shared service this requires the plan token or the service token. `hello` includes responses, review, comments, execution, and `pending` (`plan_events` rows whose `delivered_at` is empty). A live submission arrives as `notice`.
 - `POST /api/agent-events/ack` — `{ "ids": ["evt_..."] }` sets `delivered_at`. The CLI calls this after it prints.
 - `POST /api/comments` — comment on one plan part. `live-plan addressing` (`POST /api/comments/:id/addressing`) marks it reviewing. `live-plan reply` (`POST /api/comments/:id/reply`) appends the reply text. `live-plan address` (`POST /api/comments/:id/address`) marks it answered with outcome `implemented` (default), `errored`, or `issues`.
