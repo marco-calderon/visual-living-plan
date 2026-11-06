@@ -183,18 +183,13 @@ function DashboardPage() {
     setFilter(next);
   }
 
-  /** Hide a plan from this account's dashboard. The plan and its versions stay stored. */
-  async function deletePlan(plan: DashboardPlan) {
-    const title = plan.title || "Untitled plan";
-    if (!window.confirm(`Delete "${title}" from the dashboard?`)) return;
+  /** Hide a plan from this account's dashboard. The plan and its versions stay stored. False when the request failed. */
+  async function deletePlan(plan: DashboardPlan): Promise<boolean> {
     const response = await fetch(`/api/account/plans/${encodeURIComponent(plan.id)}`, {
       method: "DELETE",
       credentials: "include",
     }).catch(() => null);
-    if (!response?.ok) {
-      window.alert("Could not delete the plan.");
-      return;
-    }
+    if (!response?.ok) return false;
     setShift("filter");
     // Drop the row now. The next read confirms it.
     queryClient.setQueriesData<DashboardResult>({ queryKey: ["account-dashboard"] }, (current) =>
@@ -203,6 +198,7 @@ function DashboardPage() {
         : current,
     );
     void queryClient.invalidateQueries({ queryKey: ["account-dashboard"] });
+    return true;
   }
 
   const plans = payload?.plans ?? [];
@@ -299,7 +295,7 @@ function DashboardPage() {
                     </tr>
                   ) : (
                     shown.map((plan) => (
-                      <PlanRow key={plan.id} plan={plan} offline={offline} onDelete={() => void deletePlan(plan)} />
+                      <PlanRow key={plan.id} plan={plan} offline={offline} onDelete={() => deletePlan(plan)} />
                     ))
                   )}
                 </tbody>
@@ -357,7 +353,7 @@ function AgentIcon({ plan }: { plan: DashboardPlan }) {
   );
 }
 
-function PlanRow({ plan, offline, onDelete }: { plan: DashboardPlan; offline: boolean; onDelete: () => void }) {
+function PlanRow({ plan, offline, onDelete }: { plan: DashboardPlan; offline: boolean; onDelete: () => Promise<boolean> }) {
   const bits = [plan.mode || "watch"];
   if (plan.executionStep) bits.push(plan.executionStep);
   if (plan.outcome) bits.push(plan.outcome);
@@ -368,7 +364,13 @@ function PlanRow({ plan, offline, onDelete }: { plan: DashboardPlan; offline: bo
   return (
     <tr>
       <td>
-        <span className="title">{plan.title || "Untitled plan"}</span>
+        {openUrl ? (
+          <a className="title title-link" href={openUrl}>
+            {plan.title || "Untitled plan"}
+          </a>
+        ) : (
+          <span className="title">{plan.title || "Untitled plan"}</span>
+        )}
         <span className="sub">{bits.join(", ")}</span>
         {plan.planPath ? <BrokenPath className="sub path" value={plan.planPath} /> : null}
       </td>
@@ -394,8 +396,8 @@ function PlanRow({ plan, offline, onDelete }: { plan: DashboardPlan; offline: bo
       <td className="num">{formatWhen(plan.startedAt)}</td>
       <td className="plan-actions-cell">
         <PlanRowActions
-          openUrl={openUrl}
           fileUrl={fileUrl}
+          title={plan.title || "Untitled plan"}
           offline={offline}
           planId={plan.id}
           showVersions={Boolean(plan.id && plan.historyUrl)}

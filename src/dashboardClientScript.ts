@@ -131,7 +131,14 @@ export function dashboardClientScript(apiPath: string): string {
 
       function planCell(record) {
         const cell = document.createElement('td');
-        cell.append(text('span', 'title', record.title || 'Untitled plan'));
+        const site = record.status === 'running' ? safeUrl(record.url || '') : '';
+        if (site) {
+          const link = text('a', 'title title-link', record.title || 'Untitled plan');
+          link.href = site;
+          cell.append(link);
+        } else {
+          cell.append(text('span', 'title', record.title || 'Untitled plan'));
+        }
         const bits = [record.mode || 'watch'];
         if (record.executionStep) bits.push(record.executionStep);
         if (record.outcome) bits.push(record.outcome);
@@ -183,23 +190,12 @@ export function dashboardClientScript(apiPath: string): string {
         return svg;
       }
 
-      // Lucide paths: external-link, file-text, trash-2. "more" adds three dots.
+      // Lucide paths: file-text, trash-2. "more" adds three dots.
       const iconPaths = {
-        open: ['M15 3h6v6', 'M10 14 21 3', 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6'],
         file: ['M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z', 'M14 2v4a2 2 0 0 0 2 2h4', 'M10 9H8', 'M16 13H8', 'M16 17H8'],
         trash: ['M3 6h18', 'M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6', 'M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2', 'M10 11v6', 'M14 11v6'],
         more: [],
       };
-
-      function actionLink(label, href, kind) {
-        const node = document.createElement('a');
-        node.className = 'plan-btn plan-btn-ghost plan-action';
-        node.href = href;
-        node.setAttribute('aria-label', label);
-        node.title = label;
-        node.append(actionIcon(kind));
-        return node;
-      }
 
       function menuLabel(label, kind) {
         const node = text('span', 'plan-menu-label');
@@ -245,7 +241,7 @@ export function dashboardClientScript(apiPath: string): string {
         remove.append(menuLabel('Delete', 'trash'));
         remove.addEventListener('click', () => {
           closeMenu(false);
-          deletePlan(record);
+          askDelete(record);
         });
         popup.append(remove);
         // Fixed to the trigger, so the scrolling table does not clip it.
@@ -280,22 +276,66 @@ export function dashboardClientScript(apiPath: string): string {
         return button;
       }
 
-      // Hide a plan from the dashboard. The service keeps its rows and files.
+      // Confirmation dialog for Delete. Same look as the hosted dashboard's alert dialog.
+      const confirmDialog = document.getElementById('delete-dialog');
+      const confirmName = document.getElementById('delete-dialog-name');
+      const confirmError = document.getElementById('delete-dialog-error');
+      const confirmButton = document.getElementById('delete-dialog-confirm');
+      const cancelButton = document.getElementById('delete-dialog-cancel');
+      let confirming = null;
+      let deleting = false;
+
+      function askDelete(record) {
+        confirming = record;
+        confirmName.textContent = record.title || 'Untitled plan';
+        confirmError.hidden = true;
+        confirmButton.disabled = false;
+        cancelButton.disabled = false;
+        confirmButton.textContent = 'Delete';
+        confirmDialog.showModal();
+        cancelButton.focus();
+      }
+
+      cancelButton.addEventListener('click', () => confirmDialog.close());
+      confirmDialog.addEventListener('cancel', (event) => {
+        if (deleting) event.preventDefault();
+      });
+      confirmDialog.addEventListener('click', (event) => {
+        if (event.target === confirmDialog && !deleting) confirmDialog.close();
+      });
+      confirmButton.addEventListener('click', async () => {
+        if (!confirming || deleting) return;
+        const record = confirming;
+        deleting = true;
+        confirmButton.disabled = true;
+        cancelButton.disabled = true;
+        confirmButton.textContent = 'Deleting…';
+        const ok = await deletePlan(record);
+        deleting = false;
+        if (ok) {
+          confirmDialog.close();
+          return;
+        }
+        confirmButton.disabled = false;
+        cancelButton.disabled = false;
+        confirmButton.textContent = 'Delete';
+        confirmError.hidden = false;
+      });
+
+      // Hide a plan from the dashboard. The service keeps its rows and files. False when the request failed.
       async function deletePlan(record) {
-        const title = record.title || 'Untitled plan';
-        if (!window.confirm('Delete "' + title + '" from the dashboard?')) return;
         try {
           const response = await fetch('/api/dashboard/plans/' + encodeURIComponent(record.id), { method: 'DELETE' });
           if (!response.ok) throw new Error('Request failed');
         } catch (error) {
-          window.alert('Could not delete the plan.');
-          return;
+          return false;
         }
         if (latest && Array.isArray(latest.plans)) {
           motion = 'filter';
           paint({ ...latest, plans: latest.plans.filter((plan) => plan.id !== record.id) });
         }
         refresh();
+        return true;
       }
 
       document.addEventListener('click', (event) => {
@@ -312,10 +352,6 @@ export function dashboardClientScript(apiPath: string): string {
         cell.className = 'plan-actions-cell';
         const row = document.createElement('div');
         row.className = 'plan-actions';
-        if (record.status === 'running') {
-          const site = safeUrl(record.url || '');
-          if (site) row.append(actionLink('Open', site, 'open'));
-        }
         if (record.id) row.append(moreButton(record));
         if (row.childElementCount) cell.append(row);
         return cell;

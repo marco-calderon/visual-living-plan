@@ -1,0 +1,100 @@
+.plan-alert-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.45);
+  transition: opacity 150ms var(--ease-out, ease-out);
+}
+
+.plan-alert-content {
+  box-sizing: border-box;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 51;
+  display: grid;
+  gap: var(--space-md, 16px);
+  width: min(28rem, calc(100vw - 32px));
+  padding: var(--space-xl, 24px);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-body, inherit);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+  transform: translate(-50%, -50%);
+  transition:
+    opacity 150ms var(--ease-out, ease-out),
+    transform 150ms var(--ease-out, ease-out);
+}
+
+.plan-alert-overlay[data-starting-style],
+.plan-alert-overlay[data-ending-style] {
+  opacity: 0;
+}
+
+.plan-alert-content[data-starting-style],
+.plan-alert-content[data-ending-style] {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.96);
+}
+
+.plan-alert-header {
+  display: grid;
+  gap: var(--space-xs, 8px);
+}
+
+.plan-alert-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.plan-alert-description {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.plan-alert-error {
+  margin: 0;
+  color: var(--plan-red, #dc2626);
+  font-size: 14px;
+}
+
+.plan-alert-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-xs, 8px);
+  flex-wrap: wrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-alert-content,
+  .plan-alert-overlay {
+    transition: opacity 150ms ease;
+  }
+
+  .plan-alert-content[data-starting-style],
+  .plan-alert-content[data-ending-style] {
+    transform: translate(-50%, -50%);
+  }
+}
+
+.plan-btn.plan-btn-destructive {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #ffffff;
+}
+
+.plan-btn.plan-btn-destructive:hover:not(:disabled) {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+
+.plan-btn.plan-btn-destructive:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}

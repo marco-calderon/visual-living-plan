@@ -2,7 +2,7 @@
 
 ## 2.10.0
 
-**PR:** to be added when the PR opens
+**PR:** #160
 
 **Bump:** minor
 
@@ -13,11 +13,12 @@ Plans can be deleted from the dashboard without losing their data, and each plan
 ### Bugs fixed
 
 - The row menu on the hosted dashboard showed its icons above the text with no space between them. Icons and text now sit on one centered line with a gap.
-- The Delete entry and the divider in that menu were not styled on the hosted dashboard.
+- The Delete entry and the divider in that menu were not styled on the hosted dashboard. Delete is now red.
 
 ### Improvements
 
-- Each dashboard row shows Open while the plan runs, and one More actions menu with Plan file, Versions (hosted), and Delete.
+- Each dashboard row has one More actions menu with Plan file, Versions (hosted), and Delete. The Open button is gone: the plan title opens the plan while it is running.
+- Delete asks first in a confirmation dialog that names the plan, shows progress, and stays open with an error if the request fails.
 - The dashboard table drops the Folder, Files, and Duration columns. The data is still stored, and the summary tiles still show it.
 
 ### New features

@@ -179,6 +179,9 @@ export function dashboardDocumentCss(): string {
     }
     tr:last-child td { border-bottom: 0; }
     .title { font-weight: 600; }
+    .title-link { color: var(--ink); text-decoration: none; text-underline-offset: 3px; }
+    .title-link:hover { text-decoration: underline; }
+    .title-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
     .sub { display: block; margin-top: 0.2rem; color: var(--muted); font-size: 0.82rem; line-height: 1.4; }
     .path {
       font-family: var(--font-mono);
@@ -291,6 +294,28 @@ export function dashboardDocumentCss(): string {
       .plan-btn:active { transform: none; }
     }
     .empty { color: var(--muted); }
+    .plan-btn-secondary { border-color: var(--hairline-strong); }
+    .plan-btn-secondary:hover:not(:disabled) { border-color: var(--hairline-strong-hover); }
+    .plan-btn-destructive { background: #dc2626; border-color: #dc2626; color: #ffffff; }
+    .plan-btn-destructive:hover:not(:disabled) { background: #b91c1c; border-color: #b91c1c; }
+    .plan-btn:disabled { opacity: 0.6; cursor: progress; }
+    dialog.plan-alert-content {
+      width: min(28rem, calc(100vw - 32px));
+      margin: auto;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--canvas);
+      color: var(--ink);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+    }
+    dialog.plan-alert-content[open] { display: grid; gap: 16px; }
+    dialog.plan-alert-content::backdrop { background: rgba(0, 0, 0, 0.45); }
+    .plan-alert-header { display: grid; gap: 8px; }
+    .plan-alert-title { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.4; }
+    .plan-alert-description { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    .plan-alert-error { margin: 0; color: #dc2626; font-size: 14px; }
+    .plan-alert-footer { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
     .account-card {
       display: grid;
       gap: 12px;
@@ -352,5 +377,16 @@ export function dashboardMainHtml(lede: string): string {
       </table>
       </div>
     </section>
+    <dialog id="delete-dialog" class="plan-alert-content" aria-labelledby="delete-dialog-title" aria-describedby="delete-dialog-text">
+      <div class="plan-alert-header">
+        <h2 class="plan-alert-title" id="delete-dialog-title">Delete this plan?</h2>
+        <p class="plan-alert-description" id="delete-dialog-text">“<span id="delete-dialog-name"></span>” will be removed from the dashboard. Its file and history stay stored, and serving the plan again brings it back.</p>
+      </div>
+      <p class="plan-alert-error" id="delete-dialog-error" role="alert" hidden>Could not delete the plan. Try again.</p>
+      <div class="plan-alert-footer">
+        <button type="button" class="plan-btn plan-btn-secondary" id="delete-dialog-cancel">Cancel</button>
+        <button type="button" class="plan-btn plan-btn-destructive" id="delete-dialog-confirm">Delete</button>
+      </div>
+    </dialog>
   </main>`
 }
