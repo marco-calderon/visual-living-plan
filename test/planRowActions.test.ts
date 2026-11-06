@@ -21,37 +21,25 @@ function control(source: string, label: string): string {
   return source.slice(start, end + tag.length + 3)
 }
 
-test('a row shows Open and one More actions button', () => {
+test('a row shows one More actions button and no Open button', () => {
   const source = html({
-    openUrl: 'http://127.0.0.1:9477/plans/abc/',
     fileUrl: '/archive/abc',
     planId: 'abc',
+    title: 'Rate limiting rollout',
     showVersions: true,
-    onDelete: () => {},
+    onDelete: async () => true,
   })
-
-  const open = control(source, 'Open')
-  assert.match(open, /plan-btn-ghost/)
-  assert.match(open, /plan-action/)
-  assert.match(open, /href="http:\/\/127\.0\.0\.1:9477\/plans\/abc\/"/)
-  assert.match(open, /<svg/)
-  assert.doesNotMatch(open, />\s*Open\s*</)
 
   const more = control(source, 'More actions')
   assert.match(more, /plan-btn-ghost/)
   assert.match(more, /aria-haspopup="menu"/)
   assert.match(more, /lucide-ellipsis|lucide-more-horizontal/)
 
-  // Plan file, Versions, and Delete live in the menu, not on the row.
+  // The title opens the plan. Plan file, Versions, and Delete live in the menu.
+  assert.doesNotMatch(source, /aria-label="Open"/)
   assert.doesNotMatch(source, /aria-label="Plan file"/)
   assert.doesNotMatch(source, /aria-label="Versions"/)
-  assert.equal(source.match(/class="[^"]*\bplan-action\b[^"]*"/g)?.length, 2)
-})
-
-test('a finished plan shows only the menu', () => {
-  const source = html({ fileUrl: '/archive/abc', onDelete: () => {} })
-  assert.doesNotMatch(source, /aria-label="Open"/)
-  control(source, 'More actions')
+  assert.equal(source.match(/class="[^"]*\bplan-action\b[^"]*"/g)?.length, 1)
 })
 
 test('a row with no actions renders nothing', () => {

@@ -251,6 +251,15 @@ test('the host title bar uses the dark hairline', () => {
   assert.doesNotMatch(dark, /--line:\s*#e4e4e7/)
 })
 
+test('menu entries keep the icon and text on one centered line', () => {
+  const file = readFileSync(new URL('../src/hostToolbar.css', import.meta.url), 'utf8')
+  for (const css of [file, hostToolbarCss]) {
+    assert.match(css, /\.plan-menu-label\s*\{[^}]*display:\s*inline-flex;[^}]*align-items:\s*center;[^}]*gap:/)
+    assert.match(css, /\.plan-menu-danger[^{]*\{\s*color:\s*#dc2626;/)
+    assert.match(css, /\.plan-menu-separator\s*\{/)
+  }
+})
+
 test('a loopback plan explains that an account is not required', () => {
   const html = page()
   assert.match(html, /data-plan-host="local"/)

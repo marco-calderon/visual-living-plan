@@ -148,9 +148,14 @@ export const hostToolbarCss = `
 .plan-menu-item[data-disabled] { color: var(--muted); cursor: not-allowed; }
 .plan-menu-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .plan-menu-meta { color: var(--muted); font-weight: 500; font-size: 12px; }
-.plan-menu-label { display: inline-flex; align-items: center; gap: var(--space-xs); }
-.plan-menu-label svg { width: 16px; height: 16px; flex: none; }
-.plan-menu-danger { color: var(--danger, #ef4d3e); }
+.plan-menu-label { display: inline-flex; align-items: center; gap: var(--space-xs, 8px); }
+.plan-menu-label svg { display: block; width: 16px; height: 16px; flex: none; }
+.plan-menu-danger,
+.plan-menu-danger[data-highlighted] { color: #dc2626; }
+@media (prefers-color-scheme: dark) {
+  .plan-menu-danger,
+  .plan-menu-danger[data-highlighted] { color: #f87171; }
+}
 .plan-menu-separator { height: 1px; margin: var(--space-xxs) 0; border: 0; background: var(--line); }
 .titlebar-action,
 .titlebar-user,
