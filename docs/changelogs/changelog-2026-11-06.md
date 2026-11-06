@@ -1,5 +1,33 @@
 # Changelog — 2026-11-06
 
+## 2.10.0
+
+**PR:** to be added when the PR opens
+
+**Bump:** minor
+
+### Summary
+
+Plans can be deleted from the dashboard without losing their data, and each plan row has fewer buttons. Folder, Files, and Duration are no longer table columns.
+
+### Bugs fixed
+
+- The row menu on the hosted dashboard showed its icons above the text with no space between them. Icons and text now sit on one centered line with a gap.
+- The Delete entry and the divider in that menu were not styled on the hosted dashboard.
+
+### Improvements
+
+- Each dashboard row shows Open while the plan runs, and one More actions menu with Plan file, Versions (hosted), and Delete.
+- The dashboard table drops the Folder, Files, and Duration columns. The data is still stored, and the summary tiles still show it.
+
+### New features
+
+- Delete a plan from the local or hosted dashboard. It sets `deletedAt` in the plan's meta and hides the plan and its finished runs. Nothing is removed. Serving or registering the plan again shows it again. Routes: `DELETE /api/dashboard/plans/:id` (local) and `DELETE /api/account/plans/:planId` (hosted).
+
+### Notes
+
+No registry restart needed beyond the usual version check.
+
 ## 2.9.0
 
 **PR:** to be added when the PR opens
