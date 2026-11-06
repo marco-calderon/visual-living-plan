@@ -209,11 +209,10 @@ export async function startRegistryServer(options: {
   })
 
   function dashboardPlans(window?: RunWindow): PlanRecord[] {
-    return [
-      ...planHost.dashboardRecords(),
-      ...store.list().map((record) => runningPlan(record)),
-      ...store.listRuns(window),
-    ]
+    // Plans deleted from the dashboard keep their rows. They are only left out here.
+    const deleted = store.deletedPlanIds()
+    const open = [...planHost.dashboardRecords(), ...store.list().map((record) => runningPlan(record))]
+    return [...open.filter((record) => !deleted.has(record.id)), ...store.listRuns(window)]
   }
 
   const app = registerPlanRoutes(
@@ -273,6 +272,14 @@ export async function startRegistryServer(options: {
         const now = Date.now()
         const range = periodRange(period, now)
         return buildDashboard(dashboardPlans(range), period, now)
+      })
+      .delete('/api/dashboard/plans/:id', ({ params, set }) => {
+        const id = routeId(params.id)
+        if (!id || !store.softDelete(id)) {
+          set.status = 404
+          return { error: 'Plan not found' }
+        }
+        return { ok: true }
       })
       .get('/api/plans', () => {
         store.prune({ staleMs })
@@ -423,6 +430,8 @@ export async function startRegistryServer(options: {
         }
         const existing = store.get(parsed.id)
         store.upsert(existing ? { ...parsed, startedAt: existing.startedAt } : parsed)
+        // A plan that registers again shows on the dashboard again.
+        store.restore(parsed.id)
         await archivePlanFile(plansDir, parsed.id, parsed.planPath)
         return { ok: true, process: store.get(parsed.id) }
       })

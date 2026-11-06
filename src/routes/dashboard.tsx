@@ -183,6 +183,28 @@ function DashboardPage() {
     setFilter(next);
   }
 
+  /** Hide a plan from this account's dashboard. The plan and its versions stay stored. */
+  async function deletePlan(plan: DashboardPlan) {
+    const title = plan.title || "Untitled plan";
+    if (!window.confirm(`Delete "${title}" from the dashboard?`)) return;
+    const response = await fetch(`/api/account/plans/${encodeURIComponent(plan.id)}`, {
+      method: "DELETE",
+      credentials: "include",
+    }).catch(() => null);
+    if (!response?.ok) {
+      window.alert("Could not delete the plan.");
+      return;
+    }
+    setShift("filter");
+    // Drop the row now. The next read confirms it.
+    queryClient.setQueriesData<DashboardResult>({ queryKey: ["account-dashboard"] }, (current) =>
+      current
+        ? { ...current, body: { ...current.body, plans: current.body.plans.filter((row) => row.id !== plan.id) } }
+        : current,
+    );
+    void queryClient.invalidateQueries({ queryKey: ["account-dashboard"] });
+  }
+
   const plans = payload?.plans ?? [];
   const shown = visiblePlans(plans, filter);
   const offline = !online || offlineAt !== null;
@@ -264,22 +286,21 @@ function DashboardPage() {
                     <th scope="col">Plan</th>
                     <th scope="col">Status</th>
                     <th scope="col">Completion</th>
-                    <th scope="col">Folder</th>
-                    <th scope="col">Files</th>
                     <th scope="col">Started</th>
-                    <th scope="col">Duration</th>
                     <th scope="col" />
                   </tr>
                 </thead>
                 <tbody>
                   {payload && shown.length === 0 ? (
                     <tr>
-                      <td className="empty" colSpan={8}>
+                      <td className="empty" colSpan={5}>
                         No plans in this view.
                       </td>
                     </tr>
                   ) : (
-                    shown.map((plan) => <PlanRow key={plan.id} plan={plan} offline={offline} />)
+                    shown.map((plan) => (
+                      <PlanRow key={plan.id} plan={plan} offline={offline} onDelete={() => void deletePlan(plan)} />
+                    ))
                   )}
                 </tbody>
               </table>
@@ -336,7 +357,7 @@ function AgentIcon({ plan }: { plan: DashboardPlan }) {
   );
 }
 
-function PlanRow({ plan, offline }: { plan: DashboardPlan; offline: boolean }) {
+function PlanRow({ plan, offline, onDelete }: { plan: DashboardPlan; offline: boolean; onDelete: () => void }) {
   const bits = [plan.mode || "watch"];
   if (plan.executionStep) bits.push(plan.executionStep);
   if (plan.outcome) bits.push(plan.outcome);
@@ -370,17 +391,7 @@ function PlanRow({ plan, offline }: { plan: DashboardPlan; offline: boolean }) {
           answers
         </span>
       </td>
-      <td>
-        {plan.directory ? <BrokenPath className="path" value={plan.directory} /> : null}
-        {plan.git?.branch ? (
-          <span className="sub">
-            {plan.git.branch}, {plan.git.dirty ? "dirty" : "clean"}
-          </span>
-        ) : null}
-      </td>
-      <td className="num">{plan.filesModified ?? 0}</td>
       <td className="num">{formatWhen(plan.startedAt)}</td>
-      <td className="num">{formatDuration(plan.durationMs)}</td>
       <td className="plan-actions-cell">
         <PlanRowActions
           openUrl={openUrl}
@@ -388,6 +399,7 @@ function PlanRow({ plan, offline }: { plan: DashboardPlan; offline: boolean }) {
           offline={offline}
           planId={plan.id}
           showVersions={Boolean(plan.id && plan.historyUrl)}
+          onDelete={onDelete}
         />
       </td>
     </tr>

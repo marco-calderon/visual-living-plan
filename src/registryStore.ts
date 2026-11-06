@@ -60,12 +60,21 @@ export type RegistryStore = {
   listSessions(): StoredPlanSession[]
   deleteSession(id: string): boolean
   saveRun(record: PlanRecord): void
+  /** Finished runs the dashboard shows. Runs deleted from the dashboard are left out. */
   listRuns(window?: RunWindow): PlanRecord[]
+  /** Hide a plan and its finished runs from the dashboard. Nothing is removed. False when no row has that id. */
+  softDelete(id: string, at?: number): boolean
+  /** Show the plan row again. Called when the plan is served again. Its earlier runs stay hidden. */
+  restore(id: string): void
+  /** Ids of plan rows deleted from the dashboard. */
+  deletedPlanIds(): Set<string>
   close(): void
 }
 
 type Database = BunSQLiteDatabase<Record<string, unknown>>
 type PlanRow = typeof plans.$inferSelect
+
+const notDeleted = (meta: typeof plans.meta | typeof planRuns.meta) => sql`json_extract(${meta}, '$.deletedAt') IS NULL`
 
 const runningProcess = and(eq(plans.status, 'running'), sql`json_extract(${plans.meta}, '$.pid') IS NOT NULL`)
 
@@ -372,7 +381,11 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
         heartbeatAt: record.heartbeatAt,
         meta: metaFromRecord(record),
       }
-      const existing = db.select({ runId: planRuns.runId }).from(planRuns).where(eq(planRuns.runId, runId)).get()
+      const existing = db.select({ runId: planRuns.runId, meta: planRuns.meta }).from(planRuns).where(eq(planRuns.runId, runId)).get()
+      // A run of a plan deleted from the dashboard stays hidden.
+      const planRow = db.select({ meta: plans.meta }).from(plans).where(eq(plans.id, record.id)).get()
+      const deletedAt = (existing ? readMeta(existing.meta).deletedAt : null) ?? (planRow ? readMeta(planRow.meta).deletedAt : null)
+      values.meta.deletedAt = deletedAt
       if (existing) db.update(planRuns).set(values).where(eq(planRuns.runId, runId)).run()
       else db.insert(planRuns).values({ runId, ...values }).run()
     },
@@ -383,14 +396,45 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
             .from(planRuns)
             .where(
               and(
+                notDeleted(planRuns.meta),
                 lte(planRuns.startedAt, window.to),
                 gte(sql`COALESCE(${planRuns.endedAt}, ${planRuns.heartbeatAt}, ${planRuns.startedAt})`, window.from),
               ),
             )
             .orderBy(desc(planRuns.startedAt))
             .all()
-        : db.select().from(planRuns).orderBy(desc(planRuns.startedAt)).all()
+        : db.select().from(planRuns).where(notDeleted(planRuns.meta)).orderBy(desc(planRuns.startedAt)).all()
       return rows.map((row) => toRecord(row))
+    },
+    softDelete(id, at = Date.now()) {
+      return db.transaction((tx) => {
+        const mark = sql`json_set(${plans.meta}, '$.deletedAt', ${at})`
+        const planRows = tx.update(plans).set({ meta: mark }).where(eq(plans.id, id)).returning({ id: plans.id }).all()
+        const runMark = sql`json_set(${planRuns.meta}, '$.deletedAt', ${at})`
+        const runRows = tx
+          .update(planRuns)
+          .set({ meta: runMark })
+          .where(and(eq(planRuns.id, id), notDeleted(planRuns.meta)))
+          .returning({ runId: planRuns.runId })
+          .all()
+        if (planRows.length > 0 || runRows.length > 0) return true
+        // Already deleted counts as done.
+        return Boolean(tx.select({ runId: planRuns.runId }).from(planRuns).where(eq(planRuns.id, id)).get())
+      })
+    },
+    restore(id) {
+      db.update(plans)
+        .set({ meta: sql`json_remove(${plans.meta}, '$.deletedAt')` })
+        .where(eq(plans.id, id))
+        .run()
+    },
+    deletedPlanIds() {
+      const rows = db
+        .select({ id: plans.id })
+        .from(plans)
+        .where(sql`json_extract(${plans.meta}, '$.deletedAt') IS NOT NULL`)
+        .all()
+      return new Set(rows.map((row) => row.id))
     },
     close() {
       if (closed) return

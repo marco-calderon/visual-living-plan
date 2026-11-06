@@ -21,35 +21,41 @@ function control(source: string, label: string): string {
   return source.slice(start, end + tag.length + 3)
 }
 
-test('plan actions render as icon buttons and versions includes a chevron', () => {
+test('a row shows Open and one More actions button', () => {
   const source = html({
     openUrl: 'http://127.0.0.1:9477/plans/abc/',
     fileUrl: '/archive/abc',
     planId: 'abc',
     showVersions: true,
+    onDelete: () => {},
   })
 
-  for (const label of ['Open', 'Plan file', 'Versions']) {
-    const node = control(source, label)
-    assert.match(node, /plan-btn-ghost/)
-    assert.match(node, /plan-action/)
-    assert.doesNotMatch(node, new RegExp(`>\\s*${label}\\s*<`))
-  }
-
   const open = control(source, 'Open')
+  assert.match(open, /plan-btn-ghost/)
+  assert.match(open, /plan-action/)
   assert.match(open, /href="http:\/\/127\.0\.0\.1:9477\/plans\/abc\/"/)
   assert.match(open, /<svg/)
+  assert.doesNotMatch(open, />\s*Open\s*</)
 
-  const file = control(source, 'Plan file')
-  assert.match(file, /href="\/archive\/abc"/)
-  assert.match(file, /<svg/)
+  const more = control(source, 'More actions')
+  assert.match(more, /plan-btn-ghost/)
+  assert.match(more, /aria-haspopup="menu"/)
+  assert.match(more, /lucide-ellipsis|lucide-more-horizontal/)
 
-  const versions = control(source, 'Versions')
-  assert.match(versions, /plan-action-menu/)
-  assert.match(versions, /aria-haspopup="menu"/)
-  assert.match(versions, /lucide-chevron-down/)
-  assert.match(versions, /<svg[^>]*lucide-history/)
-  assert.equal(source.match(/data-slot="tooltip-trigger"/g)?.length, 3)
+  // Plan file, Versions, and Delete live in the menu, not on the row.
+  assert.doesNotMatch(source, /aria-label="Plan file"/)
+  assert.doesNotMatch(source, /aria-label="Versions"/)
+  assert.equal(source.match(/class="[^"]*\bplan-action\b[^"]*"/g)?.length, 2)
+})
+
+test('a finished plan shows only the menu', () => {
+  const source = html({ fileUrl: '/archive/abc', onDelete: () => {} })
+  assert.doesNotMatch(source, /aria-label="Open"/)
+  control(source, 'More actions')
+})
+
+test('a row with no actions renders nothing', () => {
+  assert.equal(html({}), '')
 })
 
 test('the versions menu trigger is an icon button with a chevron', () => {
@@ -72,17 +78,4 @@ test('the versions menu trigger is an icon button with a chevron', () => {
   assert.match(versions, /lucide-chevron-down/)
   assert.doesNotMatch(versions, />\s*Versions\s*</)
   assert.match(versions, /data-slot="tooltip-trigger"/)
-})
-
-test('an offline plan file stays an icon button and does not navigate', () => {
-  const source = html({
-    fileUrl: '/archive/abc',
-    offline: true,
-  })
-  const file = control(source, 'Plan file')
-  assert.match(file, /plan-btn-ghost/)
-  assert.match(file, /aria-disabled="true"/)
-  assert.doesNotMatch(file, /href=/)
-  assert.match(file, /data-slot="tooltip-trigger"/)
-  assert.doesNotMatch(file, />\s*Plan file\s*</)
 })

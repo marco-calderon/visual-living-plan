@@ -24,6 +24,7 @@ export function dashboardDocumentCss(): string {
       --good-soft: #dcf5e2;
       --warn: #9a3412;
       --warn-soft: #ffedd5;
+      --danger: #c9372c;
       --shadow: none;
       --shadow-popover: 0 4px 6px rgba(0, 0, 0, 0.08);
       --font-body: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -62,6 +63,7 @@ export function dashboardDocumentCss(): string {
         --good-soft: rgba(134, 239, 172, 0.12);
         --warn: #fdba74;
         --warn-soft: rgba(253, 186, 116, 0.12);
+        --danger: #ffc9bd;
         --shadow: none;
         --shadow-popover: 0 4px 6px rgba(0, 0, 0, 0.08);
       }
@@ -155,7 +157,7 @@ export function dashboardDocumentCss(): string {
       background: var(--panel);
       box-shadow: var(--shadow);
     }
-    table { width: 100%; border-collapse: collapse; min-width: 860px; }
+    table { width: 100%; border-collapse: collapse; min-width: 640px; }
     caption {
       text-align: left;
       padding: 16px 16px 0;
@@ -243,6 +245,12 @@ export function dashboardDocumentCss(): string {
       justify-content: flex-end;
       gap: var(--space-xxs);
     }
+    .plan-row-menu {
+      position: fixed;
+      z-index: 30;
+    }
+    .plan-row-menu .plan-menu-item:hover,
+    .plan-row-menu .plan-menu-item:focus-visible { background: var(--accent-soft); }
     .plan-btn {
       display: inline-flex;
       align-items: center;
@@ -336,10 +344,7 @@ export function dashboardMainHtml(lede: string): string {
             <th scope="col">Plan</th>
             <th scope="col">Status</th>
             <th scope="col">Completion</th>
-            <th scope="col">Folder</th>
-            <th scope="col">Files</th>
             <th scope="col">Started</th>
-            <th scope="col">Duration</th>
             <th scope="col"></th>
           </tr>
         </thead>

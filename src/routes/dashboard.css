@@ -118,7 +118,7 @@ body {
 .dashboard table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 860px;
+  min-width: 640px;
 }
 
 .dashboard caption {

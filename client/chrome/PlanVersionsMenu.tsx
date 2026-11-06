@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, History } from 'lucide-react'
+import { ChevronDown, ChevronRight, History } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { formatWhen } from '../../src/dashboardFormat.ts'
 import type { VersionRow } from '../../src/offlineSync.ts'
@@ -7,7 +7,15 @@ import { versionMenuEntries, type VersionMenuEntry } from '../../src/planVersion
 import { currentOfflineHandle, startOfflineEngine } from '../offline/engine.ts'
 import { rememberPlanVersions } from '../offline/versions.ts'
 import { Button } from '../ui/button.tsx'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLinkItem, DropdownMenuTrigger } from '../ui/dropdown-menu.tsx'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLinkItem,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu.tsx'
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip.tsx'
 
 type PlanVersionsMenuProps = {
@@ -83,10 +91,9 @@ function useStoredVersions(planId: string): VersionRow[] {
   return rows
 }
 
-export function PlanVersionsMenu({ planId, label, triggerClassName, liveHref, prefetch = false, iconOnly = false, current = null }: PlanVersionsMenuProps) {
-  const [open, setOpen] = useState(false)
+/** True while the browser reports no connection. */
+function useOffline(): boolean {
   const [offline, setOffline] = useState(() => (typeof navigator === 'undefined' ? false : navigator.onLine === false))
-
   useEffect(() => {
     function onOnline() {
       setOffline(false)
@@ -101,17 +108,75 @@ export function PlanVersionsMenu({ planId, label, triggerClassName, liveHref, pr
       window.removeEventListener('offline', onOffline)
     }
   }, [])
+  return offline
+}
 
-  // Read when the menu opens (or right away with prefetch), then reused for 30 s across menus.
+/** Menu rows for one plan's versions. The list is read once `enabled` is true, then reused for 30 s across menus. */
+function useVersionEntries(planId: string, enabled: boolean, liveHref?: string): { entries: MenuRow[]; offline: boolean } {
+  const offline = useOffline()
   const history = useQuery({
     queryKey: ['plan-versions', planId],
     queryFn: () => loadHistory(planId),
-    enabled: (prefetch || open) && !offline,
+    enabled: enabled && !offline,
     staleTime: 30_000,
   })
-
   const stored = useStoredVersions(planId)
-  const entries: MenuRow[] = versionRows(planId, history.data, stored, liveHref)
+  return { entries: versionRows(planId, history.data, stored, liveHref), offline }
+}
+
+function VersionItems({ entries, offline, label, current }: { entries: MenuRow[]; offline: boolean; label: string; current: number | null }) {
+  return (
+    <>
+      {entries.map((entry) => {
+        const when = entry.kind === 'version' ? formatWhen(entry.createdAt) : ''
+        const isCurrent = entry.kind === 'live' ? current == null && label === 'Live' : entry.seq === current
+        // Offline, a version opens only when this device saved it.
+        if (entry.kind === 'version' && offline && !entry.stored) {
+          return (
+            <DropdownMenuItem key={`${entry.kind}-${entry.seq}-${entry.href}`} disabled title="Needs a connection">
+              <span>{entry.label}</span>
+              {when ? <span className="plan-menu-meta">{when}</span> : null}
+            </DropdownMenuItem>
+          )
+        }
+        return (
+          <DropdownMenuLinkItem
+            key={`${entry.kind}-${entry.seq ?? 'live'}`}
+            href={entry.href}
+            aria-current={isCurrent ? 'page' : undefined}
+          >
+            <span>{entry.label}</span>
+            {when ? <span className="plan-menu-meta">{when}</span> : null}
+          </DropdownMenuLinkItem>
+        )
+      })}
+    </>
+  )
+}
+
+/** A "Versions" submenu for a menu that already exists, such as a dashboard row's actions. */
+export function PlanVersionsSubmenu({ planId, label = 'Versions' }: { planId: string; label?: string }) {
+  const [open, setOpen] = useState(false)
+  const { entries, offline } = useVersionEntries(planId, open)
+  return (
+    <DropdownMenuSub open={open} onOpenChange={setOpen}>
+      <DropdownMenuSubTrigger>
+        <span className="plan-menu-label">
+          <History size={16} aria-hidden="true" />
+          {label}
+        </span>
+        <ChevronRight size={14} aria-hidden="true" />
+      </DropdownMenuSubTrigger>
+      <DropdownMenuContent side="inline-end" align="start" sideOffset={4}>
+        <VersionItems entries={entries} offline={offline} label={label} current={null} />
+      </DropdownMenuContent>
+    </DropdownMenuSub>
+  )
+}
+
+export function PlanVersionsMenu({ planId, label, triggerClassName, liveHref, prefetch = false, iconOnly = false, current = null }: PlanVersionsMenuProps) {
+  const [open, setOpen] = useState(false)
+  const { entries, offline } = useVersionEntries(planId, prefetch || open, liveHref)
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -127,29 +192,7 @@ export function PlanVersionsMenu({ planId, label, triggerClassName, liveHref, pr
         </DropdownMenuTrigger>
       )}
       <DropdownMenuContent>
-        {entries.map((entry) => {
-          const when = entry.kind === 'version' ? formatWhen(entry.createdAt) : ''
-          const isCurrent = entry.kind === 'live' ? current == null && label === 'Live' : entry.seq === current
-          // Offline, a version opens only when this device saved it.
-          if (entry.kind === 'version' && offline && !entry.stored) {
-            return (
-              <DropdownMenuItem key={`${entry.kind}-${entry.seq}-${entry.href}`} disabled title="Needs a connection">
-                <span>{entry.label}</span>
-                {when ? <span className="plan-menu-meta">{when}</span> : null}
-              </DropdownMenuItem>
-            )
-          }
-          return (
-            <DropdownMenuLinkItem
-              key={`${entry.kind}-${entry.seq ?? 'live'}`}
-              href={entry.href}
-              aria-current={isCurrent ? 'page' : undefined}
-            >
-              <span>{entry.label}</span>
-              {when ? <span className="plan-menu-meta">{when}</span> : null}
-            </DropdownMenuLinkItem>
-          )
-        })}
+        <VersionItems entries={entries} offline={offline} label={label} current={current} />
       </DropdownMenuContent>
     </DropdownMenu>
   )

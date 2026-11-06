@@ -642,3 +642,26 @@ test('plan room execution read includes the expected workflow and the run state'
   assert.equal(running.step, 'Build')
   assert.ok(running.planned)
 })
+
+test('the hosted dashboard leaves out plans deleted from it', () => {
+  const now = Date.UTC(2026, 9, 30, 18, 0, 0)
+  const row = (id: string, meta: string) => ({
+    id,
+    title: id,
+    mode: 'watch',
+    ended_at: null,
+    started_at: now - 60_000,
+    version_seq: null,
+    version_title: null,
+    version_at: null,
+    meta,
+  })
+  const payload = hostedDashboard(
+    [row('kept1234', '{}'), row('gone1234', JSON.stringify({ deletedAt: now - 1000 }))],
+    'day',
+    'https://plans.example',
+    now,
+  )
+  assert.deepEqual(payload.plans.map((plan) => plan.id), ['kept1234'])
+  assert.equal(payload.summary.plans, 1)
+})

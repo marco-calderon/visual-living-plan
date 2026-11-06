@@ -29,6 +29,12 @@ test('loopback plan routes stay open and non-loopback plan routes require the se
   assert.equal(allow('10.0.0.4', '/plans/abcdefghi/', { enabled: false }).action, 'allow')
 })
 
+test('deleting a plan from the dashboard needs the LAN secret off loopback', () => {
+  assert.equal(allow('192.168.1.20', '/api/dashboard/plans/abcdefghi', { method: 'DELETE' }).action, 'deny')
+  assert.equal(allow('192.168.1.20', '/api/dashboard/plans/abcdefghi', { method: 'DELETE', cookie: secret }).action, 'allow')
+  assert.equal(allow('127.0.0.1', '/api/dashboard/plans/abcdefghi', { method: 'DELETE' }).action, 'allow')
+})
+
 test('the agent stream is not granted by the LAN cookie', () => {
   assert.equal(allow('192.168.1.20', '/plans/abcdefghi/api/agent-events').action, 'allow')
   assert.equal(allow('192.168.1.20', '/plans/abcdefghi/api/agent-events/ack', { method: 'POST' }).action, 'allow')

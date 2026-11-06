@@ -62,6 +62,9 @@ export function createHostApp(env: HostEnv, options: { auth?: (request: Request)
     .get('/api/account/dashboard', ({ request }) =>
       accountDashboardApi(request, env, authFor(request), originFor(request, env)),
     )
+    .delete('/api/account/plans/:planId', ({ request, params }) =>
+      deleteAccountPlan(request, env, authFor(request), params.planId),
+    )
     .post('/api/plans', ({ request }) => registerPlan(request, env, authFor(request), originFor(request, env)))
     .get('/api/plans/:planId/versions', ({ request, params }) => hostedPlanVersions(request, env, params.planId))
     .get('/api/auth/cli-session', ({ request }) => cliSession(request, env, authFor(request), new URL(request.url)))
@@ -114,6 +117,25 @@ async function accountDashboardApi(
     return text(500, 'Could not read the dashboard.')
   }
   return Response.json(hostedDashboard(await backfillHostedPlans(env, session.user.id, rows), selected, origin))
+}
+
+/** Hide a plan from the account dashboard. The row, its object, and its versions stay. */
+async function deleteAccountPlan(
+  request: Request,
+  env: HostEnv,
+  auth: ReturnType<typeof createAuth>,
+  planId: string,
+): Promise<Response> {
+  const session = await readSession(auth, request, env.DB)
+  if (!session) return text(401, 'Sign in required')
+  if (!ID.test(planId)) return text(404, 'Plan not found')
+  const result = await env.DB.prepare(
+    `UPDATE plans SET meta = json_set(COALESCE(meta, '{}'), '$.deletedAt', ?) WHERE id = ? AND user_id = ?`,
+  )
+    .bind(Date.now(), planId, session.user.id)
+    .run()
+  if (!result.meta?.changes) return text(404, 'Plan not found')
+  return Response.json({ ok: true })
 }
 
 async function listHostedPlanRows(env: HostEnv, userId: string): Promise<HostedPlanRow[]> {
@@ -295,7 +317,7 @@ async function registerPlan(request: Request, env: HostEnv, auth: ReturnType<typ
   const now = Date.now()
   if (existing) {
     await env.DB.prepare(
-      `UPDATE plans SET status = 'running', ended_at = NULL, title = ?, mode = ?, heartbeat_at = ?, meta = json_set(COALESCE(meta, '{}'), '$.tier', ?) WHERE id = ?`,
+      `UPDATE plans SET status = 'running', ended_at = NULL, title = ?, mode = ?, heartbeat_at = ?, meta = json_remove(json_set(COALESCE(meta, '{}'), '$.tier', ?), '$.deletedAt') WHERE id = ?`,
     )
       .bind(title, mode, now, tier, cloudId)
       .run()

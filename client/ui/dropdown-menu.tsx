@@ -59,3 +59,27 @@ export function DropdownMenuLinkItem({ className, ...props }: MenuPrimitive.Link
     />
   )
 }
+
+export function DropdownMenuSub(props: MenuPrimitive.SubmenuRoot.Props) {
+  return <MenuPrimitive.SubmenuRoot data-slot="dropdown-menu-sub" {...props} />
+}
+
+export function DropdownMenuSubTrigger({ className, ...props }: MenuPrimitive.SubmenuTrigger.Props) {
+  return (
+    <MenuPrimitive.SubmenuTrigger
+      data-slot="dropdown-menu-sub-trigger"
+      className={className ? `plan-menu-item ${className}` : 'plan-menu-item'}
+      {...props}
+    />
+  )
+}
+
+export function DropdownMenuSeparator({ className, ...props }: MenuPrimitive.Separator.Props) {
+  return (
+    <MenuPrimitive.Separator
+      data-slot="dropdown-menu-separator"
+      className={className ? `plan-menu-separator ${className}` : 'plan-menu-separator'}
+      {...props}
+    />
+  )
+}

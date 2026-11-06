@@ -1346,3 +1346,33 @@ test('a plan is active only while an agent holds its stream open, and the page h
     await rm(home, { recursive: true, force: true })
   }
 })
+
+test('deleting a plan from the dashboard hides it, keeps its data, and serving it again brings it back', async () => {
+  const home = await tempHome()
+  const registry = await startRegistryServer({ home, port: 0, token: 'test-token-value' })
+  const listed = async () => {
+    const body = (await (await fetch(new URL('/api/dashboard?period=day', registry.url))).json()) as {
+      plans: Array<{ id: string }>
+    }
+    return body.plans.map((entry) => entry.id)
+  }
+  try {
+    const hosted = await registerHostedPlan(registry.url, registry.token, { planPath, mode: 'watch' })
+    assert.ok((await listed()).includes(hosted.id))
+
+    const removed = await fetch(new URL(`/api/dashboard/plans/${hosted.id}`, registry.url), { method: 'DELETE' })
+    assert.equal(removed.status, 200)
+    assert.ok(!(await listed()).includes(hosted.id))
+    // The plan itself is still hosted.
+    assert.equal((await fetch(hosted.url)).status, 200)
+
+    const missing = await fetch(new URL('/api/dashboard/plans/nope-nope-nope', registry.url), { method: 'DELETE' })
+    assert.equal(missing.status, 404)
+
+    await registerHostedPlan(registry.url, registry.token, { planPath, mode: 'watch' })
+    assert.ok((await listed()).includes(hosted.id))
+  } finally {
+    await registry.close()
+    await rm(home, { recursive: true, force: true })
+  }
+})
