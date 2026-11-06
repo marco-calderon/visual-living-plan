@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { RadioGroup } from '../ui/radio-group.tsx'
 import { Box } from './Box'
 import { CardLabel, type CardIcon } from './CardLabel'
@@ -36,17 +36,21 @@ export function Choice({
   onSelect,
 }: ChoiceProps) {
   const [localSelected, setLocalSelected] = useState<{ id: string; label: string } | undefined>(undefined)
-  const picked = useRef(false)
   const labels = useRef(new Map<string, string>())
-  const selected = selectedId ?? localSelected?.id
+  // The latest pick shows until the saved answer catches up. A different saved answer, from another tab, wins after that.
+  const selected = localSelected?.id ?? selectedId
   const selectedLabel =
     localSelected && localSelected.id === selected ? localSelected.label : (savedLabel ?? selected)
-  const disabled = Boolean(locked) || selected !== undefined
+  // A choice stays open: picking another option replaces the answer. Only a live run locks it.
+  const disabled = Boolean(locked)
   const { matches, rest } = partitionEntries(children, 'option')
 
+  useEffect(() => {
+    if (localSelected && selectedId === localSelected.id) setLocalSelected(undefined)
+  }, [selectedId, localSelected])
+
   function select(optionId: string, label: string) {
-    if (locked || selected !== undefined || picked.current) return
-    picked.current = true
+    if (locked || optionId === selected) return
     setLocalSelected({ id: optionId, label })
     onSelect?.({ kind: 'choice', id, optionId, label })
   }
