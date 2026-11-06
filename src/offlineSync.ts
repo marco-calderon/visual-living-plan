@@ -593,7 +593,11 @@ export function applyLiveToPlan(row: PlanRow, event: string, data: unknown): Pla
     const mode = record.mode
     if (mode === 'watch' || mode === 'comment' || mode === 'review') return { ...row, mode }
   }
-  if (event === 'execution') return { ...row, locked: Boolean(record.active) }
+  if (event === 'execution') {
+    // A start or stop moves the revision. The page's next answer must carry the new one.
+    const revision = typeof record.revision === 'number' ? Math.max(row.revision, record.revision) : row.revision
+    return { ...row, locked: Boolean(record.active), revision }
+  }
   if (event === 'review') return { ...row, review: data }
   if (event === 'hello') {
     // Sent each time the page's stream opens: the run, the mode, and the review as they are now.

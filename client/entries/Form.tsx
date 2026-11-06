@@ -230,13 +230,14 @@ export function Form({ id, prompt, fields, values, locked, children, className, 
             {children}
             {immediate ? null : (
               <div className="plan-form-actions">
+                {/* Separate keys: reusing one button would turn the Edit click into a submit. */}
                 {submitted && !editing ? (
-                  <Button type="button" data-form-edit={id} onClick={startEdit} disabled={locked}>
+                  <Button key="edit" type="button" data-form-edit={id} onClick={startEdit} disabled={locked}>
                     <Pencil size={16} aria-hidden="true" />
                     Edit
                   </Button>
                 ) : (
-                  <Button type="submit" variant="primary" disabled={disabled}>
+                  <Button key="submit" type="submit" variant="primary" disabled={disabled}>
                     Submit
                   </Button>
                 )}

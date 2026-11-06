@@ -181,6 +181,14 @@ test('agent source replaces an older browser copy and a large body is not stored
   assert.deepEqual(stored.responses.saved, { optionId: 'server' })
 })
 
+test('a live execution event carries the revision the next answer must send', () => {
+  const started = applyLiveToPlan(row({ revision: 3 }), 'execution', { active: true, revision: 4 })
+  assert.equal(started.revision, 4)
+  assert.equal(started.locked, true)
+  const older = applyLiveToPlan(row({ revision: 5 }), 'execution', { active: false })
+  assert.equal(older.revision, 5)
+})
+
 test('live plan data and catalog rows stay free of the source body', () => {
   const next = applyLiveToPlan(row({ source: 'one', revision: 1 }), 'plan', { source: 'two', revision: 2, title: 'Next' })
   assert.equal(next.source, 'two')

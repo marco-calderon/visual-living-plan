@@ -27,6 +27,10 @@ import {
   touchPlan,
   StaleRevision,
   submitInteraction,
+  addressComment,
+  liveExecution,
+  markCommentAddressing,
+  submitComment,
   type PlanSql,
 } from '../src/host/planRoom.ts'
 import { planUrlOnCalledOrigin, registerCloudPlan, uploadSource } from '../src/cloudClient.ts'
@@ -438,7 +442,7 @@ test('the hosted dashboard shows the progress saved on the plan row', async () =
 test('serving an existing plan opens it again', () => {
   const db = new Database(':memory:')
   const sql = sqlOf(db)
-  initPlan(sql, { token: 'plan-token', title: 'Demo', mode: 'watch', tier: 'free', source: '# Demo\n' })
+  initPlan(sql, { token: 'plan-token', title: 'Demo', mode: 'watch', tier: 'free', source: '# Draft\n' })
   putSource(sql, { markdown: '# Demo\n', revision: 0 })
   closePlan(sql)
   const again = initPlan(sql, { token: 'plan-token', title: 'Cloud showcase', mode: 'watch', tier: 'pro', source: '# Cloud showcase\n' })
@@ -453,6 +457,42 @@ test('serving an existing plan opens it again', () => {
     () => initPlan(sql, { token: 'other-token', title: 'Cloud showcase', mode: 'watch', tier: 'pro', source: '# Cloud showcase\n' }),
     /already hosted/,
   )
+})
+
+test('an unchanged upload keeps the revision, and a change tells pages the new one', () => {
+  const db = new Database(':memory:')
+  const sql = sqlOf(db)
+  initPlan(sql, { token: 'plan-token', title: 'Demo', mode: 'watch', tier: 'free', source: '# Demo\n' })
+  const same = putSource(sql, { markdown: '# Demo\n', revision: 0 })
+  assert.equal(same.revision, 0)
+  assert.deepEqual(same.outbound, [])
+  const changed = putSource(sql, { markdown: '# Demo v2\n', revision: 0 })
+  assert.equal(changed.revision, 1)
+  assert.equal((changed.outbound[0]?.data as { revision?: number }).revision, 1)
+})
+
+test('an execution start or stop sends the moved revision to pages', async () => {
+  const db = new Database(':memory:')
+  const sql = sqlOf(db)
+  initPlan(sql, { token: 'plan-token', title: 'Demo', mode: 'watch', tier: 'free', source: '# Demo\n' })
+  const started = putExecution(sql, { active: true })
+  assert.equal((started.outbound[0]?.data as { revision?: number }).revision, 1)
+  assert.equal((await liveExecution(sql)).revision, 1)
+  putExecution(sql, { active: false })
+  assert.equal((await liveExecution(sql)).revision, 2)
+})
+
+test('addressing marks a comment in progress, and address resolves it', () => {
+  const db = new Database(':memory:')
+  const sql = sqlOf(db)
+  initPlan(sql, { token: 'plan-token', title: 'Demo', mode: 'comment', tier: 'free', source: '# Demo\n' })
+  const created = submitComment(sql, { partId: 'markdown:0', text: 'Seen?' }).body as { comment: { id: string } }
+  const working = markCommentAddressing(sql, created.comment.id).body as { comment: { addressingAt: number | null; addressedAt: number | null } }
+  assert.equal(typeof working.comment.addressingAt, 'number')
+  assert.equal(working.comment.addressedAt, null)
+  const done = addressComment(sql, created.comment.id, {}).body as { comment: { addressingAt: number | null; addressedAt: number | null } }
+  assert.equal(done.comment.addressingAt, null)
+  assert.equal(typeof done.comment.addressedAt, 'number')
 })
 
 test('a plan room that was never registered reports not hosted instead of a SQL error', () => {

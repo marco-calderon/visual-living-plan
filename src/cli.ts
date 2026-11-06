@@ -78,7 +78,7 @@ Usage:
   live-plan serve <file.plan.md> [--port N] [--host HOST] [--config file] [--no-open|--open] [--detach]
   live-plan review <file.plan.md> [--port N] [--iteration N] [--timeout 30m] [--config file] [--no-open|--open]
   live-plan wait <id> --url <plan-url> [--token TOKEN] [--timeout 30m]
-  live-plan events --url <plan-url> [--token TOKEN]
+  live-plan events --url <plan-url> [--token TOKEN] [--follow]
   live-plan watch --url <plan-url> [--token TOKEN]
   live-plan close --url <plan-url> [--token TOKEN]
   live-plan mode <watch|comment|review> --url <plan-url>
@@ -106,7 +106,7 @@ Modes:
   serve       Register the plan on the machine service and print submissions for that plan.
   review      Same page, plus Approve / Deny / Iterate. Blocks until a decision.
   wait        Block until one interaction id is answered.
-  events      Print undelivered submissions as JSON, then exit. Start it again to see if more are pending.
+  events      Print undelivered submissions as JSON, then exit. Start it again to see if more are pending. --follow stays running and prints each submission as it arrives, without changing the page mode.
   watch       Switch to watch mode and stay running while the plan executes. Prints submissions without exiting.
   close       Drop a plan from the machine service.
   mode        Switch the open session between watch, comment, and review. The open tab follows.
@@ -290,25 +290,32 @@ async function listenForSubmissions(url: string, token?: string, once = true): P
     if (once) controller.abort()
   }
 
-  try {
-    await readAgentEvents(
-      url,
-      token,
-      (event) => {
-        if (event.event === 'hello') {
-          take(pendingFromHello(event.data))
-          return
-        }
-        if (event.event !== 'notice') return
-        const submission = submissionEvent(event.data)
-        if (!submission) return
-        take([submission])
-      },
-      controller.signal,
-    )
-  } catch (error) {
-    if (!isAbortError(error)) failed = error
+  // The host closes an idle socket. Reconnect, and the next hello carries anything sent meanwhile.
+  while (!controller.signal.aborted) {
+    try {
+      await readAgentEvents(
+        url,
+        token,
+        (event) => {
+          if (event.event === 'hello') {
+            take(pendingFromHello(event.data))
+            return
+          }
+          if (event.event !== 'notice') return
+          const submission = submissionEvent(event.data)
+          if (!submission) return
+          take([submission])
+        },
+        controller.signal,
+      )
+    } catch (error) {
+      if (!isAbortError(error)) failed = error
+      break
+    }
+    if (!controller.signal.aborted) await abortableDelay(1000, controller.signal)
   }
+  process.off('SIGINT', stop)
+  process.off('SIGTERM', stop)
   await ackChain
   if (failed && delivered.size === 0) {
     console.error(failed instanceof Error ? failed.message : failed)
@@ -316,6 +323,18 @@ async function listenForSubmissions(url: string, token?: string, once = true): P
   }
   if (once && ackFailed) return 1
   return 0
+}
+
+function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(done, ms)
+    function done() {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', done)
+      resolve()
+    }
+    signal.addEventListener('abort', done)
+  })
 }
 
 /** Print the next undelivered submissions for one hosted plan, then exit. The page stays up. */
@@ -817,10 +836,15 @@ async function cmdEvents(args: string[]): Promise<number> {
   }
   const url = await localServiceUrl(published)
   const token = await resolveAgentToken(args, url)
-  console.error('Listening for the next submission.')
+  const follow = args.includes('--follow')
+  console.error(
+    follow
+      ? 'Listening for submissions. Each one prints as it arrives. This command stays running until it is stopped.'
+      : 'Listening for the next submission.',
+  )
   const stop = await syncCloudUrl(url)
   try {
-    return await listenForSubmissions(url, token, true)
+    return await listenForSubmissions(url, token, !follow)
   } finally {
     stop()
   }
