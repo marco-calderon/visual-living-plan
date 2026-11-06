@@ -79,7 +79,18 @@ Sign-in and sign-up use the same command. The person creates the account in thei
 When it does not finish:
 
 - `Timed out waiting for sign-in.` The browser step took more than 5 minutes. Run `account login` again.
-- No browser window opened. Give the user the printed link. The sign-in returns to a `127.0.0.1` address, so the link only works in a browser on the same machine as the CLI. In a remote or headless session, ask the user to run the login command in their own terminal on that machine, or use the local session.
+- No browser window opened. Give the user the printed link. The sign-in returns to a `127.0.0.1` address, so the link only works in a browser on the same machine as the CLI. In a remote or headless session (a VM, a container, a cloud agent), use the headless sign-in below.
+
+### Headless sign-in
+
+Use this when the CLI runs where no browser can reach `127.0.0.1`, such as a VM, a container, or a cloud agent session. The person opens a page on any device, and the page shows a command with a token for this machine.
+
+1. Run `live-plan account login --url https://plan.logspace.qzz.io --headless`. It prints `https://plan.logspace.qzz.io/cli-token` and exits at once. Show that link to the user.
+2. The user opens it on their phone or laptop. They sign in, or choose **Sign up instead**. The page then shows a command such as `live-plan account login --url https://plan.logspace.qzz.io --token <token>` with a Copy button.
+3. The user pastes that command back to you. Run it. It checks the token with the host, prints `Signed in to https://plan.logspace.qzz.io as <email>`, exits `0`, and saves the session in `~/.config/living-plan/cloud.json`. A bad or expired token exits `1` and saves nothing.
+4. Run `serve --cloud` again.
+
+The token is a session of its own. It lasts 30 days and stays valid when the user signs out in the browser. Each visit to the page makes a new token. `--token -` reads the token from stdin, which keeps it out of shell history.
 - A free account hosts 1 active plan, and that plan closes after 1 hour idle. Pro hosts 10, with a 6-hour idle limit.
 
 ### Cloud details
@@ -171,7 +182,7 @@ Do this as soon as you read the comment, before a long edit, so the page shows r
 | `dashboard` | Open the registry dashboard for running and executed plans. |
 | `lan on\|off\|status` | Opt in to LAN publishing. Off until `lan on`. Prints a LAN URL for other devices on the network. Agents keep the loopback URL from `serve`. |
 | `tui` | The registry in the terminal. Starts the plan service if it is down, and leaves it running on quit. `p` lists running plans. `d` is the dashboard (`--period day`, `week`, or `month`). Active plans are listed first. |
-| `account login --url https://plan.logspace.qzz.io` | Sign in or sign up before `serve --cloud` or `review --cloud`. Opens the browser sign-in page, which links to sign-up. Stores the session in `~/.config/living-plan/cloud.json`. `LIVE_PLAN_CLOUD_URL` supplies the host when `--url` is omitted. |
+| `account login --url https://plan.logspace.qzz.io` | Sign in or sign up before `serve --cloud` or `review --cloud`. Opens the browser sign-in page, which links to sign-up. Stores the session in `~/.config/living-plan/cloud.json`. `LIVE_PLAN_CLOUD_URL` supplies the host when `--url` is omitted. `--headless` prints the `/cli-token` page link and exits. `--token <token>` (or `--token -` for stdin) saves the token that page shows. |
 | `theme get\|set` | Read or change the accent color. Use `--url` while serving, or `--plan` / `--config` to edit that plan's `live-plan.config.json`. Without those flags, uses `~/.config/living-plan/live-plan.config.json`. |
 
 `--timeout` defaults to 4 hours. Always pass a unit (`30s`, `45m`, `4h`). A bare number is milliseconds. `--port 0` picks a free port. `--host` defaults to `127.0.0.1`. On loopback, the printed URL is `http://127.0.0.1:9477/plans/<id>/`. When a cloud agent must share the URL, use `--cloud`. For the local session, set `--host` to a reachable address instead. `lan on` publishes the service to other devices on the same network and prints a different LAN URL. Do not replace the `serve` URL with that LAN URL, and do not resolve `living-plan.local` from the agent. `--no-open` never opens a browser. Use it on a resume, or for a headless run. `--open` reopens a page that was already opened once. `--detach` on `serve` registers and returns. Omit it to print undelivered submissions and exit. Start `events` again each time that process exits. After an approval, `watch` is the process that stays up until execution is finished. `--graph` is the portable execution payload; `--scene` is optional and adapter-specific. Per-plan accent color lives in `live-plan.config.json` beside the plan (`theme.accent`). Machine-wide theme (no `--plan`) lives under `~/.config/living-plan/`. Humans can also pick the accent on the Settings tab.

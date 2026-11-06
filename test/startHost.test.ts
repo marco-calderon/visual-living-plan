@@ -15,6 +15,7 @@ test('TanStack Start renders every page', () => {
   assert.equal(tanstackPage('/review/', 'GET'), 'app')
   assert.equal(tanstackPage('/dashboard', 'GET'), 'app')
   assert.equal(tanstackPage('/account/', 'GET'), 'app')
+  assert.equal(tanstackPage('/cli-token', 'GET'), 'app')
   assert.equal(tanstackPage('/settings', 'GET'), 'app')
   assert.equal(tanstackPage('/plans/rate-limit-sample/history', 'GET'), 'app')
   assert.equal(tanstackPage('/plans/rate-limit-sample/history/', 'HEAD'), 'app')

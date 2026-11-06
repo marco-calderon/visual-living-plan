@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { access, readFile, writeFile } from 'node:fs/promises'
 import { basename, dirname, resolve } from 'node:path'
-import { loginCloudAccount, registerCloudPlan, uploadJson, uploadSource } from './cloudClient'
+import { loginCloudAccount, registerCloudPlan, uploadJson, uploadSource, verifyCloudToken } from './cloudClient'
 import { cloudIdInSource, sourceWithCloudId } from './cloudFrontmatter'
 import { readCloudFile, writeCloudFile, type CloudAccount, type CloudPlanRecord } from './cloudStore'
 import { uploadPlanRecord, watchPlanFile } from './cloudWatch'
@@ -27,6 +27,21 @@ export async function signInToCloud(baseUrl: string, open: (url: string) => Prom
   const file = await readCloudFile(home)
   file.account = account
   await writeCloudFile(file, home)
+}
+
+/** Save a token copied from the hosted terminal sign-in page. Checks it with the host first. */
+export async function signInWithToken(
+  baseUrl: string,
+  token: string,
+  options: { home?: string; fetchImpl?: typeof fetch } = {},
+): Promise<{ baseUrl: string; email: string }> {
+  const trimmed = token.trim()
+  if (!trimmed) throw new Error('The token is empty.')
+  const verified = await verifyCloudToken(baseUrl, trimmed, options.fetchImpl)
+  const file = await readCloudFile(options.home)
+  file.account = { baseUrl: verified.baseUrl, token: verified.token }
+  await writeCloudFile(file, options.home)
+  return { baseUrl: verified.baseUrl, email: verified.email }
 }
 
 export async function prepareCloudPlan(options: {

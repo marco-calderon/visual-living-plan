@@ -389,3 +389,21 @@ html[data-layout='full'] .plan-shell {
   font-family: var(--font-mono);
   font-size: 0.86em;
 }
+
+.host-page .cli-token {
+  display: grid;
+  gap: var(--space-sm);
+  justify-items: start;
+}
+
+.host-page .cli-token pre {
+  margin: 0;
+  width: 100%;
+  padding: var(--space-sm);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: all;
+}

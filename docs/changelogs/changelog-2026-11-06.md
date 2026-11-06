@@ -1,5 +1,30 @@
 # Changelog — 2026-11-06
 
+## 2.11.0
+
+**PR:** Not opened yet
+
+**Bump:** minor
+
+### Summary
+
+Sign in the CLI on a machine with no browser, such as a VM or a cloud agent. Open a page on any device, then paste the command it shows into the terminal.
+
+### Improvements
+
+- When no browser opens, `account login` now points to `--headless`.
+- The Account page links to Terminal sign-in.
+
+### New features
+
+- `live-plan account login --url <host> --headless` prints `<host>/cli-token` and exits at once.
+- The `/cli-token` page asks the person to sign in or sign up, then shows `live-plan account login --url <host> --token <token>` with a Copy button. Each token is its own 30-day session, so signing out in the browser does not sign the terminal out.
+- `account login --token <token>` checks the token with the host before saving it to `~/.config/living-plan/cloud.json`. A bad or expired token exits 1 and points back to the page. `--token -` reads the token from stdin.
+
+### Notes
+
+No database migration. The token is a row in the existing `session` table.
+
 ## 2.10.0
 
 **PR:** #160
