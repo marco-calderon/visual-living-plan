@@ -1,5 +1,19 @@
 # Changelog — 2026-11-06
 
+## 2.12.1
+
+**PR:** Not opened yet
+
+**Bump:** patch
+
+### Summary
+
+A choice on a plan can be changed after the first pick.
+
+### Bugs fixed
+
+- Picking a choice no longer locks it. Picking another option replaces the answer and sends the agent a new event. The choice locks only while execution is active.
+
 ## 2.12.0
 
 **PR:** [#162](https://github.com/marco-calderon/visual-living-plan/pull/162)
@@ -8,7 +22,7 @@
 
 ### Summary
 
-Forms on a hosted plan no longer fail after the agent reconnects or edits the plan, Edit unlocks a submitted form, a choice can be changed, and `events --follow` delivers each submission the moment it arrives.
+Forms on a hosted plan no longer fail after the agent reconnects or edits the plan, Edit unlocks a submitted form, and `events --follow` delivers each submission the moment it arrives.
 
 ### Bugs fixed
 
@@ -17,7 +31,6 @@ Forms on a hosted plan no longer fail after the agent reconnects or edits the pl
 - Edit on a submitted form now unlocks the fields. It used to send the old values again and lock the form.
 - `addressing` on a hosted plan shows the comment as Addressing. It used to resolve the comment.
 - `events` reconnects when the host closes an idle connection, instead of exiting with nothing printed.
-- A choice can be changed after the first pick. Picking another option replaces the answer and sends a new event. It locks only while execution is active.
 
 ### New features
 
