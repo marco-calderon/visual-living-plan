@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountRouteImport } from './routes/account'
+import { Route as CliTokenRouteImport } from './routes/cli-token'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as LocalRouteImport } from './routes/local'
 import { Route as LoginRouteImport } from './routes/login'
@@ -30,6 +31,11 @@ const IndexRoute = IndexRouteImport.update({
 const AccountRoute = AccountRouteImport.update({
   id: '/account',
   path: '/account',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CliTokenRoute = CliTokenRouteImport.update({
+  id: '/cli-token',
+  path: '/cli-token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -86,6 +92,7 @@ const PlansPlanIdVersionsSeqRoute = PlansPlanIdVersionsSeqRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/cli-token': typeof CliTokenRoute
   '/dashboard': typeof DashboardRoute
   '/local': typeof LocalRoute
   '/login': typeof LoginRoute
@@ -100,6 +107,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/cli-token': typeof CliTokenRoute
   '/dashboard': typeof DashboardRoute
   '/local': typeof LocalRoute
   '/login': typeof LoginRoute
@@ -115,6 +123,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/cli-token': typeof CliTokenRoute
   '/dashboard': typeof DashboardRoute
   '/local': typeof LocalRoute
   '/login': typeof LoginRoute
@@ -131,6 +140,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/account'
+    | '/cli-token'
     | '/dashboard'
     | '/local'
     | '/login'
@@ -145,6 +155,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/account'
+    | '/cli-token'
     | '/dashboard'
     | '/local'
     | '/login'
@@ -159,6 +170,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/account'
+    | '/cli-token'
     | '/dashboard'
     | '/local'
     | '/login'
@@ -174,6 +186,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
+  CliTokenRoute: typeof CliTokenRoute
   DashboardRoute: typeof DashboardRoute
   LocalRoute: typeof LocalRoute
   LoginRoute: typeof LoginRoute
@@ -200,6 +213,13 @@ declare module '@tanstack/react-router' {
       path: '/account'
       fullPath: '/account'
       preLoaderRoute: typeof AccountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cli-token': {
+      id: '/cli-token'
+      path: '/cli-token'
+      fullPath: '/cli-token'
+      preLoaderRoute: typeof CliTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -278,6 +298,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
+  CliTokenRoute: CliTokenRoute,
   DashboardRoute: DashboardRoute,
   LocalRoute: LocalRoute,
   LoginRoute: LoginRoute,

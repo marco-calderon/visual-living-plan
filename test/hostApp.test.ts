@@ -344,3 +344,44 @@ test('account usage counts the saved versions of each owned plan in bytes', asyn
     ],
   )
 })
+
+test('a signed-in account mints a separate terminal token that the host accepts as a bearer', async () => {
+  const sqlite = new Database(':memory:')
+  const db = authDatabase(sqlite)
+  const now = new Date().toISOString()
+  const later = new Date(Date.now() + 60 * 60 * 1000).toISOString()
+  sqlite.run('INSERT INTO user (id, name, email, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)', ['owner', 'Owner', 'owner@example.com', now, now])
+  sqlite.run('INSERT INTO session (id, expiresAt, token, createdAt, updatedAt, userId) VALUES (?, ?, ?, ?, ?, ?)', [
+    'session-owner',
+    later,
+    'browser-token',
+    now,
+    now,
+    'owner',
+  ])
+  const app = createHostApp({ ...env(), DB: db })
+  const mint = (headers: Record<string, string>) =>
+    app.fetch(new Request('https://plans.example/api/account/cli-token', { method: 'POST', headers }))
+
+  assert.equal((await mint({})).status, 401)
+  assert.equal((await mint({ authorization: 'Bearer not-a-session' })).status, 401)
+
+  const minted = await mint({ authorization: 'Bearer browser-token' })
+  assert.equal(minted.status, 200)
+  const body = (await minted.json()) as { token: string; url: string; expiresAt: string }
+  assert.match(body.token, /^[0-9a-f]{64}$/)
+  assert.notEqual(body.token, 'browser-token')
+  assert.equal(body.url, 'https://plans.example')
+  const days = (Date.parse(body.expiresAt) - Date.now()) / 86_400_000
+  assert.ok(days > 29 && days <= 30, `expires in ${days} days`)
+
+  const row = sqlite.query('SELECT userId, userAgent FROM session WHERE token = ?').get(body.token) as {
+    userId: string
+    userAgent: string
+  }
+  assert.deepEqual(row, { userId: 'owner', userAgent: 'live-plan CLI' })
+
+  // Signing the browser out leaves the terminal token working.
+  sqlite.run('DELETE FROM session WHERE token = ?', ['browser-token'])
+  assert.equal((await mint({ authorization: `Bearer ${body.token}` })).status, 200)
+})

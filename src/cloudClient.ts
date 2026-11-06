@@ -1,5 +1,6 @@
 import { createServer } from 'node:http'
 import { planApiUrl } from './agentEvents'
+import { CLI_TOKEN_PATH } from './cliToken'
 import { normalizeBase } from './cloudStore'
 
 export type CloudRegistration = {
@@ -91,6 +92,24 @@ export async function loginCloudAccount(
     }, 5 * 60_000).unref()
   })
   return { baseUrl: base, token }
+}
+
+/** Confirm a pasted token with the host before saving it. Returns the account email. */
+export async function verifyCloudToken(
+  baseUrl: string,
+  token: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ baseUrl: string; token: string; email: string }> {
+  const base = normalizeBase(baseUrl)
+  const { 'content-type': _json, ...headers } = bearer(token, base)
+  const response = await fetchImpl(new URL('/api/account', base), { headers })
+  if (response.status === 401) {
+    throw new Error(`That token is not valid or has expired. Open ${base}${CLI_TOKEN_PATH} for a new one.`)
+  }
+  if (!response.ok) throw new Error(await errorText(response))
+  const payload = (await response.json()) as { user?: { email?: string } }
+  if (!payload.user?.email) throw new Error('The hosted service did not return an account.')
+  return { baseUrl: base, token, email: payload.user.email }
 }
 
 export async function registerCloudPlan(

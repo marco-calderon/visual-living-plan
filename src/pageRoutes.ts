@@ -12,6 +12,7 @@ const APP_PAGES = new Set([
   '/review',
   '/dashboard',
   '/account',
+  '/cli-token',
   '/settings',
 ])
 

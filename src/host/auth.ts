@@ -136,3 +136,34 @@ export async function sessionFromToken(db: D1Database, token: string): Promise<A
     session: { token: row.token },
   }
 }
+
+/** How long a token pasted into a headless terminal stays valid. */
+export const CLI_SESSION_DAYS = 30
+
+/**
+ * A session row for the CLI. `sessionFromToken` reads the raw token back, so
+ * the CLI never needs the signed browser cookie.
+ */
+export async function createCliSession(
+  db: D1Database,
+  userId: string,
+  now = Date.now(),
+): Promise<{ token: string; expiresAt: string }> {
+  const token = randomHex(32)
+  const created = new Date(now).toISOString()
+  const expiresAt = new Date(now + CLI_SESSION_DAYS * 86_400_000).toISOString()
+  await db
+    .prepare(
+      `INSERT INTO session (id, token, userId, expiresAt, createdAt, updatedAt, userAgent)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(randomHex(16), token, userId, expiresAt, created, created, 'live-plan CLI')
+    .run()
+  return { token, expiresAt }
+}
+
+function randomHex(size: number): string {
+  const bytes = new Uint8Array(size)
+  crypto.getRandomValues(bytes)
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('')
+}

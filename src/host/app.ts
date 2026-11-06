@@ -3,7 +3,7 @@ import type { ProgressFields } from '../processRecord'
 import { PLAN_CAPS, allows, normalizeTier, planCapReached } from './access'
 import { defaultAccountSettings, readAccountSettings, saveAccountSettings } from './accountSettings'
 import { readAccountUsage } from './accountUsage'
-import { createAuth, sessionFromToken, type AuthSession } from './auth'
+import { createAuth, createCliSession, sessionFromToken, type AuthSession } from './auth'
 import { listLinkedAccounts } from './linkedAccounts'
 import { NO_PROGRESS, hostedDashboard, hostedProgress, saveHostedProgress, type HostedPlanRow } from './hostedDashboard'
 import { LATEST_PLAN_VERSION_SQL, ensurePlanVersions, listPlanVersions, publishPlanVersion, readPlanVersion } from './planVersions'
@@ -68,6 +68,7 @@ export function createHostApp(env: HostEnv, options: { auth?: (request: Request)
     .post('/api/plans', ({ request }) => registerPlan(request, env, authFor(request), originFor(request, env)))
     .get('/api/plans/:planId/versions', ({ request, params }) => hostedPlanVersions(request, env, params.planId))
     .get('/api/auth/cli-session', ({ request }) => cliSession(request, env, authFor(request), new URL(request.url)))
+    .post('/api/account/cli-token', ({ request }) => cliToken(request, env, authFor(request), originFor(request, env)))
     .get('/plans/:planId/view/:sig', ({ params }) => retiredViewLink(params.planId))
     .get('/plans/:planId/document', ({ request, params }) =>
       planDocument(request, env, authFor(request), params.planId, 'latest'),
@@ -286,6 +287,20 @@ async function cliSession(request: Request, env: HostEnv, auth: ReturnType<typeo
   const target = new URL(redirect)
   target.searchParams.set('token', session.session.token)
   return Response.redirect(target.toString(), 302)
+}
+
+/**
+ * Mint a session of its own for a terminal that cannot open a browser. The
+ * person copies it into `live-plan account login --token`. It is separate from
+ * the browser session, so signing out in the browser leaves the terminal
+ * signed in. A cross-site page cannot read this response, so the POST alone
+ * does not leak a token.
+ */
+async function cliToken(request: Request, env: HostEnv, auth: ReturnType<typeof createAuth>, origin: string): Promise<Response> {
+  const session = await readSession(auth, request, env.DB)
+  if (!session) return text(401, 'Sign in required')
+  const minted = await createCliSession(env.DB, session.user.id)
+  return Response.json({ token: minted.token, url: origin, expiresAt: minted.expiresAt })
 }
 
 async function registerPlan(request: Request, env: HostEnv, auth: ReturnType<typeof createAuth>, origin: string): Promise<Response> {

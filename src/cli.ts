@@ -51,11 +51,13 @@ import {
   requireCloudAccount,
   runCloudWatch,
   signInToCloud,
+  signInWithToken,
   spawnCloudWatch,
   stopCloudWatch,
   syncCloudUrl,
 } from './cloudCommand'
-import { cloudCredential, planRecordForUrl, readCloudFile, writeCloudFile } from './cloudStore'
+import { cloudCredential, normalizeBase, planRecordForUrl, readCloudFile, writeCloudFile } from './cloudStore'
+import { CLI_TOKEN_PATH } from './cliToken'
 import { choosePlanOpen, rememberPageOpened } from './openedPages'
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -112,7 +114,7 @@ Modes:
   addressing  Mark one comment as being reviewed. The page shows Addressing or Working.
   address     Mark one comment answered. The page shows Addressed, or the outcome on a minibar message.
   execution   Start/push/stop the live workflow canvas (locks plan forms while active).
-  account     Sign in to the hosted service. \`account login --url https://host\`.
+  account     Sign in to the hosted service. \`account login --url https://host\`. On a machine with no browser, \`--headless\` prints a page that shows a token, then \`--token <token>\` saves it.
   theme       Read or write the accent color in live-plan.config.json (or via a running server).
   check       Print plan summary. Exits 1 when the required workflow block is missing.
   processes   List plans hosted by the service. \`ps\` is the same command.
@@ -140,7 +142,7 @@ The printed URL uses that address. On loopback it is http://127.0.0.1:${DEFAULT_
 LAN publishing is off on a fresh install. \`lan on\` listens on all interfaces, advertises living-plan.local, and prints a LAN URL for other devices. \`serve\` and \`review\` still print the loopback plan URL. The CLI dials 127.0.0.1 and does not resolve *.local.
 --token authorizes the agent event stream. Omitted, the local service token is used.
 --cloud hosts the plan on the signed-in service. It does not start the local registry, and it does not fall back to loopback.
-account login stores the session in ~/.config/living-plan/cloud.json. LIVE_PLAN_CLOUD_URL sets the host when --url is omitted.
+account login stores the session in ~/.config/living-plan/cloud.json. --token - reads the token from stdin, so it stays out of shell history. LIVE_PLAN_CLOUD_URL sets the host when --url is omitted.
 `)
 }
 
@@ -160,6 +162,12 @@ function getFlag(args: string[], name: string): string | undefined {
   const index = args.indexOf(name)
   if (index === -1) return undefined
   return args[index + 1]
+}
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = []
+  for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk))
+  return Buffer.concat(chunks).toString('utf8').trim()
 }
 
 function hasFlag(args: string[], name: string): boolean {
@@ -1354,7 +1362,7 @@ async function main(): Promise<number> {
   if (command === 'account') {
     const action = args[1]
     if (action !== 'login') {
-      console.error('Usage: live-plan account login --url https://host')
+      console.error('Usage: live-plan account login --url https://host [--headless | --token <token>]')
       return 1
     }
     const base = getFlag(args, '--url') ?? process.env.LIVE_PLAN_CLOUD_URL
@@ -1362,10 +1370,32 @@ async function main(): Promise<number> {
       console.error('Pass --url https://host or set LIVE_PLAN_CLOUD_URL.')
       return 1
     }
+    const raw = getFlag(args, '--token')
+    const token = raw && (raw === '-' || !raw.startsWith('-')) ? raw : undefined
+    if (args.includes('--token') && !token) {
+      console.error('Pass the token after --token, or --token - to read it from stdin.')
+      return 1
+    }
+    if (token && args.includes('--headless')) {
+      console.error('--headless prints the token page. Pass --token on its own once you have one.')
+      return 1
+    }
     try {
+      if (args.includes('--headless')) {
+        const page = `${normalizeBase(base)}${CLI_TOKEN_PATH}`
+        console.log(`Open this page in any browser, on any device. Sign in, or choose Sign up instead to create an account:\n${page}`)
+        console.log('The page shows a command with a token. Paste it here:\n  live-plan account login --url <host> --token <token>')
+        return 0
+      }
+      if (token) {
+        const signed = await signInWithToken(base, token === '-' ? await readStdin() : token)
+        console.log(`Signed in to ${signed.baseUrl} as ${signed.email}`)
+        return 0
+      }
       await signInToCloud(base, async (url) => {
         // Print the link too, so a person can open it when no browser launches.
         console.log(`Sign in, or choose Sign up instead to create an account:\n${url}`)
+        console.log('No browser on this machine? Run live-plan account login --headless instead.')
         await openBrowser(url)
       })
       const account = await requireCloudAccount()

@@ -30,7 +30,8 @@ function AccountPage() {
             Tier <strong>{account.user.tier}</strong>
           </p>
           <p>
-            If a terminal is waiting on account login, close this window and return to it. Host a plan from that machine
+            If a terminal is waiting on account login, close this window and return to it. For a machine with no browser,
+            open <a href="/cli-token">Terminal sign-in</a> and copy the command it shows. Host a plan from that machine
             with <code>live-plan serve path/to/work.plan.md --cloud</code>. Each publish stores the plan here. Loopback
             plans stay separate and do not require this account.
           </p>

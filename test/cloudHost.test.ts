@@ -665,3 +665,79 @@ test('the hosted dashboard leaves out plans deleted from it', () => {
   assert.deepEqual(payload.plans.map((plan) => plan.id), ['kept1234'])
   assert.equal(payload.summary.plans, 1)
 })
+
+function runCli(args: string[], home: string, input?: string): Promise<{ code: number; stdout: string; stderr: string }> {
+  const child = spawn(process.execPath, [entry, ...args], { env: { ...process.env, LIVE_PLAN_HOME: home, HOME: home } })
+  let stdout = ''
+  let stderr = ''
+  child.stdout?.on('data', (chunk) => (stdout += String(chunk)))
+  child.stderr?.on('data', (chunk) => (stderr += String(chunk)))
+  if (input != null) child.stdin?.end(input)
+  else child.stdin?.end()
+  return new Promise((resolveRun) => child.on('exit', (code) => resolveRun({ code: code ?? 1, stdout, stderr })))
+}
+
+test('account login --headless prints the token page and exits without waiting', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'live-plan-headless-'))
+  const run = await runCli(['account', 'login', '--url', 'https://plan.example/dashboard', '--headless'], home)
+  assert.equal(run.code, 0)
+  assert.match(run.stdout, /https:\/\/plan\.example\/cli-token\n/)
+  assert.match(run.stdout, /sign up/i)
+  assert.match(run.stdout, /--token <token>/)
+  await assert.rejects(readFile(join(home, 'cloud.json'), 'utf8'))
+  await rm(home, { recursive: true, force: true })
+})
+
+test('account login --token checks the token with the host and saves it', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'live-plan-token-'))
+  const seen: string[] = []
+  const server = Bun.serve({
+    port: 0,
+    hostname: '127.0.0.1',
+    fetch(request) {
+      const auth = request.headers.get('authorization') ?? ''
+      seen.push(`${new URL(request.url).pathname} ${auth}`)
+      if (auth !== 'Bearer good-token') return new Response('Sign in required', { status: 401 })
+      return Response.json({ user: { email: 'person@example.com' } })
+    },
+  })
+  const base = `http://127.0.0.1:${server.port}`
+  try {
+    const bad = await runCli(['account', 'login', '--url', base, '--token', 'stale-token'], home)
+    assert.equal(bad.code, 1)
+    assert.match(bad.stderr, /not valid or has expired/)
+    assert.match(bad.stderr, new RegExp(`${base}/cli-token`))
+    await assert.rejects(readFile(join(home, 'cloud.json'), 'utf8'))
+
+    const good = await runCli(['account', 'login', '--url', base, '--token', 'good-token'], home)
+    assert.equal(good.code, 0, good.stderr)
+    assert.match(good.stdout, /Signed in to .* as person@example\.com/)
+    const saved = JSON.parse(await readFile(join(home, 'cloud.json'), 'utf8'))
+    assert.deepEqual(saved.account, { baseUrl: base, token: 'good-token' })
+
+    await rm(join(home, 'cloud.json'))
+    const piped = await runCli(['account', 'login', '--url', base, '--token', '-'], home, 'good-token\n')
+    assert.equal(piped.code, 0, piped.stderr)
+    assert.equal(JSON.parse(await readFile(join(home, 'cloud.json'), 'utf8')).account.token, 'good-token')
+
+    assert.deepEqual(seen, [
+      '/api/account Bearer stale-token',
+      '/api/account Bearer good-token',
+      '/api/account Bearer good-token',
+    ])
+  } finally {
+    server.stop(true)
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
+test('account login --token without a value or with --headless is a usage error', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'live-plan-token-usage-'))
+  const missing = await runCli(['account', 'login', '--url', 'https://plan.example', '--token'], home)
+  assert.equal(missing.code, 1)
+  assert.match(missing.stderr, /Pass the token after --token/)
+  const both = await runCli(['account', 'login', '--url', 'https://plan.example', '--headless', '--token', 'abc'], home)
+  assert.equal(both.code, 1)
+  assert.match(both.stderr, /--headless/)
+  await rm(home, { recursive: true, force: true })
+})

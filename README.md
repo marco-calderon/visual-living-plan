@@ -38,7 +38,7 @@ live-plan processes
 
 `--no-registry` serves that one plan in its own process instead. `--registry-port` changes the service port. `live-plan registry` runs the service in the foreground; `serve` and `review` start it when it is not already up. `live-plan close --url <plan-url>` drops a plan.
 
-`serve --cloud` and `review --cloud` host that plan on a signed-in Worker instead. Sign in once with `live-plan account login --url https://host`. The local service is unchanged when the flag is omitted. Deploy steps are in [docs/cloud-host.md](docs/cloud-host.md).
+`serve --cloud` and `review --cloud` host that plan on a signed-in Worker instead. Sign in once with `live-plan account login --url https://host`. On a VM or cloud agent with no browser, add `--headless`, open the printed page on any device, and run the `--token` command it shows. The local service is unchanged when the flag is omitted. Deploy steps are in [docs/cloud-host.md](docs/cloud-host.md).
 
 ### Install the command
 

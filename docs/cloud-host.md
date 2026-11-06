@@ -99,7 +99,7 @@ live-plan account login --url https://<host>
 live-plan serve path/to/work.plan.md --cloud
 ```
 
-`account login` opens a browser and stores the session in `~/.config/living-plan/cloud.json`. `serve --cloud` prints the plan URL. The same `events`, `wait`, `watch`, `review`, `mode`, `execution`, `addressing`, `reply`, `address`, and `close` commands take that URL. `dashboard`, `tui`, `logs`, and `lan` stay on this machine.
+`account login` opens a browser and stores the session in `~/.config/living-plan/cloud.json`. On a VM or a cloud agent with no browser, run `live-plan account login --url https://<host> --headless`. It prints `https://<host>/cli-token`. Open that page on any device and sign in. It shows `live-plan account login --url https://<host> --token <token>`. Run that on the headless machine. The token is its own 30-day session row (`userAgent` `live-plan CLI`), minted by `POST /api/account/cli-token`, so signing out in the browser does not end it. `serve --cloud` prints the plan URL. The same `events`, `wait`, `watch`, `review`, `mode`, `execution`, `addressing`, `reply`, `address`, and `close` commands take that URL. `dashboard`, `tui`, `logs`, and `lan` stay on this machine.
 
 New accounts are the free tier: 1 open plan, 2 sockets, 1 hour idle. Pro is 10 plans, 4 sockets, 6 hours. Business is 50, 50, and 6 hours. Until billing exists, set the tier in D1:
 

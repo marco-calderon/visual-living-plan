@@ -13,7 +13,7 @@ The local registry, loopback pages, and LAN publishing stay the default. A faile
 
 `serve` and `review` take `--cloud`. Without the flag they still use the machine service. With the flag they do not start that service, and they do not fall back to loopback. `--cloud` and `--no-registry` together exit 1.
 
-- `live-plan account login --url https://host` (or `LIVE_PLAN_CLOUD_URL`) opens a loopback callback and stores the account bearer in `~/.config/living-plan/cloud.json`. `LIVE_PLAN_HOME` still moves that directory.
+- `live-plan account login --url https://host` (or `LIVE_PLAN_CLOUD_URL`) opens a loopback callback and stores the account bearer in `~/.config/living-plan/cloud.json`. `LIVE_PLAN_HOME` still moves that directory. Where no browser can reach the loopback callback, `--headless` prints `/cli-token`, which mints a separate 30-day session, and `--token` saves it after `GET /api/account` accepts it.
 - The first upload asks the account to register the plan. The server mints `cloudId`, the CLI writes it into the plan frontmatter, and stores the plan bearer in `cloud.json`. The bearer is not written into the plan file.
 - `events`, `wait`, `watch`, `review`, `mode`, `execution`, `addressing`, `reply`, `address`, and `close` send that plan bearer when the URL belongs to the signed-in host. `dashboard`, `tui`, `logs`, and `lan` stay on the local service.
 - The host is a Worker in `cloud/`. Better Auth (email and password, and Google or GitHub when those secrets are set) uses one D1 database. Each plan is one SQLite Durable Object. The page and the agent share a hibernating WebSocket. Local pages keep the existing event stream.

@@ -71,6 +71,7 @@ Page routes, from `src/pageRoutes.ts` and `src/routes/`:
 | `/signup` | `signup.tsx` | Email, password, an optional name, or GitHub and Google. The same `next` and `cli` search params carry over. Links to `/login` |
 | `/dashboard` | `dashboard.tsx` | This account's hosted plans |
 | `/account` | `account.tsx` | Name, email, tier |
+| `/cli-token` | `cli-token.tsx` | Signed in: mints a 30-day terminal token (`POST /api/account/cli-token`) and shows `live-plan account login --url <host> --token <token>` to copy. Signed out: redirects to `/login?next=/cli-token`. `account login --headless` prints this page |
 | `/settings` | `settings.tsx` | Redirects to `/dashboard?settings=general`. Settings are a modal (`src/settings/`) that the root route opens over any page from `?settings=<section>`: General (appearance in D1), Account, Usage (`GET /api/account/usage`), and About |
 | `/plans/:id` | `plans.$planId.tsx` | The plan page. `PlanShell` |
 | `/plans/:id/history` | `plans_.$planId.history.tsx` | Redirects to the live plan. Versions are a menu there |
