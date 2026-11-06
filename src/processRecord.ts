@@ -36,6 +36,13 @@ export type ProcessRecord = {
   executionActive: boolean
   executionStep: string | null
   git: GitSnapshot
+  /**
+   * An agent holds the plan's agent stream open: a `serve`, `events`, `wait`, `watch`, or
+   * `review` command is waiting on it. A plan without it is open but idle.
+   */
+  agentConnected?: boolean
+  /** When an agent stream last opened or closed. */
+  agentSeenAt?: number | null
 }
 
 export type ProcessRegistration = {

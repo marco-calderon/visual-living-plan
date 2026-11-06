@@ -273,6 +273,8 @@ Registering a path that is still open reattaches to that session. `serve` does n
 
 The browser posts a submission to `/api/interactions/:id`, `/api/comments`, or `/api/review`. The session stores it and tells open browsers with an event named `interaction`, `comment`, or `review`. It writes a `notice` to every agent subscribed to `/api/agent-events`. The same named events are also copied onto the agent stream. The CLI reads `hello` and `notice`. A `notice` carries `event` of `interaction`, `review`, or `comment`.
 
+A plan is active while an agent holds that stream open: `serve`, `events`, `wait`, `watch`, and `review` do while they wait ([ADR 0030](decisions/0030-agent-presence.md)). The session counts agent streams and sends open pages an `agent` event, `{ connected, clients, seenAt }`, on each change and in `hello`. The page lights the agent icon on its status chip. The dashboard shows an open plan as Active with an agent connected and Idle without one. On a hosted plan the Durable Object does the same with tagged agent sockets, and keeps a presence lease on the D1 row that its alarm renews every minute.
+
 ```mermaid
 sequenceDiagram
   participant Browser

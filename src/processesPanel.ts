@@ -266,6 +266,10 @@ a.process-title:hover { color: var(--accent); }
   flex: 0 0 auto;
   pointer-events: none;
 }
+.process-pill.is-agent {
+  color: #04b54b;
+  border-color: color-mix(in srgb, #04b54b 55%, transparent);
+}
 .process-pill.is-pending {
   color: var(--accent-2);
   background: var(--wash-warm);
@@ -577,6 +581,9 @@ export function processesPanelScript(): string {
       uptime.innerHTML = ICON_CLOCK;
       uptime.append(document.createTextNode(age(record.startedAt)));
       pills.append(uptime);
+    }
+    if (typeof record.agentConnected === 'boolean') {
+      pills.append(el('span', record.agentConnected ? 'process-pill is-agent' : 'process-pill', record.agentConnected ? 'Agent connected' : 'No agent'));
     }
     if (typeof record.pendingCount === 'number' && record.pendingCount > 0) {
       pills.append(el('span', 'process-pill is-pending', record.pendingCount + ' pending'));

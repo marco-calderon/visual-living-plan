@@ -1,9 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, isRedirect, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import type { DashboardPeriod, DashboardSummary } from "../dashboard.ts";
+import { planActivity, type DashboardPeriod, type DashboardSummary } from "../dashboard.ts";
 import {
+  agentLine,
   completionLabel,
+  DASHBOARD_FILTERS,
   dashboardStatusLine,
   formatDuration,
   formatWhen,
@@ -33,12 +35,7 @@ const PERIODS: Array<{ id: DashboardPeriod; label: string; aria?: string }> = [
   { id: "month", label: "Month", aria: "This month" },
 ];
 
-const FILTERS: Array<{ id: DashboardFilter; label: string }> = [
-  { id: "all", label: "All" },
-  { id: "running", label: "Running" },
-  { id: "executed", label: "Executed" },
-  { id: "interrupted", label: "Interrupted" },
-];
+const FILTERS = DASHBOARD_FILTERS;
 
 type DashboardSearch = { period?: DashboardPeriod };
 
@@ -230,7 +227,8 @@ function DashboardPage() {
             <section className="stats" aria-live="polite">
               {payload ? (
                 <>
-                  <Stat label="Running" value={String(payload.summary.running)} />
+                  <Stat label="Active" value={String(payload.summary.active ?? 0)} />
+                  <Stat label="Idle" value={String(payload.summary.idle ?? payload.summary.running)} />
                   <Stat label="Executed" value={String(payload.summary.executed)} />
                   <Stat label="Interrupted" value={String(payload.summary.interrupted)} />
                   <Stat label="Files modified" value={String(payload.summary.filesModified)} />
@@ -343,9 +341,12 @@ function PlanRow({ plan, offline }: { plan: DashboardPlan; offline: boolean }) {
         {plan.planPath ? <BrokenPath className="sub path" value={plan.planPath} /> : null}
       </td>
       <td>
-        <span className={`pill ${plan.status || "running"}`}>{statusLabel(plan.status)}</span>
+        <span className={`pill ${planActivity(plan)}`}>{statusLabel(plan)}</span>
         {plan.status === "running" ? (
-          <span className="sub">{plan.pendingCount} pending</span>
+          <>
+            <span className="sub">{agentLine(plan)}</span>
+            <span className="sub">{plan.pendingCount} pending</span>
+          </>
         ) : null}
       </td>
       <td>

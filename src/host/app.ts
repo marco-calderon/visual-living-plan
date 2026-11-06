@@ -311,6 +311,7 @@ async function registerPlan(request: Request, env: HostEnv, auth: ReturnType<typ
   const init = await stub.fetch(
     new Request('https://plan.internal/internal/init', {
       method: 'POST',
+      headers: { 'x-living-plan-id': cloudId },
       body: JSON.stringify({ token, title, mode, tier, source: body.markdown ?? '' }),
     }),
   )
@@ -568,6 +569,8 @@ async function planFetch(env: HostEnv, planId: string, request: Request, path: s
   const headers = new Headers(request.headers)
   headers.delete('x-living-plan-actor')
   if (actor) headers.set('x-living-plan-actor', actor)
+  // The object saves its plan id, so it can keep agent presence on the dashboard row.
+  headers.set('x-living-plan-id', planId)
   const stub = env.PLANS.get(env.PLANS.idFromName(planId))
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD'
   return stub.fetch(new Request(target.toString(), hasBody ? { method: request.method, headers, body: request.body } : { method: request.method, headers }))

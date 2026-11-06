@@ -1,6 +1,7 @@
 import type { ExecutionState } from '../src/execution.ts'
 import { PLAN_STATUS_COLOR, PLAN_STATUS_LABEL, planStatus, workState, type PlanStatus, type WorkState } from '../src/planStatus.ts'
 import { subscribePlanConnection, subscribePlanEvents, type PlanConnectionState } from './planEvents.ts'
+import { AGENT_DISCONNECT_GRACE_MS, agentPresenceText, readAgentPresence, type AgentPresence } from '../src/agentPresence.ts'
 
 /**
  * Keeps `body[data-plan-status]`, the tab icon, and the execution lock in step with the plan.
@@ -11,6 +12,10 @@ import { subscribePlanConnection, subscribePlanEvents, type PlanConnectionState 
  * the stream opens, and `mode`, `review`, and `execution` as they happen. Paused, Stopped, and
  * Completed are read from the workflow step statuses that `execution` carries. While the stream is
  * down the label says so, because the status shown may be out of date.
+ *
+ * It also keeps `body[data-agent]` on `connected` while an agent holds the plan's agent stream
+ * open, from `hello.agent` and each `agent` event. A drop is shown after a short grace, so a
+ * command that exits and starts again does not flicker.
  */
 
 /** Fired on window when the run turns on or off. `detail.active` is the new state. */
@@ -35,6 +40,12 @@ let execution: Partial<ExecutionState> = {}
 let lockApplied: boolean | undefined
 let reconnectingTimer = 0
 let showReconnecting = false
+/** The agent presence the host last sent. Null until the host says. */
+let agent: AgentPresence | null = null
+let agentDropTimer = 0
+let agentAgoTimer = 0
+/** Refreshes "last seen" while no agent is connected. */
+const AGENT_AGO_REFRESH_MS = 30_000
 
 function readJson<T>(id: string): T | null {
   const text = document.getElementById(id)?.textContent
@@ -141,6 +152,38 @@ function apply(): void {
   void setFavicon(status)
 }
 
+function applyAgent(): void {
+  if (!agent) return
+  const connected = agent.connected
+  document.body.dataset.agent = connected ? 'connected' : 'disconnected'
+  const text = agentPresenceText(agent)
+  document.querySelectorAll<HTMLElement>('[data-agent-presence-label]').forEach((node) => {
+    node.textContent = text
+  })
+  document.querySelectorAll<HTMLElement>('[data-agent-presence-icon], [data-agent-fact]').forEach((node) => {
+    node.title = text
+  })
+  window.clearInterval(agentAgoTimer)
+  agentAgoTimer = connected ? 0 : window.setInterval(applyAgent, AGENT_AGO_REFRESH_MS)
+}
+
+/** Takes presence from the host. A connect shows at once. A drop waits out the grace first. */
+function setAgent(next: AgentPresence | null): void {
+  if (!next) return
+  window.clearTimeout(agentDropTimer)
+  agentDropTimer = 0
+  if (next.connected || !agent?.connected) {
+    agent = next
+    applyAgent()
+    return
+  }
+  agentDropTimer = window.setTimeout(() => {
+    agentDropTimer = 0
+    agent = next
+    applyAgent()
+  }, AGENT_DISCONNECT_GRACE_MS)
+}
+
 function setConnection(next: PlanConnectionState): void {
   state.connection = next
   window.clearTimeout(reconnectingTimer)
@@ -190,6 +233,11 @@ export function startPlanStatusMark(): void {
   state.decision = decisionOf(readJson('living-plan-review'))
   setExecution(readJson<Partial<ExecutionState>>('living-plan-bootstrap') ?? {})
   apply()
+  // The local page is served with the presence on body[data-agent]. The hosted page learns it from hello.
+  const served = document.body.dataset.agent
+  if (served === 'connected' || served === 'disconnected') {
+    agent = { connected: served === 'connected', clients: served === 'connected' ? 1 : 0, seenAt: null }
+  }
 
   subscribePlanConnection(setConnection)
   // Sent each time the stream opens, so a page that missed a start or a stop catches up.
@@ -201,6 +249,10 @@ export function startPlanStatusMark(): void {
     const next = payload.execution as Partial<ExecutionState> | null | undefined
     if (next && typeof next === 'object') setExecution(next)
     apply()
+    setAgent(readAgentPresence(payload.agent))
+  })
+  subscribePlanEvents('agent', (event) => {
+    setAgent(readAgentPresence(parse(event)))
   })
   subscribePlanEvents('mode', (event) => {
     const payload = parse(event)

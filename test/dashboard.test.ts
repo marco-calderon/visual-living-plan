@@ -221,6 +221,10 @@ test('dashboard groups plans by local day, week, and month', () => {
   assert.equal(day.summary.plans, 2)
   assert.equal(day.summary.started, 1)
   assert.equal(day.summary.running, 1)
+  // No agent is connected to the open plan, so it counts as idle, not active.
+  assert.equal(day.summary.active, 0)
+  assert.equal(day.summary.idle, 1)
+  assert.equal(buildDashboard([{ ...stillRunning, agentConnected: true }], 'day', now).summary.active, 1)
   assert.equal(day.summary.executed, 1)
   assert.equal(day.summary.filesModified, 5)
   assert.equal(day.summary.folders, 2)

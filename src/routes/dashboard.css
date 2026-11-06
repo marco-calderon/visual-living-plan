@@ -177,6 +177,25 @@ body {
   color: var(--ink);
 }
 
+.dashboard .pill.active {
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.dashboard .pill.active::before {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: #04b54b;
+}
+
+.dashboard .pill.idle {
+  background: transparent;
+  color: var(--muted);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--muted) 40%, transparent);
+}
+
 .dashboard .pill.executed {
   background: var(--good-soft);
   color: var(--good);

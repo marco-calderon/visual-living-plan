@@ -1281,3 +1281,64 @@ test('addressing, reply, and address move a comment from reviewing to answered',
     await rm(home, { recursive: true, force: true })
   }
 })
+
+test('a plan is active only while an agent holds its stream open, and the page hears each change', async () => {
+  const home = await tempHome()
+  const registry = await startRegistryServer({ home, port: 0, token: 'test-token-value' })
+  const pageController = new AbortController()
+  const agentController = new AbortController()
+  type DashboardRow = { id: string; status: string; agentConnected?: boolean; agentSeenAt?: number | null }
+  const dashboardRow = async (id: string) => {
+    const body = (await (await fetch(new URL('/api/dashboard?period=day', registry.url))).json()) as {
+      summary: { active: number; idle: number }
+      plans: DashboardRow[]
+    }
+    return { summary: body.summary, row: body.plans.find((entry) => entry.id === id) }
+  }
+  try {
+    const hosted = await registerHostedPlan(registry.url, registry.token, { planPath, mode: 'watch' })
+
+    // Registered and open in a browser, but no CLI command waits on it.
+    const page = await (await fetch(hosted.url)).text()
+    assert.match(page, /data-agent="disconnected"/)
+    const before = await dashboardRow(hosted.id)
+    assert.equal(before.row?.status, 'running')
+    assert.equal(before.row?.agentConnected, false)
+    assert.equal(before.summary.active, 0)
+    assert.equal(before.summary.idle, 1)
+
+    const seen: Array<{ event: string; data: unknown }> = []
+    const pageReading = readBrowserEvents(new URL('api/events', hosted.url).href, (event) => seen.push(event), pageController.signal)
+    const hello = await waitForEvent(seen, (event) => event.event === 'hello')
+    assert.equal((hello.data as { agent?: { connected?: boolean } }).agent?.connected, false)
+
+    // An agent waits on the plan, as `events`, `wait`, `watch`, `serve`, and `review` do.
+    const agentReading = readAgentEvents(hosted.url, hosted.token, () => {}, agentController.signal)
+    const connected = await waitForEvent(seen, (event) => event.event === 'agent' && (event.data as { connected?: boolean }).connected === true)
+    assert.equal((connected.data as { clients?: number }).clients, 1)
+    const during = await dashboardRow(hosted.id)
+    assert.equal(during.row?.agentConnected, true)
+    assert.equal(during.summary.active, 1)
+    assert.equal(during.summary.idle, 0)
+    assert.match(await (await fetch(hosted.url)).text(), /data-agent="connected"/)
+
+    // The command exits.
+    agentController.abort()
+    await agentReading.catch(() => undefined)
+    const dropped = await waitForEvent(seen, (event) => event.event === 'agent' && (event.data as { connected?: boolean }).connected === false)
+    assert.equal(typeof (dropped.data as { seenAt?: unknown }).seenAt, 'number')
+    const after = await dashboardRow(hosted.id)
+    assert.equal(after.row?.status, 'running')
+    assert.equal(after.row?.agentConnected, false)
+    assert.equal(typeof after.row?.agentSeenAt, 'number')
+    assert.equal(after.summary.active, 0)
+
+    pageController.abort()
+    await pageReading.catch(() => undefined)
+  } finally {
+    pageController.abort()
+    agentController.abort()
+    await registry.close()
+    await rm(home, { recursive: true, force: true })
+  }
+})

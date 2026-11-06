@@ -96,6 +96,15 @@ test('active plans are listed before finished plans', () => {
     status: 'running',
     startedAt: 100,
     executionActive: false,
+    agentConnected: true,
+    endedAt: null,
+  })
+  const idle = plan({
+    id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+    status: 'running',
+    startedAt: 500,
+    executionActive: false,
+    agentConnected: false,
     endedAt: null,
   })
   const executing = plan({
@@ -112,16 +121,21 @@ test('active plans are listed before finished plans', () => {
     startedAt: 400,
   })
 
-  const ordered = orderPlans([newerExecuted, interrupted, olderRunning, executing])
+  const ordered = orderPlans([newerExecuted, interrupted, idle, olderRunning, executing])
   assert.deepEqual(
     ordered.map((entry) => entry.id),
-    [executing.id, olderRunning.id, interrupted.id, newerExecuted.id],
+    [executing.id, olderRunning.id, idle.id, interrupted.id, newerExecuted.id],
   )
 
-  const runningOnly = presentPlans([newerExecuted, olderRunning, executing], 'running')
+  const activeOnly = presentPlans([newerExecuted, idle, olderRunning], 'active')
   assert.deepEqual(
-    runningOnly.map((entry) => entry.id),
-    [executing.id, olderRunning.id],
+    activeOnly.map((entry) => entry.id),
+    [olderRunning.id],
+  )
+  const idleOnly = presentPlans([newerExecuted, idle, olderRunning, executing], 'idle')
+  assert.deepEqual(
+    idleOnly.map((entry) => entry.id),
+    [executing.id, idle.id],
   )
 })
 
@@ -135,16 +149,18 @@ test('status line counts the period and the client-side filter', () => {
       plans: 2,
       started: 1,
       running: 1,
+      active: 1,
+      idle: 0,
       executed: 1,
       interrupted: 0,
       filesModified: 4,
       durationMs: 1_000,
       folders: 2,
     },
-    'running',
+    'active',
     1,
   )
-  assert.match(line, /^Today · 2 plans active · 1 started in this period · showing 1$/)
+  assert.match(line, /^Today · 2 plans · 1 with an agent connected · 1 started in this period · showing 1$/)
 })
 
 test('tui period defaults to day and rejects an unknown period', () => {
@@ -235,8 +251,9 @@ test('keyboard helpers move period and status the way the dashboard controls do'
   assert.equal(shiftPeriod('week', 1), 'month')
   assert.equal(shiftPeriod('month', 1), 'day')
   assert.equal(shiftPeriod('day', -1), 'month')
-  assert.equal(shiftFilter('all'), 'running')
-  assert.equal(shiftFilter('running'), 'executed')
+  assert.equal(shiftFilter('all'), 'active')
+  assert.equal(shiftFilter('active'), 'idle')
+  assert.equal(shiftFilter('idle'), 'executed')
   assert.equal(shiftFilter('executed'), 'interrupted')
   assert.equal(shiftFilter('interrupted'), 'all')
 })
@@ -433,9 +450,15 @@ test('tui starts the persistent registry and quitting leaves it running', { time
     first.terminal.write('2')
     await waitForText(() => first.output().slice(beforeWeek), /week ·/, 8_000)
 
-    const beforeFilter = first.output().length
+    // No agent is waiting on the plan, so it is idle, not active.
+    const beforeActive = first.output().length
     first.terminal.write('f')
-    await waitForText(() => first.output().slice(beforeFilter), /showing 1/, 8_000)
+    await waitForText(() => first.output().slice(beforeActive), /showing 0/, 8_000)
+    const beforeIdle = first.output().length
+    first.terminal.write('f')
+    // The screen repaints only what changed, so the row coming back is the sign, not the whole status line.
+    await waitForText(() => first.output().slice(beforeIdle), /Rate limiting rollout/, 8_000)
+    assert.match(first.output().slice(beforeIdle), /Idle/)
 
     const beforeRunning = first.output().length
     first.terminal.write('p')

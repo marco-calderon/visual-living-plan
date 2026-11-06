@@ -9,7 +9,12 @@ export type DashboardSummary = {
   to: number
   plans: number
   started: number
+  /** Open plans: the session is still hosted. Active plus idle. */
   running: number
+  /** Open plans with an agent connected. */
+  active: number
+  /** Open plans with no agent connected. */
+  idle: number
   executed: number
   interrupted: number
   filesModified: number
@@ -20,6 +25,20 @@ export type DashboardSummary = {
 export type DashboardPayload = {
   summary: DashboardSummary
   plans: PlanRecord[]
+}
+
+/**
+ * What a dashboard row shows for a plan:
+ *
+ * - `active`: the plan is open and an agent is connected to it.
+ * - `idle`: the plan is open, and no agent is waiting on it.
+ * - `executed` and `interrupted`: the run is over.
+ */
+export type PlanActivity = 'active' | 'idle' | 'executed' | 'interrupted'
+
+export function planActivity(plan: { status: string; agentConnected?: boolean | null }): PlanActivity {
+  if (plan.status === 'executed' || plan.status === 'interrupted') return plan.status
+  return plan.agentConnected ? 'active' : 'idle'
 }
 
 export function parsePeriod(value: unknown): DashboardPeriod | null {
@@ -57,25 +76,27 @@ function overlaps(plan: PlanRecord, from: number, to: number): boolean {
 
 export function buildDashboard(records: PlanRecord[], period: DashboardPeriod, now = Date.now()): DashboardPayload {
   const range = periodRange(period, now)
-  const active = records
+  const inRange = records
     .filter((plan) => overlaps(plan, range.from, range.to))
     .sort((left, right) => right.startedAt - left.startedAt)
-  const folders = new Set(active.map((plan) => plan.directory).filter((directory) => directory.length > 0))
+  const folders = new Set(inRange.map((plan) => plan.directory).filter((directory) => directory.length > 0))
   return {
     summary: {
       period,
       label: range.label,
       from: range.from,
       to: range.to,
-      plans: active.length,
-      started: active.filter((plan) => plan.startedAt >= range.from).length,
-      running: active.filter((plan) => plan.status === 'running').length,
-      executed: active.filter((plan) => plan.status === 'executed').length,
-      interrupted: active.filter((plan) => plan.status === 'interrupted').length,
-      filesModified: active.reduce((sum, plan) => sum + plan.filesModified, 0),
-      durationMs: active.reduce((sum, plan) => sum + Math.max(0, plan.durationMs), 0),
+      plans: inRange.length,
+      started: inRange.filter((plan) => plan.startedAt >= range.from).length,
+      running: inRange.filter((plan) => plan.status === 'running').length,
+      active: inRange.filter((plan) => planActivity(plan) === 'active').length,
+      idle: inRange.filter((plan) => planActivity(plan) === 'idle').length,
+      executed: inRange.filter((plan) => plan.status === 'executed').length,
+      interrupted: inRange.filter((plan) => plan.status === 'interrupted').length,
+      filesModified: inRange.reduce((sum, plan) => sum + plan.filesModified, 0),
+      durationMs: inRange.reduce((sum, plan) => sum + Math.max(0, plan.durationMs), 0),
       folders: folders.size,
     },
-    plans: active,
+    plans: inRange,
   }
 }

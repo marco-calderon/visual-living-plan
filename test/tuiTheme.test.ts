@@ -242,7 +242,7 @@ render(createElement(DashboardApp, {
 
   assert.equal(output.includes('same key'), false)
   assert.equal(output.includes('Invalid hook call'), false)
-  assert.match(output, /3 plans active/)
+  assert.match(output, /3 plans · 0 with an agent connected/)
   assert.match(output, /Plan same/)
   const accent = deriveAccentVars('#be123c', 'dark').accent
   const red = Number.parseInt(accent.slice(1, 3), 16)

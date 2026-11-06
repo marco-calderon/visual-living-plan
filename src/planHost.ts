@@ -171,6 +171,7 @@ export async function createPlanHost(options: {
     const state = session.getState()
     const directory = dirname(session.planPath)
     const snapshot = session.snapshot()
+    const presence = session.agentPresence()
     let port = 0
     let host = '127.0.0.1'
     try {
@@ -199,6 +200,8 @@ export async function createPlanHost(options: {
       executionActive: Boolean(state.execution.active),
       executionStep: state.execution.step ?? null,
       git: cachedGit(directory),
+      agentConnected: presence.connected,
+      agentSeenAt: presence.seenAt,
     }
   }
 
@@ -269,6 +272,8 @@ export async function createPlanHost(options: {
       status,
       filesModified: base.git.changedFiles,
       outcome: reviewOutcome(state.review?.decision),
+      // A finished run has no agent waiting on it.
+      agentConnected: status === 'running' ? base.agentConnected : false,
       endedAt: status === 'running' ? null : now,
       durationMs: Math.max(0, (status === 'running' ? now : now) - session.startedAt),
     }

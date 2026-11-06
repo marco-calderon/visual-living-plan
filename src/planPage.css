@@ -582,6 +582,37 @@ body[data-plan-status="executing"] .chip-status {
 @media (prefers-reduced-motion: reduce) {
   body[data-plan-status="executing"] .chip-status { animation: none; }
 }
+/* Agent presence: lit while a CLI command holds the plan's agent stream open. client/planStatusMark.ts keeps body[data-agent] current. */
+.chip-agent {
+  display: none;
+  flex: 0 0 auto;
+  color: var(--muted);
+  opacity: 0.45;
+  pointer-events: none;
+}
+body[data-agent] .chip-agent { display: inline-flex; }
+.chip-agent svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+body[data-agent="connected"] .chip-agent {
+  color: var(--status-executing);
+  opacity: 1;
+}
+.agent-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--muted);
+  box-sizing: border-box;
+}
+body[data-agent="connected"] .agent-dot {
+  border-color: var(--status-executing);
+  background: var(--status-executing);
+}
+body:not([data-agent]) [data-agent-fact] { display: none; }
 .plan-card {
   position: absolute;
   z-index: 9;

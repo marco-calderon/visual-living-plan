@@ -31,7 +31,7 @@ type PlanEventsWindow = Window & {
 }
 
 /** Events the hosts send to a page. A listener for another name is forwarded once it subscribes. */
-const KNOWN_EVENTS = ['hello', 'ping', 'plan', 'reload', 'theme', 'execution', 'interaction', 'review', 'mode', 'comment', 'error']
+const KNOWN_EVENTS = ['hello', 'ping', 'plan', 'reload', 'theme', 'execution', 'interaction', 'review', 'mode', 'comment', 'agent', 'error']
 
 /** Longer than two host pings (20 seconds apart), so one late ping does not drop a live stream. */
 export const STALE_MS = 50_000

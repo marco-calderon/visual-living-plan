@@ -1,8 +1,9 @@
-import type { DashboardPayload, DashboardPeriod, DashboardSummary } from '../dashboard'
-import type { CompletionState, PlanRecord, PlanStatus } from '../processRecord'
+import { planActivity, type DashboardPayload, type DashboardPeriod, type DashboardSummary, type PlanActivity } from '../dashboard'
+import { agentPresenceText } from '../agentPresence'
+import type { CompletionState, PlanRecord } from '../processRecord'
 
 /** Status chips on the dashboard. `all` keeps every plan in the period. */
-export const STATUS_FILTERS = ['all', 'running', 'executed', 'interrupted'] as const
+export const STATUS_FILTERS = ['all', 'active', 'idle', 'executed', 'interrupted'] as const
 
 export type DashboardStatusFilter = (typeof STATUS_FILTERS)[number]
 
@@ -16,15 +17,28 @@ export const PERIOD_LABEL: Record<DashboardPeriod, string> = {
 
 export const FILTER_LABEL: Record<DashboardStatusFilter, string> = {
   all: 'All',
-  running: 'Running',
+  active: 'Active',
+  idle: 'Idle',
   executed: 'Executed',
   interrupted: 'Interrupted',
 }
 
-export const STATUS_LABEL: Record<PlanStatus, string> = {
-  running: 'Running',
+/** Active while an agent is connected to an open plan, Idle while no agent is. */
+export const STATUS_LABEL: Record<PlanActivity, string> = {
+  active: 'Active',
+  idle: 'Idle',
   executed: 'Executed',
   interrupted: 'Interrupted',
+}
+
+export function statusText(plan: PlanRecord): string {
+  return STATUS_LABEL[planActivity(plan)]
+}
+
+/** The agent line under an open plan. Empty for a finished run. */
+export function agentStatusLine(plan: PlanRecord, now = Date.now()): string {
+  if (plan.status !== 'running') return ''
+  return agentPresenceText({ connected: Boolean(plan.agentConnected), seenAt: plan.agentSeenAt ?? null }, now)
 }
 
 export const COMPLETION_LABEL: Record<CompletionState, string> = {
@@ -34,7 +48,7 @@ export const COMPLETION_LABEL: Record<CompletionState, string> = {
   complete: 'Complete',
 }
 
-/** Running plans come first. A live execution step comes before an idle running plan. */
+/** Open plans come first: a live execution step, then a plan with an agent connected, then an idle one. */
 export function orderPlans(plans: readonly PlanRecord[]): PlanRecord[] {
   return [...plans].sort((left, right) => {
     const byActivity = activityRank(left) - activityRank(right)
@@ -48,13 +62,14 @@ export function orderPlans(plans: readonly PlanRecord[]): PlanRecord[] {
 
 function activityRank(plan: PlanRecord): number {
   if (plan.status === 'running' && plan.executionActive) return 0
-  if (plan.status === 'running') return 1
-  return 2
+  if (plan.status === 'running' && plan.agentConnected) return 1
+  if (plan.status === 'running') return 2
+  return 3
 }
 
 export function filterPlans(plans: readonly PlanRecord[], filter: DashboardStatusFilter): PlanRecord[] {
   if (filter === 'all') return [...plans]
-  return plans.filter((plan) => plan.status === filter)
+  return plans.filter((plan) => planActivity(plan) === filter)
 }
 
 /** Same client-side status filter as the dashboard page, then active plans first. */
@@ -109,9 +124,10 @@ export function dashboardStatusLine(
   const range = summary.from ? formatRange(summary) : ''
   const started = typeof summary.started === 'number' ? summary.started : 0
   const plans = summary.plans
-  const noun = plans === 1 ? 'plan active' : 'plans active'
+  const noun = plans === 1 ? 'plan' : 'plans'
+  const connected = typeof summary.active === 'number' ? summary.active : 0
   const filtered = filter === 'all' ? '' : ` · showing ${shownCount}`
-  return `${summary.label || 'Period'}${range ? ` · ${range}` : ''} · ${plans} ${noun} · ${started} started in this period${filtered}`
+  return `${summary.label || 'Period'}${range ? ` · ${range}` : ''} · ${plans} ${noun} · ${connected} with an agent connected · ${started} started in this period${filtered}`
 }
 
 export function planSubtitle(plan: PlanRecord): string {
@@ -162,7 +178,8 @@ export function archiveUrl(registryUrl: string, plan: PlanRecord): string | null
 
 export function summaryStats(summary: DashboardSummary): Array<{ label: string; value: string }> {
   return [
-    { label: 'Running', value: String(summary.running) },
+    { label: 'Active', value: String(summary.active ?? 0) },
+    { label: 'Idle', value: String(summary.idle ?? summary.running) },
     { label: 'Executed', value: String(summary.executed) },
     { label: 'Interrupted', value: String(summary.interrupted) },
     { label: 'Files modified', value: String(summary.filesModified) },

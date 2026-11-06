@@ -13,6 +13,7 @@ type PlanProcess = {
   pendingCount?: number
   executionActive?: boolean
   executionStep?: string | null
+  agentConnected?: boolean
   git?: {
     summary?: string
     changedPaths?: string[]
@@ -165,12 +166,17 @@ function ProcessCard({ record, selfId }: { record: PlanProcess; selfId: string |
           ))}
         </ul>
       ) : null}
-      {record.startedAt || (typeof record.pendingCount === 'number' && record.pendingCount > 0) ? (
+      {record.startedAt || typeof record.agentConnected === 'boolean' || (typeof record.pendingCount === 'number' && record.pendingCount > 0) ? (
         <div className="process-pills">
           {record.startedAt ? (
             <span className="process-pill" title="Uptime">
               <span dangerouslySetInnerHTML={{ __html: ICON_CLOCK }} />
               {age(record.startedAt)}
+            </span>
+          ) : null}
+          {typeof record.agentConnected === 'boolean' ? (
+            <span className={record.agentConnected ? 'process-pill is-agent' : 'process-pill'}>
+              {record.agentConnected ? 'Agent connected' : 'No agent'}
             </span>
           ) : null}
           {typeof record.pendingCount === 'number' && record.pendingCount > 0 ? (

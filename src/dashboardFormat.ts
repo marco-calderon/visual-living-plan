@@ -1,10 +1,20 @@
-import type { DashboardPeriod, DashboardSummary } from './dashboard'
-import type { CompletionState, PlanStatus } from './processRecord'
+import { planActivity, type DashboardPeriod, type DashboardSummary, type PlanActivity } from './dashboard'
+import { agentPresenceText } from './agentPresence'
+import type { CompletionState } from './processRecord'
 
-export type DashboardFilter = 'all' | PlanStatus
+export type DashboardFilter = 'all' | PlanActivity
 
-const STATUS_LABEL: Record<PlanStatus, string> = {
-  running: 'Running',
+export const DASHBOARD_FILTERS: Array<{ id: DashboardFilter; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'active', label: 'Active' },
+  { id: 'idle', label: 'Idle' },
+  { id: 'executed', label: 'Executed' },
+  { id: 'interrupted', label: 'Interrupted' },
+]
+
+const ACTIVITY_LABEL: Record<PlanActivity, string> = {
+  active: 'Active',
+  idle: 'Idle',
   executed: 'Executed',
   interrupted: 'Interrupted',
 }
@@ -16,9 +26,19 @@ const COMPLETION_LABEL: Record<CompletionState, string> = {
   complete: 'Complete',
 }
 
-export function statusLabel(status: string): string {
-  if (status === 'running' || status === 'executed' || status === 'interrupted') return STATUS_LABEL[status]
-  return status || 'Running'
+export function activityLabel(activity: PlanActivity): string {
+  return ACTIVITY_LABEL[activity]
+}
+
+/** The row's pill: Active while an agent is connected, Idle while the plan is open without one. */
+export function statusLabel(plan: { status: string; agentConnected?: boolean | null }): string {
+  return ACTIVITY_LABEL[planActivity(plan)]
+}
+
+/** The line under an open plan's pill. Empty for a finished run. */
+export function agentLine(plan: { status: string; agentConnected?: boolean | null; agentSeenAt?: number | null }, now = Date.now()): string {
+  if (plan.status !== 'running') return ''
+  return agentPresenceText({ connected: Boolean(plan.agentConnected), seenAt: plan.agentSeenAt ?? null }, now)
 }
 
 export function completionLabel(state: string): string {
@@ -73,13 +93,13 @@ export function periodIndex(period: DashboardPeriod): number {
   return 0
 }
 
-export function visiblePlans<T extends { status: string }>(plans: T[], filter: DashboardFilter): T[] {
+export function visiblePlans<T extends { status: string; agentConnected?: boolean | null }>(plans: T[], filter: DashboardFilter): T[] {
   if (filter === 'all') return plans
-  return plans.filter((plan) => plan.status === filter)
+  return plans.filter((plan) => planActivity(plan) === filter)
 }
 
 export function dashboardStatusLine(
-  summary: Pick<DashboardSummary, 'label' | 'from' | 'to' | 'plans' | 'started'>,
+  summary: Pick<DashboardSummary, 'label' | 'from' | 'to' | 'plans' | 'started'> & Partial<Pick<DashboardSummary, 'active'>>,
   shown: number,
   filter: DashboardFilter,
 ): string {
@@ -87,7 +107,8 @@ export function dashboardStatusLine(
   const count = summary.plans
   let text = summary.label || 'Period'
   if (range) text += `. ${range}`
-  text += `. ${count} ${count === 1 ? 'plan active' : 'plans active'}`
+  text += `. ${count} ${count === 1 ? 'plan' : 'plans'}`
+  text += `. ${summary.active ?? 0} with an agent connected`
   text += `. ${summary.started} started in this period`
   if (filter !== 'all') text += `. showing ${shown}`
   return text

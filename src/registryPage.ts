@@ -189,6 +189,7 @@ export function renderRegistryPage(): string {
           const bits = [];
           if (record.pid) bits.push('pid ' + record.pid);
           if (record.startedAt) bits.push('up ' + age(record.startedAt));
+          if (typeof record.agentConnected === 'boolean') bits.push(record.agentConnected ? 'agent connected' : 'no agent');
           if (typeof record.pendingCount === 'number') bits.push(record.pendingCount + ' pending');
           if (record.executionActive) bits.push(record.executionStep ? 'live · ' + record.executionStep : 'execution live');
           if (bits.length) card.append(text('p', 'meta', bits.join(' · ')));

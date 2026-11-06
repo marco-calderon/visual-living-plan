@@ -18,6 +18,7 @@ import { diffSections } from './diff'
 import { applyExecutionChange, createIdleExecutionState, readExecutionPatch, type ExecutionAction, type ExecutionState } from './execution'
 import { collectSectionSources, parsePlan } from './parse'
 import { recordLog } from './serviceLog'
+import { AGENT_KEEPALIVE_MS, agentPresence, type AgentPresence } from './agentPresence'
 import { loadLatestChangelog, loadPackageVersion } from './changelog'
 import { defaultRegistryHome } from './configHome'
 import { openPlanSnapshots, type PlanSnapshotStore } from './planSnapshots'
@@ -118,6 +119,8 @@ export type PlanSession = {
   lastSeenAt: number
   browserClients: number
   agentClients: number
+  /** Whether a CLI command is holding the agent stream open. */
+  agentPresence: () => AgentPresence
   touch: () => void
   snapshot: () => PlanSessionSnapshot
   setMode: (mode: PlanMode, iteration?: number) => void
@@ -281,6 +284,8 @@ export async function openPlanSession(options: {
   const waiters = new Map<string, Waiter[]>()
   const browserClients = new Set<SseClient>()
   const agentClients = new Set<SseClient>()
+  let agentSeenAt: number | null = null
+  let announcedAgents = 0
   let execution = options.execution ? { ...options.execution } : createIdleExecutionState()
   let reviewResult: ReviewResult | undefined = options.review ?? undefined
   let reviewWaiters: ReviewWaiter[] = []
@@ -443,10 +448,14 @@ export async function openPlanSession(options: {
     bucket: Set<SseClient>,
     hello: unknown,
     signal: AbortSignal,
-    options: { keepAliveMs?: number } = {},
+    options: { keepAliveMs?: number; onMembership?: () => void } = {},
   ): Response {
     const encoder = new TextEncoder()
     let client: SseClient | undefined
+    const leave = () => {
+      if (!client || !bucket.delete(client)) return
+      options.onMembership?.()
+    }
     let keepAlive: ReturnType<typeof setInterval> | undefined
     const stopKeepAlive = () => {
       if (keepAlive) clearInterval(keepAlive)
@@ -462,14 +471,15 @@ export async function openPlanSession(options: {
               controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
             } catch {
               closed = true
-              if (client) bucket.delete(client)
+              stopKeepAlive()
+              leave()
             }
           },
           close() {
             if (closed) return
             closed = true
             stopKeepAlive()
-            if (client) bucket.delete(client)
+            leave()
             try {
               controller.close()
             } catch {
@@ -479,6 +489,7 @@ export async function openPlanSession(options: {
         }
         bucket.add(client)
         client.write('hello', hello)
+        options.onMembership?.()
         // A page tells a live stream from a dead one by these pings, and reconnects when they stop.
         if (options.keepAliveMs) keepAlive = setInterval(() => client?.write('ping', { at: Date.now() }), options.keepAliveMs)
         touch()
@@ -669,6 +680,7 @@ export async function openPlanSession(options: {
         comments,
         clientAssets,
         theme: currentTheme(),
+        agent: currentAgentPresence(),
         basePath,
         dashboardHref: options.dashboardHref,
         selfId,
@@ -840,6 +852,7 @@ export async function openPlanSession(options: {
         comments,
         execution: executionView(),
         theme: currentTheme(),
+        agent: currentAgentPresence(),
       },
       request.signal,
       { keepAliveMs: BROWSER_KEEPALIVE_MS },
@@ -860,7 +873,21 @@ export async function openPlanSession(options: {
         pending: pendingEvents(),
       },
       request.signal,
+      { keepAliveMs: AGENT_KEEPALIVE_MS, onMembership: agentsChanged },
     )
+  }
+
+  function currentAgentPresence(): AgentPresence {
+    return agentPresence(agentClients.size, agentSeenAt)
+  }
+
+  /** An agent stream opened or closed. Open pages hear the new count. */
+  function agentsChanged(): void {
+    agentSeenAt = Date.now()
+    const count = agentClients.size
+    if (count === announcedAgents) return
+    announcedAgents = count
+    broadcastBrowsers('agent', currentAgentPresence())
   }
 
   function submitInteraction(interactionId: string, body: unknown, request?: Request): unknown {
@@ -1096,6 +1123,7 @@ export async function openPlanSession(options: {
     get agentClients() {
       return agentClients.size
     },
+    agentPresence: currentAgentPresence,
     touch,
     snapshot,
     setMode,
