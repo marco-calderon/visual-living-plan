@@ -160,7 +160,7 @@ function applyAgent(): void {
   document.querySelectorAll<HTMLElement>('[data-agent-presence-label]').forEach((node) => {
     node.textContent = text
   })
-  document.querySelectorAll<HTMLElement>('[data-agent-presence-icon], [data-agent-fact]').forEach((node) => {
+  document.querySelectorAll<HTMLElement>('[data-agent-presence-icon]').forEach((node) => {
     node.title = text
   })
   window.clearInterval(agentAgoTimer)

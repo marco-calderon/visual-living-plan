@@ -16,7 +16,7 @@ The long-running CLI commands (`serve`, `events`, `wait`, `watch`, and `review`)
 - The agent stream gets a `ping` every 20 seconds, like the page stream, so a peer that went away without closing is noticed and removed. The CLI ignores it.
 - The Durable Object tags agent sockets, tells page sockets on open and close, and saves `agentConnected`, `agentSeenAt`, and `agentCheckedAt` in `plans.meta`. While an agent is connected its alarm renews `agentCheckedAt` every minute. The hosted dashboard counts a plan connected only while that lease is under three minutes old, so an object that restarted without seeing its sockets close does not leave a plan active.
 - `ProcessRecord` gains `agentConnected` and `agentSeenAt`. The dashboard shows an open plan as Active with an agent connected, and Idle without one. Executed and Interrupted are unchanged. The summary adds `active` and `idle` and keeps `running` as their sum. The filters are All, Active, Idle, Executed, and Interrupted.
-- The page shows a small agent icon on the status chip, lit while connected, and an "Agent connected" or "No agent connected · last seen …" fact in the plan card. It waits four seconds before showing a drop, so `events` exiting and starting again does not flicker.
+- Presence is shown as an icon with no visible label: Lucide `bot` in green while connected, and `bot-off` in grey while not, so the state reads without color. "Agent connected" or "No agent connected · last seen …" is the tooltip and the screen-reader text. The page puts it on the status chip, and the dashboard, the Plans menu, and the Running plans page put it next to each open plan. The page waits four seconds before showing a drop, so `events` exiting and starting again does not flicker.
 
 ## Consequences
 

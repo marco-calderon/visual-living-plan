@@ -1,3 +1,4 @@
+import { agentIconSvg } from './agentPresence'
 import { faviconLink } from './favicon'
 import { webManifestHead } from './webManifest'
 
@@ -79,6 +80,9 @@ export function renderRegistryPage(): string {
     h2 a { color: inherit; text-decoration: none; }
     h2 a:hover { color: var(--accent); }
     .mode { color: var(--muted); font-size: 13px; font-weight: 600; }
+    .agent-icon { display: inline-flex; color: var(--muted); }
+    .agent-icon svg { width: 15px; height: 15px; display: block; }
+    .agent-icon.on { color: #04b54b; }
     .path { font-family: var(--font-mono); font-size: 0.78rem; word-break: break-all; margin: 0.45rem 0; }
     .meta { color: var(--muted); font-size: 0.88rem; line-height: 1.45; margin: 0.15rem 0; }
     .actions { display: flex; gap: 0.45rem; margin-top: 0.75rem; }
@@ -127,6 +131,19 @@ export function renderRegistryPage(): string {
     (() => {
       const status = document.getElementById('status');
       const list = document.getElementById('list');
+      const agentIcons = ${JSON.stringify({ on: agentIconSvg(true), off: agentIconSvg(false) })};
+      function agentIcon(connected) {
+        // A robot while an agent is connected, a struck-through robot while not. The words are the tooltip.
+        const label = connected ? 'Agent connected' : 'No agent connected';
+        const node = document.createElement('span');
+        node.className = connected ? 'agent-icon on' : 'agent-icon';
+        node.setAttribute('role', 'img');
+        node.setAttribute('aria-label', label);
+        node.title = label;
+        node.innerHTML = connected ? agentIcons.on : agentIcons.off;
+        return node;
+      }
+
       let revealed = false;
 
       function text(tag, className, value) {
@@ -178,6 +195,7 @@ export function renderRegistryPage(): string {
             heading.textContent = record.title || 'Untitled plan';
           }
           titleRow.append(heading, text('span', 'mode', record.mode || 'watch'));
+          if (typeof record.agentConnected === 'boolean') titleRow.append(agentIcon(record.agentConnected));
           card.append(titleRow);
           if (record.directory) card.append(text('p', 'path', record.directory));
           if (record.planPath) card.append(text('p', 'meta', record.planPath));
@@ -189,7 +207,6 @@ export function renderRegistryPage(): string {
           const bits = [];
           if (record.pid) bits.push('pid ' + record.pid);
           if (record.startedAt) bits.push('up ' + age(record.startedAt));
-          if (typeof record.agentConnected === 'boolean') bits.push(record.agentConnected ? 'agent connected' : 'no agent');
           if (typeof record.pendingCount === 'number') bits.push(record.pendingCount + ' pending');
           if (record.executionActive) bits.push(record.executionStep ? 'live · ' + record.executionStep : 'execution live');
           if (bits.length) card.append(text('p', 'meta', bits.join(' · ')));

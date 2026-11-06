@@ -71,3 +71,19 @@ export function agentPresenceText(presence: Pick<AgentPresence, 'connected' | 's
   const ago = agentSeenAgo(presence?.seenAt, now)
   return ago ? `${AGENT_PRESENCE_LABEL.disconnected} · last seen ${ago}` : AGENT_PRESENCE_LABEL.disconnected
 }
+
+const ICON_PATHS = {
+  // Lucide `bot`.
+  on: '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>',
+  // Lucide `bot-off`: the same robot, struck through, so the state reads without color.
+  off: '<path d="M13.67 8H18a2 2 0 0 1 2 2v4.33"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M22 22 2 2"/><path d="M8 8H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 1.414-.586"/><path d="M9 13v2"/><path d="M9.67 4H12v2.33"/>',
+} as const
+
+/** The agent icon: a robot while connected, a struck-through robot while not. */
+export function agentIconSvg(connected: boolean): string {
+  const state = connected ? 'on' : 'off'
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" data-agent-icon="${state}">${ICON_PATHS[state]}</svg>`
+}
+
+/** Both icons, for markup whose state CSS switches on `body[data-agent]`. */
+export const AGENT_ICONS_SVG = agentIconSvg(true) + agentIconSvg(false)

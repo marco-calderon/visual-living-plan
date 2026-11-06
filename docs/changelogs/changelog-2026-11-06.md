@@ -17,9 +17,10 @@ The dashboard and the plan page now show whether an agent is connected to a plan
 
 ### Improvements
 
-- The plan page shows an agent icon on the status chip, green while an agent is connected. The plan card says "Agent connected" or "No agent connected" with when it was last seen. Both follow a connect or a drop without a reload, and a drop shows after a few seconds so `events` starting again does not flicker.
-- The Plans menu and the Running plans page show "Agent connected" or "No agent" on each plan.
-- The terminal dashboard (`tui`) shows Active and Idle, lists plans with an agent before idle ones, and says whether an agent is connected.
+- Agent presence is an icon, not a label: a green robot while an agent is connected, and a grey struck-through robot while not, so it reads without color. Hovering it says "Agent connected" or "No agent connected" with when it was last seen, and screen readers read the same.
+- The plan page shows that icon on the status chip. It follows a connect or a drop without a reload, and a drop shows after a few seconds so `events` starting again does not flicker.
+- The dashboard shows the icon next to an open plan's Active or Idle pill. The Plans menu and the Running plans page show it on each plan.
+- The terminal dashboard (`tui`) shows Active and Idle, colors Idle grey, and lists plans with an agent before idle ones.
 - A CLI command that went away without closing its connection is noticed within about 20 seconds, so its plan does not stay active.
 
 ### New features

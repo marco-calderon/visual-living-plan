@@ -67,10 +67,7 @@ export function PlanRow({ plan, selected, hovered, openUrl, archive, onSelect, o
         <Box style={{ ...planColumn.status, flexDirection: 'column' }}>
           <Text style={{ bold: true, color: statusColor }}>{statusText(plan)}</Text>
           {plan.status === 'running' ? (
-            <>
-              <Text style={{ color: palette.muted }}>{plan.agentConnected ? 'Agent on' : 'No agent'}</Text>
-              <Text style={{ color: palette.muted }}>{plan.pendingCount} pending</Text>
-            </>
+            <Text style={{ color: palette.muted }}>{plan.pendingCount} pending</Text>
           ) : null}
         </Box>
         <Box style={{ ...planColumn.completion, flexDirection: 'column' }}>

@@ -3,7 +3,6 @@ import { useEffect, useRef } from 'react'
 import type { TextHandle } from '@semos-labs/glyph'
 import type { PlanRecord } from '../processRecord'
 import {
-  agentStatusLine,
   statusText,
   completionDetail,
   formatDuration,
@@ -74,11 +73,7 @@ export function PlanCard({ plan, selected, hovered, openUrl, archive, onSelect, 
       <Text style={{ color: palette.ink }}>
         {String(plan.filesModified ?? 0)} files · {formatWhen(plan.startedAt)} · {formatDuration(plan.durationMs)}
       </Text>
-      {plan.status === 'running' ? (
-        <Text style={{ color: palette.muted }}>
-          {agentStatusLine(plan)} · {plan.pendingCount} pending
-        </Text>
-      ) : null}
+      {plan.status === 'running' ? <Text style={{ color: palette.muted }}>{plan.pendingCount} pending</Text> : null}
       <PlanActions openUrl={openUrl} archive={archive} onOpen={onOpen} />
     </Box>
   )

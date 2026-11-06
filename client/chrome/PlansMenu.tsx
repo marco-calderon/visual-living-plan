@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Bot, BotOff } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { containerFolderName } from '../../src/processesPanel.ts'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/Popover.tsx'
@@ -175,8 +176,16 @@ function ProcessCard({ record, selfId }: { record: PlanProcess; selfId: string |
             </span>
           ) : null}
           {typeof record.agentConnected === 'boolean' ? (
-            <span className={record.agentConnected ? 'process-pill is-agent' : 'process-pill'}>
-              {record.agentConnected ? 'Agent connected' : 'No agent'}
+            // A robot while an agent is connected, a struck-through robot while not. The words are the tooltip.
+            <span className="process-pill is-icon">
+              <span
+                className={record.agentConnected ? 'agent-icon on' : 'agent-icon'}
+                role="img"
+                aria-label={record.agentConnected ? 'Agent connected' : 'No agent connected'}
+                title={record.agentConnected ? 'Agent connected' : 'No agent connected'}
+              >
+                {record.agentConnected ? <Bot aria-hidden="true" /> : <BotOff aria-hidden="true" />}
+              </span>
             </span>
           ) : null}
           {typeof record.pendingCount === 'number' && record.pendingCount > 0 ? (

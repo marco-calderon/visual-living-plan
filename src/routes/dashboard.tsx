@@ -24,7 +24,7 @@ import { startOfflineEngine } from "../../client/offline/engine.ts";
 import { refreshDeviceDashboards } from "../../client/offline/warmPlans.ts";
 import { dashboardAccountDecision, isAccountNetworkFailure } from "../offlineSync.ts";
 import "./dashboard.css";
-import { RefreshCcw } from "lucide-react";
+import { Bot, BotOff, RefreshCcw } from "lucide-react";
 
 const LEDE =
   "Hosted plans for this account. Summaries follow the local day, week, and month. Each published version is stored on this host, and the latest 10 are kept. Loopback plans stay on your machine.";
@@ -325,6 +325,17 @@ function BrokenPath({ value, className }: { value: string; className: string }) 
   );
 }
 
+/** A robot while an agent is connected, a struck-through robot while not. The words are the tooltip. */
+function AgentIcon({ plan }: { plan: DashboardPlan }) {
+  const label = agentLine(plan);
+  const Icon = plan.agentConnected ? Bot : BotOff;
+  return (
+    <span className={`agent-icon${plan.agentConnected ? " on" : ""}`} role="img" aria-label={label} title={label}>
+      <Icon aria-hidden="true" />
+    </span>
+  );
+}
+
 function PlanRow({ plan, offline }: { plan: DashboardPlan; offline: boolean }) {
   const bits = [plan.mode || "watch"];
   if (plan.executionStep) bits.push(plan.executionStep);
@@ -341,13 +352,11 @@ function PlanRow({ plan, offline }: { plan: DashboardPlan; offline: boolean }) {
         {plan.planPath ? <BrokenPath className="sub path" value={plan.planPath} /> : null}
       </td>
       <td>
-        <span className={`pill ${planActivity(plan)}`}>{statusLabel(plan)}</span>
-        {plan.status === "running" ? (
-          <>
-            <span className="sub">{agentLine(plan)}</span>
-            <span className="sub">{plan.pendingCount} pending</span>
-          </>
-        ) : null}
+        <span className="status-line">
+          <span className={`pill ${planActivity(plan)}`}>{statusLabel(plan)}</span>
+          {plan.status === "running" ? <AgentIcon plan={plan} /> : null}
+        </span>
+        {plan.status === "running" ? <span className="sub">{plan.pendingCount} pending</span> : null}
       </td>
       <td>
         <div className="meter">

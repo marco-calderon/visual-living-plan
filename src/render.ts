@@ -10,7 +10,7 @@ import { faviconLink } from './favicon'
 import { webManifestHead } from './webManifest'
 import { PLAN_STATUS_LABEL, planStatus, workState } from './planStatus'
 import { LOCK_BANNER_TEXT } from './lockBanner'
-import { agentPresenceText, type AgentPresence } from './agentPresence'
+import { AGENT_ICONS_SVG, agentPresenceText, type AgentPresence } from './agentPresence'
 import { PROCESSES_PANEL_STYLES, processesPanelMarkup, processesPanelScript } from './processesPanel'
 import { accentCssCustomProperties, PAGE_WIDTH_OPTIONS, type PageWidth } from './theme'
 import {
@@ -1491,15 +1491,15 @@ export function renderPlanPage(options: {
       <button type="button" class="plan-status-chip" data-plan-details-toggle aria-expanded="false" aria-controls="plan-card" aria-label="${pendingCount > 0 ? `Plan details, ${pendingCount} pending` : 'Plan details'}">
         <span class="chip-status" aria-hidden="true"></span>
         <span class="plan-status-chip-label" data-plan-status-label>${PLAN_STATUS_LABEL[status]}</span>
-        <span class="chip-agent" data-agent-presence-icon title="${escapeHtml(agentText)}">${AGENT_ICON}<span class="sr" data-agent-presence-label>${escapeHtml(agentText)}</span></span>
+        <span class="chip-agent" data-agent-presence-icon title="${escapeHtml(agentText)}">${AGENT_ICONS_SVG}</span>
         <span class="chip-badge" data-pending-badge${pendingCount > 0 ? '' : ' hidden'}>${pendingCount}</span>
       </button>
       <div class="plan-card" id="plan-card" data-plan-card role="dialog" aria-labelledby="plan-title" hidden>
         ${plan.summary ? `<p class="lede">${escapeHtml(plan.summary)}</p>` : ''}
         <div class="facts">
           <span class="fact" data-plan-status-fact title="Status"><span class="status-dot" aria-hidden="true"></span><span class="val" data-plan-status-label>${PLAN_STATUS_LABEL[status]}</span></span>
+          <span class="sr" data-agent-presence-label>${escapeHtml(agentText)}</span>
           <span class="fact solo" data-plan-mode-chip data-mode="${escapeHtml(mode)}" title="Mode · ${escapeHtml(mode)}" aria-label="Mode · ${escapeHtml(mode)}">${MODE_ICON.watch}${MODE_ICON.review}${MODE_ICON.comment}<span class="sr" data-plan-mode-value>${escapeHtml(mode)}</span></span>
-          <span class="fact" data-agent-fact title="${escapeHtml(agentText)}"><span class="agent-dot" aria-hidden="true"></span><span class="val" data-agent-presence-label>${escapeHtml(agentText)}</span></span>
           ${plan.agent ? `<span class="fact" title="Agent · ${escapeHtml(plan.agent)}" aria-label="Agent · ${escapeHtml(plan.agent)}">${AGENT_ICON}<span class="val">${escapeHtml(plan.agent)}</span></span>` : ''}
           <span class="fact" data-file-version title="${escapeHtml(versionName)}" aria-label="${escapeHtml(versionName)}">${FILE_VERSION_ICON}<span class="val" data-file-version-value>${escapeHtml(versionText)}</span></span>
           <span class="fact" data-pending-fact title="Pending · ${pendingCount}" aria-label="Pending · ${pendingCount}"${pendingCount > 0 ? '' : ' hidden'}>${PENDING_ICON}<span class="val" data-pending-count>${pendingCount}</span></span>

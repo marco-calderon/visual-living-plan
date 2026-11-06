@@ -1,7 +1,10 @@
+import { agentIconSvg } from './agentPresence'
+
 /** Browser runtime for the plan dashboard. Loopback and the Start route share it. */
 export function dashboardClientScript(apiPath: string): string {
   return `    (() => {
       const apiPath = ${JSON.stringify(apiPath)};
+      const agentIcons = ${JSON.stringify({ on: agentIconSvg(true), off: agentIconSvg(false) })};
       if (window.__livingPlanDashboardTimer) clearInterval(window.__livingPlanDashboardTimer);
       const stats = document.getElementById('stats');
       const status = document.getElementById('status');
@@ -213,9 +216,19 @@ export function dashboardClientScript(apiPath: string): string {
         row.append(planCell(record));
         const statusCell = document.createElement('td');
         const activity = activityOf(record);
-        const pill = text('span', 'pill ' + activity, activityLabel[activity]);
-        statusCell.append(pill);
-        if (record.status === 'running') statusCell.append(text('span', 'sub', agentText(record)));
+        const line = text('span', 'status-line');
+        line.append(text('span', 'pill ' + activity, activityLabel[activity]));
+        if (record.status === 'running') {
+          // A robot while an agent is connected, a struck-through robot while not. The words are the tooltip.
+          const label = agentText(record);
+          const icon = text('span', record.agentConnected ? 'agent-icon on' : 'agent-icon');
+          icon.setAttribute('role', 'img');
+          icon.setAttribute('aria-label', label);
+          icon.title = label;
+          icon.innerHTML = record.agentConnected ? agentIcons.on : agentIcons.off;
+          line.append(icon);
+        }
+        statusCell.append(line);
         if (typeof record.pendingCount === 'number' && record.status === 'running') {
           statusCell.append(text('span', 'sub', record.pendingCount + ' pending'));
         }

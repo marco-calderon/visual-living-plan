@@ -196,6 +196,11 @@ export function dashboardDocumentCss(): string {
     .pill.active::before { content: ""; width: 0.45rem; height: 0.45rem; border-radius: 50%; background: #04b54b; }
     .pill.idle { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--muted) 40%, transparent); }
     .pill.executed { background: var(--good-soft); color: var(--good); }
+    .status-line { display: inline-flex; align-items: center; gap: 0.4rem; }
+    .status-line + .sub { white-space: nowrap; }
+    .agent-icon { display: inline-flex; color: var(--muted); }
+    .agent-icon svg { width: 15px; height: 15px; display: block; }
+    .agent-icon.on { color: #04b54b; }
     .pill.interrupted { background: var(--warn-soft); color: var(--warn); }
     .meter {
       width: 7.5rem;

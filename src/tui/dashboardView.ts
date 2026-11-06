@@ -1,5 +1,4 @@
 import { planActivity, type DashboardPayload, type DashboardPeriod, type DashboardSummary, type PlanActivity } from '../dashboard'
-import { agentPresenceText } from '../agentPresence'
 import type { CompletionState, PlanRecord } from '../processRecord'
 
 /** Status chips on the dashboard. `all` keeps every plan in the period. */
@@ -35,11 +34,6 @@ export function statusText(plan: PlanRecord): string {
   return STATUS_LABEL[planActivity(plan)]
 }
 
-/** The agent line under an open plan. Empty for a finished run. */
-export function agentStatusLine(plan: PlanRecord, now = Date.now()): string {
-  if (plan.status !== 'running') return ''
-  return agentPresenceText({ connected: Boolean(plan.agentConnected), seenAt: plan.agentSeenAt ?? null }, now)
-}
 
 export const COMPLETION_LABEL: Record<CompletionState, string> = {
   idle: 'Idle',

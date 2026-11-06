@@ -1301,6 +1301,10 @@ test('a plan is active only while an agent holds its stream open, and the page h
     // Registered and open in a browser, but no CLI command waits on it.
     const page = await (await fetch(hosted.url)).text()
     assert.match(page, /data-agent="disconnected"/)
+    // Icon only: a robot and a struck-through robot that CSS switches, and no visible label.
+    assert.match(page, /data-agent-icon="on"/)
+    assert.match(page, /data-agent-icon="off"/)
+    assert.doesNotMatch(page, /data-agent-fact/)
     const before = await dashboardRow(hosted.id)
     assert.equal(before.row?.status, 'running')
     assert.equal(before.row?.agentConnected, false)
