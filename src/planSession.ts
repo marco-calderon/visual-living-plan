@@ -576,7 +576,7 @@ export async function openPlanSession(options: {
       updatedAt: Date.now(),
     }
     const view = executionView()
-    broadcast('execution', view)
+    broadcast('execution', { ...view, revision })
     persist()
     return view
   }
@@ -604,7 +604,7 @@ export async function openPlanSession(options: {
       }).catch(() => undefined)
     }
     broadcast('reload', { at: Date.now(), changed: diffs.filter((diff) => diff.status !== 'unchanged').length })
-    broadcast('execution', executionView())
+    broadcast('execution', { ...executionView(), revision })
     persist()
   }
 
@@ -622,7 +622,7 @@ export async function openPlanSession(options: {
     pushEvent('interaction', response)
     broadcast('interaction', response)
     // An answered step is done on the workflow too.
-    broadcast('execution', executionView())
+    broadcast('execution', { ...executionView(), revision })
     persist()
   }
 

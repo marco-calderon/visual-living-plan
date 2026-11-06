@@ -31,3 +31,24 @@ test('a submitted form keeps the scroll position and its element', async ({ page
   await expect(form).toContainText('Submitted')
   expect(Math.abs((await page.evaluate(() => window.scrollY)) - before)).toBeLessThan(2)
 })
+
+// Edit and Submit share one spot. The Edit click must unlock the form, not submit it again.
+test('Edit unlocks a submitted form without sending it again', async ({ page }) => {
+  await page.goto('/')
+  const form = page.locator('[data-entry="form"][data-entry-id="limits"]')
+  await expect(form).toBeVisible()
+  if (await form.getByRole('button', { name: /submit/i }).isVisible()) {
+    await form.getByRole('button', { name: /submit/i }).click()
+  }
+  const edit = form.getByRole('button', { name: /edit/i })
+  await expect(edit).toBeVisible()
+  const posts: string[] = []
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().includes('/api/interactions/')) posts.push(request.url())
+  })
+  await edit.click()
+  await expect(form.getByRole('button', { name: /submit/i })).toBeEnabled()
+  await expect(form).toContainText('Editing')
+  await page.waitForTimeout(300)
+  expect(posts).toEqual([])
+})

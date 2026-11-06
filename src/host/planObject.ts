@@ -35,6 +35,8 @@ import {
   browserHello,
   changeExecution,
   executionActive,
+  liveExecution,
+  markCommentAddressing,
   replyToComment,
   touchPlan,
   updateMode,
@@ -260,7 +262,7 @@ export class PlanObject extends DurableObject {
           title: body.title,
         })
         // A phase marked done in the file moves its workflow step, and the page's status with it.
-        this.publish([...result.outbound, { event: 'execution', data: await executionView(sql) }])
+        this.publish([...result.outbound, { event: 'execution', data: await liveExecution(sql) }])
         await this.armAlarm()
         return Response.json({ revision: result.revision })
       })
@@ -275,7 +277,7 @@ export class PlanObject extends DurableObject {
         if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'submit')) return text(401, 'Sign in required')
         const response = await this.userWrite(request, sql, 'interaction', (body) => submitInteraction(sql, params.id, body))
         // An answered step is done on the workflow too.
-        if (response.ok) this.publish([{ event: 'execution', data: await executionView(sql) }])
+        if (response.ok) this.publish([{ event: 'execution', data: await liveExecution(sql) }])
         return response
       })
       .post('/api/comments', async ({ request }) => {
@@ -341,7 +343,7 @@ export class PlanObject extends DurableObject {
   /** Browsers get the run with the plan's workflow, the shape GET /api/execution returns. */
   private async publishExecution(result: { outbound: Outbound[]; body: unknown }): Promise<Response> {
     const sql = this.sql()
-    const view = await executionView(sql)
+    const view = await liveExecution(sql)
     this.publish([{ event: 'execution', data: view }, ...result.outbound.filter((item) => item.event !== 'execution')])
     await this.armAlarm()
     return Response.json({ ok: true, execution: view })
@@ -377,7 +379,11 @@ export class PlanObject extends DurableObject {
     }
     const kind: UserMutationKind = action === 'reply' ? 'reply' : action === 'address' ? 'address' : 'addressing'
     return this.userWrite(request, sql, kind, (body) =>
-      action === 'reply' ? replyToComment(sql, commentId, body) : addressComment(sql, commentId, action === 'address' ? body : {}),
+      action === 'reply'
+        ? replyToComment(sql, commentId, body)
+        : action === 'address'
+          ? addressComment(sql, commentId, body)
+          : markCommentAddressing(sql, commentId),
     )
   }
 }

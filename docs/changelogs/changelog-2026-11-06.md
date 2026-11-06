@@ -1,5 +1,27 @@
 # Changelog — 2026-11-06
 
+## 2.12.0
+
+**PR:** [#162](https://github.com/marco-calderon/visual-living-plan/pull/162)
+
+**Bump:** minor
+
+### Summary
+
+Forms on a hosted plan no longer fail after the agent reconnects or edits the plan, Edit unlocks a submitted form, and `events --follow` delivers each submission the moment it arrives.
+
+### Bugs fixed
+
+- A hosted page's next answer no longer fails as "stale" after the agent restarts `events`, `wait`, or `watch`. An unchanged plan file keeps its revision.
+- A hosted page now hears the new revision when the agent edits the plan or starts or stops execution, so its next answer is accepted.
+- Edit on a submitted form now unlocks the fields. It used to send the old values again and lock the form.
+- `addressing` on a hosted plan shows the comment as Addressing. It used to resolve the comment.
+- `events` reconnects when the host closes an idle connection, instead of exiting with nothing printed.
+
+### New features
+
+- `events --follow` stays connected and prints each submission as it arrives, without switching the page mode. An agent that reacts to each line no longer leaves a gap between events.
+
 ## 2.11.0
 
 **PR:** Not opened yet

@@ -220,6 +220,11 @@ export function putSource(
   requireOpen(sql)
   const current = Number(meta(sql, 'revision') ?? '0')
   if (input.revision !== current) throw new StaleRevision(current)
+  // An unchanged file keeps its revision. Otherwise every reconnecting CLI would make open pages stale.
+  if (input.markdown === meta(sql, 'source') && (!input.title || input.title === meta(sql, 'title'))) {
+    touchPlan(sql)
+    return { revision: current, outbound: [] }
+  }
   const next = current + 1
   setMeta(sql, 'source', input.markdown)
   setMeta(sql, 'revision', String(next))
@@ -235,6 +240,8 @@ export function putSource(
           source: view.source,
           title: view.title,
           responses: view.responses,
+          // The page sends this revision with its next answer, so it must hear the new one.
+          revision: next,
           // An edit during a run must not unlock the page's forms.
           locked: executionActive(view),
           snapshots: [],
@@ -339,9 +346,9 @@ export function putExecution(sql: PlanSql, body: unknown): { outbound: Outbound[
   const previous = jsonMeta<{ active?: boolean }>(sql, 'execution', { active: false })
   const next = (body ?? { active: false }) as { active?: boolean }
   setMeta(sql, 'execution', JSON.stringify(next))
-  if (Boolean(previous.active) !== Boolean(next.active)) bumpRevision(sql)
+  const revision = Boolean(previous.active) !== Boolean(next.active) ? bumpRevision(sql) : Number(meta(sql, 'revision') ?? '0')
   touchPlan(sql)
-  return { outbound: [{ event: 'execution', data: body }], body: { ok: true, execution: body } }
+  return { outbound: [{ event: 'execution', data: { ...next, revision } }], body: { ok: true, execution: body } }
 }
 
 /** An agent's `execution start`, `push`, or `stop`. Fields left out keep their stored value. */
@@ -407,6 +414,11 @@ export async function executionView(sql: PlanSql): Promise<ExecutionState> {
     // A source that does not parse still has a run state to show.
     return execution
   }
+}
+
+/** The run as pages hear it: with the plan revision, which a start or stop moves. */
+export async function liveExecution(sql: PlanSql): Promise<ExecutionState & { revision: number }> {
+  return { ...(await executionView(sql)), revision: planView(sql).revision }
 }
 
 /** Progress of the hosted plan, measured the way the local session measures it. Null when the source does not parse. */
@@ -514,6 +526,19 @@ export function addressComment(
   comment.addressedAt = Date.now()
   comment.addressingAt = null
   if (outcome) comment.outcome = outcome
+  setMeta(sql, 'comments', JSON.stringify(comments))
+  touchPlan(sql)
+  return { outbound: [{ event: 'comment', data: comment }], body: { ok: true, comment } }
+}
+
+/** The agent started on a comment. The page shows Addressing until `address` resolves it. */
+export function markCommentAddressing(sql: PlanSql, commentId: string): { outbound: Outbound[]; body: unknown } {
+  requireOpen(sql)
+  const comments = jsonMeta<Array<Record<string, unknown>>>(sql, 'comments', [])
+  const comment = comments.find((entry) => entry.id === commentId)
+  if (!comment) throw new PlanRoomError(404, 'Comment not found')
+  comment.addressingAt = Date.now()
+  comment.addressedAt = null
   setMeta(sql, 'comments', JSON.stringify(comments))
   touchPlan(sql)
   return { outbound: [{ event: 'comment', data: comment }], body: { ok: true, comment } }
