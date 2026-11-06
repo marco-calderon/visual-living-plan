@@ -67,6 +67,7 @@ export function lanProtectedRequest(method: string, pathname: string): boolean {
   if (pathname === '/api/processes' || pathname === '/api/plans') return method === 'GET'
   if (pathname.startsWith('/api/processes/')) return false
   if (pathname === '/' || pathname === '/dashboard' || pathname === '/api/dashboard') return true
+  if (pathname.startsWith('/api/dashboard/')) return true
   if (pathname.startsWith('/archive/')) return true
   const match = /^\/plans\/([^/]+)(\/.*)?$/.exec(pathname)
   if (!match) return false

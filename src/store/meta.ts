@@ -43,6 +43,8 @@ export type PlanMeta = {
   syncRevision: number
   syncMutations: IdempotencyRecord[]
   themeUpdatedAt: number
+  /** Set when the plan was deleted from the dashboard. The row and its data stay. */
+  deletedAt: number | null
 }
 
 /** Account appearance. Local rows stay empty. */
@@ -88,6 +90,7 @@ export function emptyMeta(patch: Partial<PlanMeta> = {}): PlanMeta {
     syncRevision: 0,
     syncMutations: [],
     themeUpdatedAt: 0,
+    deletedAt: null,
     ...rest,
     git: { ...emptyGitSnapshot(), ...(git ?? {}) },
   }
@@ -164,6 +167,7 @@ export function keepProgress(current: PlanMeta, incoming: PlanMeta): PlanMeta {
     syncRevision: current.syncRevision,
     syncMutations: current.syncMutations,
     themeUpdatedAt: current.themeUpdatedAt,
+    deletedAt: current.deletedAt,
   }
 }
 
@@ -185,5 +189,6 @@ export function readMeta(value: unknown): PlanMeta {
   if (typeof meta.syncRevision !== 'number' || !Number.isFinite(meta.syncRevision)) meta.syncRevision = 0
   if (!Array.isArray(meta.syncMutations)) meta.syncMutations = []
   if (typeof meta.themeUpdatedAt !== 'number' || !Number.isFinite(meta.themeUpdatedAt)) meta.themeUpdatedAt = 0
+  if (typeof meta.deletedAt !== 'number' || !Number.isFinite(meta.deletedAt)) meta.deletedAt = null
   return meta
 }

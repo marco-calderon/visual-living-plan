@@ -476,3 +476,22 @@ test('opening the store backfills ended_at on legacy plan runs', async () => {
     await rm(home, { recursive: true, force: true })
   }
 })
+
+test('a soft-deleted plan keeps its runs but leaves them out of the dashboard', async () => {
+  const store = await openRegistryStore(':memory:')
+  try {
+    store.saveRun(plan({ id: 'kept', startedAt: 1_000, endedAt: 2_000, heartbeatAt: 2_000 }))
+    store.saveRun(plan({ id: 'gone', startedAt: 1_000, endedAt: 2_000, heartbeatAt: 2_000 }))
+    assert.equal(store.softDelete('gone', 3_000), true)
+    assert.equal(store.softDelete('missing', 3_000), false)
+    assert.deepEqual(store.listRuns().map((entry) => entry.id), ['kept'])
+    // Saving the same run again keeps it hidden.
+    store.saveRun(plan({ id: 'gone', startedAt: 1_000, endedAt: 2_500, heartbeatAt: 2_500 }))
+    assert.deepEqual(store.listRuns().map((entry) => entry.id), ['kept'])
+    // A later run of the same plan shows.
+    store.saveRun(plan({ id: 'gone', startedAt: 4_000, endedAt: 5_000, heartbeatAt: 5_000 }))
+    assert.deepEqual(store.listRuns().map((entry) => `${entry.id}:${entry.startedAt}`).sort(), ['gone:4000', 'kept:1000'])
+  } finally {
+    store.close()
+  }
+})

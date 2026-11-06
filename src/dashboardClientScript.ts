@@ -156,14 +156,6 @@ export function dashboardClientScript(apiPath: string): string {
         return cell;
       }
 
-      function folderCell(record) {
-        const cell = document.createElement('td');
-        if (record.directory) cell.append(pathNode('path', record.directory));
-        const git = record.git || {};
-        if (git.branch) cell.append(text('span', 'sub', git.branch + (git.dirty ? ', dirty' : ', clean')));
-        return cell;
-      }
-
       function actionIcon(kind) {
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('viewBox', '0 0 24 24');
@@ -173,16 +165,31 @@ export function dashboardClientScript(apiPath: string): string {
         svg.setAttribute('stroke-linecap', 'round');
         svg.setAttribute('stroke-linejoin', 'round');
         svg.setAttribute('aria-hidden', 'true');
-        const paths = kind === 'open'
-          ? ['M15 3h6v6', 'M10 14 21 3', 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6']
-          : ['M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z', 'M14 2v4a2 2 0 0 0 2 2h4', 'M10 9H8', 'M16 13H8', 'M16 17H8'];
+        const paths = iconPaths[kind] || [];
         for (let index = 0; index < paths.length; index += 1) {
           const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
           path.setAttribute('d', paths[index]);
           svg.append(path);
         }
+        if (kind === 'more') {
+          for (const cx of ['5', '12', '19']) {
+            const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            dot.setAttribute('cx', cx);
+            dot.setAttribute('cy', '12');
+            dot.setAttribute('r', '1');
+            svg.append(dot);
+          }
+        }
         return svg;
       }
+
+      // Lucide paths: external-link, file-text, trash-2. "more" adds three dots.
+      const iconPaths = {
+        open: ['M15 3h6v6', 'M10 14 21 3', 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6'],
+        file: ['M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z', 'M14 2v4a2 2 0 0 0 2 2h4', 'M10 9H8', 'M16 13H8', 'M16 17H8'],
+        trash: ['M3 6h18', 'M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6', 'M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2', 'M10 11v6', 'M14 11v6'],
+        more: [],
+      };
 
       function actionLink(label, href, kind) {
         const node = document.createElement('a');
@@ -194,6 +201,112 @@ export function dashboardClientScript(apiPath: string): string {
         return node;
       }
 
+      function menuLabel(label, kind) {
+        const node = text('span', 'plan-menu-label');
+        node.append(actionIcon(kind), label);
+        return node;
+      }
+
+      // The open row menu. Polling does not repaint the table while it is open.
+      let openMenu = null;
+      let pendingPaint = null;
+
+      function closeMenu(focusTrigger) {
+        if (!openMenu) return;
+        const menu = openMenu;
+        openMenu = null;
+        menu.popup.remove();
+        menu.trigger.setAttribute('aria-expanded', 'false');
+        if (focusTrigger) menu.trigger.focus();
+        if (pendingPaint) {
+          const payload = pendingPaint;
+          pendingPaint = null;
+          paint(payload);
+        }
+      }
+
+      function showMenu(trigger, record) {
+        const popup = text('div', 'plan-menu-popup plan-row-menu');
+        popup.setAttribute('role', 'menu');
+        if (record.storedPath && record.id) {
+          const item = document.createElement('a');
+          item.className = 'plan-menu-item';
+          item.setAttribute('role', 'menuitem');
+          item.href = record.fileUrl || ('/archive/' + encodeURIComponent(record.id));
+          item.append(menuLabel('Plan file', 'file'));
+          popup.append(item);
+          const line = text('div', 'plan-menu-separator');
+          line.setAttribute('role', 'separator');
+          popup.append(line);
+        }
+        const remove = text('button', 'plan-menu-item plan-menu-danger');
+        remove.type = 'button';
+        remove.setAttribute('role', 'menuitem');
+        remove.append(menuLabel('Delete', 'trash'));
+        remove.addEventListener('click', () => {
+          closeMenu(false);
+          deletePlan(record);
+        });
+        popup.append(remove);
+        // Fixed to the trigger, so the scrolling table does not clip it.
+        const box = trigger.getBoundingClientRect();
+        popup.style.right = Math.round(document.documentElement.clientWidth - box.right) + 'px';
+        document.body.append(popup);
+        // Open upward when there is no room below.
+        const below = window.innerHeight - box.bottom - 4;
+        const top = popup.offsetHeight > below ? box.top - 4 - popup.offsetHeight : box.bottom + 4;
+        popup.style.top = Math.round(Math.max(4, top)) + 'px';
+        trigger.setAttribute('aria-expanded', 'true');
+        openMenu = { trigger, popup };
+        const first = popup.querySelector('.plan-menu-item');
+        if (first) first.focus({ preventScroll: true });
+      }
+
+      function moreButton(record) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'plan-btn plan-btn-ghost plan-action';
+        button.setAttribute('aria-label', 'More actions');
+        button.setAttribute('aria-haspopup', 'menu');
+        button.setAttribute('aria-expanded', 'false');
+        button.title = 'More actions';
+        button.append(actionIcon('more'));
+        button.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const wasOpen = openMenu && openMenu.trigger === button;
+          closeMenu(false);
+          if (!wasOpen) showMenu(button, record);
+        });
+        return button;
+      }
+
+      // Hide a plan from the dashboard. The service keeps its rows and files.
+      async function deletePlan(record) {
+        const title = record.title || 'Untitled plan';
+        if (!window.confirm('Delete "' + title + '" from the dashboard?')) return;
+        try {
+          const response = await fetch('/api/dashboard/plans/' + encodeURIComponent(record.id), { method: 'DELETE' });
+          if (!response.ok) throw new Error('Request failed');
+        } catch (error) {
+          window.alert('Could not delete the plan.');
+          return;
+        }
+        if (latest && Array.isArray(latest.plans)) {
+          motion = 'filter';
+          paint({ ...latest, plans: latest.plans.filter((plan) => plan.id !== record.id) });
+        }
+        refresh();
+      }
+
+      document.addEventListener('click', (event) => {
+        if (openMenu && !openMenu.popup.contains(event.target)) closeMenu(false);
+      });
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closeMenu(true);
+      });
+      window.addEventListener('resize', () => closeMenu(false));
+      document.addEventListener('scroll', () => closeMenu(false), true);
+
       function actions(record) {
         const cell = document.createElement('td');
         cell.className = 'plan-actions-cell';
@@ -203,10 +316,7 @@ export function dashboardClientScript(apiPath: string): string {
           const site = safeUrl(record.url || '');
           if (site) row.append(actionLink('Open', site, 'open'));
         }
-        if (record.storedPath && record.id) {
-          const archived = record.fileUrl || ('/archive/' + encodeURIComponent(record.id));
-          row.append(actionLink('Plan file', archived, 'file'));
-        }
+        if (record.id) row.append(moreButton(record));
         if (row.childElementCount) cell.append(row);
         return cell;
       }
@@ -234,10 +344,7 @@ export function dashboardClientScript(apiPath: string): string {
         }
         row.append(statusCell);
         row.append(completionCell(record));
-        row.append(folderCell(record));
-        row.append(text('td', 'num', String(record.filesModified ?? 0)));
         row.append(text('td', 'num', formatWhen(record.startedAt)));
-        row.append(text('td', 'num', formatDuration(record.durationMs)));
         row.append(actions(record));
         return row;
       }
@@ -292,7 +399,7 @@ export function dashboardClientScript(apiPath: string): string {
         if (shown.length === 0) {
           const row = document.createElement('tr');
           const cell = text('td', 'empty', 'No plans in this view.');
-          cell.colSpan = 8;
+          cell.colSpan = 5;
           if (reveal) row.classList.add('enter');
           row.append(cell);
           rows.append(row);
@@ -342,6 +449,11 @@ export function dashboardClientScript(apiPath: string): string {
       }
 
       async function paint(payload) {
+        if (openMenu) {
+          pendingPaint = payload;
+          latest = payload;
+          return;
+        }
         const generation = ++paintGeneration;
         const kind = motion;
         const shift = document.documentElement.dataset.shift === 'back' ? 'back' : 'forward';

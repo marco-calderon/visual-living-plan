@@ -70,6 +70,17 @@ export function hostedAgentPresence(meta: string | null | undefined, now = Date.
   }
 }
 
+/** True when the plan was deleted from the dashboard. The row stays stored. */
+export function hostedDeleted(meta: string | null | undefined): boolean {
+  if (!meta) return false
+  try {
+    const value = JSON.parse(meta) as { deletedAt?: unknown } | null
+    return typeof value?.deletedAt === 'number'
+  } catch {
+    return false
+  }
+}
+
 export type HostedDashboardPlan = PlanRecord & {
   fileUrl?: string
   historyUrl?: string
@@ -82,7 +93,7 @@ export function hostedDashboard(
   origin: string,
   now = Date.now(),
 ): DashboardPayload {
-  const plans: HostedDashboardPlan[] = rows.map((row) => {
+  const plans: HostedDashboardPlan[] = rows.filter((row) => !hostedDeleted(row.meta)).map((row) => {
     const running = row.ended_at == null
     const startedAt = row.started_at
     const endedAt = row.ended_at

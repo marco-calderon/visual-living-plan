@@ -218,6 +218,8 @@ export async function createPlanHost(options: {
     if (existing) {
       if (input.mode !== 'watch') existing.setMode(input.mode, input.iteration)
       existing.touch()
+      // Serving a plan again brings it back to the dashboard.
+      options.store.restore(existing.id)
       return {
         id: existing.id,
         url: planUrl(existing.id),
@@ -252,6 +254,7 @@ export async function createPlanHost(options: {
     })
     sessions.set(session.id, session)
     persist(session.snapshot())
+    options.store.restore(session.id)
     return {
       id: session.id,
       url: planUrl(session.id),
