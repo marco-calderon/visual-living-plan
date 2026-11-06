@@ -1,9 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, isRedirect, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import type { DashboardPeriod, DashboardSummary } from "../dashboard.ts";
+import { planActivity, type DashboardPeriod, type DashboardSummary } from "../dashboard.ts";
 import {
+  agentLine,
   completionLabel,
+  DASHBOARD_FILTERS,
   dashboardStatusLine,
   formatDuration,
   formatWhen,
@@ -22,7 +24,7 @@ import { startOfflineEngine } from "../../client/offline/engine.ts";
 import { refreshDeviceDashboards } from "../../client/offline/warmPlans.ts";
 import { dashboardAccountDecision, isAccountNetworkFailure } from "../offlineSync.ts";
 import "./dashboard.css";
-import { RefreshCcw } from "lucide-react";
+import { Bot, BotOff, RefreshCcw } from "lucide-react";
 
 const LEDE =
   "Hosted plans for this account. Summaries follow the local day, week, and month. Each published version is stored on this host, and the latest 10 are kept. Loopback plans stay on your machine.";
@@ -33,12 +35,7 @@ const PERIODS: Array<{ id: DashboardPeriod; label: string; aria?: string }> = [
   { id: "month", label: "Month", aria: "This month" },
 ];
 
-const FILTERS: Array<{ id: DashboardFilter; label: string }> = [
-  { id: "all", label: "All" },
-  { id: "running", label: "Running" },
-  { id: "executed", label: "Executed" },
-  { id: "interrupted", label: "Interrupted" },
-];
+const FILTERS = DASHBOARD_FILTERS;
 
 type DashboardSearch = { period?: DashboardPeriod };
 
@@ -230,7 +227,8 @@ function DashboardPage() {
             <section className="stats" aria-live="polite">
               {payload ? (
                 <>
-                  <Stat label="Running" value={String(payload.summary.running)} />
+                  <Stat label="Active" value={String(payload.summary.active ?? 0)} />
+                  <Stat label="Idle" value={String(payload.summary.idle ?? payload.summary.running)} />
                   <Stat label="Executed" value={String(payload.summary.executed)} />
                   <Stat label="Interrupted" value={String(payload.summary.interrupted)} />
                   <Stat label="Files modified" value={String(payload.summary.filesModified)} />
@@ -327,6 +325,17 @@ function BrokenPath({ value, className }: { value: string; className: string }) 
   );
 }
 
+/** A robot while an agent is connected, a struck-through robot while not. The words are the tooltip. */
+function AgentIcon({ plan }: { plan: DashboardPlan }) {
+  const label = agentLine(plan);
+  const Icon = plan.agentConnected ? Bot : BotOff;
+  return (
+    <span className={`agent-icon${plan.agentConnected ? " on" : ""}`} role="img" aria-label={label} title={label}>
+      <Icon aria-hidden="true" />
+    </span>
+  );
+}
+
 function PlanRow({ plan, offline }: { plan: DashboardPlan; offline: boolean }) {
   const bits = [plan.mode || "watch"];
   if (plan.executionStep) bits.push(plan.executionStep);
@@ -343,10 +352,11 @@ function PlanRow({ plan, offline }: { plan: DashboardPlan; offline: boolean }) {
         {plan.planPath ? <BrokenPath className="sub path" value={plan.planPath} /> : null}
       </td>
       <td>
-        <span className={`pill ${plan.status || "running"}`}>{statusLabel(plan.status)}</span>
-        {plan.status === "running" ? (
-          <span className="sub">{plan.pendingCount} pending</span>
-        ) : null}
+        <span className="status-line">
+          <span className={`pill ${planActivity(plan)}`}>{statusLabel(plan)}</span>
+          {plan.status === "running" ? <AgentIcon plan={plan} /> : null}
+        </span>
+        {plan.status === "running" ? <span className="sub">{plan.pendingCount} pending</span> : null}
       </td>
       <td>
         <div className="meter">

@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react'
 import type { TextHandle } from '@semos-labs/glyph'
 import type { PlanRecord } from '../processRecord'
 import {
-  STATUS_LABEL,
+  statusText,
   completionDetail,
   formatDuration,
   formatWhen,
@@ -28,7 +28,13 @@ export function PlanCard({ plan, selected, hovered, openUrl, archive, onSelect, 
   const palette = usePalette()
   const completion = completionDetail(plan)
   const statusColor =
-    plan.status === 'executed' ? palette.good : plan.status === 'interrupted' ? palette.warn : palette.accent
+    plan.status === 'executed'
+      ? palette.good
+      : plan.status === 'interrupted'
+        ? palette.warn
+        : plan.agentConnected
+          ? palette.accent
+          : palette.muted
   const anchor = useRef<TextHandle>(null)
 
   useEffect(() => {
@@ -54,7 +60,7 @@ export function PlanCard({ plan, selected, hovered, openUrl, archive, onSelect, 
           {selected ? '▸ ' : ''}
           {plan.title || 'Untitled plan'}
         </Text>
-        <Text style={{ bold: true, color: statusColor }}>{STATUS_LABEL[plan.status] ?? plan.status}</Text>
+        <Text style={{ bold: true, color: statusColor }}>{statusText(plan)}</Text>
       </Box>
       <Text style={{ color: palette.muted }}>{planSubtitle(plan)}</Text>
       {plan.planPath ? <Text style={{ color: palette.muted }} wrap="ellipsis">{plan.planPath}</Text> : null}

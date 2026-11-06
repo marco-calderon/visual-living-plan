@@ -582,6 +582,21 @@ body[data-plan-status="executing"] .chip-status {
 @media (prefers-reduced-motion: reduce) {
   body[data-plan-status="executing"] .chip-status { animation: none; }
 }
+/* Agent presence, icon only: a green robot while a CLI command holds the plan's agent stream open, a struck-through grey robot while not. client/planStatusMark.ts keeps body[data-agent] current. */
+.chip-agent {
+  display: none;
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+body[data-agent] .chip-agent { display: inline-flex; }
+.chip-agent svg {
+  width: 14px;
+  height: 14px;
+  display: none;
+}
+body[data-agent="connected"] .chip-agent { color: var(--status-executing); }
+body[data-agent="connected"] .chip-agent svg[data-agent-icon="on"],
+body[data-agent="disconnected"] .chip-agent svg[data-agent-icon="off"] { display: block; }
 .plan-card {
   position: absolute;
   z-index: 9;

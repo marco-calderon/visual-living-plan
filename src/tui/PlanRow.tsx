@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react'
 import type { TextHandle } from '@semos-labs/glyph'
 import type { PlanRecord } from '../processRecord'
 import {
-  STATUS_LABEL,
+  statusText,
   completionDetail,
   formatDuration,
   formatWhen,
@@ -30,7 +30,13 @@ export function PlanRow({ plan, selected, hovered, openUrl, archive, onSelect, o
   const completion = completionDetail(plan)
   const tint = selected ? palette.accentSoft : hovered ? palette.hover : undefined
   const statusColor =
-    plan.status === 'executed' ? palette.good : plan.status === 'interrupted' ? palette.warn : palette.accent
+    plan.status === 'executed'
+      ? palette.good
+      : plan.status === 'interrupted'
+        ? palette.warn
+        : plan.agentConnected
+          ? palette.accent
+          : palette.muted
   const anchor = useRef<TextHandle>(null)
 
   useEffect(() => {
@@ -59,7 +65,7 @@ export function PlanRow({ plan, selected, hovered, openUrl, archive, onSelect, o
           {plan.planPath ? <Text style={{ color: palette.muted }}>{plan.planPath}</Text> : null}
         </Box>
         <Box style={{ ...planColumn.status, flexDirection: 'column' }}>
-          <Text style={{ bold: true, color: statusColor }}>{STATUS_LABEL[plan.status] ?? plan.status}</Text>
+          <Text style={{ bold: true, color: statusColor }}>{statusText(plan)}</Text>
           {plan.status === 'running' ? (
             <Text style={{ color: palette.muted }}>{plan.pendingCount} pending</Text>
           ) : null}

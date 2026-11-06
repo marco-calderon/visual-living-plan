@@ -33,5 +33,6 @@ Decisions are numbered in the order they were made. Superseded decisions stay he
 | [0027](0027-offline-dashboard-and-owned-plans.md) | 2026-11-02 | Accepted | The installed app opens the dashboard offline, and this device keeps the account's plans |
 | [0028](0028-owner-only-hosted-plans.md) | 2026-11-03 | Accepted | Hosted plans open only for the owning account; the signed view link is retired |
 | [0029](0029-page-stream-catches-up.md) | 2026-11-05 | Accepted | A plan page catches up from `hello` after a drop, and the host merges execution start, push, and stop |
+| [0030](0030-agent-presence.md) | 2026-11-06 | Accepted | A plan is active only while an agent holds its agent stream open; the page and the dashboard follow each connect and drop |
 
-Add the next decision as `0030-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.
+Add the next decision as `0031-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.

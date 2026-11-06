@@ -1,7 +1,10 @@
+import { agentIconSvg } from './agentPresence'
+
 /** Browser runtime for the plan dashboard. Loopback and the Start route share it. */
 export function dashboardClientScript(apiPath: string): string {
   return `    (() => {
       const apiPath = ${JSON.stringify(apiPath)};
+      const agentIcons = ${JSON.stringify({ on: agentIconSvg(true), off: agentIconSvg(false) })};
       if (window.__livingPlanDashboardTimer) clearInterval(window.__livingPlanDashboardTimer);
       const stats = document.getElementById('stats');
       const status = document.getElementById('status');
@@ -73,7 +76,28 @@ export function dashboardClientScript(apiPath: string): string {
         return start + ' – ' + end;
       }
 
-      const statusLabel = { running: 'Running', executed: 'Executed', interrupted: 'Interrupted' };
+      const activityLabel = { active: 'Active', idle: 'Idle', executed: 'Executed', interrupted: 'Interrupted' };
+
+      // Same rule as planActivity in src/dashboard.ts: an open plan is active only while an agent is connected.
+      function activityOf(record) {
+        if (record.status === 'executed' || record.status === 'interrupted') return record.status;
+        return record.agentConnected ? 'active' : 'idle';
+      }
+
+      // Same text as agentPresenceText in src/agentPresence.ts.
+      function agentText(record) {
+        if (record.agentConnected) return 'Agent connected';
+        const seen = Number(record.agentSeenAt) || 0;
+        if (!seen) return 'No agent connected';
+        const seconds = Math.max(0, Math.round((Date.now() - seen) / 1000));
+        let ago = 'just now';
+        if (seconds >= 60) {
+          const minutes = Math.floor(seconds / 60);
+          const hours = Math.floor(minutes / 60);
+          ago = minutes < 60 ? minutes + 'm ago' : hours < 48 ? hours + 'h ago' : Math.floor(hours / 24) + 'd ago';
+        }
+        return 'No agent connected · last seen ' + ago;
+      }
       const completionLabel = {
         idle: 'Idle',
         in_progress: 'In progress',
@@ -89,7 +113,8 @@ export function dashboardClientScript(apiPath: string): string {
 
       function paintStats(summary, animate) {
         stats.replaceChildren(
-          statCard('Running', String(summary.running)),
+          statCard('Active', String(summary.active ?? 0)),
+          statCard('Idle', String(summary.idle ?? summary.running ?? 0)),
           statCard('Executed', String(summary.executed)),
           statCard('Interrupted', String(summary.interrupted)),
           statCard('Files modified', String(summary.filesModified)),
@@ -190,8 +215,20 @@ export function dashboardClientScript(apiPath: string): string {
         const row = document.createElement('tr');
         row.append(planCell(record));
         const statusCell = document.createElement('td');
-        const pill = text('span', 'pill ' + (record.status || 'running'), statusLabel[record.status] || record.status || 'Running');
-        statusCell.append(pill);
+        const activity = activityOf(record);
+        const line = text('span', 'status-line');
+        line.append(text('span', 'pill ' + activity, activityLabel[activity]));
+        if (record.status === 'running') {
+          // A robot while an agent is connected, a struck-through robot while not. The words are the tooltip.
+          const label = agentText(record);
+          const icon = text('span', record.agentConnected ? 'agent-icon on' : 'agent-icon');
+          icon.setAttribute('role', 'img');
+          icon.setAttribute('aria-label', label);
+          icon.title = label;
+          icon.innerHTML = record.agentConnected ? agentIcons.on : agentIcons.off;
+          line.append(icon);
+        }
+        statusCell.append(line);
         if (typeof record.pendingCount === 'number' && record.status === 'running') {
           statusCell.append(text('span', 'sub', record.pendingCount + ' pending'));
         }
@@ -207,7 +244,7 @@ export function dashboardClientScript(apiPath: string): string {
 
       function visiblePlans(plans) {
         if (filter === 'all') return plans;
-        return plans.filter((plan) => plan.status === filter);
+        return plans.filter((plan) => activityOf(plan) === filter);
       }
 
       function motionOff() {
@@ -243,7 +280,10 @@ export function dashboardClientScript(apiPath: string): string {
           + (range ? '. ' + range : '')
           + '. '
           + plans.length
-          + (plans.length === 1 ? ' plan active' : ' plans active')
+          + (plans.length === 1 ? ' plan' : ' plans')
+          + '. '
+          + (typeof summary.active === 'number' ? summary.active : 0)
+          + ' with an agent connected'
           + '. '
           + started
           + ' started in this period'

@@ -1,5 +1,6 @@
 import { buildDashboard, type DashboardPayload, type DashboardPeriod } from '../../src/dashboard'
 import { emptyGitSnapshot, isPlanMode, readProgress, type PlanRecord, type ProgressFields } from '../../src/processRecord'
+import { AGENT_LEASE_MS } from '../../src/agentPresence'
 
 export type HostedPlanRow = {
   id: string
@@ -48,6 +49,27 @@ export async function saveHostedProgress(db: D1Database, planId: string, progres
     .run()
 }
 
+/**
+ * Agent presence saved on a plan row by its plan object. It counts as connected only while the
+ * object keeps renewing it, so a lost close cannot leave a plan active.
+ */
+export function hostedAgentPresence(meta: string | null | undefined, now = Date.now()): { agentConnected: boolean; agentSeenAt: number | null } {
+  let parsed: Record<string, unknown> = {}
+  try {
+    const value = JSON.parse(meta || '{}') as unknown
+    if (value && typeof value === 'object' && !Array.isArray(value)) parsed = value as Record<string, unknown>
+  } catch {
+    // No presence saved.
+  }
+  const seen = Number(parsed.agentSeenAt)
+  const checked = Number(parsed.agentCheckedAt)
+  const fresh = Number.isFinite(checked) && now - checked < AGENT_LEASE_MS
+  return {
+    agentConnected: parsed.agentConnected === true && fresh,
+    agentSeenAt: Number.isFinite(seen) && seen > 0 ? seen : null,
+  }
+}
+
 export type HostedDashboardPlan = PlanRecord & {
   fileUrl?: string
   historyUrl?: string
@@ -89,6 +111,7 @@ export function hostedDashboard(
       endedAt,
       durationMs: Math.max(0, (endedAt ?? now) - startedAt),
       ...(hostedProgress(row.meta) ?? NO_PROGRESS),
+      ...(running ? hostedAgentPresence(row.meta, now) : { agentConnected: false, agentSeenAt: null }),
       filesModified: 0,
       outcome: null,
     }

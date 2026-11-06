@@ -1,4 +1,4 @@
-import { ChevronDown, FileText, Workflow } from 'lucide-react'
+import { Bot, BotOff, ChevronDown, FileText, Workflow } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '../client/ui/button.tsx'
 import { hostToolbarCss } from './hostToolbar.ts'
@@ -150,6 +150,11 @@ export function PlanShell({
             <span className="plan-status-chip-label" data-plan-status-label="">
               {openingLabel}
             </span>
+            {/* Hidden until the host says whether an agent is connected. client/planStatusMark.ts sets body[data-agent]. */}
+            <span className="chip-agent" data-agent-presence-icon="">
+              <Bot aria-hidden="true" data-agent-icon="on" />
+              <BotOff aria-hidden="true" data-agent-icon="off" />
+            </span>
           </button>
           <div className="plan-card" id="plan-card" data-plan-card="" hidden>
             <div className="facts">
@@ -159,6 +164,7 @@ export function PlanShell({
                   {openingLabel}
                 </span>
               </span>
+              <span className="sr" data-agent-presence-label="" />
               <span className="fact" title={`Mode · ${mode}`}>
                 <span className="val">{mode}</span>
               </span>

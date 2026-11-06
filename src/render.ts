@@ -10,6 +10,7 @@ import { faviconLink } from './favicon'
 import { webManifestHead } from './webManifest'
 import { PLAN_STATUS_LABEL, planStatus, workState } from './planStatus'
 import { LOCK_BANNER_TEXT } from './lockBanner'
+import { AGENT_ICONS_SVG, agentPresenceText, type AgentPresence } from './agentPresence'
 import { PROCESSES_PANEL_STYLES, processesPanelMarkup, processesPanelScript } from './processesPanel'
 import { accentCssCustomProperties, PAGE_WIDTH_OPTIONS, type PageWidth } from './theme'
 import {
@@ -1360,6 +1361,8 @@ export function renderPlanPage(options: {
   execution: ExecutionState
   clientAssets?: ClientAssets | null
   theme: RenderTheme
+  /** Whether an agent holds the plan's agent stream open when the page is served. */
+  agent?: AgentPresence | null
   /** Prefix for this plan's API. Empty when the plan owns the origin. */
   basePath?: string
   /** Where the logo goes. Defaults to the service dashboard when the plan sits under `/plans/<id>`. The private server has no dashboard. */
@@ -1407,6 +1410,8 @@ export function renderPlanPage(options: {
   const workflowState = locked ? 'live' : planned ? 'planned' : 'idle'
   const executionView: ExecutionState = { ...execution, planned }
   const status = planStatus({ mode, decision: reviewDecision, active: locked, work: workState(executionView) })
+  const agentConnected = Boolean(options.agent?.connected)
+  const agentText = agentPresenceText(options.agent)
   const flags = planSourceFlags(plan.source)
   const hasMermaid = flags.mermaid
   const hasCode = flags.code
@@ -1474,7 +1479,7 @@ export function renderPlanPage(options: {
   ${accentStyleTag(theme.accent)}
   ${planMdxHref ? '<style>.plan-mdx-pending{display:none}</style><noscript><style>.plan-mdx-pending{display:block}</style></noscript>' : ''}
 </head>
-<body class="${showReviewBar ? 'has-review-bar ' : ''}layout-${layoutMode}" data-plan-mode="${escapeHtml(mode)}" data-plan-status="${status}">
+<body class="${showReviewBar ? 'has-review-bar ' : ''}layout-${layoutMode}" data-plan-mode="${escapeHtml(mode)}" data-plan-status="${status}" data-agent="${agentConnected ? 'connected' : 'disconnected'}">
   <header class="titlebar">
     ${
       dashboardHref
@@ -1486,12 +1491,14 @@ export function renderPlanPage(options: {
       <button type="button" class="plan-status-chip" data-plan-details-toggle aria-expanded="false" aria-controls="plan-card" aria-label="${pendingCount > 0 ? `Plan details, ${pendingCount} pending` : 'Plan details'}">
         <span class="chip-status" aria-hidden="true"></span>
         <span class="plan-status-chip-label" data-plan-status-label>${PLAN_STATUS_LABEL[status]}</span>
+        <span class="chip-agent" data-agent-presence-icon title="${escapeHtml(agentText)}">${AGENT_ICONS_SVG}</span>
         <span class="chip-badge" data-pending-badge${pendingCount > 0 ? '' : ' hidden'}>${pendingCount}</span>
       </button>
       <div class="plan-card" id="plan-card" data-plan-card role="dialog" aria-labelledby="plan-title" hidden>
         ${plan.summary ? `<p class="lede">${escapeHtml(plan.summary)}</p>` : ''}
         <div class="facts">
           <span class="fact" data-plan-status-fact title="Status"><span class="status-dot" aria-hidden="true"></span><span class="val" data-plan-status-label>${PLAN_STATUS_LABEL[status]}</span></span>
+          <span class="sr" data-agent-presence-label>${escapeHtml(agentText)}</span>
           <span class="fact solo" data-plan-mode-chip data-mode="${escapeHtml(mode)}" title="Mode · ${escapeHtml(mode)}" aria-label="Mode · ${escapeHtml(mode)}">${MODE_ICON.watch}${MODE_ICON.review}${MODE_ICON.comment}<span class="sr" data-plan-mode-value>${escapeHtml(mode)}</span></span>
           ${plan.agent ? `<span class="fact" title="Agent · ${escapeHtml(plan.agent)}" aria-label="Agent · ${escapeHtml(plan.agent)}">${AGENT_ICON}<span class="val">${escapeHtml(plan.agent)}</span></span>` : ''}
           <span class="fact" data-file-version title="${escapeHtml(versionName)}" aria-label="${escapeHtml(versionName)}">${FILE_VERSION_ICON}<span class="val" data-file-version-value>${escapeHtml(versionText)}</span></span>

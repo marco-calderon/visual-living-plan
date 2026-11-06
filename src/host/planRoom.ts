@@ -1,3 +1,4 @@
+import type { AgentPresence } from '../agentPresence'
 import { applyExecutionChange, readExecutionPatch, type ExecutionAction, type ExecutionState } from '../execution'
 import type { PlanProgress } from '../planProgress'
 import {
@@ -358,7 +359,7 @@ export function executionActive(view: Pick<PlanView, 'execution'>): boolean {
  * what it missed. It is read without awaiting, so no write lands between the read and the send.
  * The run carries no expected workflow. The Workflow tab reads that from GET /api/execution.
  */
-export function browserHello(sql: PlanSql): Outbound {
+export function browserHello(sql: PlanSql, agent?: AgentPresence): Outbound {
   const view = planView(sql)
   return {
     event: 'hello',
@@ -366,8 +367,31 @@ export function browserHello(sql: PlanSql): Outbound {
       mode: view.mode,
       review: view.review,
       execution: { active: false, ...(view.execution as Partial<ExecutionState> | null) },
+      ...(agent ? { agent } : {}),
     },
   }
+}
+
+const PLAN_ID = /^[A-Za-z0-9_-]{8,80}$/
+
+/** The Worker names the plan on each request it forwards. Saved so the object can update its dashboard row. */
+export function rememberPlanId(sql: PlanSql, id: string | null): void {
+  if (!id || !PLAN_ID.test(id) || meta(sql, 'plan_id') === id) return
+  setMeta(sql, 'plan_id', id)
+}
+
+export function planIdOf(sql: PlanSql): string | null {
+  return meta(sql, 'plan_id')
+}
+
+/** When an agent socket last opened or closed. */
+export function agentSeenAt(sql: PlanSql): number | null {
+  const value = Number(meta(sql, 'agent_seen') ?? 0)
+  return value > 0 ? value : null
+}
+
+export function markAgentSeen(sql: PlanSql, at: number): void {
+  setMeta(sql, 'agent_seen', String(at))
 }
 
 /** Execution state for the Workflow tab, with the expected workflow from the current source, as the local session returns it. */

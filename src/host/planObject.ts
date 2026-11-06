@@ -1,12 +1,17 @@
 import { DurableObject } from 'cloudflare:workers'
 import { Elysia } from 'elysia'
 import { IDLE_MS } from './access'
+import { AGENT_LEASE_REFRESH_MS, agentPresence, type AgentPresence } from '../agentPresence'
 import { rehydrateRequest } from './rehydrateRequest'
 import {
   ackEvents,
   actorAllows,
   agentHello,
+  agentSeenAt,
   closePlan,
+  markAgentSeen,
+  planIdOf,
+  rememberPlanId,
   executionView,
   initPlan,
   migratePlan,
@@ -38,6 +43,11 @@ import {
 } from './planRoom'
 import type { UserMutationKind } from '../offlineSync'
 import type { ExecutionAction } from '../execution'
+
+/** Socket tags. An agent socket is a CLI command waiting on the plan. A page socket reads it. */
+const AGENT_TAG = 'agent'
+const PAGE_TAG = 'read'
+const OPEN = 1
 
 /** A page sends this on its socket to check the line. The object answers without waking. */
 export const SOCKET_PING = 'ping'
@@ -73,14 +83,88 @@ export class PlanObject extends DurableObject {
     }
   }
 
-  private async armAlarm(): Promise<void> {
+  /** Open agent sockets. A socket that is closing can still be listed while its close runs. */
+  private agentSockets(except?: WebSocket): WebSocket[] {
+    return this.ctx.getWebSockets(AGENT_TAG).filter((socket) => socket !== except && socket.readyState === OPEN)
+  }
+
+  private presence(except?: WebSocket): AgentPresence {
+    return agentPresence(this.agentSockets(except).length, agentSeenAt(this.sql()))
+  }
+
+  /** Sent to pages only. An agent socket does not need to hear about itself. */
+  private publishPages(outbound: Outbound[]): void {
+    const payload = outbound.map((item) => JSON.stringify(item))
+    for (const socket of this.ctx.getWebSockets()) {
+      if (this.ctx.getTags(socket).includes(AGENT_TAG)) continue
+      for (const item of payload) {
+        try {
+          socket.send(item)
+        } catch {
+          // A socket can close between the list and the send.
+        }
+      }
+    }
+  }
+
+  /**
+   * Save presence on the plan's dashboard row. `agentCheckedAt` is the lease the dashboard reads,
+   * renewed by the alarm while an agent stays connected. Best effort: a failed write leaves the
+   * lease to run out.
+   */
+  private async savePresence(presence: AgentPresence): Promise<void> {
+    const id = planIdOf(this.sql())
+    const db = (this.env as unknown as { DB?: D1Database }).DB
+    if (!id || !db) return
+    try {
+      await db
+        .prepare(
+          `UPDATE plans SET meta = json_set(COALESCE(meta, '{}'), '$.agentConnected', json(?), '$.agentSeenAt', ?, '$.agentCheckedAt', ?) WHERE id = ?`,
+        )
+        .bind(presence.connected ? 'true' : 'false', presence.seenAt, Date.now(), id)
+        .run()
+    } catch {
+      // The lease runs out on its own.
+    }
+  }
+
+  /** An agent socket opened or closed. Pages hear it at once, and the dashboard row follows. */
+  private async agentsChanged(except?: WebSocket): Promise<void> {
+    markAgentSeen(this.sql(), Date.now())
+    const presence = this.presence(except)
+    this.publishPages([{ event: 'agent', data: presence }])
+    await this.savePresence(presence)
+    await this.armAlarm(except)
+  }
+
+  async webSocketClose(socket: WebSocket, code: number, reason: string): Promise<void> {
+    try {
+      socket.close(code, reason)
+    } catch {
+      // Already closed.
+    }
+    if (this.ctx.getTags(socket).includes(AGENT_TAG)) await this.agentsChanged(socket)
+  }
+
+  async webSocketError(socket: WebSocket): Promise<void> {
+    if (this.ctx.getTags(socket).includes(AGENT_TAG)) await this.agentsChanged(socket)
+  }
+
+  /** While an agent is connected the alarm comes back sooner, to renew the dashboard lease. */
+  private async armAlarm(except?: WebSocket): Promise<void> {
     const tier = planTier(this.sql())
-    await this.ctx.storage.setAlarm(Date.now() + IDLE_MS[tier])
+    const wait = this.agentSockets(except).length > 0 ? Math.min(AGENT_LEASE_REFRESH_MS, IDLE_MS[tier]) : IDLE_MS[tier]
+    await this.ctx.storage.setAlarm(Date.now() + wait)
   }
 
   async alarm(): Promise<void> {
     const sql = this.sql()
     migratePlan(sql)
+    if (this.agentSockets().length > 0) {
+      await this.savePresence(this.presence())
+      await this.armAlarm()
+      return
+    }
     if (this.ctx.getWebSockets().length > 0) {
       await this.armAlarm()
       return
@@ -95,6 +179,7 @@ export class PlanObject extends DurableObject {
   async fetch(request: Request): Promise<Response> {
     // An object that was never registered has no tables. Create them before any route reads one.
     migratePlan(this.sql())
+    rememberPlanId(this.sql(), request.headers.get('x-living-plan-id'))
     if (request.headers.get('upgrade')?.toLowerCase() === 'websocket') return this.acceptSocket(request)
     return this.httpApp().fetch(request)
   }
@@ -111,12 +196,15 @@ export class PlanObject extends DurableObject {
       return text(403, `This plan is at its ${planTier(sql)} connection limit (${socketLimit(sql)}).`)
     }
     const pair = new WebSocketPair()
-    this.ctx.acceptWebSocket(pair[1])
+    this.ctx.acceptWebSocket(pair[1], [action === 'agent' ? AGENT_TAG : PAGE_TAG])
     touchPlan(sql)
     // Sent before anything else can run, so a write after it reaches this socket as its own event.
-    if (action === 'agent') pair[1].send(JSON.stringify(agentHello(sql)))
-    // A page that reconnects catches up on the run, the mode, and the review it missed.
-    else pair[1].send(JSON.stringify(browserHello(sql)))
+    if (action === 'agent') {
+      pair[1].send(JSON.stringify(agentHello(sql)))
+      await this.agentsChanged()
+    }
+    // A page that reconnects catches up on the run, the mode, the review, and the agent it missed.
+    else pair[1].send(JSON.stringify(browserHello(sql, this.presence())))
     await this.armAlarm()
     return new Response(null, { status: 101, webSocket: pair[0] })
   }

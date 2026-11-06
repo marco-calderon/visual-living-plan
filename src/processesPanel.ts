@@ -1,3 +1,5 @@
+import { agentIconSvg } from './agentPresence'
+
 /** Styles for the plans switcher embedded in every planner page. */
 export const PROCESSES_PANEL_STYLES = `
 .processes {
@@ -266,6 +268,9 @@ a.process-title:hover { color: var(--accent); }
   flex: 0 0 auto;
   pointer-events: none;
 }
+.process-pill.is-icon { padding: 0.12rem 0.32rem; }
+.agent-icon { display: inline-flex; color: var(--muted); }
+.agent-icon.on { color: #04b54b; }
 .process-pill.is-pending {
   color: var(--accent-2);
   background: var(--wash-warm);
@@ -338,6 +343,19 @@ export function processesPanelScript(): string {
   return `
 (() => {
   document.documentElement.classList.add('js');
+  const agentIcons = ${JSON.stringify({ on: agentIconSvg(true), off: agentIconSvg(false) })};
+  function agentIcon(connected) {
+    // A robot while an agent is connected, a struck-through robot while not. The words are the tooltip.
+    const label = connected ? 'Agent connected' : 'No agent connected';
+    const node = document.createElement('span');
+    node.className = connected ? 'agent-icon on' : 'agent-icon';
+    node.setAttribute('role', 'img');
+    node.setAttribute('aria-label', label);
+    node.title = label;
+    node.innerHTML = connected ? agentIcons.on : agentIcons.off;
+    return node;
+  }
+
   setTimeout(() => {
   if (document.documentElement.dataset.planChrome === 'react') return;
   const root = document.querySelector('[data-processes-root]');
@@ -577,6 +595,11 @@ export function processesPanelScript(): string {
       uptime.innerHTML = ICON_CLOCK;
       uptime.append(document.createTextNode(age(record.startedAt)));
       pills.append(uptime);
+    }
+    if (typeof record.agentConnected === 'boolean') {
+      const agent = el('span', 'process-pill is-icon');
+      agent.append(agentIcon(record.agentConnected));
+      pills.append(agent);
     }
     if (typeof record.pendingCount === 'number' && record.pendingCount > 0) {
       pills.append(el('span', 'process-pill is-pending', record.pendingCount + ' pending'));
