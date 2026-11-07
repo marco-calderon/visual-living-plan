@@ -2,6 +2,9 @@ export const TIERS = ['free', 'pro', 'business'] as const
 export type Tier = (typeof TIERS)[number]
 
 export const PLAN_CAPS: Record<Tier, number> = { free: 1, pro: 10, business: 50 }
+const MB = 1024 * 1024
+/** Bytes of saved plan versions (title and body) an account may keep. */
+export const STORAGE_CAPS: Record<Tier, number> = { free: 50 * MB, pro: 500 * MB, business: 5 * 1024 * MB }
 export const SOCKET_CAPS: Record<Tier, number> = { free: 2, pro: 4, business: 50 }
 export const IDLE_MS: Record<Tier, number> = {
   free: 60 * 60 * 1000,

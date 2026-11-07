@@ -19,6 +19,7 @@
   --muted: var(--steel);
   --accent: var(--brand-blue-deep);
   --danger: #c9322a;
+  --warning: #b45309;
   --switch-track: var(--hairline);
   --swatch-edge: rgba(0, 0, 0, 0.12);
   --sample-bg: #ffffff;
@@ -41,6 +42,8 @@
 }
 
 .settings-dialog {
+  --space-xxs: 4px;
+  --space-xs: 8px;
   --space-sm: 12px;
   --space-md: 16px;
   --space-xl: 24px;
@@ -85,6 +88,7 @@
     --on-primary: #171717;
     --accent: #0094fc;
     --danger: #ffc9bd;
+    --warning: #fbbf24;
     --switch-track: #262626;
     --accent-soft: rgba(147, 197, 253, 0.14);
     --accent-hover-border: #0094fc;
@@ -1142,6 +1146,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.usage-stat-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--steel);
+}
+
 .usage-stat-value span {
   font-size: 14px;
   font-weight: 400;
@@ -1169,7 +1179,12 @@
   background: var(--ink);
 }
 
-.usage-meter[data-full="true"] span {
+/* Warn from 80%, full at 100%. */
+.usage-meter[data-state="warn"] span {
+  background: var(--warning);
+}
+
+.usage-meter[data-state="full"] span {
   background: var(--danger);
 }
 
@@ -1289,16 +1304,10 @@
     padding: var(--space-md) var(--space-md) var(--space-xl);
   }
 
+  /* DESIGN.md: cards pad 16px and sit 12px apart. Three across do not fit a phone, so they stack. */
   .usage-stats {
-    gap: var(--space-xs);
-  }
-
-  .usage-stat {
-    padding: var(--space-sm);
-  }
-
-  .usage-stat-value {
-    font-size: 20px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-sm);
   }
 
   .settings-row {

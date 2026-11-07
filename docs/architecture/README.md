@@ -121,7 +121,7 @@ flowchart LR
 
 The account bearer is not written into the plan file. The plan bearer is not written there either. The CLI writes `cloudId` into the frontmatter and keeps the plan bearer in `~/.config/living-plan/cloud.json`. Only the account that owns a plan opens it. `planAccess` in `src/host/app.ts` decides that role. An old `GET /plans/:id/view/:sig` link clears its cookie and redirects to the plan page, which asks for sign-in.
 
-Plans with an agent listening, sockets, and idle time follow `user.tier`. Free is 1 listening plan, 2 sockets, and 1 hour. Pro is 10, 4, and 6 hours. Business is 50, 50, and 6 hours. A slot is a running plan whose presence lease is fresh; open plans with no agent take none. The Worker checks it when an agent opens `/api/agent-events` and on `POST /api/plans`, and answers `402` over the cap ([ADR 0031](decisions/0031-agent-slots.md)). There is no billing screen.
+Plans with an agent listening, sockets, and idle time follow `user.tier`. Free is 1 listening plan, 2 sockets, and 1 hour. Pro is 10, 4, and 6 hours. Business is 50, 50, and 6 hours. A slot is a running plan whose presence lease is fresh; open plans with no agent take none. The Worker checks it when an agent opens `/api/agent-events` and on `POST /api/plans`, and answers `402` over the cap ([ADR 0031](decisions/0031-agent-slots.md)). Saved versions are limited per account: Free 50 MB, Pro 500 MB, Business 5 GB. A publish that would pass it is `413`, and deleting a plan from the dashboard closes it and removes its versions ([ADR 0032](decisions/0032-storage-limit.md)). There is no billing screen.
 
 ## Durable Objects
 

@@ -1,4 +1,4 @@
-import { PLAN_CAPS, normalizeTier, type Tier } from './access'
+import { IDLE_MS, PLAN_CAPS, SOCKET_CAPS, STORAGE_CAPS, normalizeTier, type Tier } from './access'
 import { hostedAgentPresence } from './hostedDashboard'
 import { PLAN_VERSION_LIMIT } from './planVersions'
 
@@ -20,6 +20,11 @@ export type AccountUsage = {
   plans: number
   versions: number
   bytes: number
+  /** Bytes of saved versions this tier may keep. A publish that would pass it is refused. */
+  storageCap: number
+  /** Connections one plan accepts at once, and how long an idle plan stays open. */
+  socketCap: number
+  idleMs: number
   /** Largest first. */
   byPlan: UsagePlan[]
 }
@@ -67,6 +72,9 @@ export function accountUsage(tier: Tier, rows: UsageRow[], now = Date.now()): Ac
     plans: byPlan.length,
     versions: byPlan.reduce((sum, plan) => sum + plan.versions, 0),
     bytes: byPlan.reduce((sum, plan) => sum + plan.bytes, 0),
+    storageCap: STORAGE_CAPS[tier],
+    socketCap: SOCKET_CAPS[tier],
+    idleMs: IDLE_MS[tier],
     byPlan,
   }
 }

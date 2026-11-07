@@ -1,13 +1,14 @@
 import { Elysia } from 'elysia'
 import type { ProgressFields } from '../processRecord'
-import { agentSlotsFull, agentSlotsMessage, allows, normalizeTier, type Tier } from './access'
+import { STORAGE_CAPS, agentSlotsFull, agentSlotsMessage, allows, normalizeTier, type Tier } from './access'
 import { defaultAccountSettings, readAccountSettings, saveAccountSettings } from './accountSettings'
 import { readAccountUsage } from './accountUsage'
 import { accountSearch } from './accountSearch'
 import { createAuth, createCliSession, sessionFromToken, type AuthSession } from './auth'
 import { listLinkedAccounts } from './linkedAccounts'
 import { NO_PROGRESS, hostedAgentPresence, hostedDashboard, hostedProgress, saveHostedProgress, type HostedPlanRow } from './hostedDashboard'
-import { LATEST_PLAN_VERSION_SQL, ensurePlanVersions, listPlanVersions, publishPlanVersion, readPlanVersion } from './planVersions'
+import { LATEST_PLAN_VERSION_SQL, ensurePlanVersions, listPlanVersions, publishPlanVersion, readPlanVersion, storageAfterPublish } from './planVersions'
+import { formatBytes } from '../formatBytes'
 import { rehydrateRequest } from './rehydrateRequest'
 import { requestOrigin } from './requestOrigin'
 
@@ -128,7 +129,10 @@ async function accountSearchApi(request: Request, env: HostEnv, auth: ReturnType
   return accountSearch(env.DB, session.user.id, new URL(request.url))
 }
 
-/** Hide a plan from the account dashboard. The row, its object, and its versions stay. */
+/**
+ * Delete a plan from the account dashboard. The plan closes and its saved versions are removed, so
+ * the account's storage goes down. The row stays, marked deleted, so the id is never reused.
+ */
 async function deleteAccountPlan(
   request: Request,
   env: HostEnv,
@@ -144,6 +148,11 @@ async function deleteAccountPlan(
     .bind(Date.now(), planId, session.user.id)
     .run()
   if (!result.meta?.changes) return text(404, 'Plan not found')
+  // A plan that is already closed, or whose object is gone, still frees its storage.
+  await planFetch(env, planId, new Request(request.url, { method: 'DELETE' }), '/', 'account').catch(() => undefined)
+  await env.DB.prepare(`UPDATE plans SET status = 'executed', ended_at = COALESCE(ended_at, ?) WHERE id = ?`).bind(Date.now(), planId).run()
+  await ensurePlanVersions(env.DB)
+  await env.DB.prepare('DELETE FROM plan_versions WHERE plan_id = ?').bind(planId).run()
   return Response.json({ ok: true })
 }
 
@@ -328,6 +337,13 @@ async function registerPlan(request: Request, env: HostEnv, auth: ReturnType<typ
   // Registering takes no slot, but refuse early when the agent this plan is for could not connect.
   const slots = await agentSlots(env.DB, session.user.id, cloudId)
   if (agentSlotsFull(tier, slots.listening, slots.holdsSlot)) return text(402, agentSlotsMessage(tier))
+  const full = await storageRefusal(env.DB, tier, {
+    planId: cloudId,
+    userId: session.user.id,
+    title: body.title?.slice(0, 200) || 'Living plan',
+    source: body.markdown ?? '',
+  })
+  if (full) return full
   const token = existing?.token ?? randomToken()
   const mode = body.mode === 'review' || body.mode === 'comment' ? body.mode : 'watch'
   const title = body.title?.slice(0, 200) || 'Living plan'
@@ -497,6 +513,15 @@ async function publishSource(request: Request, env: HostEnv, planId: string, act
   } catch {
     return text(400, 'Missing plan')
   }
+  const row = await env.DB.prepare('SELECT p.user_id, p.title, u.tier FROM plans p LEFT JOIN user u ON u.id = p.user_id WHERE p.id = ?')
+    .bind(planId)
+    .first<{ user_id: string; title: string | null; tier: unknown }>()
+  const title = (typeof body.title === 'string' && body.title.trim() ? body.title : row?.title || 'Living plan').slice(0, 200)
+  // Checked before the plan object takes the edit, so the page and the saved versions stay the same document.
+  if (row && typeof body.markdown === 'string') {
+    const full = await storageRefusal(env.DB, normalizeTier(row.tier), { planId, userId: row.user_id, title, source: body.markdown })
+    if (full) return full
+  }
   const forwarded = await planFetch(
     env,
     planId,
@@ -506,11 +531,7 @@ async function publishSource(request: Request, env: HostEnv, planId: string, act
   )
   if (!forwarded.ok || typeof body.markdown !== 'string') return forwarded
   await syncPlanProgress(env, planId)
-  const row = await env.DB.prepare('SELECT user_id, title FROM plans WHERE id = ?')
-    .bind(planId)
-    .first<{ user_id: string; title: string | null }>()
   if (!row) return forwarded
-  const title = (typeof body.title === 'string' && body.title.trim() ? body.title : row.title || 'Living plan').slice(0, 200)
   await publishPlanVersion(env.DB, { planId, userId: row.user_id, title, source: body.markdown }).catch(() => undefined)
   if (typeof body.title === 'string' && body.title.trim()) {
     await env.DB.prepare('UPDATE plans SET title = ? WHERE id = ?').bind(title, planId).run()
@@ -640,6 +661,21 @@ function isInternalPath(pathname: string): boolean {
   }
   const path = new URL(decoded.toLowerCase(), 'https://plan.internal').pathname
   return path === '/internal' || path.startsWith('/internal/')
+}
+
+/** 413 when this publish would take the account past its storage limit. */
+async function storageRefusal(
+  db: D1Database,
+  tier: Tier,
+  input: { planId: string; userId: string; title: string; source: string },
+): Promise<Response | null> {
+  const { used, after } = await storageAfterPublish(db, input)
+  const cap = STORAGE_CAPS[tier]
+  if (after <= cap || after <= used) return null
+  return text(
+    413,
+    `This ${tier} account can store ${formatBytes(cap)} of plan versions and has ${formatBytes(used)}. Delete plans you no longer need, then publish again.`,
+  )
 }
 
 function isAgentStream(rest: string): boolean {

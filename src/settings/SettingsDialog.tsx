@@ -477,75 +477,109 @@ function UsageSection() {
     )
   }
   const data = usage.data
-  const largest = Math.max(1, ...data.byPlan.map((plan) => plan.bytes))
-  const activeShare = Math.min(1, data.activePlans / Math.max(1, data.activeCap))
   return (
     <>
-      <div className="usage-stats">
-        <div className="usage-stat">
-          <p className="usage-stat-label">Stored</p>
-          <p className="usage-stat-value" data-usage-bytes={data.bytes}>
-            {formatBytes(data.bytes)}
-          </p>
-        </div>
-        <div className="usage-stat">
-          <p className="usage-stat-label">Versions</p>
-          <p className="usage-stat-value">{data.versions}</p>
-        </div>
-        <div className="usage-stat">
-          <p className="usage-stat-label">Agents listening</p>
-          <p className="usage-stat-value">
-            {data.activePlans}
-            <span> of {data.activeCap}</span>
-          </p>
-          <div
-            className="usage-meter"
-            role="meter"
-            aria-label="Agents listening"
-            aria-valuemin={0}
-            aria-valuemax={data.activeCap}
-            aria-valuenow={data.activePlans}
-            data-full={activeShare >= 1 ? 'true' : undefined}
-          >
-            <span style={{ width: `${activeShare * 100}%` }} />
-          </div>
-        </div>
-      </div>
-      <section className="settings-group" aria-labelledby="settings-usage-plans">
-        <h3 id="settings-usage-plans">By plan</h3>
-        {data.byPlan.length === 0 ? (
-          <p className="settings-copy">No hosted plans yet.</p>
-        ) : (
-          <table className="usage-table">
-            <thead>
-              <tr>
-                <th scope="col">Plan</th>
-                <th scope="col">Versions</th>
-                <th scope="col">Size</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.byPlan.map((plan) => (
-                <tr key={plan.id}>
-                  <th scope="row">
-                    <a href={`/plans/${encodeURIComponent(plan.id)}`}>{plan.title}</a>
-                    <span className="usage-bar" aria-hidden="true">
-                      <span style={{ width: `${(plan.bytes / largest) * 100}%` }} />
-                    </span>
-                  </th>
-                  <td>{plan.versions}</td>
-                  <td>{formatBytes(plan.bytes)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+      <UsageStatCards data={data} />
+      <UsageByPlan data={data} />
       <p className="settings-meta">
         Counts the published versions of each plan on the {data.tier} tier. The latest {data.versionLimit} per plan are
         kept. Comments and answers live with each plan and are not counted.
       </p>
     </>
+  )
+}
+
+/** 0 to 1. Warn from 80%, full at 100%. */
+function share(used: number, cap: number): number {
+  return Math.min(1, used / Math.max(1, cap))
+}
+
+function meterState(value: number): 'full' | 'warn' | undefined {
+  return value >= 1 ? 'full' : value >= 0.8 ? 'warn' : undefined
+}
+
+function UsageMeter({ label, used, cap }: { label: string; used: number; cap: number }) {
+  const value = share(used, cap)
+  return (
+    <div
+      className="usage-meter"
+      role="meter"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={cap}
+      aria-valuenow={used}
+      data-state={meterState(value)}
+    >
+      <span style={{ width: `${value * 100}%` }} />
+    </div>
+  )
+}
+
+/** Stored and Agents listening against the tier limits, with a meter each. */
+function UsageStatCards({ data }: { data: AccountUsage }) {
+  return (
+    <div className="usage-stats">
+      <div className="usage-stat">
+        <p className="usage-stat-label">Stored</p>
+        <p className="usage-stat-value" data-usage-bytes={data.bytes}>
+          {formatBytes(data.bytes)}
+          <span> of {formatBytes(data.storageCap)}</span>
+        </p>
+        <UsageMeter label="Storage" used={data.bytes} cap={data.storageCap} />
+        {data.bytes >= data.storageCap ? (
+          <p className="usage-stat-note">Full. New versions are refused until you delete plans.</p>
+        ) : null}
+      </div>
+      <div className="usage-stat">
+        <p className="usage-stat-label">Versions</p>
+        <p className="usage-stat-value">{data.versions}</p>
+        <p className="usage-stat-note">{data.versionLimit} kept per plan</p>
+      </div>
+      <div className="usage-stat">
+        <p className="usage-stat-label">Agents listening</p>
+        <p className="usage-stat-value">
+          {data.activePlans}
+          <span> of {data.activeCap}</span>
+        </p>
+        <UsageMeter label="Agents listening" used={data.activePlans} cap={data.activeCap} />
+      </div>
+    </div>
+  )
+}
+
+function UsageByPlan({ data }: { data: AccountUsage }) {
+  const largest = Math.max(1, ...data.byPlan.map((plan) => plan.bytes))
+  return (
+    <section className="settings-group" aria-labelledby="settings-usage-plans">
+      <h3 id="settings-usage-plans">By plan</h3>
+      {data.byPlan.length === 0 ? (
+        <p className="settings-copy">No hosted plans yet.</p>
+      ) : (
+        <table className="usage-table">
+          <thead>
+            <tr>
+              <th scope="col">Plan</th>
+              <th scope="col">Versions</th>
+              <th scope="col">Size</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.byPlan.map((plan) => (
+              <tr key={plan.id}>
+                <th scope="row">
+                  <a href={`/plans/${encodeURIComponent(plan.id)}`}>{plan.title}</a>
+                  <span className="usage-bar" aria-hidden="true">
+                    <span style={{ width: `${(plan.bytes / largest) * 100}%` }} />
+                  </span>
+                </th>
+                <td>{plan.versions}</td>
+                <td>{formatBytes(plan.bytes)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
   )
 }
 
