@@ -1,4 +1,5 @@
 ---
+cloudId: 153c44ff-cb9c-45f3-a62e-2225d9030109
 title: Search a plan and its versions
 summary: Add a search endpoint on the local service and the cloud host, and a `live-plan search` command that finds terms in the live plan or a saved version, block by block.
 agent: claude-code
