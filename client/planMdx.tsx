@@ -229,6 +229,62 @@ function PlanChecklist(props: { className?: string }) {
   return <Checklist {...props} className={blockClass(props.className)} />
 }
 
+// The last plan source this device rendered, per plan. A bad edit from the agent mid-run then
+// leaves the plan readable, and a reload still has something to show.
+function lastRenderedKey(): string {
+  return `living-plan:last-rendered:${planContext().id}`
+}
+
+function readLastRendered(): string | null {
+  try {
+    return window.localStorage.getItem(lastRenderedKey())
+  } catch {
+    return null
+  }
+}
+
+function rememberLastRendered(source: string): void {
+  // A saved version is not the live plan.
+  if (viewingPlanVersion() !== null) return
+  try {
+    window.localStorage.setItem(lastRenderedKey(), source)
+  } catch {
+    // Storage is full or blocked. The page still shows the plan.
+  }
+}
+
+const CLOUD_VERSION_TRIES = 5
+
+/**
+ * Sources to show when the live plan does not compile, newest first: the last one this device
+ * rendered, then saved versions (snapshots on a local plan, published versions on a cloud plan).
+ */
+async function* fallbackSources(boot: Boot): AsyncGenerator<string> {
+  const seen = new Set<string>([boot.source])
+  const fresh = (source: string | null | undefined): source is string => {
+    if (!source || seen.has(source)) return false
+    seen.add(source)
+    return true
+  }
+  const last = readLastRendered()
+  if (fresh(last)) yield last
+  for (const snapshot of [...boot.snapshots].sort((a, b) => b.seq - a.seq)) {
+    if (fresh(snapshot.body)) yield snapshot.body
+  }
+  const context = planContext()
+  if (context.host !== 'cloud') return
+  const listed = await fetch(`/api/plans/${encodeURIComponent(context.id)}/versions`, { cache: 'no-store', credentials: 'include' })
+    .then((response) => (response.ok ? (response.json() as Promise<{ versions?: Array<{ seq: number }> }>) : null))
+    .catch(() => null)
+  const seqs = (listed?.versions ?? []).map((version) => version.seq).sort((a, b) => b - a).slice(0, CLOUD_VERSION_TRIES)
+  for (const seq of seqs) {
+    const source = await fetch(`/plans/${encodeURIComponent(context.id)}/versions/${seq}/document`, { cache: 'no-store', credentials: 'include' })
+      .then((response) => (response.ok ? response.text() : null))
+      .catch(() => null)
+    if (fresh(source)) yield source
+  }
+}
+
 async function readPlanMdx(): Promise<Boot> {
   const response = await fetch(apiPath('/api/plan-mdx'), { cache: 'no-store' })
   if (!response.ok) throw new Error('Request failed')
@@ -239,17 +295,22 @@ function PlanMdxApp() {
   const [boot, setBoot] = useState<Boot>(readBoot)
   const [content, setContent] = useState<ReactNode>(null)
   const [error, setError] = useState<string | null>(null)
+  // The source on screen. It lags `boot.source` when the newest source does not compile.
+  const [shownSource, setShownSource] = useState<string>(boot.source)
+  const stale = shownSource !== boot.source
+  const contentRef = useRef<ReactNode>(null)
+  contentRef.current = content
   const mdx = planSourceToMdx(boot.source)
   const responses = boot.responses
   const locked = boot.locked
   const interaction = useMemo<InteractionState>(() => ({ responses, locked }), [responses, locked])
   const headingIds = useMemo(() => {
     try {
-      return buildPlanToc(boot.source).flatMap((item) => (item.headingId ? [item.headingId] : []))
+      return buildPlanToc(shownSource).flatMap((item) => (item.headingId ? [item.headingId] : []))
     } catch {
       return []
     }
-  }, [boot.source])
+  }, [shownSource])
   const tocCursor = useRef<TocCursor>({ n: 0, ids: [] })
   tocCursor.current.n = 0
   tocCursor.current.ids = headingIds
@@ -367,38 +428,58 @@ function PlanMdxApp() {
     // Hide only the first render. Hiding a rendered plan collapses the page and resets the scroll.
     const root = document.getElementById('plan-mdx-root')
     if (!root?.querySelector('[data-plan-rendered]')) root?.classList.add('plan-mdx-pending')
+    const source = boot.source
+    const render = async (Content: PlanModule, from: string): Promise<boolean> => {
+      const tableModule = planHasDataTable(planSourceToMdx(from)) ? await import('./mdx/dataTable/register.tsx') : null
+      if (cancelled) return false
+      const components = {
+        ...planComponents,
+        pre: PlanPre,
+        table: MarkdownTable,
+        phase: PlanPhase,
+        callout: PlanCallout,
+        ...interactiveComponents,
+        checklist: PlanChecklist,
+      }
+      setContent(
+        <Content
+          components={{
+            ...planComponents,
+            ...components,
+            h1: PlanH1,
+            h2: PlanH2,
+            h3: PlanH3,
+            ...(tableModule?.dataTableComponents ?? {}),
+          }}
+        />,
+      )
+      setShownSource(from)
+      return true
+    }
     compileMdx(mdx).then(
       async (Content) => {
         if (cancelled) return
-        const tableModule = planHasDataTable(mdx) ? await import('./mdx/dataTable/register.tsx') : null
-        if (cancelled) return
-        const components = {
-          ...planComponents,
-          pre: PlanPre,
-          table: MarkdownTable,
-          phase: PlanPhase,
-          callout: PlanCallout,
-          ...interactiveComponents,
-          checklist: PlanChecklist,
-        }
-        setContent(
-          <Content
-            components={{
-              ...planComponents,
-              ...components,
-              h1: PlanH1,
-              h2: PlanH2,
-              h3: PlanH3,
-              ...(tableModule?.dataTableComponents ?? {}),
-            }}
-          />,
-        )
+        if (!(await render(Content, source))) return
         setError(null)
+        rememberLastRendered(source)
       },
-      (caught: unknown) => {
+      async (caught: unknown) => {
         if (cancelled) return
-        setContent(null)
-        setError(caught instanceof Error ? caught.message : 'Could not render the plan')
+        const message = caught instanceof Error ? caught.message : 'Could not render the plan'
+        setError(message)
+        // Keep the plan on screen. An edit that does not compile must not hide it.
+        if (contentRef.current) return
+        for await (const fallback of fallbackSources(boot)) {
+          if (cancelled || contentRef.current) return
+          try {
+            const Content = await compileMdx(planSourceToMdx(fallback))
+            if (cancelled) return
+            if (await render(Content, fallback)) return
+          } catch {
+            // That one does not compile either. Try an older one.
+          }
+        }
+        // Nothing saved renders. The error stays on its own.
       },
     )
     return () => {
@@ -440,17 +521,21 @@ function PlanMdxApp() {
     const list = document.getElementById('plan-toc-list')
     if (!list) return
     try {
-      list.innerHTML = renderTocItemsHtml(buildPlanToc(boot.source))
+      list.innerHTML = renderTocItemsHtml(buildPlanToc(shownSource))
       window.dispatchEvent(new Event('living-plan-toc'))
     } catch {
       // Keep the server-rendered list when the source cannot be outlined.
     }
-  }, [boot.source])
+  }, [shownSource])
 
   return (
     <InteractionContext.Provider value={interaction}>
     <TocHeadingCursor.Provider value={tocCursor}>
-      {error ? (
+      {error && content && stale ? (
+        <p className="lock-banner" role="status" data-plan-stale="">
+          The latest update to this plan could not be shown. This is the last version that rendered. {error}
+        </p>
+      ) : error ? (
         <p className="host-error" role="alert" data-plan-error="">
           {error}
         </p>
