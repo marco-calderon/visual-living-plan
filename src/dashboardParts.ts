@@ -1,3 +1,4 @@
+import { dashboardSearchCss } from './dashboardSearchView'
 import { hostToolbarCss } from './hostToolbar'
 
 /** Dashboard document CSS, shared by the loopback page and the Start route. */
@@ -78,11 +79,14 @@ export function dashboardDocumentCss(): string {
     }
     main { margin: 0; padding: 24px 32px 64px; }
     ${hostToolbarCss}
+    ${dashboardSearchCss()}
+    .plan-btn-ghost { border-color: transparent; background: transparent; }
+    [hidden] { display: none !important; }
     .tab-label:focus-visible {
       outline: 2px solid var(--accent);
       outline-offset: 2px;
     }
-    .dash-section { display: grid; gap: 16px; margin: 0 0 24px; }
+    .dash-section { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin: 0 0 24px; }
     .dash-section:last-child { margin-bottom: 0; }
     .section-bar {
       display: flex;
@@ -360,6 +364,19 @@ export function dashboardMainHtml(lede: string): string {
           <button type="button" class="tab-label" data-filter="executed" aria-pressed="false">Executed</button>
           <button type="button" class="tab-label" data-filter="interrupted" aria-pressed="false">Interrupted</button>
         </div>
+      </div>
+      <form class="dash-search" id="search-form" role="search" aria-label="Search plans">
+        <input class="dash-search-field" id="search-query" type="search" name="q" maxlength="200" placeholder="Search plans" aria-label="Search plans" autocomplete="off" />
+        <label class="dash-search-option"><input type="checkbox" id="search-versions" /> Include saved versions</label>
+        <label class="dash-search-option"><input type="checkbox" id="search-any" /> Match any term</label>
+        <span class="dash-search-actions">
+          <button type="submit" class="plan-btn plan-btn-secondary" id="search-submit">Search</button>
+          <button type="button" class="plan-btn plan-btn-ghost" id="search-clear" hidden>Clear</button>
+        </span>
+      </form>
+      <div id="search-view" hidden>
+        <p class="dash-search-note" id="search-status" aria-live="polite"></p>
+        <div class="dash-search-results" id="search-results"></div>
       </div>
       <div class="table-wrap">
       <table>

@@ -20,6 +20,7 @@ import { HostBar } from "../HostBar.tsx";
 import { loadAccount, type AccountPayload } from "../planFns.ts";
 import type { PlanRecord } from "../processRecord.ts";
 import { PlanRowActions } from "./PlanRowActions.tsx";
+import { DashboardSearch } from "./DashboardSearch.tsx";
 import { startOfflineEngine } from "../../client/offline/engine.ts";
 import { refreshDeviceDashboards } from "../../client/offline/warmPlans.ts";
 import { dashboardAccountDecision, isAccountNetworkFailure } from "../offlineSync.ts";
@@ -106,6 +107,7 @@ function DashboardPage() {
   const navigate = useNavigate();
   const period = search.period ?? "day";
   const [filter, setFilter] = useState<DashboardFilter>("all");
+  const [searching, setSearching] = useState(false);
   const [shift, setShift] = useState<Shift>("enter");
   const [online, setOnline] = useState(() =>
     typeof navigator === "undefined" ? true : navigator.onLine,
@@ -274,7 +276,8 @@ function DashboardPage() {
                 ))}
               </div>
             </div>
-            <div className="table-wrap">
+            <DashboardSearch offline={offline} onActiveChange={setSearching} />
+            <div className="table-wrap" hidden={searching}>
               <table>
                 <caption>Plans</caption>
                 <thead>

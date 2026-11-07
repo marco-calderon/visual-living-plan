@@ -100,6 +100,7 @@ export function registerPlanRoutes(app: any, options: PlanRouteOptions): any {
     .get(options.hosted ? '/plans/:id/' : '/', (context: RouteContext) => sessionFor(idOf(context)).page())
     .get(route('/api/plan'), (context: RouteContext) => sessionFor(idOf(context)).planPayload())
     .get(route('/api/plan-mdx'), (context: RouteContext) => sessionFor(idOf(context)).planMdxPayload())
+    .get(route('/api/search'), (context: RouteContext) => sessionFor(idOf(context)).search(new URL(context.request.url)))
     .get(route('/api/snapshot'), (context: RouteContext) => sessionFor(idOf(context)).offlineSnapshot())
     .post(route('/api/plan-mdx/restore'), (context: RouteContext) => {
       const body = jsonBody(context.body, true) as { snapshotId?: unknown }
