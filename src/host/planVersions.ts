@@ -58,7 +58,7 @@ export async function publishPlanVersion(
   input: { planId: string; userId: string; title: string; source: string; now?: number },
 ): Promise<PublishedVersion> {
   await ensurePlanVersions(db)
-  const title = input.title.slice(0, 200) || 'Living plan'
+  const title = versionTitle(input.title)
   const source = input.source
   const latest = await db
     .prepare('SELECT seq, title, body, created_at FROM plan_versions WHERE plan_id = ? ORDER BY seq DESC LIMIT 1')
@@ -89,6 +89,51 @@ export async function publishPlanVersion(
     .bind(input.planId, input.planId)
     .run()
   return { seq, title, source, createdAt, stored: true }
+}
+
+/** Bytes one version takes: its title and body in UTF-8, the same as account usage counts. */
+export function versionBytes(title: string, source: string): number {
+  const encoder = new TextEncoder()
+  return encoder.encode(versionTitle(title)).length + encoder.encode(source).length
+}
+
+function versionTitle(title: string): string {
+  return title.slice(0, 200) || 'Living plan'
+}
+
+/**
+ * The account's stored bytes now, and after this publish. An unchanged document adds nothing, and
+ * a plan at its version limit drops its oldest version, so that version's bytes come off.
+ */
+export async function storageAfterPublish(
+  db: VersionStore,
+  input: { planId: string; userId: string; title: string; source: string },
+): Promise<{ used: number; after: number }> {
+  await ensurePlanVersions(db)
+  const totals = await db
+    .prepare(
+      `SELECT COALESCE(SUM(LENGTH(CAST(v.body AS BLOB)) + LENGTH(CAST(v.title AS BLOB))), 0) AS bytes
+       FROM plan_versions v JOIN plans p ON p.id = v.plan_id WHERE p.user_id = ?`,
+    )
+    .bind(input.userId)
+    .first<{ bytes: number }>()
+  const used = Number(totals?.bytes ?? 0)
+  const title = versionTitle(input.title)
+  const latest = await db
+    .prepare('SELECT title, body FROM plan_versions WHERE plan_id = ? ORDER BY seq DESC LIMIT 1')
+    .bind(input.planId)
+    .first<{ title: string; body: string }>()
+  if (latest && latest.body === input.source && latest.title === title) return { used, after: used }
+  const dropped = await db
+    .prepare(
+      `SELECT COALESCE(SUM(LENGTH(CAST(body AS BLOB)) + LENGTH(CAST(title AS BLOB))), 0) AS bytes FROM (
+         SELECT body, title FROM plan_versions WHERE plan_id = ? ORDER BY seq ASC
+         LIMIT MAX(0, (SELECT COUNT(*) FROM plan_versions WHERE plan_id = ?) + 1 - ${PLAN_VERSION_LIMIT})
+       )`,
+    )
+    .bind(input.planId, input.planId)
+    .first<{ bytes: number }>()
+  return { used, after: used - Number(dropped?.bytes ?? 0) + versionBytes(title, input.source) }
 }
 
 export async function listPlanVersions(

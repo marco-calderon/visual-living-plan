@@ -146,8 +146,26 @@ async function readAgentSocket(
       }
     })
     socket.addEventListener('close', () => finish())
-    socket.addEventListener('error', () => finish(new Error('Agent socket failed')))
+    socket.addEventListener('error', () => {
+      void refusalReason(planUrl, token).then((reason) => finish(new Error(reason ?? 'Agent socket failed')))
+    })
   })
+}
+
+/**
+ * A refused WebSocket upgrade hides the response body. Ask again over plain HTTP so a refusal the
+ * host explains, such as the account's agent limit, reaches the person.
+ */
+async function refusalReason(planUrl: string, token: string | undefined): Promise<string | null> {
+  try {
+    const response = await fetch(planApiUrl(planUrl, 'api/agent-events'), {
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+    })
+    if (response.status !== 402) return null
+    return (await response.text()).trim() || null
+  } catch {
+    return null
+  }
 }
 
 /** Read the plan service event stream until the signal aborts or the server closes it. */

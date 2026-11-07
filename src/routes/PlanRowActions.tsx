@@ -68,8 +68,8 @@ function DeleteDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete this plan?</AlertDialogTitle>
           <AlertDialogDescription>
-            “{title}” will be removed from the dashboard. Its file, versions, and history stay stored, and serving the plan again
-            brings it back.
+            “{title}” will be closed and its saved versions deleted, which frees their storage. The file on your machine stays,
+            and serving it again starts the plan fresh.
           </AlertDialogDescription>
         </AlertDialogHeader>
         {failed ? (

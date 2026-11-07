@@ -58,7 +58,8 @@ Run `serve --cloud` and read the result. Do not print `cloud.json`, because it h
 | An https plan URL | Signed in | Continue with the Loop |
 | `No hosted account. Run live-plan account login ...` | Never signed in on this machine | Sign-in journey below |
 | `Sign in required` | The saved session expired or was revoked | Sign-in journey below |
-| `This free account can host 1 active plan.` | Plan limit reached | `close --url <old-plan-url>`, or ask whether to use the local session |
+| `This free account can have 1 plan with an agent listening at once. ...` | Every slot has an agent listening (`serve --cloud`, `events`, `watch`, `wait`, or `review`) | Stop the agent on another plan, or `close --url <that-plan-url>`, or ask whether to use the local session |
+| `This free account can store 50 MB of plan versions and has ...` | Storage limit reached | Ask the user to delete plans they no longer need from the hosted dashboard, then run `serve --cloud` again |
 
 ### Sign-in journey
 
@@ -91,7 +92,8 @@ Use this when the CLI runs where no browser can reach `127.0.0.1`, such as a VM,
 4. Run `serve --cloud` again.
 
 The token is a session of its own. It lasts 30 days and stays valid when the user signs out in the browser. Each visit to the page makes a new token. `--token -` reads the token from stdin, which keeps it out of shell history.
-- A free account hosts 1 active plan, and that plan closes after 1 hour idle. Pro hosts 10, with a 6-hour idle limit.
+- Saved plan versions are limited per account: Free 50 MB, Pro 500 MB, Business 5 GB. Deleting a plan from the hosted dashboard frees its storage.
+- The tier limits plans with an agent listening at once, not open plans. Free allows 1 and closes an idle plan after 1 hour. Pro allows 10, with a 6-hour idle limit. A plan whose agent stopped frees its slot at once, or within 3 minutes if the agent vanished.
 
 ### Cloud details
 

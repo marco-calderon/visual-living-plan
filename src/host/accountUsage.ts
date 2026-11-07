@@ -1,4 +1,5 @@
-import { PLAN_CAPS, normalizeTier, type Tier } from './access'
+import { IDLE_MS, PLAN_CAPS, SOCKET_CAPS, STORAGE_CAPS, normalizeTier, type Tier } from './access'
+import { hostedAgentPresence } from './hostedDashboard'
 import { PLAN_VERSION_LIMIT } from './planVersions'
 
 export type UsagePlan = {
@@ -11,7 +12,7 @@ export type UsagePlan = {
 
 export type AccountUsage = {
   tier: Tier
-  /** Plans open now, and how many this tier can host at once. */
+  /** Plans with an agent listening now, and how many this tier allows at once. */
   activePlans: number
   activeCap: number
   /** Saved versions kept per plan. Older versions are deleted. */
@@ -19,6 +20,11 @@ export type AccountUsage = {
   plans: number
   versions: number
   bytes: number
+  /** Bytes of saved versions this tier may keep. A publish that would pass it is refused. */
+  storageCap: number
+  /** Connections one plan accepts at once, and how long an idle plan stays open. */
+  socketCap: number
+  idleMs: number
   /** Largest first. */
   byPlan: UsagePlan[]
 }
@@ -29,10 +35,11 @@ type UsageRow = {
   status: string
   versions: number | null
   bytes: number | null
+  meta?: string | null
 }
 
 // LENGTH on a BLOB counts bytes. On TEXT it counts characters.
-const USAGE_SQL = `SELECT p.id, p.title, p.status,
+const USAGE_SQL = `SELECT p.id, p.title, p.status, p.meta,
   COUNT(v.id) AS versions,
   COALESCE(SUM(LENGTH(CAST(v.body AS BLOB)) + LENGTH(CAST(v.title AS BLOB))), 0) AS bytes
 FROM plans p
@@ -48,7 +55,8 @@ export async function readAccountUsage(db: D1Database, userId: string, tierValue
   return accountUsage(tier, listed.results ?? [])
 }
 
-export function accountUsage(tier: Tier, rows: UsageRow[]): AccountUsage {
+export function accountUsage(tier: Tier, rows: UsageRow[], now = Date.now()): AccountUsage {
+  const listening = rows.filter((row) => row.status === 'running' && hostedAgentPresence(row.meta, now).agentConnected).length
   const byPlan = rows.map((row) => ({
     id: row.id,
     title: row.title?.trim() || 'Living plan',
@@ -58,12 +66,15 @@ export function accountUsage(tier: Tier, rows: UsageRow[]): AccountUsage {
   }))
   return {
     tier,
-    activePlans: byPlan.filter((plan) => plan.status === 'running').length,
+    activePlans: listening,
     activeCap: PLAN_CAPS[tier],
     versionLimit: PLAN_VERSION_LIMIT,
     plans: byPlan.length,
     versions: byPlan.reduce((sum, plan) => sum + plan.versions, 0),
     bytes: byPlan.reduce((sum, plan) => sum + plan.bytes, 0),
+    storageCap: STORAGE_CAPS[tier],
+    socketCap: SOCKET_CAPS[tier],
+    idleMs: IDLE_MS[tier],
     byPlan,
   }
 }

@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { Database } from 'bun:sqlite'
 import { fileURLToPath } from 'node:url'
-import { allows, planCapReached } from '../src/host/access.ts'
+import { agentSlotsFull, allows } from '../src/host/access.ts'
 import { sessionFromToken } from '../src/host/auth.ts'
 import { mergeAccountSettings, readAccountSettings, saveAccountSettings } from '../src/host/accountSettings.ts'
 import { NO_PROGRESS, hostedDashboard, hostedProgress, saveHostedProgress } from '../src/host/hostedDashboard.ts'
@@ -505,8 +505,10 @@ test('a plan room that was never registered reports not hosted instead of a SQL 
 })
 
 test('tier caps and viewer access', () => {
-  assert.equal(planCapReached('free', 1, false), true)
-  assert.equal(planCapReached('free', 1, true), false)
+  assert.equal(agentSlotsFull('free', 1, false), true)
+  assert.equal(agentSlotsFull('free', 1, true), false)
+  assert.equal(agentSlotsFull('pro', 9, false), false)
+  assert.equal(agentSlotsFull('pro', 10, false), true)
   assert.equal(allows('viewer', 'register'), false)
   assert.equal(allows('viewer', 'submit'), true)
   assert.equal(allows('account', 'register'), true)

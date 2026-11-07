@@ -1,5 +1,35 @@
 # Changelog — 2026-11-07
 
+## 2.14.0
+
+**PR:** pending
+
+**Bump:** minor
+
+### Summary
+
+The hosted plan limit now counts plans with an agent listening at the same time, not open plans, and each account gets a storage limit for saved plan versions: Free 50 MB, Pro 500 MB, Business 5 GB.
+
+### Bugs fixed
+
+- A plan deleted from the hosted dashboard kept its slot, so `serve --cloud` was refused with no visible plan to close. Hidden and idle plans no longer count.
+- `events`, `watch`, `wait`, and `review` printed `Agent socket failed` when the host refused the connection. They now print the host's reason.
+
+### Improvements
+
+- The host checks the limit when an agent connects, and frees the slot when the agent stops, or within 3 minutes if the agent vanished.
+- Settings → Usage shows Agents listening against the tier limit.
+- Settings → Usage shows Stored against the storage limit. The meter turns amber from 80% and red when full. On a phone the cards stack with the design system's spacing.
+- Deleting a plan from the hosted dashboard closes it and removes its saved versions, so it frees storage.
+
+### New features
+
+- Each account has a storage limit for saved plan versions. A publish that would pass it is refused with the limit and the current total.
+
+### Notes
+
+Needs a Worker deploy. No registry restart needed.
+
 ## 2.13.1
 
 **PR:** [#164](https://github.com/marco-calderon/visual-living-plan/pull/164)
