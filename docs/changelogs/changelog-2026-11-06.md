@@ -1,5 +1,19 @@
 # Changelog — 2026-11-06
 
+## 2.12.1
+
+**PR:** [#163](https://github.com/marco-calderon/visual-living-plan/pull/163)
+
+**Bump:** patch
+
+### Summary
+
+A choice on a plan can be changed after the first pick.
+
+### Bugs fixed
+
+- Picking a choice no longer locks it. Picking another option replaces the answer and sends the agent a new event. The choice locks only while execution is active.
+
 ## 2.12.0
 
 **PR:** [#162](https://github.com/marco-calderon/visual-living-plan/pull/162)
