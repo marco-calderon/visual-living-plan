@@ -1476,3 +1476,26 @@ a.plan-step-label:hover {
     transition: opacity 150ms var(--ease-out);
   }
 }
+
+/* A block an agent edit just changed: a short accent ring and wash that fade back to the block's own look. */
+.plan-changed,
+body.plan-live .block.plan-changed {
+  animation: plan-changed 1600ms var(--ease-out, ease-out);
+}
+
+@keyframes plan-changed {
+  0% {
+    box-shadow: 0 0 0 2px var(--accent, #0094fc);
+    background-color: var(--accent-soft, rgba(0, 148, 252, 0.12));
+  }
+  100% {
+    box-shadow: 0 0 0 2px transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-changed,
+  body.plan-live .block.plan-changed {
+    animation: none;
+  }
+}

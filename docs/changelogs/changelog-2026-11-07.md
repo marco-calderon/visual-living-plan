@@ -1,5 +1,30 @@
 # Changelog — 2026-11-07
 
+## 2.14.1
+
+**PR:** pending
+
+**Bump:** patch
+
+### Summary
+
+Live updates keep the reader's place and point at what changed. The Workflow tab keeps its zoom and follows the running step, and plan and workflow links work on the hosted page.
+
+### Bugs fixed
+
+- A live edit to the plan rebuilt the whole page, and on Safari the reader was sent back to the top. Unchanged blocks now stay, and the page returns the reader to the block they were reading.
+- Every status change reset the Workflow tab's zoom. The view now stays where the person put it, also across tab switches, and pans to keep the running step on screen.
+- On the hosted page, a step number on the plan did not open its workflow step, and a workflow step did not open its plan section. Both work now, with Back and Forward between them.
+- A comment on a callout ran its title and body together ("Next: a commentYou picked"). Blocks are now separated by a space.
+
+### Improvements
+
+- A block an agent edit changed flashes briefly, so the reader sees what moved.
+
+### Notes
+
+Needs a Worker deploy for the hosted page. No registry restart needed.
+
 ## 2.14.0
 
 **PR:** pending

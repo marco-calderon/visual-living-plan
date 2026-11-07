@@ -1,5 +1,5 @@
 import { run } from '@mdx-js/mdx'
-import { Children, createContext, isValidElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react'
+import { Children, Suspense, cloneElement, createContext, isValidElement, lazy, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactElement, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import * as runtime from 'react/jsx-runtime'
 import { fileVersionName, fileVersionSeq, fileVersionText } from '../src/fileVersion.ts'
@@ -22,6 +22,7 @@ import './entries/primitives.css'
 import { subscribePlanEvents } from './planEvents.ts'
 import { currentOfflineHandle, planContext, startOfflineEngine } from './offline/engine.ts'
 import { stampPlanParts } from './stampPlanParts.ts'
+import { markChangedBlocks, readBlockSignatures, restoreScrollAnchor, scrollAnchor, type BlockSignatures, type ScrollAnchor } from './liveUpdate.ts'
 import { viewingPlanVersion } from './versionView.ts'
 import { sendPlanMutation, sharedQueryClient } from './queryClient.tsx'
 
@@ -118,16 +119,66 @@ function PlanH3(props: { children?: ReactNode }) {
   return <PlanMarkdownHeading level={3} {...props} />
 }
 
+const LazyCodeBlock = lazy(() => import('./CodeBlock.tsx').then((module) => ({ default: module.CodeBlock })))
+
+/**
+ * Code renders through React, so a live edit updates it in place. A DOM swap outside React would
+ * leave React holding a detached node that later edits and removals cannot reach.
+ */
 function PlanPre({ children }: { children?: ReactNode }) {
   const child = Children.toArray(children).find((node) => isValidElement<{ className?: string; children?: ReactNode }>(node))
   const className = child && isValidElement<{ className?: string }>(child) ? (child.props.className ?? '') : ''
   const lang = /language-([\w+-]+)/.exec(className)?.[1] ?? ''
   const diff = lang === 'diff' || lang === 'patch'
-  return (
-    <pre className="code-block" data-lang={lang && !diff ? lang : undefined} data-diff={diff ? 'true' : undefined}>
-      <code>{child && isValidElement<{ children?: ReactNode }>(child) ? child.props.children : children}</code>
+  const body = child && isValidElement<{ children?: ReactNode }>(child) ? child.props.children : children
+  const code = textOf(body).replace(/\n$/, '')
+  const plain = (
+    <pre className="code-block" data-react-code="" data-lang={lang && !diff ? lang : undefined} data-diff={diff ? 'true' : undefined}>
+      <code>{code}</code>
     </pre>
   )
+  return (
+    <div className="code-host" data-react-code="" data-source={code}>
+      <Suspense fallback={plain}>
+        <LazyCodeBlock code={code} language={diff ? '' : lang} diff={diff} />
+      </Suspense>
+    </div>
+  )
+}
+
+function textOf(node: ReactNode): string {
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(textOf).join('')
+  if (isValidElement<{ children?: ReactNode }>(node)) return textOf(node.props.children)
+  return ''
+}
+
+type PlanBodyProps = { Content: PlanModule; components: typeof planComponents }
+
+/**
+ * One component type for every version of the plan. The compiled function is called here rather
+ * than mounted, so React compares the new blocks with the ones on the page and keeps what did not
+ * change. Mounting a new compiled component would replace the whole document on each edit.
+ */
+function PlanBody({ Content, components }: PlanBodyProps) {
+  const tree = (Content as (props: { components: typeof planComponents }) => ReactNode)({ components })
+  return <>{keyedBlocks(tree)}</>
+}
+
+/** Key top-level blocks by their id, or by kind and position, so an insert does not shift every block after it. */
+function keyedBlocks(tree: ReactNode): ReactNode {
+  const top = isValidElement<{ children?: ReactNode }>(tree) && tree.type === Symbol.for('react.fragment') ? tree.props.children : tree
+  const seen = new Map<string, number>()
+  return Children.map(top, (node) => {
+    if (!isValidElement(node)) return node
+    const element = node as ReactElement<{ id?: unknown }>
+    const type = typeof element.type === 'string' ? element.type : (element.type as { name?: string }).name || 'block'
+    const id = typeof element.props.id === 'string' ? element.props.id : ''
+    const base = id ? `${type}:${id}` : type
+    const n = (seen.get(base) ?? 0) + 1
+    seen.set(base, n)
+    return cloneElement(element, { key: n === 1 && id ? base : `${base}#${n}` })
+  })
 }
 
 type InteractionState = { responses: Boot['responses']; locked: boolean }
@@ -294,6 +345,8 @@ async function readPlanMdx(): Promise<Boot> {
 function PlanMdxApp() {
   const [boot, setBoot] = useState<Boot>(readBoot)
   const [content, setContent] = useState<ReactNode>(null)
+  const pendingAnchor = useRef<ScrollAnchor | null>(null)
+  const signatures = useRef<BlockSignatures | null>(null)
   const [error, setError] = useState<string | null>(null)
   // The source on screen. It lags `boot.source` when the newest source does not compile.
   const [shownSource, setShownSource] = useState<string>(boot.source)
@@ -441,8 +494,13 @@ function PlanMdxApp() {
         ...interactiveComponents,
         checklist: PlanChecklist,
       }
+      // Remember where the reader is and what the page shows, so the update can keep the place and point at what changed.
+      const live = document.getElementById('plan-mdx-root')
+      pendingAnchor.current = scrollAnchor(live)
+      signatures.current = live && contentRef.current ? readBlockSignatures(live) : null
       setContent(
-        <Content
+        <PlanBody
+          Content={Content}
           components={{
             ...planComponents,
             ...components,
@@ -450,7 +508,7 @@ function PlanMdxApp() {
             h2: PlanH2,
             h3: PlanH3,
             ...(tableModule?.dataTableComponents ?? {}),
-          }}
+          } as typeof planComponents}
         />,
       )
       setShownSource(from)
@@ -491,6 +549,16 @@ function PlanMdxApp() {
     const root = document.getElementById('plan-mdx-root')
     if (root) stampPlanParts(root)
   })
+
+  // After a new version renders: keep the reader where they were, then flash the blocks that changed.
+  useLayoutEffect(() => {
+    const root = document.getElementById('plan-mdx-root')
+    if (!root || !content) return
+    restoreScrollAnchor(pendingAnchor.current)
+    pendingAnchor.current = null
+    if (signatures.current) markChangedBlocks(root, signatures.current, readBlockSignatures(root))
+    signatures.current = null
+  }, [content])
 
   // Announce a new document only when the compiled plan changed. A re-render for an answer or a
   // lock leaves the parts where they were, and an open comment box on one of them must stay open.
