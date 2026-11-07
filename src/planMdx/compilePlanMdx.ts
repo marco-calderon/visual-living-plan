@@ -1,7 +1,7 @@
 import { compile, type CompileOptions } from '@mdx-js/mdx'
-import { recmaPlanComponents } from './recmaPlanComponents.ts'
-import { remarkGfmTable } from './remarkGfmTable.ts'
-import { remarkMermaid } from './remarkMermaid.ts'
+import { recmaPlanComponents } from './recmaPlanComponents'
+import { remarkGfmTable } from './remarkGfmTable'
+import { remarkMermaid } from './remarkMermaid'
 
 export function planMdxCompileOptions(): CompileOptions {
   return {

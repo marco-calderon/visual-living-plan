@@ -3,8 +3,8 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
 import { appendFile, readFile, writeFile } from 'node:fs/promises'
 
-// While a run is live the agent edits the plan file. An edit that does not compile must leave
-// the plan readable (still locked), and the next good edit replaces it.
+// While a run is live the agent edits the plan file. An edit that does not compile is held back,
+// so the plan stays readable (still locked), and the next good edit replaces it.
 
 const port = 9484
 const origin = `http://127.0.0.1:${port}`
@@ -53,19 +53,20 @@ test('a plan edit that does not compile during a run keeps the plan on screen', 
   await expect(page.locator('[data-lock-banner]')).toBeVisible()
 
   await appendFile(planPath, '\n\n<phase id="half-written" title="Half written" status="active">\nNo closing tag\n')
-  await expect(page.locator('[data-plan-stale]')).toBeVisible()
+  await page.waitForTimeout(1000)
+  await expect(page.locator('[data-plan-rendered]')).toBeVisible()
+  await expect(page.locator('[data-plan-error]')).toHaveCount(0)
+  await expect(page.getByText('Half written')).toHaveCount(0)
+
+  // A reload with the broken file on disk still shows the plan.
+  await page.reload()
+  await page.getByRole('tab', { name: 'Plan' }).click()
   await expect(page.locator('[data-plan-rendered]')).toBeVisible()
   await expect(page.locator('[data-plan-error]')).toHaveCount(0)
 
-  // A reload with the broken source still shows the last plan this device rendered.
-  await page.reload()
-  await page.getByRole('tab', { name: 'Plan' }).click()
-  await expect(page.locator('[data-plan-stale]')).toBeVisible()
-  await expect(page.locator('[data-plan-rendered]')).toBeVisible()
-
-  await writeFile(planPath, original)
-  await expect(page.locator('[data-plan-stale]')).toHaveCount(0)
-  await expect(page.locator('[data-plan-rendered]')).toBeVisible()
+  // The agent closes the tag. The page shows the edit.
+  await writeFile(planPath, `${original}\n\n<phase id="half-written" title="Half written" status="active">\nClosed now\n</phase>\n`)
+  await expect(page.getByText('Closed now')).toBeVisible()
 
   const stopped = await page.request.post('/api/execution/stop', { data: {} })
   expect(stopped.ok()).toBe(true)

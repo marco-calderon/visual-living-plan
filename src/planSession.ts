@@ -37,6 +37,7 @@ import {
   type ThemeConfig,
 } from './theme'
 import { planToExpectedGraph, withPlannedWorkflow } from './workflow'
+import { planNotReadyReason } from './planReady'
 import type { PlanMode } from './processRecord'
 import type {
   CommentReply,
@@ -80,6 +81,8 @@ const MIME: Record<string, string> = {
 
 /** How often an open page hears from the stream when nothing else happens. */
 export const BROWSER_KEEPALIVE_MS = 20_000
+/** Pause after the last change to the plan file before it is read again. */
+const RELOAD_SETTLE_MS = 120
 
 export type PlanSessionSnapshot = {
   id: string
@@ -581,9 +584,26 @@ export async function openPlanSession(options: {
     return view
   }
 
+  let heldReason: string | undefined
   async function reloadFromDisk(): Promise<void> {
     const nextSource = await readFile(planPath, 'utf8')
     if (nextSource === source) return
+    // A half-written or broken edit is not sent. The page keeps the last good plan.
+    const reason = await planNotReadyReason(nextSource)
+    if (nextSource !== (await readFile(planPath, 'utf8'))) return
+    if (reason) {
+      if (heldReason !== reason) {
+        void recordLog({
+          level: 'warn',
+          message: `Plan edit not shown yet: ${reason}`,
+          source: 'plan',
+          planId: id,
+        }).catch(() => undefined)
+      }
+      heldReason = reason
+      return
+    }
+    heldReason = undefined
     revision += 1
     const nextPlan = parsePlan(nextSource, planPath, id)
     const nextSections = collectSectionSources(nextPlan)
@@ -1065,7 +1085,14 @@ export async function openPlanSession(options: {
     return result
   }
 
+  // An editor writes a file in more than one step. Read it once the writes settle.
+  let reloadTimer: ReturnType<typeof setTimeout> | undefined
   const watcher = watch(planPath, { persistent: true }, () => {
+    if (reloadTimer) clearTimeout(reloadTimer)
+    reloadTimer = setTimeout(reloadSettled, RELOAD_SETTLE_MS)
+  })
+  function reloadSettled(): void {
+    reloadTimer = undefined
     void reloadFromDisk().catch((error) => {
       const message = error instanceof Error ? error.message : 'Failed to reload plan'
       void recordLog({
@@ -1077,7 +1104,7 @@ export async function openPlanSession(options: {
       }).catch(() => undefined)
       broadcast('error', { message })
     })
-  })
+  }
 
   const themeConfigBase = basename(themeConfigPath)
   let themeWatcher: ReturnType<typeof watch> | undefined
@@ -1152,6 +1179,7 @@ export async function openPlanSession(options: {
     async close() {
       if (closed) return
       closed = true
+      if (reloadTimer) clearTimeout(reloadTimer)
       watcher.close()
       themeWatcher?.close()
       mdxStore?.close()
