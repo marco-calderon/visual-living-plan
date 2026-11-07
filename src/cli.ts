@@ -6,6 +6,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadClientAssets } from './assets'
 import { parsePlan } from './parse'
+import { formatSearchResponse, type SearchResponse } from './planSearch'
 import {
   ackPlanEvents,
   pendingFromHello,
@@ -84,6 +85,7 @@ Usage:
   live-plan mode <watch|comment|review> --url <plan-url>
   live-plan reply <comment-id> --url <plan-url> --text "..."
   live-plan addressing <comment-id> --url <plan-url>
+  live-plan search --url <plan-url> --query TERMS [--query TERMS] [--version live|N|all] [--any] [--json] [--token TOKEN]
   live-plan address <comment-id> --url <plan-url> [--outcome implemented|errored|issues]
   live-plan execution start --url <plan-url> [--step TEXT] [--detail TEXT] [--graph file.json]
   live-plan execution push --url <plan-url> [--step TEXT] [--detail TEXT] [--graph file.json] [--scene file.json]
@@ -113,6 +115,7 @@ Modes:
   reply       Answer one plan comment. The page shows the text on that comment's minibar or part thread.
   addressing  Mark one comment as being reviewed. The page shows Addressing or Working.
   address     Mark one comment answered. The page shows Addressed, or the outcome on a minibar message.
+  search      Find terms in the live plan, block by block. --version N or --version all also searches saved versions. Every term must be in one block unless --any. Exits 0 with hits, 2 with none.
   execution   Start/push/stop the live workflow canvas (locks plan forms while active).
   account     Sign in to the hosted service. \`account login --url https://host\`. On a machine with no browser, \`--headless\` prints a page that shows a token, then \`--token <token>\` saves it.
   theme       Read or write the accent color in live-plan.config.json (or via a running server).
@@ -168,6 +171,15 @@ async function readStdin(): Promise<string> {
   const chunks: Buffer[] = []
   for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk))
   return Buffer.concat(chunks).toString('utf8').trim()
+}
+
+/** Every value given for a flag that may repeat, under any of its names. */
+function getFlags(args: string[], ...names: string[]): string[] {
+  const values: string[] = []
+  for (let index = 0; index < args.length - 1; index += 1) {
+    if (names.includes(args[index] ?? '')) values.push(args[index + 1] ?? '')
+  }
+  return values
 }
 
 function hasFlag(args: string[], name: string): boolean {
@@ -975,6 +987,33 @@ async function cmdAddress(args: string[]): Promise<number> {
   )
 }
 
+async function cmdSearch(args: string[]): Promise<number> {
+  const usage =
+    'Usage: live-plan search --url <plan-url> --query TERMS [--query TERMS] [--version live|N|all] [--any] [--json] [--token TOKEN]'
+  const published = getFlag(args, '--url')
+  const queries = getFlags(args, '--query', '-q').filter((value) => value.trim())
+  const version = getFlag(args, '--version')
+  if (!published || queries.length === 0 || (hasFlag(args, '--version') && !version)) {
+    console.error(usage)
+    return 1
+  }
+  const params = new URLSearchParams({ q: queries.join(' ') })
+  if (version && version !== 'live') params.set('version', version)
+  if (hasFlag(args, '--any')) params.set('match', 'any')
+  const url = await localServiceUrl(published)
+  const response = await fetch(planApiUrl(url, `/api/search?${params}`), {
+    headers: await cloudRequestHeaders(url, args),
+  })
+  if (!response.ok) {
+    console.error((await response.text()) || `Search failed with HTTP ${response.status}`)
+    return 1
+  }
+  const result = (await response.json()) as SearchResponse
+  if (hasFlag(args, '--json')) console.log(JSON.stringify(result, null, 2))
+  else console.log(formatSearchResponse(result))
+  return result.versions.some((entry) => entry.hits.length > 0) ? 0 : 2
+}
+
 async function cmdClose(args: string[]): Promise<number> {
   const url = getFlag(args, '--url')
   if (!url) {
@@ -1264,7 +1303,8 @@ async function main(): Promise<number> {
   const args = process.argv.slice(2)
   const command = args[0]
 
-  if (hasFlag(args, '--version') || hasFlag(args, '-v')) {
+  // `search --version N` picks a saved plan version, so it is not the package version flag there.
+  if (command !== 'search' && (hasFlag(args, '--version') || hasFlag(args, '-v'))) {
     console.log(await readPackageVersion(fileURLToPath(import.meta.url)))
     return 0
   }
@@ -1337,6 +1377,10 @@ async function main(): Promise<number> {
 
   if (command === 'reply') {
     return cmdReply(args.slice(1))
+  }
+
+  if (command === 'search') {
+    return cmdSearch(args.slice(1))
   }
 
   if (command === 'addressing') {

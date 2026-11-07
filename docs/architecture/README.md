@@ -136,6 +136,8 @@ Each cloud plan is one SQLite Durable Object, class `PlanObject`, binding `PLANS
 
 The page and the agent share that object's hibernating WebSockets. A local plan still uses server-sent events on the Bun process. The Durable Object holds the live session. D1 holds the account and the published document versions. Uploading source writes the Durable Object first, then `plan_versions` in D1. A stale revision is HTTP 409.
 
+`GET /plans/<id>/api/search` is forwarded with its query to the object, which searches its live source. Saved versions are read from `plan_versions` in D1 only when `version` asks for them. The plan bearer and the owner may search every version. A viewer searches the live plan only. The local session serves the same route and the same JSON from its source and its snapshots. Both use `src/planSearch.ts`, which parses each document into blocks and is loaded lazily on the Worker.
+
 The owner's account or the plan bearer can close a plan. Routes under `/internal/` on the object are for the Worker only, and `forwardPlan` does not pass them through. `close` sets the object closed and sets `plans.status` to `executed` with `ended_at` in D1. An idle alarm closes the object when no socket is open and last seen is older than the tier's idle time.
 
 ## A plan page
@@ -346,6 +348,7 @@ A row overlaps the selected window when it started before the end of the window 
 | `vite.config.ts`, `wrangler.jsonc` | The Start app and its Worker bindings. `vite.client.config.ts` is the `/client/` bundle the Bun service serves |
 | `src/dashboard.ts`, `src/dashboardPage.ts`, `src/tui/` | Period summary, the dashboard page, and the terminal view of the same read |
 | `src/planArchive.ts` | Copy a plan file into the registry home and serve that copy |
+| `src/planSearch.ts`, `src/host/hostedSearch.ts` | Search a plan block by block: query terms, the live source, and saved versions when asked. One module for both hosts. `hostedSearch` is the Durable Object route |
 | `src/parse.ts`, `src/planMdx/outline.ts` | Parse MDX plan components for the session model (interactions, workflow, progress). `{% tags %}` and YAML entry fences are rejected ([ADR 0021](decisions/0021-mdx-plan-entries.md)) |
 | `src/planMdx/`, `src/planSnapshots.ts`, `client/planMdx.tsx`, `client/entries/`, `client/mdx/` | The plan column. The page compiles MDX and renders the React entries, Pele diagrams, ELK workflow, and TanStack charts. Source history is plan snapshots. The page shows the current file version on the description card and does not list or restore snapshots |
 | `src/render.ts` | HTML shell for a plan on the Bun service: the same mount points `PlanShell` renders for a cloud plan |

@@ -95,7 +95,7 @@ The token is a session of its own. It lasts 30 days and stays valid when the use
 
 ### Cloud details
 
-`bunx visual-living-plan` is the same program when `live-plan` is not installed. `LIVE_PLAN_CLOUD_URL` supplies the host when `--url` is omitted. `serve --cloud` and `review --cloud` print an https URL, write `cloudId` into the plan frontmatter, and keep the plan bearer in `cloud.json`. They do not start the local registry, and they do not fall back to local. Do not combine `--cloud` with `--no-registry`. Use that https URL with `events`, `wait`, `watch`, `mode`, `execution`, `addressing`, `reply`, `address`, and `close`. `dashboard`, `tui`, `logs`, and `lan` stay on this machine. Each upload from `serve --cloud`, `review --cloud`, or the file watcher publishes that plan document on the host. The host keeps the latest 10 versions and drops the oldest when an 11th is published.
+`bunx visual-living-plan` is the same program when `live-plan` is not installed. `LIVE_PLAN_CLOUD_URL` supplies the host when `--url` is omitted. `serve --cloud` and `review --cloud` print an https URL, write `cloudId` into the plan frontmatter, and keep the plan bearer in `cloud.json`. They do not start the local registry, and they do not fall back to local. Do not combine `--cloud` with `--no-registry`. Use that https URL with `events`, `wait`, `watch`, `mode`, `execution`, `addressing`, `reply`, `address`, `search`, and `close`. `dashboard`, `tui`, `logs`, and `lan` stay on this machine. Each upload from `serve --cloud`, `review --cloud`, or the file watcher publishes that plan document on the host. The host keeps the latest 10 versions and drops the oldest when an 11th is published.
 
 ### Local session
 
@@ -146,6 +146,8 @@ bunx visual-living-plan execution stop --url <printed-plan-url>
 bunx visual-living-plan addressing <comment-id> --url <printed-plan-url>
 bunx visual-living-plan reply <comment-id> --url <printed-plan-url> --text "..."
 bunx visual-living-plan address <comment-id> --url <printed-plan-url>
+bunx visual-living-plan search --url <printed-plan-url> --query redis --query '"fail open"'
+bunx visual-living-plan search --url <printed-plan-url> --query limiter --version all
 ```
 
 Replace the bunx prefix with `live-plan` when the command is installed.
@@ -176,6 +178,7 @@ Do this as soon as you read the comment, before a long edit, so the page shows r
 | `reply <comment-id> --url <url> --text "..."` | Write the reply text. A minibar message shows it on the tray. A part comment shows it on that part. Does not change reviewing or answered. Saved with the session. |
 | `address <comment-id> --url <url>` | Mark that comment answered. Sets `addressedAt` and clears `addressingAt`. `--outcome` is `implemented` (default), `errored`, or `issues`. A part comment says Addressed. A minibar message shows Implemented, Errored, or Had issues. |
 | `close --url <url>` | Drop the plan from the service. |
+| `search --url <url> --query TERMS` | Find terms in the live plan, block by block. Prints the block id, type, file line, and a snippet for each hit. Repeat `--query` for more terms; `"quotes"` keep a phrase. Every term must be in one block unless `--any`. `--version N` searches one saved version and `--version all` the live plan plus every saved one. `--json` prints the response. Exits `0` with hits, `2` with none. Use it when you resume a plan, or to check an earlier decision before you change it. |
 | `execution start\|push\|stop --url <url>` | Turn the live workflow overlay on, update it, or turn it off. A flag you leave out keeps its current value. Same on a local and a `--cloud` URL. |
 | `processes` | List plans hosted by the service (directory, git status, site URL). |
 | `logs` | Print the development log saved under `~/.config/living-plan/logs`. The page does not show it. `--level error`, `warn`, or `log`. `--day YYYY-MM-DD` reads one registry day. `--url` reads that plan. |

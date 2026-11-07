@@ -21,8 +21,14 @@ export function planCapReached(tier: Tier, openPlans: number, reattach: boolean)
   return openPlans >= PLAN_CAPS[tier]
 }
 
-export function allows(actor: Actor | null, action: 'register' | 'read' | 'submit' | 'upload' | 'agent' | 'close'): boolean {
+export type PlanAction = 'register' | 'read' | 'submit' | 'upload' | 'agent' | 'close' | 'search' | 'versions'
+
+export function allows(actor: Actor | null, action: PlanAction): boolean {
   if (action === 'register') return actor === 'account'
+  // Anyone who can read the page can search it. The agent searches with its plan bearer.
+  if (action === 'search') return actor === 'account' || actor === 'viewer' || actor === 'plan'
+  // Saved versions stay with the owner and the agent, as /plans/<id>/versions/<seq>/document does.
+  if (action === 'versions') return actor === 'account' || actor === 'plan'
   if (action === 'read' || action === 'submit') return actor === 'account' || actor === 'viewer'
   if (action === 'close') return actor === 'account' || actor === 'plan'
   return actor === 'plan'

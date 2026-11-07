@@ -385,3 +385,28 @@ test('a signed-in account mints a separate terminal token that the host accepts 
   sqlite.run('DELETE FROM session WHERE token = ?', ['browser-token'])
   assert.equal((await mint({ authorization: `Bearer ${body.token}` })).status, 200)
 })
+
+test('a forwarded plan read keeps its query, so search reaches the plan object intact', async () => {
+  const seen: string[] = []
+  const hostEnv: HostEnv = {
+    ...env(),
+    DB: authDatabase(new Database(':memory:')),
+    PLANS: {
+      idFromName: () => 'id',
+      get: () => ({
+        fetch: async (request: Request) => {
+          seen.push(request.url)
+          return Response.json({ ok: true })
+        },
+      }),
+    },
+  }
+  const response = await createHostApp(hostEnv).fetch(
+    new Request('https://plans.example/plans/plan1234/api/search?q=redis+%22fail+open%22&version=all'),
+  )
+  assert.equal(response.status, 200)
+  const forwarded = new URL(seen[0] ?? '')
+  assert.equal(forwarded.pathname, '/api/search')
+  assert.equal(forwarded.searchParams.get('q'), 'redis "fail open"')
+  assert.equal(forwarded.searchParams.get('version'), 'all')
+})

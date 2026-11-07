@@ -601,6 +601,8 @@ export async function hostedPlanVersions(request: Request, env: HostEnv, planId:
 
 async function planFetch(env: HostEnv, planId: string, request: Request, path: string, actor: string): Promise<Response> {
   const target = new URL(path, 'https://plan.internal')
+  // Keep the query, so a read such as /api/search?q=... reaches the object intact.
+  target.search = new URL(request.url).search
   // Routes under /internal/ are for this Worker only. They do not check a caller.
   if (isInternalPath(target.pathname)) return text(404, 'Not found')
   const headers = new Headers(request.headers)

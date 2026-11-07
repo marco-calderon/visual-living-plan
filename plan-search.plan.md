@@ -3,7 +3,7 @@ cloudId: 153c44ff-cb9c-45f3-a62e-2225d9030109
 title: Search a plan and its versions
 summary: Add a search endpoint on the local service and the cloud host, and a `live-plan search` command that finds terms in the live plan or a saved version, block by block.
 agent: claude-code
-mode: review
+mode: watch
 ---
 # Search a plan and its versions
 
@@ -15,13 +15,11 @@ core | Search core | core
 local | Local endpoint | local
 cloud | Cloud endpoint | cloud
 cli | CLI command | cli
-scope | Choose search scope | scope
-match | Choose term matching | match
+decision | Decisions | decision
 docs | Docs and skill | docs
 release | Tests and release | done-when
 --
-scope -> core
-match -> core
+decision -> core
 core -> local
 core -> cloud
 local -> cli
@@ -40,7 +38,7 @@ docs -> release
 
 Both tables share one schema: `plan_id`, `seq`, `title`, `body`, `created_at`. `parsePlan` in `src/parse.ts` already turns a body into typed blocks with ids, titles, and per-block `source`, and the plan object on the Worker already imports it. So search can reuse the parser on both hosts.
 
-<phase id="core" title="Search core" status="pending">
+<phase id="core" title="Search core" status="done">
 Add `src/planSearch.ts`, a pure module with no I/O, so the local service and the Worker run the same code.
 
 **Query parsing.** `parseSearchQuery(input)` splits on whitespace, keeps a `"double quoted phrase"` as one term, lowercases, drops duplicates, and caps the query at 10 terms and 200 characters. An empty query is a 400.
@@ -82,14 +80,14 @@ export type VersionResult = {
 ```
 </phase>
 
-<phase id="local" title="Local endpoint" status="pending">
+<phase id="local" title="Local endpoint" status="done">
 Add `GET /plans/<id>/api/search` to `src/planRoutes.ts` (and `/api/search` on the `--no-registry` server, which shares those routes). The handler calls a new `search(query)` on the session in `src/planSession.ts`.
 
 | Param | Values | Default |
 |---|---|---|
 | `q` | the query text | required |
 | `version` | `live`, a version number, or `all` | `live` |
-| `match` | `all` or `any` (see the matching choice) | `all` |
+| `match` | `all` or `any` | `all` |
 
 `live` searches the session's current source. A number reads that row through the snapshot store (`mdxStore`). `all` searches the live source plus every saved version, newest first; a saved version whose body equals the live source is folded into the live result so it is not listed twice. A version number that does not exist is a 404. The route is a read, so it follows the same loopback `Host` check as `/api/plan` in `src/requestGuard.ts`.
 
@@ -107,7 +105,7 @@ Add `GET /plans/<id>/api/search` to `src/planRoutes.ts` (and `/api/search` on th
 ```
 </phase>
 
-<phase id="cloud" title="Cloud endpoint" status="pending">
+<phase id="cloud" title="Cloud endpoint" status="done">
 The same path on the host, `GET /plans/<id>/api/search`, is already forwarded by `forwardPlan` in `src/host/app.ts` to the plan's Durable Object. Handle it there, in `src/host/planObject.ts`:
 
 - **Access.** Add a `search` action to `allows` in `src/host/access.ts`. Today `read` admits `account` and `viewer` but not `plan`, so the CLI's plan bearer would be refused. `search` admits `account` and `plan` for every version. A `viewer` may search `live` only, because saved versions are owner-only today (`planOwner` guards `/plans/<id>/versions/<seq>/document`).
@@ -118,7 +116,7 @@ The same path on the host, `GET /plans/<id>/api/search`, is already forwarded by
 The response shape is the same as the local one, so the CLI does not branch on the host.
 </phase>
 
-<phase id="cli" title="CLI command" status="pending">
+<phase id="cli" title="CLI command" status="done">
 Add `live-plan search` in `src/cli.ts`, built like `reply`: it resolves the URL with `localServiceUrl`, adds `cloudRequestHeaders`, and calls `planApiUrl(url, '/api/search')`. It works on a local URL and a `--cloud` URL alike.
 
 ```bash
@@ -148,28 +146,15 @@ v3    Rate limiting rollout
 Exit `0` with hits, `2` with no hits, `1` on a usage or request error. `getFlag` in `src/cli.ts` returns only the first value, so add `getFlags` to collect every `--query` / `-q`.
 </phase>
 
-<choice id="scope" prompt="What should one search cover?">
-<option id="one-plan" label="One plan and its versions (recommended)">
-`search --url <plan-url>` searches that plan only. Matches the request, reuses the plan's auth, and keeps cloud cost bounded to 11 documents.
-</option>
-<option id="all-plans" label="Also search across all my plans">
-Add `search --all` against the local registry and `/api/account/search` on the host. More useful for finding an old decision, but it reads every plan's versions and needs its own route, limits, and paging. Could follow as a second change.
-</option>
-</choice>
+<callout id="decision" title="Decisions" kind="decision">
+Approved on 2026-11-07 with one change.
 
-<choice id="match" prompt="How should several terms match?">
-<option id="all-in-block" label="Every term in the same block, --any to relax (recommended)">
-`redis "fail open"` finds the block that mentions both. Precise by default, like a search engine. `--any` returns blocks with at least one term, ranked by how many matched.
-</option>
-<option id="any-ranked" label="Any term, ranked by matches">
-Always returns blocks with at least one term, best first. Never empty when a term exists, but noisier for a precise question.
-</option>
-<option id="all-in-version" label="Every term somewhere in the version">
-A version matches when all terms appear anywhere in it, and hits show each term's block. Finds decisions spread over several sections, at the cost of less precise hits.
-</option>
-</choice>
+- **Scope:** one plan, found by `--url`. Searching across all plans is left for a later change.
+- **Live by default:** a search reads only the live plan. Saved versions are read only when the caller asks with `version` (`--version <n>` or `--version all` on the CLI). Without it, no saved version is loaded or parsed.
+- **Matching:** every term must appear in the same block. `--any` (`match=any`) returns blocks with at least one term, ranked by how many matched.
+</callout>
 
-<phase id="docs" title="Docs and skill" status="pending">
+<phase id="docs" title="Docs and skill" status="done">
 The CLI contract changes, so per `docs/context.md`:
 
 - Add `search` to the Commands table and the Loop examples in `skills/live-plan/SKILL.md`, with one line on when an agent should use it (resuming a plan, checking an earlier decision before changing it).
@@ -179,22 +164,22 @@ The CLI contract changes, so per `docs/context.md`:
 </phase>
 
 <checklist id="done-when" title="Done when">
-<item done="false">
+<item done="true">
 `test/planSearch.test.ts` covers query parsing (phrases, duplicates, caps), each block type, tag stripping, `all` versus `any`, ranking, line numbers, and the unparsed fallback
 </item>
-<item done="false">
-`test/planService.test.ts` covers `/api/search` on the local service for `live`, a number, `all`, a missing version (404), and an empty query (400)
+<item done="true">
+`test/planSearch.test.ts` covers `/api/search` on the local service for `live`, a number, `all`, a missing version (404), and an empty query (400)
 </item>
-<item done="false">
-`test/hostApp.test.ts` covers the cloud route with the account session, with the plan bearer, without either (401), and a version older than the latest 10 (404)
+<item done="true">
+`test/planSearch.test.ts` covers the cloud handler with the account, the plan bearer, a viewer (live only, 403 on versions), neither (401), and a version older than the latest 10 (404). `test/hostApp.test.ts` checks the Worker forwards the query
 </item>
-<item done="false">
+<item done="true">
 CLI test for repeated `--query`, `--version`, `--any`, `--json`, and the 0 / 2 / 1 exit codes
 </item>
-<item done="false">
-`bun test ./test` and `bun run typecheck` pass
+<item done="true">
+`bun test ./test` and `bun run typecheck` pass (the 14 browser tests that fail here fail on main too: the installed Chromium is not the build Playwright expects)
 </item>
-<item done="false">
+<item done="true">
 Minor bump to 2.13.0 with `docs/changelogs/changelog-2026-11-07.md`, per the version-bump skill
 </item>
 </checklist>
