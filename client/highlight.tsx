@@ -32,7 +32,8 @@ function mount(node: HTMLElement): void {
 function boot(): void {
   const render = (root: ParentNode = document) => {
     const hosts = [...root.querySelectorAll<HTMLElement>('pre.code-block')].filter(
-      (node) => !node.classList.contains('mermaid-fallback'),
+      // A plan rendered by React draws its own code blocks. Swapping one out would detach it from React.
+      (node) => !node.classList.contains('mermaid-fallback') && !node.closest('[data-react-code]'),
     )
     for (const node of hosts) mount(node)
   }

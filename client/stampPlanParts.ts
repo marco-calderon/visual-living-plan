@@ -86,10 +86,9 @@ function stampProse(element: HTMLElement, scope: string, counts: Counts): void {
   const kind = proseKind(element)
   if (kind) {
     counts[kind] += 1
-    if (!element.dataset.planPart) {
-      element.dataset.planPart = `${scope}/${kind}:${counts[kind]}`
-      element.dataset.planKind = kind
-    }
+    // Always restamp: a live edit keeps elements on the page, and an insert above one moves its position.
+    element.dataset.planPart = `${scope}/${kind}:${counts[kind]}`
+    element.dataset.planKind = kind
   }
   if (element.tagName === 'UL' || element.tagName === 'OL') {
     for (const item of element.querySelectorAll<HTMLElement>(':scope > li')) stampProse(item, scope, counts)
@@ -139,7 +138,7 @@ function proseKind(element: HTMLElement): keyof ProseCounts | null {
   if (element.tagName === 'P') return 'paragraph'
   if (element.tagName === 'LI') return 'list-item'
   if (element.classList.contains('mermaid-diagram')) return 'diagram'
-  if (element.tagName === 'PRE' || element.classList.contains('code-block')) return 'code'
+  if (element.tagName === 'PRE' || element.classList.contains('code-block') || element.classList.contains('code-host')) return 'code'
   return null
 }
 

@@ -58,8 +58,28 @@ export function resolvePart(start: Element | null): PlanPartElement | null {
   return part
 }
 
+const INLINE = new Set(['A', 'ABBR', 'B', 'CODE', 'EM', 'I', 'KBD', 'MARK', 'S', 'SMALL', 'SPAN', 'STRONG', 'SUB', 'SUP', 'U'])
+
+/** The text a reader sees, with a space where one block ends and the next begins. textContent runs them together. */
+export function readableText(element: Element): string {
+  const parts: string[] = []
+  const walk = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      parts.push(node.textContent ?? '')
+      return
+    }
+    if (!(node instanceof Element)) return
+    const block = !INLINE.has(node.tagName)
+    if (block) parts.push(' ')
+    for (const child of node.childNodes) walk(child)
+    if (block) parts.push(' ')
+  }
+  for (const child of element.childNodes) walk(child)
+  return parts.join('').replace(/\s+/g, ' ').trim()
+}
+
 export function describe(element: PlanPartElement): PlanPart {
-  const excerpt = (element.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 180)
+  const excerpt = readableText(element).slice(0, 180)
   return {
     partId: element.dataset.planPart ?? '',
     kind: element.dataset.planKind ?? 'part',

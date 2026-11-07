@@ -12,6 +12,7 @@ import {
   type Edge,
   type EdgeTypes,
   type NodeTypes,
+  type Viewport,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import type { ExecutionCanvasProps } from '../../types.ts'
@@ -154,13 +155,24 @@ type WorkflowFocusWindow = Window & {
   livingPlanWorkflowFocusMissed?: () => void
 }
 
+/**
+ * The view the person chose by zooming or panning. It outlives the canvas, which unmounts while the
+ * Workflow tab is hidden, so coming back to the tab keeps their zoom.
+ */
+let chosenViewport: Viewport | null = null
+
+/** The steps and their links. A status or label change keeps the shape, and keeps the view. */
+function shapeKey(model: ExecutionCanvasProps['model']): string {
+  return `${model.nodes.map((node) => node.id).join(',')}|${model.edges.map((edge) => `${edge.source}>${edge.target}`).join(',')}`
+}
+
 function pendingWorkflowFocus(): string | null {
   const ref = (window as WorkflowFocusWindow).livingPlanPendingWorkflowFocus
   return ref ? ref : null
 }
 
 function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: ExecutionCanvasProps) {
-  const { fitView, flowToScreenPosition, getViewport } = useReactFlow()
+  const { fitView, flowToScreenPosition, getViewport, setCenter } = useReactFlow()
   const theme = useResolvedTheme()
   const edgeColors = useMemo<EdgeColors>(
     () => ({
@@ -191,6 +203,9 @@ function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: Execu
 
   const hostRef = useRef<HTMLDivElement>(null)
   const placedKey = useRef('')
+  const shapeRef = useRef<string | null>(null)
+  // Once the person zooms or pans, updates stop fitting the whole graph. Fit view hands control back.
+  const userMoved = useRef(chosenViewport !== null)
   const nodesRef = useRef(nodes)
   nodesRef.current = nodes
 
@@ -263,18 +278,62 @@ function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: Execu
       }
       return
     }
+    if (userMoved.current) return
     void fitView({ padding: 0.28, duration: reduce ? 0 : 200, minZoom: 0.2, maxZoom: 1.15 })
   }, [fitView, focusStep])
 
   useEffect(() => {
-    placedKey.current = ''
-    setNodes(toFlowNodes(model))
+    const shape = shapeKey(model)
+    const fresh = toFlowNodes(model)
     setEdges(toFlowEdges(model, edgeColors))
+    if (shapeRef.current === shape) {
+      // Same steps: update status and text in place. Positions, sizes, and the view stay.
+      const byId = new Map(fresh.map((node) => [node.id, node]))
+      setNodes((existing) =>
+        existing.map((item) => {
+          const next = byId.get(item.id)
+          return next ? { ...item, data: next.data, ariaLabel: next.ariaLabel, selectable: next.selectable } : item
+        }),
+      )
+      return
+    }
+    shapeRef.current = shape
+    placedKey.current = ''
+    setNodes(fresh)
     const frame = requestAnimationFrame(() => {
       fit()
     })
     return () => cancelAnimationFrame(frame)
   }, [model, edgeColors, setNodes, setEdges, fit])
+
+  // Follow the running step: when it changes and sits outside the view, pan to it at the current zoom.
+  const activeId = model.nodes.find((node) => node.status === 'active')?.id ?? null
+  const followed = useRef<string | null>(chosenViewport ? null : activeId)
+  useEffect(() => {
+    if (!activeId || followed.current === activeId || pendingWorkflowFocus()) return
+    const host = hostRef.current
+    const node = nodesRef.current.find((item) => item.id === activeId)
+    const width = node?.measured?.width ?? 0
+    const height = node?.measured?.height ?? 0
+    if (!host || !node || width <= 0 || height <= 0) return
+    followed.current = activeId
+    const topLeft = flowToScreenPosition(node.position)
+    const bottomRight = flowToScreenPosition({ x: node.position.x + width, y: node.position.y + height })
+    const bounds = host.getBoundingClientRect()
+    const marginX = bounds.width * 0.08
+    const marginY = bounds.height * 0.08
+    const inView =
+      topLeft.x >= bounds.left + marginX &&
+      bottomRight.x <= bounds.right - marginX &&
+      topLeft.y >= bounds.top + marginY &&
+      bottomRight.y <= bounds.bottom - marginY
+    if (inView) return
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    void setCenter(node.position.x + width / 2, node.position.y + height / 2, {
+      zoom: getViewport().zoom,
+      duration: reduce ? 0 : 300,
+    })
+  }, [activeId, measureKey, flowToScreenPosition, getViewport, setCenter])
 
   // Card height follows the label, so the first positions are an estimate.
   // Once React Flow measures the cards, ELK runs again and the edge router
@@ -342,11 +401,31 @@ function ReactFlowCanvasInner({ model, readonly = true, onSelectPlanRef }: Execu
       minZoom={0.2}
       maxZoom={1.5}
       colorMode={theme.mode}
-      fitView
+      fitView={chosenViewport === null}
+      defaultViewport={chosenViewport ?? undefined}
+      onMoveStart={(event) => {
+        // A gesture carries an event. Fitting and following do not.
+        if (event) userMoved.current = true
+      }}
+      onMoveEnd={(_event, viewport) => {
+        if (userMoved.current) chosenViewport = viewport
+      }}
       proOptions={{ hideAttribution: true }}
     >
       <Background gap={18} size={1} color={canvasColors.dot} />
-      <Controls showInteractive={false} />
+      <Controls
+        showInteractive={false}
+        onZoomIn={() => {
+          userMoved.current = true
+        }}
+        onZoomOut={() => {
+          userMoved.current = true
+        }}
+        onFitView={() => {
+          userMoved.current = false
+          chosenViewport = null
+        }}
+      />
       <MiniMap
         pannable
         zoomable
