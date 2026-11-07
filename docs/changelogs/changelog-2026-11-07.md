@@ -13,6 +13,7 @@
 ### New features
 
 - `live-plan search --url <plan-url> --query TERMS` lists each matching block with its id, type, file line, and a snippet. Repeat `--query` for more terms, and use `"double quotes"` for a phrase. It exits `0` with hits and `2` with none.
+- `live-plan search --query TERMS` without `--url` searches every plan on this machine's service, and `--cloud` searches every plan on your hosted account. Each plan is listed with its link, then its matches.
 - Every term must be in the same block. `--any` returns blocks with at least one term, ranked by how many matched.
 - `--version N` searches one saved version, and `--version all` searches the live plan and every saved version. A saved version that matches the live plan is not listed twice. `--json` prints the full response.
 - Both dashboards have a search field above the plan table. It searches every listed plan's live text, or saved versions too with **Include saved versions**, and **Match any term** relaxes the match. Each result links to the plan page, or the saved version on the host, at the matching block. On the hosted dashboard the field is off while offline.

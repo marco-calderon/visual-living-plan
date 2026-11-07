@@ -148,6 +148,7 @@ bunx visual-living-plan reply <comment-id> --url <printed-plan-url> --text "..."
 bunx visual-living-plan address <comment-id> --url <printed-plan-url>
 bunx visual-living-plan search --url <printed-plan-url> --query redis --query '"fail open"'
 bunx visual-living-plan search --url <printed-plan-url> --query limiter --version all
+bunx visual-living-plan search --query "rate limit" --cloud   # every plan on the account
 ```
 
 Replace the bunx prefix with `live-plan` when the command is installed.
@@ -178,7 +179,8 @@ Do this as soon as you read the comment, before a long edit, so the page shows r
 | `reply <comment-id> --url <url> --text "..."` | Write the reply text. A minibar message shows it on the tray. A part comment shows it on that part. Does not change reviewing or answered. Saved with the session. |
 | `address <comment-id> --url <url>` | Mark that comment answered. Sets `addressedAt` and clears `addressingAt`. `--outcome` is `implemented` (default), `errored`, or `issues`. A part comment says Addressed. A minibar message shows Implemented, Errored, or Had issues. |
 | `close --url <url>` | Drop the plan from the service. |
-| `search --url <url> --query TERMS` | Find terms in the live plan, block by block. Prints the block id, type, file line, and a snippet for each hit. Repeat `--query` for more terms; `"quotes"` keep a phrase. Every term must be in one block unless `--any`. `--version N` searches one saved version and `--version all` the live plan plus every saved one. `--json` prints the response. Exits `0` with hits, `2` with none. Use it when you resume a plan, or to check an earlier decision before you change it. |
+| `search --query TERMS` | Find terms across every plan on this machine's service, the same search as the dashboard. `--cloud` searches every plan on the signed-in account instead. Prints each plan with its link, then its hits. `--version all` adds saved versions; `--any` and `--json` work as below. Exits `0` with hits, `2` with none. |
+| `search --url <url> --query TERMS` | Find terms in one plan, block by block. Prints the block id, type, file line, and a snippet for each hit. Repeat `--query` for more terms; `"quotes"` keep a phrase. Every term must be in one block unless `--any`. `--version N` searches one saved version and `--version all` the live plan plus every saved one. `--json` prints the response. Exits `0` with hits, `2` with none. Use it when you resume a plan, or to check an earlier decision before you change it. |
 | `execution start\|push\|stop --url <url>` | Turn the live workflow overlay on, update it, or turn it off. A flag you leave out keeps its current value. Same on a local and a `--cloud` URL. |
 | `processes` | List plans hosted by the service (directory, git status, site URL). |
 | `logs` | Print the development log saved under `~/.config/living-plan/logs`. The page does not show it. `--level error`, `warn`, or `log`. `--day YYYY-MM-DD` reads one registry day. `--url` reads that plan. |

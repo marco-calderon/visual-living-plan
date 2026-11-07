@@ -447,3 +447,110 @@ test('the hosted dashboard searches only this account\'s listed plans', async ()
   assert.equal(runningLive.plans[0]?.versions[0]?.url, '/plans/mine-running/')
   assert.equal((await call({ q: 'redis', version: '3' })).status, 400)
 })
+
+test('live-plan search without --url searches every plan on this machine', { timeout: 30_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'live-plan-search-all-'))
+  const previousHome = process.env.LIVE_PLAN_HOME
+  process.env.LIVE_PLAN_HOME = home
+  const first = join(home, 'rate.plan.md')
+  const second = join(home, 'tables.plan.md')
+  await copyFile(examplePath, first)
+  await copyFile(resolve('examples/tables.plan.md'), second)
+  const { version } = JSON.parse(await readFile(resolve('package.json'), 'utf8')) as { version: string }
+  // Same version as the CLI, so the CLI uses this service instead of starting another one.
+  const registry = await startRegistryServer({ home, port: 0, token: 'test-token-value', version })
+  const cli = (...args: string[]) => runCli(home, ['search', ...args])
+  try {
+    const rate = await registerHostedPlan(registry.url, registry.token, { planPath: first, mode: 'watch', cwd: home })
+    await registerHostedPlan(registry.url, registry.token, { planPath: second, mode: 'watch', cwd: home })
+
+    const found = await cli('--query', 'redis', '-q', '"fail open"')
+    assert.equal(found.status, 0, found.stderr)
+    assert.match(found.stdout, new RegExp(`^Rate limiting rollout {2}${rate.url.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}$`, 'm'))
+    assert.match(found.stdout, /^ {2}live$/m)
+    assert.match(found.stdout, /^ {4}choice {2}fail-mode {2}L95 /m)
+    assert.match(found.stdout, /1 match in 1 plan, live text only\./)
+
+    const json = await cli('--query', 'redis', '--version', 'all', '--json')
+    assert.equal(json.status, 0, json.stderr)
+    const parsed = JSON.parse(json.stdout) as { version: string; searchedPlans: number; plans: Array<{ planId: string }> }
+    assert.equal(parsed.version, 'all')
+    assert.equal(parsed.searchedPlans, 2)
+    assert.deepEqual(parsed.plans.map((plan) => plan.planId), [rate.id])
+
+    const none = await cli('--query', 'kubernetes')
+    assert.equal(none.status, 2)
+    assert.match(none.stdout, /No matches in 2 plans, live text only\./)
+
+    const numbered = await cli('--query', 'redis', '--version', '1')
+    assert.equal(numbered.status, 1)
+    assert.match(numbered.stderr, /applies to one plan/)
+    assert.equal((await cli('--query', 'redis', '--cloud', '--url', rate.url)).status, 1)
+  } finally {
+    await registry.close()
+    if (previousHome === undefined) delete process.env.LIVE_PLAN_HOME
+    else process.env.LIVE_PLAN_HOME = previousHome
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
+test('live-plan search --cloud searches every plan on the signed-in account', { timeout: 30_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'live-plan-search-cloud-'))
+  const seen: Array<{ path: string; auth: string | null; params: Record<string, string> }> = []
+  const server = Bun.serve({
+    port: 0,
+    fetch(request) {
+      const url = new URL(request.url)
+      seen.push({ path: url.pathname, auth: request.headers.get('authorization'), params: Object.fromEntries(url.searchParams) })
+      if (request.headers.get('authorization') !== 'Bearer account-token') return new Response('Sign in required', { status: 401 })
+      return Response.json({
+        query: url.searchParams.get('q'),
+        terms: ['redis'],
+        match: 'all',
+        version: url.searchParams.get('version') ?? 'live',
+        truncated: false,
+        searchedPlans: 2,
+        plans: [
+          {
+            planId: 'plan-one-1234',
+            title: 'Rate limiting rollout',
+            url: '/plans/plan-one-1234/',
+            versions: [
+              { seq: 4, title: 'Rate limiting rollout', createdAt: 1, live: true, parsed: true, url: '/plans/plan-one-1234/', hits: [{ blockId: 'fail-mode', type: 'choice', line: 95, snippet: 'If Redis is unreachable', matched: ['redis'] }] },
+              { seq: 2, title: 'Rate limiting rollout', createdAt: 1, live: false, parsed: true, url: '/plans/plan-one-1234/versions/2', hits: [{ blockId: 'design', type: 'phase', line: 44, snippet: 'Use Redis', matched: ['redis'] }] },
+            ],
+          },
+        ],
+      })
+    },
+  })
+  const base = `http://127.0.0.1:${server.port}`
+  try {
+    const signedOut = await runCli(home, ['search', '--query', 'redis', '--cloud'])
+    assert.equal(signedOut.status, 1)
+    assert.match(signedOut.stderr, /account login/)
+
+    await writeFile(join(home, 'cloud.json'), JSON.stringify({ account: { baseUrl: base, token: 'account-token' }, plans: {} }))
+    const found = await runCli(home, ['search', '--query', 'redis', '--version', 'all', '--any', '--cloud'])
+    assert.equal(found.status, 0, found.stderr)
+    assert.deepEqual(seen.at(-1), { path: '/api/account/search', auth: 'Bearer account-token', params: { q: 'redis', version: 'all', match: 'any' } })
+    assert.match(found.stdout, new RegExp(`^Rate limiting rollout {2}${base}/plans/plan-one-1234/$`, 'm'))
+    assert.match(found.stdout, new RegExp(`^ {2}v2 {2}${base}/plans/plan-one-1234/versions/2$`, 'm'))
+    assert.match(found.stdout, /^ {4}phase {2}design {2}L44 {2}Use Redis$/m)
+
+    const oldHost = Bun.serve({ port: 0, fetch: () => new Response('Not found', { status: 404 }) })
+    await writeFile(join(home, 'cloud.json'), JSON.stringify({ account: { baseUrl: `http://127.0.0.1:${oldHost.port}`, token: 'account-token' }, plans: {} }))
+    const missing = await runCli(home, ['search', '--query', 'redis', '--cloud'])
+    oldHost.stop(true)
+    assert.equal(missing.status, 1)
+    assert.match(missing.stderr, /does not offer plan search yet/)
+
+    await writeFile(join(home, 'cloud.json'), JSON.stringify({ account: { baseUrl: base, token: 'expired' }, plans: {} }))
+    const expired = await runCli(home, ['search', '--query', 'redis', '--cloud'])
+    assert.equal(expired.status, 1)
+    assert.match(expired.stderr, /Sign in required/)
+  } finally {
+    server.stop(true)
+    await rm(home, { recursive: true, force: true })
+  }
+})

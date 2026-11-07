@@ -6,7 +6,8 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadClientAssets } from './assets'
 import { parsePlan } from './parse'
-import { formatSearchResponse, type SearchResponse } from './planSearch'
+import { formatSearchResponse, type DashboardSearchResponse, type SearchResponse } from './planSearch'
+import { formatDashboardSearch } from './dashboardSearchView'
 import {
   ackPlanEvents,
   pendingFromHello,
@@ -85,6 +86,7 @@ Usage:
   live-plan mode <watch|comment|review> --url <plan-url>
   live-plan reply <comment-id> --url <plan-url> --text "..."
   live-plan addressing <comment-id> --url <plan-url>
+  live-plan search --query TERMS [--query TERMS] [--version live|all] [--any] [--json] [--cloud]
   live-plan search --url <plan-url> --query TERMS [--query TERMS] [--version live|N|all] [--any] [--json] [--token TOKEN]
   live-plan address <comment-id> --url <plan-url> [--outcome implemented|errored|issues]
   live-plan execution start --url <plan-url> [--step TEXT] [--detail TEXT] [--graph file.json]
@@ -115,7 +117,7 @@ Modes:
   reply       Answer one plan comment. The page shows the text on that comment's minibar or part thread.
   addressing  Mark one comment as being reviewed. The page shows Addressing or Working.
   address     Mark one comment answered. The page shows Addressed, or the outcome on a minibar message.
-  search      Find terms in the live plan, block by block. --version N or --version all also searches saved versions. Every term must be in one block unless --any. Exits 0 with hits, 2 with none.
+  search      Find terms across every plan on this machine's service, or every plan on the hosted account with --cloud. --url searches one plan instead. Live text only unless --version all (or --version N with --url). Every term must be in one block unless --any. Exits 0 with hits, 2 with none.
   execution   Start/push/stop the live workflow canvas (locks plan forms while active).
   account     Sign in to the hosted service. \`account login --url https://host\`. On a machine with no browser, \`--headless\` prints a page that shows a token, then \`--token <token>\` saves it.
   theme       Read or write the accent color in live-plan.config.json (or via a running server).
@@ -988,18 +990,25 @@ async function cmdAddress(args: string[]): Promise<number> {
 }
 
 async function cmdSearch(args: string[]): Promise<number> {
-  const usage =
-    'Usage: live-plan search --url <plan-url> --query TERMS [--query TERMS] [--version live|N|all] [--any] [--json] [--token TOKEN]'
+  const usage = [
+    'Usage: live-plan search --query TERMS [--query TERMS] [--version live|all] [--any] [--json] [--cloud]',
+    '       live-plan search --url <plan-url> --query TERMS [--version live|N|all] [--any] [--json] [--token TOKEN]',
+  ].join('\n')
   const published = getFlag(args, '--url')
   const queries = getFlags(args, '--query', '-q').filter((value) => value.trim())
   const version = getFlag(args, '--version')
-  if (!published || queries.length === 0 || (hasFlag(args, '--version') && !version)) {
+  if (queries.length === 0 || (hasFlag(args, '--version') && !version) || (hasFlag(args, '--url') && !published)) {
     console.error(usage)
+    return 1
+  }
+  if (published && hasFlag(args, '--cloud')) {
+    console.error('--cloud searches all plans on the account. Leave it out with --url: the URL already names the host.')
     return 1
   }
   const params = new URLSearchParams({ q: queries.join(' ') })
   if (version && version !== 'live') params.set('version', version)
   if (hasFlag(args, '--any')) params.set('match', 'any')
+  if (!published) return searchAllPlans(args, params)
   const url = await localServiceUrl(published)
   const response = await fetch(planApiUrl(url, `/api/search?${params}`), {
     headers: await cloudRequestHeaders(url, args),
@@ -1012,6 +1021,59 @@ async function cmdSearch(args: string[]): Promise<number> {
   if (hasFlag(args, '--json')) console.log(JSON.stringify(result, null, 2))
   else console.log(formatSearchResponse(result))
   return result.versions.some((entry) => entry.hits.length > 0) ? 0 : 2
+}
+
+/** `search` without `--url`: every plan on this machine's service, or with `--cloud` every plan on the account. */
+async function searchAllPlans(args: string[], params: URLSearchParams): Promise<number> {
+  if (/^\d+$/.test(params.get('version') ?? '')) {
+    console.error('A version number applies to one plan. Pass --url <plan-url> with it, or use --version all.')
+    return 1
+  }
+  let endpoint: string
+  let base: string
+  const headers: Record<string, string> = {}
+  if (hasFlag(args, '--cloud')) {
+    const account = (await readCloudFile()).account
+    if (!account) {
+      console.error('No hosted account. Run live-plan account login --url https://your-host')
+      return 1
+    }
+    base = account.baseUrl
+    endpoint = new URL(`/api/account/search?${params}`, base).href
+    headers.authorization = `Bearer ${account.token}`
+  } else {
+    const registry = await openRegistry(args)
+    if (!registry) {
+      console.error('The plan service on this machine is not available.')
+      return 1
+    }
+    base = registry.url
+    endpoint = new URL(`/api/dashboard/search?${params}`, registryBindUrl(registry)).href
+  }
+  let response: Response
+  try {
+    response = await fetch(endpoint, { headers, cache: 'no-store' })
+  } catch (error) {
+    console.error(`Search failed: ${error instanceof Error ? error.message : error}`)
+    return 1
+  }
+  if (!response.ok) {
+    const body = await response.text()
+    let message = body
+    try {
+      message = (JSON.parse(body) as { error?: string }).error ?? body
+    } catch {
+      // Plain text from the host.
+    }
+    if (response.status === 401) message = 'Sign in required. Run live-plan account login --url ' + base
+    if (response.status === 404 && hasFlag(args, '--cloud')) message = `${base} does not offer plan search yet. It needs a host deployed with this version.`
+    console.error(message || `Search failed with HTTP ${response.status}`)
+    return 1
+  }
+  const result = (await response.json()) as DashboardSearchResponse
+  if (hasFlag(args, '--json')) console.log(JSON.stringify(result, null, 2))
+  else console.log(formatDashboardSearch(result, base))
+  return result.plans.length > 0 ? 0 : 2
 }
 
 async function cmdClose(args: string[]): Promise<number> {

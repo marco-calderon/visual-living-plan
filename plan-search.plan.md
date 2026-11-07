@@ -125,6 +125,8 @@ The response shape is the same as the local one, so the CLI does not branch on t
 </phase>
 
 <phase id="cli" title="CLI command" status="done">
+Without `--url`, `live-plan search --query ...` searches every plan the dashboard lists: this machine's service, or the signed-in account with `--cloud` (see Dashboard search). With `--url` it searches that one plan.
+
 Add `live-plan search` in `src/cli.ts`, built like `reply`: it resolves the URL with `localServiceUrl`, adds `cloudRequestHeaders`, and calls `planApiUrl(url, '/api/search')`. It works on a local URL and a `--cloud` URL alike.
 
 ```bash

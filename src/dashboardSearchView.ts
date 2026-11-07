@@ -127,3 +127,35 @@ export function searchSummary(result: DashboardSearchResponse): string {
   const more = result.truncated ? ' Some results were left out; narrow the search to see them.' : ''
   return `${hits} ${hits === 1 ? 'match' : 'matches'} in ${plans} ${plans === 1 ? 'plan' : 'plans'}, ${scope}.${more}`
 }
+
+/**
+ * Text listing for `live-plan search` without `--url`: one heading per plan with its link,
+ * then one line per hit. `base` turns the host's relative links into full URLs.
+ */
+export function formatDashboardSearch(result: DashboardSearchResponse, base?: string): string {
+  const absolute = (value: string | null): string | null => {
+    if (!value) return null
+    try {
+      return base ? new URL(value, base).href : value
+    } catch {
+      return value
+    }
+  }
+  const lines: string[] = []
+  for (const plan of result.plans) {
+    const link = absolute(plan.url)
+    lines.push(`${plan.title || 'Untitled plan'}${link ? `  ${link}` : ''}`)
+    for (const version of plan.versions) {
+      const versionLink = absolute(version.url)
+      const opens = version.live && versionLink === link ? '' : versionLink ? `  ${versionLink}` : ''
+      lines.push(`  ${version.live ? 'live' : `v${version.seq}`}${version.parsed ? '' : '  (searched line by line: this version does not parse)'}${opens}`)
+      for (const hit of version.hits) {
+        const where = [hit.type, hit.blockId ?? hit.title].filter(Boolean).join('  ')
+        lines.push(`    ${where}  L${hit.line}  ${hit.snippet}`)
+      }
+    }
+    lines.push('')
+  }
+  lines.push(searchSummary(result))
+  return lines.join('\n')
+}
