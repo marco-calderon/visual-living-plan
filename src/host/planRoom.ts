@@ -9,7 +9,7 @@ import {
   type PlanSnapshot,
   type UserMutationKind,
 } from '../offlineSync'
-import { allows, normalizeTier, SOCKET_CAPS, type Tier } from './access'
+import { allows, normalizeTier, SOCKET_CAPS, type PlanAction, type Tier } from './access'
 
 export type PlanRows = { toArray(): Array<Record<string, unknown>> }
 export type PlanSql = { exec(query: string, ...bindings: unknown[]): PlanRows }
@@ -592,7 +592,7 @@ export function actorAllows(
   actor: string | null,
   header: string | null,
   sql: PlanSql,
-  action: 'read' | 'submit' | 'upload' | 'agent' | 'close',
+  action: PlanAction,
 ): boolean {
   if (bearerMatches(sql, header) && allows('plan', action)) return true
   if (actor === 'account' || actor === 'viewer') return allows(actor, action)

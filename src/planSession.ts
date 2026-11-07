@@ -22,6 +22,7 @@ import { AGENT_KEEPALIVE_MS, agentPresence, type AgentPresence } from './agentPr
 import { loadLatestChangelog, loadPackageVersion } from './changelog'
 import { defaultRegistryHome } from './configHome'
 import { openPlanSnapshots, type PlanSnapshotStore } from './planSnapshots'
+import { SearchRequestError, searchParams, searchPlanDocuments, type SearchResponse } from './planSearch'
 import { registryDatabasePath } from './registryLock'
 import { renderPlanPage } from './render'
 import {
@@ -147,6 +148,8 @@ export type PlanSession = {
     headSnapshotId: string | null
   }>
   planPayload: () => unknown
+  /** Search the live plan, or saved versions when `version` asks for them. */
+  search: (url: URL) => SearchResponse
   themeView: () => ReturnType<typeof themePayload>
   updateTheme: (body: unknown) => Promise<unknown>
   executionPayload: () => ExecutionState
@@ -267,6 +270,31 @@ export async function openPlanSession(options: {
       snapshots: mdxStore?.list() ?? [],
       headSnapshotId: mdxStore?.head()?.headSnapshotId ?? null,
     }
+  }
+
+  function search(url: URL): SearchResponse {
+    touch()
+    let params: ReturnType<typeof searchParams>
+    try {
+      params = searchParams(url)
+    } catch (error) {
+      if (error instanceof SearchRequestError) throw new HttpError(error.status, error.message)
+      throw error
+    }
+    // Saved versions are read only when the request asks for them.
+    const saved =
+      params.version === 'live'
+        ? []
+        : (mdxStore?.list() ?? []).map((row) => ({ seq: row.seq, title: row.title, source: row.body, createdAt: row.createdAt }))
+    if (typeof params.version === 'number' && !saved.some((row) => row.seq === params.version)) {
+      throw new HttpError(404, `Version ${params.version} is not saved for this plan.`)
+    }
+    return searchPlanDocuments({
+      planId: id,
+      ...params,
+      live: { seq: 'live', title: plan.title, source, createdAt: null },
+      saved,
+    })
   }
 
   function offlineSnapshot(): PlanSnapshot {
@@ -1160,6 +1188,7 @@ export async function openPlanSession(options: {
     planMdxPayload,
     restoreMdxSnapshot,
     planPayload,
+    search,
     themeView,
     updateTheme,
     executionPayload,

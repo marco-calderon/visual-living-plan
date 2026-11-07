@@ -4,6 +4,13 @@ import { Elysia } from 'elysia'
 import { buildDashboard, parsePeriod, periodRange } from './dashboard'
 import { renderDashboardPage } from './dashboardPage'
 import { assertBodyLimit, html, HttpError, jsonBody } from './http'
+import {
+  DASHBOARD_PLAN_LIMIT,
+  DASHBOARD_VERSIONS_PER_PLAN,
+  SearchRequestError,
+  dashboardSearchParams,
+  searchPlans,
+} from './planSearch'
 import { acceptClientLog, installServiceLogCapture, readLogs, recordLog, recordUnexpectedError } from './serviceLog'
 import { bindElysia } from './httpServer'
 import { archivePlanFile, archivedPlanPath, isPathInside } from './planArchive'
@@ -272,6 +279,35 @@ export async function startRegistryServer(options: {
         const now = Date.now()
         const range = periodRange(period, now)
         return buildDashboard(dashboardPlans(range), period, now)
+      })
+      .get('/api/dashboard/search', ({ request }) => {
+        let params: ReturnType<typeof dashboardSearchParams>
+        try {
+          params = dashboardSearchParams(new URL(request.url))
+        } catch (error) {
+          if (error instanceof SearchRequestError) throw new HttpError(error.status, error.message)
+          throw error
+        }
+        store.prune({ staleMs })
+        // The dashboard lists open plans first, then finished runs. One plan can have several runs.
+        const listed = new Map<string, PlanRecord>()
+        for (const record of dashboardPlans()) if (!listed.has(record.id)) listed.set(record.id, record)
+        const records = [...listed.values()]
+        const perPlan = params.version === 'all' ? DASHBOARD_VERSIONS_PER_PLAN : 1
+        // searchPlans reads at most DASHBOARD_PLAN_LIMIT plans and reports the rest as truncated.
+        const documents = store.planDocuments(
+          records.slice(0, DASHBOARD_PLAN_LIMIT).map((record) => record.id),
+          perPlan,
+        )
+        return searchPlans({
+          ...params,
+          plans: records.map((record) => ({
+            planId: record.id,
+            title: record.title,
+            url: record.status === 'running' ? record.url || null : null,
+            documents: documents.get(record.id) ?? [],
+          })),
+        })
       })
       .delete('/api/dashboard/plans/:id', ({ params, set }) => {
         const id = routeId(params.id)

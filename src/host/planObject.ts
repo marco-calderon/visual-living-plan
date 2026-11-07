@@ -3,6 +3,7 @@ import { Elysia } from 'elysia'
 import { IDLE_MS } from './access'
 import { AGENT_LEASE_REFRESH_MS, agentPresence, type AgentPresence } from '../agentPresence'
 import { rehydrateRequest } from './rehydrateRequest'
+import { hostedSearch } from './hostedSearch'
 import {
   ackEvents,
   actorAllows,
@@ -334,6 +335,15 @@ export class PlanObject extends DurableObject {
           headSnapshotId: null,
         })
       })
+      .get('/api/search', ({ request }) =>
+        hostedSearch({
+          sql,
+          db: (this.env as unknown as { DB?: D1Database }).DB,
+          actor: actorOf(request),
+          authorization: authorizationOf(request),
+          url: new URL(request.url),
+        }),
+      )
       .get('/api/events', ({ request }) => {
         if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'read')) return text(401, 'Sign in required')
         return Response.json({ pending: pendingEvents(sql) })

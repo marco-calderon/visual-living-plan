@@ -14,7 +14,7 @@ import {
 } from './processRecord'
 import { keepProgress, metaFromProcess, metaFromRecord, readMeta, type PlanMeta } from './store/meta'
 import { migratePlanDatabase } from './store/migrate'
-import { planEvents, planRuns, plans } from './store/tables'
+import { planEvents, planRuns, planVersions, plans } from './store/tables'
 import { openSqliteStore } from './store/sqlite'
 import type { PlanSubmissionEvent } from './types'
 
@@ -68,6 +68,8 @@ export type RegistryStore = {
   restore(id: string): void
   /** Ids of plan rows deleted from the dashboard. */
   deletedPlanIds(): Set<string>
+  /** Saved documents of each plan, newest first, at most `perPlan` each. The newest is the live file. */
+  planDocuments(planIds: string[], perPlan: number): Map<string, Array<{ seq: number; title: string; source: string; createdAt: number }>>
   close(): void
 }
 
@@ -435,6 +437,20 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
         .where(sql`json_extract(${plans.meta}, '$.deletedAt') IS NOT NULL`)
         .all()
       return new Set(rows.map((row) => row.id))
+    },
+    planDocuments(planIds, perPlan) {
+      const found = new Map<string, Array<{ seq: number; title: string; source: string; createdAt: number }>>()
+      for (const id of new Set(planIds)) {
+        const rows = db
+          .select({ seq: planVersions.seq, title: planVersions.title, body: planVersions.body, createdAt: planVersions.createdAt })
+          .from(planVersions)
+          .where(eq(planVersions.planId, id))
+          .orderBy(desc(planVersions.seq))
+          .limit(Math.max(1, perPlan))
+          .all()
+        if (rows.length > 0) found.set(id, rows.map((row) => ({ seq: row.seq, title: row.title, source: row.body, createdAt: row.createdAt })))
+      }
+      return found
     },
     close() {
       if (closed) return

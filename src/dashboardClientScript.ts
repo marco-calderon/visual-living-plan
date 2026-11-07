@@ -1,4 +1,5 @@
 import { agentIconSvg } from './agentPresence'
+import { highlightParts, hitHref, hitWhere, searchSummary, versionLabel } from './dashboardSearchView'
 
 /** Browser runtime for the plan dashboard. Loopback and the Start route share it. */
 export function dashboardClientScript(apiPath: string): string {
@@ -591,6 +592,142 @@ export function dashboardClientScript(apiPath: string): string {
         refresh();
       });
       document.addEventListener('click', followInternalPage);
+
+      // Search across the listed plans. Live text only unless "Include saved versions" is checked.
+      const highlightParts = (${highlightParts.toString()});
+      const hitHref = (${hitHref.toString()});
+      const hitWhere = (${hitWhere.toString()});
+      const searchSummary = (${searchSummary.toString()});
+      const versionLabel = (${versionLabel.toString()});
+      const searchForm = document.getElementById('search-form');
+      const searchQuery = document.getElementById('search-query');
+      const searchVersions = document.getElementById('search-versions');
+      const searchAny = document.getElementById('search-any');
+      const searchClear = document.getElementById('search-clear');
+      const searchView = document.getElementById('search-view');
+      const searchStatus = document.getElementById('search-status');
+      const searchResults = document.getElementById('search-results');
+      const tableWrap = document.querySelector('.table-wrap');
+      let searchToken = 0;
+
+      function showTable() {
+        searchToken += 1;
+        searchView.hidden = true;
+        searchClear.hidden = true;
+        tableWrap.hidden = false;
+        searchResults.replaceChildren();
+      }
+
+      function snippetNode(snippet, terms) {
+        const node = text('span', 'dash-search-snippet');
+        for (const part of highlightParts(snippet, terms)) {
+          node.append(part.match ? text('mark', '', part.text) : part.text);
+        }
+        return node;
+      }
+
+      function relativeUrl(value) {
+        if (!value) return '';
+        try {
+          const url = new URL(value, window.location.href);
+          return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : '';
+        } catch (error) {
+          return '';
+        }
+      }
+
+      function renderSearch(result) {
+        searchStatus.textContent = searchSummary(result);
+        searchResults.replaceChildren();
+        for (const plan of result.plans) {
+          const card = text('article', 'dash-search-plan');
+          const heading = document.createElement('h3');
+          const planUrl = relativeUrl(plan.url);
+          if (planUrl) {
+            const link = text('a', '', plan.title || 'Untitled plan');
+            link.href = planUrl;
+            heading.append(link);
+          } else {
+            heading.textContent = plan.title || 'Untitled plan';
+          }
+          card.append(heading);
+          for (const version of plan.versions) {
+            const block = text('section', 'dash-search-version');
+            block.append(text('span', version.live ? 'dash-search-version-label' : 'dash-search-version-label saved', versionLabel(version)));
+            const list = text('ul', 'dash-search-hits');
+            for (const hit of version.hits) {
+              const item = document.createElement('li');
+              const href = relativeUrl(hitHref(version, hit));
+              const row = href ? document.createElement('a') : document.createElement('div');
+              row.className = 'dash-search-hit';
+              if (href) row.href = href;
+              row.append(text('span', 'dash-search-where', hitWhere(hit)), snippetNode(hit.snippet, result.terms));
+              item.append(row);
+              list.append(item);
+            }
+            block.append(list);
+            card.append(block);
+          }
+          searchResults.append(card);
+        }
+      }
+
+      async function runSearch() {
+        const query = searchQuery.value.trim();
+        if (!query) {
+          showTable();
+          return;
+        }
+        const token = ++searchToken;
+        const params = new URLSearchParams({ q: query });
+        if (searchVersions.checked) params.set('version', 'all');
+        if (searchAny.checked) params.set('match', 'any');
+        tableWrap.hidden = true;
+        searchView.hidden = false;
+        searchClear.hidden = false;
+        searchStatus.textContent = 'Searching…';
+        try {
+          const response = await fetch(apiPath + '/search?' + params.toString(), { cache: 'no-store' });
+          const body = await response.json().catch(() => null);
+          if (token !== searchToken) return;
+          if (!response.ok) {
+            searchResults.replaceChildren();
+            searchStatus.textContent = (body && body.error) || 'Could not search the plans.';
+            return;
+          }
+          renderSearch(body);
+        } catch (error) {
+          if (token !== searchToken) return;
+          searchResults.replaceChildren();
+          searchStatus.textContent = 'Could not search the plans.';
+        }
+      }
+
+      searchForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        runSearch();
+      });
+      // A changed option reruns a search that is already shown.
+      for (const option of [searchVersions, searchAny]) {
+        option.addEventListener('change', () => {
+          if (!searchView.hidden) runSearch();
+        });
+      }
+      searchClear.addEventListener('click', () => {
+        searchQuery.value = '';
+        showTable();
+        searchQuery.focus();
+      });
+      searchQuery.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !searchView.hidden) {
+          event.stopPropagation();
+          searchQuery.value = '';
+          showTable();
+        }
+      });
+      searchQuery.addEventListener('search', () => {
+        if (!searchQuery.value.trim()) showTable();
+      });
       // Poll only while this tab is on screen. A hidden tab sends no dashboard requests.
       function startPolling() {
         if (window.__livingPlanDashboardTimer) clearInterval(window.__livingPlanDashboardTimer);

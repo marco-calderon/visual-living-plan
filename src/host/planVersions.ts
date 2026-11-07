@@ -122,3 +122,16 @@ export async function readPlanVersion(
   if (!row) return null
   return { seq: row.seq, title: row.title, source: row.body, createdAt: row.created_at }
 }
+
+/** Every saved document for a plan, newest first. At most the latest 10 exist. */
+export async function readPlanVersions(
+  db: VersionStore,
+  planId: string,
+): Promise<Array<{ seq: number; title: string; source: string; createdAt: number }>> {
+  await ensurePlanVersions(db)
+  const listed = await db
+    .prepare('SELECT seq, title, body, created_at FROM plan_versions WHERE plan_id = ? ORDER BY seq DESC LIMIT ?')
+    .bind(planId, PLAN_VERSION_LIMIT)
+    .all<VersionRow>()
+  return (listed.results ?? []).map((row) => ({ seq: row.seq, title: row.title, source: row.body, createdAt: row.created_at }))
+}

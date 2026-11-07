@@ -15,6 +15,7 @@ body {
 
 .dashboard .dash-section {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   margin: 0 0 24px;
 }
