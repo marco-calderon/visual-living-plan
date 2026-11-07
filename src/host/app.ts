@@ -1,12 +1,12 @@
 import { Elysia } from 'elysia'
 import type { ProgressFields } from '../processRecord'
-import { PLAN_CAPS, allows, normalizeTier, planCapReached } from './access'
+import { agentSlotsFull, agentSlotsMessage, allows, normalizeTier, type Tier } from './access'
 import { defaultAccountSettings, readAccountSettings, saveAccountSettings } from './accountSettings'
 import { readAccountUsage } from './accountUsage'
 import { accountSearch } from './accountSearch'
 import { createAuth, createCliSession, sessionFromToken, type AuthSession } from './auth'
 import { listLinkedAccounts } from './linkedAccounts'
-import { NO_PROGRESS, hostedDashboard, hostedProgress, saveHostedProgress, type HostedPlanRow } from './hostedDashboard'
+import { NO_PROGRESS, hostedAgentPresence, hostedDashboard, hostedProgress, saveHostedProgress, type HostedPlanRow } from './hostedDashboard'
 import { LATEST_PLAN_VERSION_SQL, ensurePlanVersions, listPlanVersions, publishPlanVersion, readPlanVersion } from './planVersions'
 import { rehydrateRequest } from './rehydrateRequest'
 import { requestOrigin } from './requestOrigin'
@@ -325,15 +325,9 @@ async function registerPlan(request: Request, env: HostEnv, auth: ReturnType<typ
     status: string
   }>()
   if (existing && existing.user_id !== session.user.id) return text(409, 'That plan belongs to another account.')
-  const openRow = await env.DB.prepare(
-    'SELECT COUNT(*) AS n FROM plans WHERE user_id = ? AND status = ? AND id != ?',
-  )
-    .bind(session.user.id, 'running', cloudId)
-    .first<{ n: number }>()
-  const reattach = Boolean(existing && existing.status === 'running')
-  if (planCapReached(tier, Number(openRow?.n ?? 0), reattach)) {
-    return text(402, `This ${tier} account can host ${PLAN_CAPS[tier]} active plan${PLAN_CAPS[tier] === 1 ? '' : 's'}.`)
-  }
+  // Registering takes no slot, but refuse early when the agent this plan is for could not connect.
+  const slots = await agentSlots(env.DB, session.user.id, cloudId)
+  if (agentSlotsFull(tier, slots.listening, slots.holdsSlot)) return text(402, agentSlotsMessage(tier))
   const token = existing?.token ?? randomToken()
   const mode = body.mode === 'review' || body.mode === 'comment' ? body.mode : 'watch'
   const title = body.title?.slice(0, 200) || 'Living plan'
@@ -415,6 +409,12 @@ async function forwardPlan(
   }
   if (request.method === 'PUT' && (rest === '/source' || rest === '/source/')) {
     return publishSource(request, env, planId, actor)
+  }
+  // An agent stream takes one of the account's slots. Checked only for a caller with credentials,
+  // so the object still answers 401 to anyone else.
+  if (request.method === 'GET' && isAgentStream(rest) && (account || bearerHeader(request))) {
+    const refused = await agentSlotRefusal(env, planId)
+    if (refused) return refused
   }
   const response = await planFetch(env, planId, request, rest || '/', actor)
   if (response.ok && changesProgress(request.method, rest)) await syncPlanProgress(env, planId)
@@ -640,6 +640,42 @@ function isInternalPath(pathname: string): boolean {
   }
   const path = new URL(decoded.toLowerCase(), 'https://plan.internal').pathname
   return path === '/internal' || path.startsWith('/internal/')
+}
+
+function isAgentStream(rest: string): boolean {
+  return rest === '/api/agent-events' || rest === '/api/agent-events/'
+}
+
+/**
+ * How many of the account's other plans have an agent listening, and whether this plan already
+ * does. Presence is the lease each plan object renews on its row, so a lost close frees its slot
+ * once the lease runs out.
+ */
+async function agentSlots(db: D1Database, userId: string, planId: string, now = Date.now()): Promise<{ listening: number; holdsSlot: boolean }> {
+  const listed = await db
+    .prepare(`SELECT id, meta FROM plans WHERE user_id = ? AND status = 'running'`)
+    .bind(userId)
+    .all<{ id: string; meta: string | null }>()
+  let listening = 0
+  let holdsSlot = false
+  for (const row of listed.results ?? []) {
+    if (!hostedAgentPresence(row.meta, now).agentConnected) continue
+    if (row.id === planId) holdsSlot = true
+    else listening += 1
+  }
+  return { listening, holdsSlot }
+}
+
+async function agentSlotRefusal(env: HostEnv, planId: string): Promise<Response | null> {
+  const row = await env.DB.prepare(
+    `SELECT p.user_id, u.tier FROM plans p LEFT JOIN user u ON u.id = p.user_id WHERE p.id = ?`,
+  )
+    .bind(planId)
+    .first<{ user_id: string; tier: unknown }>()
+  if (!row) return null
+  const tier: Tier = normalizeTier(row.tier)
+  const slots = await agentSlots(env.DB, row.user_id, planId)
+  return agentSlotsFull(tier, slots.listening, slots.holdsSlot) ? text(402, agentSlotsMessage(tier)) : null
 }
 
 function bearerHeader(request: Request): boolean {

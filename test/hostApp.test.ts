@@ -302,6 +302,10 @@ test('account usage counts the saved versions of each owned plan in bytes', asyn
   plan('plan-large', 'owner', 'executed', 2)
   plan('plan-empty', 'owner', 'running', 3)
   plan('plan-other', 'other', 'running', 4)
+  // Only a plan with an agent listening counts toward the tier. plan-empty is open with no agent.
+  sqlite.run(`UPDATE plans SET meta = ? WHERE id = 'plan-small'`, [
+    JSON.stringify({ agentConnected: true, agentCheckedAt: Date.now() }),
+  ])
   await publishPlanVersion(db, { planId: 'plan-small', userId: 'owner', title: 'S', source: 'é', now: 10 })
   await publishPlanVersion(db, { planId: 'plan-large', userId: 'owner', title: 'L', source: '1234567890', now: 11 })
   await publishPlanVersion(db, { planId: 'plan-large', userId: 'owner', title: 'L', source: '12345', now: 12 })
@@ -328,7 +332,7 @@ test('account usage counts the saved versions of each owned plan in bytes', asyn
     byPlan: Array<{ id: string; versions: number; bytes: number }>
   }
   assert.equal(usage.tier, 'free')
-  assert.equal(usage.activePlans, 2)
+  assert.equal(usage.activePlans, 1)
   assert.equal(usage.activeCap, 1)
   assert.equal(usage.versionLimit, 10)
   assert.equal(usage.plans, 3)
@@ -343,6 +347,77 @@ test('account usage counts the saved versions of each owned plan in bytes', asyn
       ['plan-empty', 0, 0],
     ],
   )
+})
+
+test('the tier caps plans with an agent listening, not plans that are open', async () => {
+  const sqlite = new Database(':memory:')
+  const db = authDatabase(sqlite)
+  for (const file of ['0002_user_settings.sql', '0003_plan_versions.sql', '0004_one_schema.sql']) {
+    sqlite.exec(readFileSync(new URL(`../src/migrations/${file}`, import.meta.url), 'utf8'))
+  }
+  const stamp = new Date().toISOString()
+  const later = new Date(Date.now() + 60 * 60 * 1000).toISOString()
+  sqlite.run('INSERT INTO user (id, name, email, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)', ['owner', 'owner', 'owner@example.com', stamp, stamp])
+  sqlite.run('INSERT INTO session (id, expiresAt, token, createdAt, updatedAt, userId) VALUES (?, ?, ?, ?, ?, ?)', [
+    'session-owner',
+    later,
+    'owner-token',
+    stamp,
+    stamp,
+    'owner',
+  ])
+  const now = Date.now()
+  const listening = JSON.stringify({ agentConnected: true, agentCheckedAt: now })
+  const stale = JSON.stringify({ agentConnected: true, agentCheckedAt: now - 10 * 60_000 })
+  const plan = (id: string, status: string, meta: string | null) =>
+    sqlite.run(
+      `INSERT INTO plans (id, user_id, token, title, mode, status, started_at, heartbeat_at, meta) VALUES (?, 'owner', 't', 'P', 'watch', ?, ?, ?, ?)`,
+      [id, status, now, now, meta ?? '{}'],
+    )
+  // A free account has one slot. Open plans with no agent, or a lease that ran out, do not use it.
+  plan('11111111-1111-4111-8111-111111111111', 'running', null)
+  plan('22222222-2222-4222-8222-222222222222', 'running', stale)
+  plan('33333333-3333-4333-8333-333333333333', 'running', null)
+  const forwarded: string[] = []
+  const app = createHostApp({
+    ...env(),
+    DB: db,
+    PLANS: {
+      idFromName: (name: string) => name,
+      get: (name: string) => ({
+        fetch: async (request: Request) => {
+          forwarded.push(`${name} ${new URL(request.url).pathname}`)
+          if (new URL(request.url).pathname === '/internal/init') return Response.json({ revision: 1 })
+          return new Response('ok')
+        },
+      }),
+    } as unknown as HostEnv['PLANS'],
+  })
+  const agent = (id: string) =>
+    app.fetch(new Request(`https://plans.example/plans/${id}/api/agent-events`, { headers: { authorization: 'Bearer t' } }))
+  const register = () =>
+    app.fetch(
+      new Request('https://plans.example/api/plans', {
+        method: 'POST',
+        headers: { authorization: 'Bearer owner-token', 'content-type': 'application/json' },
+        body: JSON.stringify({ title: 'New', markdown: '# New\n' }),
+      }),
+    )
+
+  assert.equal((await agent('11111111-1111-4111-8111-111111111111')).status, 200)
+  assert.equal((await register()).status, 200)
+
+  sqlite.run(`UPDATE plans SET meta = ? WHERE id = '11111111-1111-4111-8111-111111111111'`, [listening])
+  // The plan that holds the slot can open another stream. Another plan cannot.
+  assert.equal((await agent('11111111-1111-4111-8111-111111111111')).status, 200)
+  const refused = await agent('33333333-3333-4333-8333-333333333333')
+  assert.equal(refused.status, 402)
+  assert.match(await refused.text(), /1 plan with an agent listening/)
+  assert.equal((await register()).status, 402)
+  assert.ok(!forwarded.includes('33333333-3333-4333-8333-333333333333 /api/agent-events'))
+  // A caller without credentials is left to the plan object, which answers 401.
+  const anonymous = await app.fetch(new Request('https://plans.example/plans/33333333-3333-4333-8333-333333333333/api/agent-events'))
+  assert.notEqual(anonymous.status, 402)
 })
 
 test('a signed-in account mints a separate terminal token that the host accepts as a bearer', async () => {

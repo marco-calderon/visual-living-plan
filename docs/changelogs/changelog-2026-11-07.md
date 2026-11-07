@@ -1,5 +1,29 @@
 # Changelog — 2026-11-07
 
+## 2.14.0
+
+**PR:** pending
+
+**Bump:** minor
+
+### Summary
+
+The hosted plan limit now counts plans with an agent listening at the same time, not open plans. A Pro account runs 10 agents at once and can keep any number of plans open.
+
+### Bugs fixed
+
+- A plan deleted from the hosted dashboard kept its slot, so `serve --cloud` was refused with no visible plan to close. Hidden and idle plans no longer count.
+- `events`, `watch`, `wait`, and `review` printed `Agent socket failed` when the host refused the connection. They now print the host's reason.
+
+### Improvements
+
+- The host checks the limit when an agent connects, and frees the slot when the agent stops, or within 3 minutes if the agent vanished.
+- Settings → Usage shows Agents listening against the tier limit.
+
+### Notes
+
+Needs a Worker deploy. No registry restart needed.
+
 ## 2.13.1
 
 **PR:** [#164](https://github.com/marco-calderon/visual-living-plan/pull/164)

@@ -493,7 +493,7 @@ function UsageSection() {
           <p className="usage-stat-value">{data.versions}</p>
         </div>
         <div className="usage-stat">
-          <p className="usage-stat-label">Active plans</p>
+          <p className="usage-stat-label">Agents listening</p>
           <p className="usage-stat-value">
             {data.activePlans}
             <span> of {data.activeCap}</span>
@@ -501,7 +501,7 @@ function UsageSection() {
           <div
             className="usage-meter"
             role="meter"
-            aria-label="Active plans"
+            aria-label="Agents listening"
             aria-valuemin={0}
             aria-valuemax={data.activeCap}
             aria-valuenow={data.activePlans}
