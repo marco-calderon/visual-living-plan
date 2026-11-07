@@ -12,7 +12,7 @@ export function submissionEvent(value: unknown): PlanSubmissionEvent | null {
   const record = value as Partial<PlanSubmissionEvent>
   if (typeof record.id !== 'string' || !record.id) return null
   if (typeof record.seq !== 'number' || !Number.isFinite(record.seq)) return null
-  if (record.event !== 'interaction' && record.event !== 'review' && record.event !== 'comment') return null
+  if (record.event !== 'interaction' && record.event !== 'review' && record.event !== 'comment' && record.event !== 'edit') return null
   return {
     id: record.id,
     seq: record.seq,
@@ -71,7 +71,7 @@ export function planIdFromPlanUrl(planUrl: string): string | null {
  * A late client also hears answers already stored in `hello`.
  */
 export function planClientNotices(event: AgentEvent): AgentEvent[] {
-  if (event.event === 'interaction' || event.event === 'review' || event.event === 'comment') return [event]
+  if (event.event === 'interaction' || event.event === 'review' || event.event === 'comment' || event.event === 'edit') return [event]
   if (event.event !== 'hello' || !event.data || typeof event.data !== 'object') return []
   const hello = event.data as {
     responses?: Record<string, unknown>

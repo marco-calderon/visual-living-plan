@@ -148,6 +148,8 @@ export type PlanSession = {
     headSnapshotId: string | null
   }>
   planPayload: () => unknown
+  /** Save a plan edited on the page. Refused with 409 when the file changed since `base`. */
+  saveMdxSource: (body: unknown) => Promise<unknown>
   /** Search the live plan, or saved versions when `version` asks for them. */
   search: (url: URL) => SearchResponse
   themeView: () => ReturnType<typeof themePayload>
@@ -632,6 +634,11 @@ export async function openPlanSession(options: {
       return
     }
     heldReason = undefined
+    applySource(nextSource)
+  }
+
+  /** Show a new plan source: parse it, keep a snapshot, and tell the page and the canvas. */
+  function applySource(nextSource: string): void {
     revision += 1
     const nextPlan = parsePlan(nextSource, planPath, id)
     const nextSections = collectSectionSources(nextPlan)
@@ -654,6 +661,30 @@ export async function openPlanSession(options: {
     broadcast('reload', { at: Date.now(), changed: diffs.filter((diff) => diff.status !== 'unchanged').length })
     broadcast('execution', { ...executionView(), revision })
     persist()
+  }
+
+  /**
+   * Save a plan edited on the page. `base` is the source the editor started from. When the file
+   * changed since then (the agent wrote it), the save is refused so neither edit is lost.
+   */
+  async function saveMdxSource(body: unknown): Promise<ReturnType<typeof mdxPayload>> {
+    touch()
+    if (execution.active) throw new HttpError(409, 'The plan cannot be edited while execution is live')
+    const input = (body && typeof body === 'object' ? body : {}) as { source?: unknown; base?: unknown }
+    if (typeof input.source !== 'string' || typeof input.base !== 'string') {
+      throw new HttpError(400, 'source and base are required')
+    }
+    const onDisk = await readFile(planPath, 'utf8')
+    if (input.base !== onDisk) throw new HttpError(409, 'The plan changed while you were editing. Reload to see the new version.')
+    if (input.source === onDisk) return mdxPayload()
+    const reason = await planNotReadyReason(input.source)
+    if (reason) throw new HttpError(400, reason)
+    // The watcher sees this write, finds the source unchanged, and does nothing.
+    source = input.source
+    await writeFile(planPath, input.source)
+    applySource(input.source)
+    pushEvent('edit', { at: Date.now(), title: plan.title, by: 'page' })
+    return mdxPayload()
   }
 
   function fulfillInteraction(response: InteractionResponse): void {
@@ -1188,6 +1219,7 @@ export async function openPlanSession(options: {
     planMdxPayload,
     restoreMdxSnapshot,
     planPayload,
+    saveMdxSource,
     search,
     themeView,
     updateTheme,

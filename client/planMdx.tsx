@@ -25,6 +25,8 @@ import { stampPlanParts } from './stampPlanParts.ts'
 import { markChangedBlocks, readBlockSignatures, restoreScrollAnchor, scrollAnchor, type BlockSignatures, type ScrollAnchor } from './liveUpdate.ts'
 import { viewingPlanVersion } from './versionView.ts'
 import { sendPlanMutation, sharedQueryClient } from './queryClient.tsx'
+import { Button } from './ui/button.tsx'
+import { PencilLine } from 'lucide-react'
 
 type PlanWindow = Window & {
   __LIVE_PLAN_BASE__?: string
@@ -117,6 +119,28 @@ function PlanH2(props: { children?: ReactNode }) {
 
 function PlanH3(props: { children?: ReactNode }) {
   return <PlanMarkdownHeading level={3} {...props} />
+}
+
+const LazyPlanEditor = lazy(() => import('./editor/PlanEditor.tsx').then((module) => ({ default: module.PlanEditor })))
+
+type SaveResult = { ok: true } | { ok: false; message: string }
+
+async function saveEditedSource(base: string, source: string): Promise<SaveResult & { payload?: Partial<Boot> }> {
+  const response = await fetch(apiPath('/api/plan-mdx/source'), {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ base, source }),
+  })
+  if (response.ok) return { ok: true, payload: (await response.json()) as Partial<Boot> }
+  const text = await response.text().catch(() => '')
+  let message = text
+  try {
+    const parsed = JSON.parse(text) as { error?: unknown; message?: unknown }
+    message = String(parsed.error ?? parsed.message ?? text)
+  } catch {
+    // Plain text error.
+  }
+  return { ok: false, message: message || `Could not save the plan (${response.status})` }
 }
 
 const LazyCodeBlock = lazy(() => import('./CodeBlock.tsx').then((module) => ({ default: module.CodeBlock })))
@@ -348,6 +372,9 @@ function PlanMdxApp() {
   const pendingAnchor = useRef<ScrollAnchor | null>(null)
   const signatures = useRef<BlockSignatures | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // The source editing started from. Null while the page shows the plan.
+  const [editBase, setEditBase] = useState<string | null>(null)
+  const canEdit = viewingPlanVersion() === null && planContext().host === 'local'
   // The source on screen. It lags `boot.source` when the newest source does not compile.
   const [shownSource, setShownSource] = useState<string>(boot.source)
   const stale = shownSource !== boot.source
@@ -608,8 +635,44 @@ function PlanMdxApp() {
           {error}
         </p>
       ) : null}
+      {editBase !== null ? (
+        <Suspense fallback={<p data-plan-rendering="">Opening the editor…</p>}>
+          <LazyPlanEditor
+            source={editBase}
+            outdated={boot.source !== editBase}
+            onClose={() => setEditBase(null)}
+            save={async (next) => {
+              const result = await saveEditedSource(editBase, next)
+              if (result.ok && result.payload) {
+                const payload = result.payload
+                setBoot((current) => ({
+                  ...current,
+                  ...(typeof payload.source === 'string' ? { source: payload.source } : {}),
+                  ...(Array.isArray(payload.snapshots) ? { snapshots: payload.snapshots } : {}),
+                  ...(payload.headSnapshotId !== undefined ? { headSnapshotId: payload.headSnapshotId } : {}),
+                }))
+              }
+              return result.ok ? { ok: true } : result
+            }}
+          />
+        </Suspense>
+      ) : null}
+      {content && editBase === null && canEdit ? (
+        <div className="plan-edit-toggle">
+          <Button
+            variant="secondary"
+            data-plan-edit=""
+            disabled={locked}
+            title={locked ? 'The plan cannot be edited while a run is live' : 'Edit this plan'}
+            onClick={() => setEditBase(boot.source)}
+          >
+            <PencilLine size={16} aria-hidden="true" />
+            Edit
+          </Button>
+        </div>
+      ) : null}
       {content ? (
-        <article className="plan-document plan-ui" data-plan-rendered="">
+        <article className="plan-document plan-ui" data-plan-rendered="" hidden={editBase !== null}>
           {content}
         </article>
       ) : error ? null : (

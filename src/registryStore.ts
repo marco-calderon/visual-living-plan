@@ -322,7 +322,7 @@ export async function openRegistryStore(dbPath: string): Promise<RegistryStore> 
         .orderBy(planEvents.seq)
         .all()
         .flatMap((row) => {
-          if (row.event !== 'interaction' && row.event !== 'review' && row.event !== 'comment') return []
+          if (row.event !== 'interaction' && row.event !== 'review' && row.event !== 'comment' && row.event !== 'edit') return []
           const data = parsed(row.data, null)
           if (data == null && row.data !== 'null') return []
           return [{ id: row.id, seq: row.seq, event: row.event, data, createdAt: row.createdAt, deliveredAt: row.deliveredAt }]

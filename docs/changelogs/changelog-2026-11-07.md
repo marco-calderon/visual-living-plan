@@ -1,5 +1,30 @@
 # Changelog — 2026-11-07
 
+## 2.15.0
+
+**PR:** pending
+
+**Bump:** minor
+
+### Summary
+
+A local plan can be edited on the page. Edit opens the plan as editable cards; type `/` to add a phase, callout, choice, form, questions, approval, or checklist. Saving writes the plan file and tells the agent.
+
+### New features
+
+- An Edit button on a local plan opens an editor with the same cards, icons, and labels as the page. Titles, prompts, status, kind, icon, and ids are fields on each card, and each body is editable text.
+- Typing `/` opens a menu of cards with their icon and label. Arrow keys move, Enter adds, Escape closes. Inside a card it also adds options, fields, and items.
+- A new phase or question card is added to the workflow between its neighbours.
+- `events` prints an `edit` when a person saves the plan from the page, so the agent reads the file again before its next write.
+
+### Improvements
+
+- A save only rewrites the blocks that changed. The rest of the file stays as the agent wrote it.
+
+### Notes
+
+A save is refused when the agent changed the file while the editor was open, or while a run is live. Hosted plans are not editable yet. Restart the registry to pick up the new route.
+
 ## 2.14.1
 
 **PR:** pending
