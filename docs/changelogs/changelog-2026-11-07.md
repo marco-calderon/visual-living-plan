@@ -2,7 +2,7 @@
 
 ## 2.13.0
 
-**PR:** link once opened
+**PR:** [#165](https://github.com/marco-calderon/visual-living-plan/pull/165)
 
 **Bump:** minor
 
