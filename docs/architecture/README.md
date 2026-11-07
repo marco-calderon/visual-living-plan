@@ -138,6 +138,8 @@ The page and the agent share that object's hibernating WebSockets. A local plan 
 
 `GET /plans/<id>/api/search` is forwarded with its query to the object, which searches its live source. Saved versions are read from `plan_versions` in D1 only when `version` asks for them. The plan bearer and the owner may search every version. A viewer searches the live plan only. The local session serves the same route and the same JSON from its source and its snapshots. Both use `src/planSearch.ts`, which parses each document into blocks and is loaded lazily on the Worker.
 
+Both dashboards search across plans with the same module. The local service answers `GET /api/dashboard/search` from `plan_versions` in its SQLite store, and the Worker answers `GET /api/account/search` from D1 for the signed-in account (`src/host/accountSearch.ts`). A plan's newest row is its live text. Older rows are read only with `version=all`, at most 10 per plan. Plans deleted from the dashboard are left out, at most 100 plans are read, and a response stops at 200 hits. Each hit links to the plan page, or to the saved version page on the host, at `#<blockId>`.
+
 The owner's account or the plan bearer can close a plan. Routes under `/internal/` on the object are for the Worker only, and `forwardPlan` does not pass them through. `close` sets the object closed and sets `plans.status` to `executed` with `ended_at` in D1. An idle alarm closes the object when no socket is open and last seen is older than the tier's idle time.
 
 ## A plan page
@@ -348,7 +350,8 @@ A row overlaps the selected window when it started before the end of the window 
 | `vite.config.ts`, `wrangler.jsonc` | The Start app and its Worker bindings. `vite.client.config.ts` is the `/client/` bundle the Bun service serves |
 | `src/dashboard.ts`, `src/dashboardPage.ts`, `src/tui/` | Period summary, the dashboard page, and the terminal view of the same read |
 | `src/planArchive.ts` | Copy a plan file into the registry home and serve that copy |
-| `src/planSearch.ts`, `src/host/hostedSearch.ts` | Search a plan block by block: query terms, the live source, and saved versions when asked. One module for both hosts. `hostedSearch` is the Durable Object route |
+| `src/planSearch.ts`, `src/host/hostedSearch.ts`, `src/host/accountSearch.ts` | Search a plan block by block, or every plan a dashboard lists: query terms, the live source, and saved versions when asked. One module for both hosts. `hostedSearch` is the Durable Object route, `accountSearch` the hosted dashboard's |
+| `src/dashboardSearchView.ts`, `src/routes/DashboardSearch.tsx` | Dashboard search row and results. The local page script and the hosted React page share the styles and the text helpers |
 | `src/parse.ts`, `src/planMdx/outline.ts` | Parse MDX plan components for the session model (interactions, workflow, progress). `{% tags %}` and YAML entry fences are rejected ([ADR 0021](decisions/0021-mdx-plan-entries.md)) |
 | `src/planMdx/`, `src/planSnapshots.ts`, `client/planMdx.tsx`, `client/entries/`, `client/mdx/` | The plan column. The page compiles MDX and renders the React entries, Pele diagrams, ELK workflow, and TanStack charts. Source history is plan snapshots. The page shows the current file version on the description card and does not list or restore snapshots |
 | `src/render.ts` | HTML shell for a plan on the Bun service: the same mount points `PlanShell` renders for a cloud plan |

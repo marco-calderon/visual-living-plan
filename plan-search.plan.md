@@ -1,7 +1,7 @@
 ---
 cloudId: 153c44ff-cb9c-45f3-a62e-2225d9030109
 title: Search a plan and its versions
-summary: Add a search endpoint on the local service and the cloud host, and a `live-plan search` command that finds terms in the live plan or a saved version, block by block.
+summary: Add a search endpoint on the local service and the cloud host, a `live-plan search` command, and a search field on both dashboards that finds terms in live plans, or saved versions when asked, block by block.
 agent: claude-code
 mode: watch
 ---
@@ -17,6 +17,9 @@ cloud | Cloud endpoint | cloud
 cli | CLI command | cli
 decision | Decisions | decision
 docs | Docs and skill | docs
+dash-core | Search across plans | dash-core
+dash-local | Local dashboard | dash-local
+dash-hosted | Hosted dashboard | dash-hosted
 release | Tests and release | done-when
 --
 decision -> core
@@ -25,6 +28,11 @@ core -> cloud
 local -> cli
 cloud -> cli
 cli -> docs
+core -> dash-core
+dash-core -> dash-local
+dash-core -> dash-hosted
+dash-local -> docs
+dash-hosted -> docs
 docs -> release
 ```
 </workflow>
@@ -163,6 +171,32 @@ The CLI contract changes, so per `docs/context.md`:
 - Leave `skills/live-plan/primitives.md` alone. The plan vocabulary does not change.
 </phase>
 
+## Dashboard search
+
+Added after approval: the same search on the local dashboard (`/dashboard` on the machine service) and the hosted dashboard (`/dashboard` on the cloud host). A dashboard search covers every plan that dashboard lists, so this is the "all my plans" scope, reached from the page instead of the CLI.
+
+<phase id="dash-core" title="Search across plans" status="done">
+Add `searchPlans` to `src/planSearch.ts`. It takes the listed plans, each with its documents, and returns the same per-version results grouped by plan, best plan first.
+
+- **Live only by default.** A plan's live document is its newest row in `plan_versions`, on both hosts. Each local file change and each cloud upload writes that row, so it matches what the plan page shows.
+- **Saved versions when asked.** `version=all` adds each plan's older rows, at most the latest 10 per plan, so a long local history does not slow the page. A version number does not apply across plans and is a 400.
+- **Bounds.** The 100 most recent listed plans are searched, and the response stops at 200 hits with `truncated: true`.
+- **Links.** Each plan carries the URL the dashboard would open, and each hit adds `#<blockId>` so the plan page jumps to that block. A hit in a saved version on the host links to `/plans/<id>/versions/<seq>`.
+
+| Host | Route | Plans searched |
+|---|---|---|
+| Local | `GET /api/dashboard/search?q=&version=live\|all&match=all\|any` | Running plans and finished runs not deleted from the dashboard |
+| Hosted | `GET /api/account/search?q=&version=live\|all&match=all\|any` | The signed-in account's plans not deleted from the dashboard |
+</phase>
+
+<phase id="dash-local" title="Local dashboard" status="done">
+In `src/dashboardParts.ts` and `src/dashboardClientScript.ts`, add a search row to the Plans section: a text field, an **Include saved versions** checkbox (off by default), and a **Match any term** checkbox. Enter runs the search. While a query is set, the plan table is replaced by results grouped by plan: the plan title (a link when it is running), then one line per hit with the block, line, and snippet, and the version label when it is not live. Clearing the field, or Escape, brings the table back. The summary keeps refreshing above; the results stay until the next search or Clear.
+</phase>
+
+<phase id="dash-hosted" title="Hosted dashboard" status="done">
+The same controls and results in `src/routes/dashboard.tsx`, reading `/api/account/search` with the account cookie. Offline, the field is disabled with a short note, because the device copy holds the dashboard rows, not the plan documents.
+</phase>
+
 <checklist id="done-when" title="Done when">
 <item done="true">
 `test/planSearch.test.ts` covers query parsing (phrases, duplicates, caps), each block type, tag stripping, `all` versus `any`, ranking, line numbers, and the unparsed fallback
@@ -178,6 +212,12 @@ CLI test for repeated `--query`, `--version`, `--any`, `--json`, and the 0 / 2 /
 </item>
 <item done="true">
 `bun test ./test` and `bun run typecheck` pass (the 14 browser tests that fail here fail on main too: the installed Chromium is not the build Playwright expects)
+</item>
+<item done="true">
+Dashboard search covered for both hosts in `test/planSearch.test.ts`: live only by default, `version=all`, a version number (400), deleted plans left out, another account's plans left out, and the 100-plan and 200-hit bounds
+</item>
+<item done="true">
+Both dashboards show the search row and results, checked in a browser on desktop and phone widths; the hosted one against a local Worker and D1, including offline
 </item>
 <item done="true">
 Minor bump to 2.13.0 with `docs/changelogs/changelog-2026-11-07.md`, per the version-bump skill

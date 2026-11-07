@@ -7,11 +7,16 @@ import { join, resolve } from 'node:path'
 import { test } from 'node:test'
 import { Database } from 'bun:sqlite'
 import { allows } from '../src/host/access.ts'
+import { accountSearch } from '../src/host/accountSearch.ts'
 import { hostedSearch } from '../src/host/hostedSearch.ts'
 import { initPlan, rememberPlanId, type PlanSql } from '../src/host/planRoom.ts'
 import { publishPlanVersion } from '../src/host/planVersions.ts'
 import {
+  DASHBOARD_PLAN_LIMIT,
+  SEARCH_HIT_LIMIT,
   SEARCH_TERM_LIMIT,
+  dashboardSearchParams,
+  searchPlans,
   SearchRequestError,
   parseSearchQuery,
   parseSearchVersion,
@@ -307,3 +312,138 @@ function sqlOf(db: Database): PlanSql {
     },
   }
 }
+
+test('a dashboard search reads live text by default and ranks plans by matched terms', () => {
+  const doc = (seq: number, source: string) => ({ seq, title: `Plan v${seq}`, source, createdAt: seq })
+  const plans = [
+    { planId: 'aaaa1111', title: 'A', url: '/plans/aaaa1111/', documents: [doc(1, '# A\n\nRedis was here.\n'), doc(2, '# A\n\nNothing now.\n')] },
+    { planId: 'bbbb2222', title: 'B', url: null, versionUrl: (seq: number) => `/plans/bbbb2222/versions/${seq}`, documents: [doc(3, '# B\n\nRedis and limits.\n')] },
+    { planId: 'cccc3333', title: 'C', url: '/plans/cccc3333/', documents: [doc(1, '# C\n\nRedis only.\n')] },
+  ]
+  const base = { query: 'redis limits', terms: ['redis', 'limits'], match: 'any' as const, plans }
+  const live = searchPlans({ ...base, version: 'live' })
+  // A's live text has no match. Only its saved version 1 does, and that is not read by default.
+  assert.deepEqual(live.plans.map((plan) => plan.planId), ['bbbb2222', 'cccc3333'])
+  assert.equal(live.searchedPlans, 3)
+  // A finished plan's live hit opens its saved version page.
+  assert.equal(live.plans[0]?.versions[0]?.url, '/plans/bbbb2222/versions/3')
+  assert.equal(live.plans[0]?.versions[0]?.live, true)
+
+  const all = searchPlans({ ...base, version: 'all' })
+  assert.deepEqual(all.plans.map((plan) => plan.planId), ['bbbb2222', 'aaaa1111', 'cccc3333'])
+  const saved = all.plans[1]?.versions[0]
+  assert.equal(saved?.seq, 1)
+  assert.equal(saved?.live, false)
+  assert.equal(saved?.url, null)
+
+  assert.throws(() => dashboardSearchParams(new URL('https://x/api/dashboard/search?q=redis&version=2')), /version=live or version=all/)
+  assert.equal(dashboardSearchParams(new URL('https://x/api/dashboard/search?q=redis')).version, 'live')
+})
+
+test('a dashboard search stops at 100 plans and 200 hits', () => {
+  const many = Array.from({ length: DASHBOARD_PLAN_LIMIT + 5 }, (_, n) => ({
+    planId: `plan${String(n).padStart(4, '0')}`,
+    title: `P${n}`,
+    url: null,
+    documents: [{ seq: 1, title: `P${n}`, source: `# P${n}\n\n## a\nredis\n\n## b\nredis\n\n## c\nredis\n`, createdAt: 1 }],
+  }))
+  const result = searchPlans({ query: 'redis', terms: ['redis'], match: 'all', version: 'live', plans: many })
+  assert.equal(result.searchedPlans, DASHBOARD_PLAN_LIMIT)
+  assert.equal(result.truncated, true)
+  assert.equal(
+    result.plans.reduce((sum, plan) => sum + plan.versions.reduce((count, version) => count + version.hits.length, 0), 0),
+    SEARCH_HIT_LIMIT,
+  )
+})
+
+test('the local dashboard searches listed plans and leaves deleted ones out', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'live-plan-dash-search-'))
+  const previousHome = process.env.LIVE_PLAN_HOME
+  process.env.LIVE_PLAN_HOME = home
+  const first = join(home, 'rate.plan.md')
+  const second = join(home, 'tables.plan.md')
+  await copyFile(examplePath, first)
+  await copyFile(resolve('examples/tables.plan.md'), second)
+  const registry = await startRegistryServer({ home, port: 0, token: 'test-token-value' })
+  const search = (params: Record<string, string>) => fetch(new URL(`/api/dashboard/search?${new URLSearchParams(params)}`, registry.url))
+  try {
+    const rate = await registerHostedPlan(registry.url, registry.token, { planPath: first, mode: 'watch', cwd: home })
+    const tables = await registerHostedPlan(registry.url, registry.token, { planPath: second, mode: 'watch', cwd: home })
+
+    const found = (await (await search({ q: 'redis' })).json()) as {
+      version: string
+      searchedPlans: number
+      plans: Array<{ planId: string; url: string | null; versions: Array<{ live: boolean; url: string | null; hits: Array<{ blockId?: string }> }> }>
+    }
+    assert.equal(found.version, 'live')
+    assert.equal(found.searchedPlans, 2)
+    assert.deepEqual(found.plans.map((plan) => plan.planId), [rate.id])
+    assert.equal(found.plans[0]?.url, rate.url)
+    assert.equal(found.plans[0]?.versions[0]?.live, true)
+    assert.ok(found.plans[0]?.versions[0]?.hits.some((hit) => hit.blockId === 'fail-mode'))
+
+    // An edit makes a second saved version. The old text is found only with version=all.
+    const original = await readFile(first, 'utf8')
+    await writeFile(first, original.replaceAll('Fail open', 'Stay available'))
+    await waitFor(async () => {
+      const next = (await (await search({ q: '"stay available"' })).json()) as { plans: unknown[] }
+      return next.plans.length > 0
+    })
+    assert.equal(((await (await search({ q: '"fail open"' })).json()) as { plans: unknown[] }).plans.length, 0)
+    const all = (await (await search({ q: '"fail open"', version: 'all' })).json()) as {
+      plans: Array<{ versions: Array<{ live: boolean; seq: number }> }>
+    }
+    assert.equal(all.plans[0]?.versions[0]?.live, false)
+    assert.equal(all.plans[0]?.versions[0]?.seq, 1)
+
+    assert.equal((await search({ q: 'redis', version: '1' })).status, 400)
+    assert.equal((await search({ q: '' })).status, 400)
+
+    const deleted = await fetch(new URL(`/api/dashboard/plans/${rate.id}`, registry.url), { method: 'DELETE' })
+    assert.equal(deleted.status, 200)
+    const after = (await (await search({ q: 'redis' })).json()) as { searchedPlans: number; plans: unknown[] }
+    assert.equal(after.plans.length, 0)
+    assert.equal(after.searchedPlans, 1)
+    assert.ok(tables.id)
+  } finally {
+    await registry.close()
+    if (previousHome === undefined) delete process.env.LIVE_PLAN_HOME
+    else process.env.LIVE_PLAN_HOME = previousHome
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
+test('the hosted dashboard searches only this account\'s listed plans', async () => {
+  const db = new Database(':memory:')
+  const store = d1Of(db)
+  db.run(`CREATE TABLE plans (id TEXT PRIMARY KEY, user_id TEXT, title TEXT, ended_at INTEGER, started_at INTEGER, meta TEXT)`)
+  db.run(`INSERT INTO plans VALUES ('mine-running', 'user-1', 'Running', NULL, 3, NULL)`)
+  db.run(`INSERT INTO plans VALUES ('mine-finished', 'user-1', 'Finished', 5, 2, NULL)`)
+  db.run(`INSERT INTO plans VALUES ('mine-deleted', 'user-1', 'Deleted', NULL, 1, '{"deletedAt": 9}')`)
+  db.run(`INSERT INTO plans VALUES ('theirs-1234', 'user-2', 'Theirs', NULL, 4, NULL)`)
+  const source = await readFile(examplePath, 'utf8')
+  for (const planId of ['mine-running', 'mine-finished', 'mine-deleted', 'theirs-1234']) {
+    await publishPlanVersion(store, { planId, userId: 'x', title: planId, source, now: 1 })
+  }
+  await publishPlanVersion(store, { planId: 'mine-running', userId: 'x', title: 'mine-running', source: source.replaceAll('Fail open', 'Stay available'), now: 2 })
+
+  const call = async (params: Record<string, string>) =>
+    accountSearch(store, 'user-1', new URL(`https://plans.example/api/account/search?${new URLSearchParams(params)}`))
+  const live = (await (await call({ q: '"fail open"' })).json()) as {
+    searchedPlans: number
+    plans: Array<{ planId: string; versions: Array<{ url: string | null; seq: number; live: boolean }> }>
+  }
+  assert.equal(live.searchedPlans, 2)
+  assert.deepEqual(live.plans.map((plan) => plan.planId), ['mine-finished'])
+  assert.equal(live.plans[0]?.versions[0]?.url, '/plans/mine-finished/versions/1')
+
+  const all = (await (await call({ q: '"fail open"', version: 'all' })).json()) as typeof live
+  assert.deepEqual(all.plans.map((plan) => plan.planId).sort(), ['mine-finished', 'mine-running'])
+  const older = all.plans.find((plan) => plan.planId === 'mine-running')?.versions[0]
+  assert.equal(older?.live, false)
+  assert.equal(older?.url, '/plans/mine-running/versions/1')
+
+  const runningLive = (await (await call({ q: '"stay available"' })).json()) as typeof live
+  assert.equal(runningLive.plans[0]?.versions[0]?.url, '/plans/mine-running/')
+  assert.equal((await call({ q: 'redis', version: '3' })).status, 400)
+})

@@ -3,6 +3,7 @@ import type { ProgressFields } from '../processRecord'
 import { PLAN_CAPS, allows, normalizeTier, planCapReached } from './access'
 import { defaultAccountSettings, readAccountSettings, saveAccountSettings } from './accountSettings'
 import { readAccountUsage } from './accountUsage'
+import { accountSearch } from './accountSearch'
 import { createAuth, createCliSession, sessionFromToken, type AuthSession } from './auth'
 import { listLinkedAccounts } from './linkedAccounts'
 import { NO_PROGRESS, hostedDashboard, hostedProgress, saveHostedProgress, type HostedPlanRow } from './hostedDashboard'
@@ -59,6 +60,7 @@ export function createHostApp(env: HostEnv, options: { auth?: (request: Request)
     .get('/api/account/settings', ({ request }) => accountSettingsRead(request, env, authFor(request)))
     .put('/api/account/settings', ({ request }) => accountSave(request, env, authFor(request)))
     .get('/api/account/usage', ({ request }) => accountUsageApi(request, env, authFor(request)))
+    .get('/api/account/search', ({ request }) => accountSearchApi(request, env, authFor(request)))
     .get('/api/account/dashboard', ({ request }) =>
       accountDashboardApi(request, env, authFor(request), originFor(request, env)),
     )
@@ -118,6 +120,12 @@ async function accountDashboardApi(
     return text(500, 'Could not read the dashboard.')
   }
   return Response.json(hostedDashboard(await backfillHostedPlans(env, session.user.id, rows), selected, origin))
+}
+
+async function accountSearchApi(request: Request, env: HostEnv, auth: ReturnType<typeof createAuth>): Promise<Response> {
+  const session = await readSession(auth, request, env.DB)
+  if (!session) return text(401, 'Sign in required')
+  return accountSearch(env.DB, session.user.id, new URL(request.url))
 }
 
 /** Hide a plan from the account dashboard. The row, its object, and its versions stay. */

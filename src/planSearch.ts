@@ -10,6 +10,11 @@ export const SEARCH_QUERY_LIMIT = 200
 /** Most hits one response carries, across every version searched. */
 export const SEARCH_HIT_LIMIT = 200
 
+/** Most plans one dashboard search reads, newest first. */
+export const DASHBOARD_PLAN_LIMIT = 100
+/** Most saved versions per plan a dashboard search reads with `version=all`. */
+export const DASHBOARD_VERSIONS_PER_PLAN = 10
+
 const SNIPPET_LENGTH = 160
 
 export type SearchMatch = 'all' | 'any'
@@ -187,6 +192,114 @@ export function searchPlanDocuments(input: {
   }
 }
 
+/** One listed plan for a dashboard search, with its documents newest first. The first is the live one. */
+export type DashboardSearchSource = {
+  planId: string
+  title: string
+  /** What the dashboard links for this plan, or null when it has no page to open. */
+  url: string | null
+  /** Page for a saved version, when the host has one. */
+  versionUrl?: (seq: number) => string | null
+  documents: Array<{ seq: number; title: string; source: string; createdAt: number | null }>
+}
+
+export type DashboardSearchVersion = SearchVersionResult & { url: string | null }
+
+export type DashboardSearchPlan = {
+  planId: string
+  title: string
+  url: string | null
+  versions: DashboardSearchVersion[]
+}
+
+export type DashboardSearchResponse = {
+  query: string
+  terms: string[]
+  match: SearchMatch
+  version: 'live' | 'all'
+  truncated: boolean
+  searchedPlans: number
+  plans: DashboardSearchPlan[]
+}
+
+/** Read `q`, `version`, and `match` for a dashboard search. A version number only applies to one plan. */
+export function dashboardSearchParams(url: URL): { query: string; terms: string[]; version: 'live' | 'all'; match: SearchMatch } {
+  const params = searchParams(url)
+  if (typeof params.version === 'number') {
+    throw new SearchRequestError(400, 'A dashboard search takes version=live or version=all. Search one plan for a version number.')
+  }
+  return { ...params, version: params.version }
+}
+
+/**
+ * Search every plan a dashboard lists. Only each plan's live document is read unless
+ * `version` is `all`. Plans with the most matched terms come first, then the dashboard's order.
+ */
+export function searchPlans(input: {
+  query: string
+  terms: string[]
+  match: SearchMatch
+  version: 'live' | 'all'
+  plans: DashboardSearchSource[]
+}): DashboardSearchResponse {
+  const listed = input.plans.slice(0, DASHBOARD_PLAN_LIMIT)
+  let remaining = SEARCH_HIT_LIMIT
+  let truncated = input.plans.length > listed.length
+  const found: Array<{ plan: DashboardSearchPlan; best: number; hits: number; order: number }> = []
+  listed.forEach((plan, order) => {
+    const newest = [...plan.documents].sort((a, b) => b.seq - a.seq)
+    const live = newest[0]
+    if (!live) return
+    const documents = input.version === 'all' ? newest.slice(0, DASHBOARD_VERSIONS_PER_PLAN) : [live]
+    const versions: DashboardSearchVersion[] = []
+    for (const document of documents) {
+      if (remaining <= 0) {
+        truncated = true
+        break
+      }
+      const isLive = document === live
+      // An older version with the live text adds nothing.
+      if (!isLive && document.source === live.source) continue
+      const result = searchPlanSource(document.source, input.terms, input.match)
+      if (result.hits.length === 0) continue
+      let hits = result.hits
+      if (hits.length > remaining) {
+        hits = hits.slice(0, remaining)
+        truncated = true
+      }
+      remaining -= hits.length
+      versions.push({
+        seq: document.seq,
+        title: document.title,
+        createdAt: document.createdAt,
+        live: isLive,
+        parsed: result.parsed,
+        hits,
+        // A finished plan has no live page, so its live hit opens the saved version where the host has one.
+        url: isLive ? (plan.url ?? plan.versionUrl?.(document.seq) ?? null) : (plan.versionUrl?.(document.seq) ?? null),
+      })
+    }
+    if (versions.length === 0) return
+    const all = versions.flatMap((version) => version.hits)
+    found.push({
+      plan: { planId: plan.planId, title: live.title || plan.title, url: plan.url, versions },
+      best: Math.max(...all.map((hit) => hit.matched.length)),
+      hits: all.length,
+      order,
+    })
+  })
+  found.sort((a, b) => b.best - a.best || b.hits - a.hits || a.order - b.order)
+  return {
+    query: input.query,
+    terms: input.terms,
+    match: input.match,
+    version: input.version,
+    truncated,
+    searchedPlans: listed.length,
+    plans: found.map((entry) => entry.plan),
+  }
+}
+
 /** Text listing for the CLI: one heading per version, one line per hit. */
 export function formatSearchResponse(result: SearchResponse): string {
   const total = result.versions.reduce((sum, entry) => sum + entry.hits.length, 0)
@@ -271,8 +384,19 @@ function blockTitle(block: PlanBlock): string | undefined {
   }
 }
 
+/** A workflow row shows its label and detail. Ids, refs, and `a -> b` edges are not on the page as text. */
+function workflowText(line: string): string {
+  const trimmed = line.trim()
+  if (trimmed === '--' || /^[\w.-]+\s*->\s*[\w.-]+/.test(trimmed)) return ''
+  const cells = trimmed.split('|').map((cell) => cell.trim())
+  if (cells.length < 2) return visibleText(line)
+  return [cells[1], cells[3]].filter(Boolean).join(' · ')
+}
+
 function searchUnit(unit: Unit, terms: string[], match: SearchMatch): SearchHit | null {
-  const visible = unit.lines.map(visibleText)
+  const visible = unit.lines.map((line, index) =>
+    unit.type === 'workflow' && index > 0 && !/^\s*<\/?workflow/.test(line) ? workflowText(line) : visibleText(line),
+  )
   const joined = visible.join(' ').replace(/\s+/g, ' ').toLowerCase()
   const matched = terms.filter((term) => joined.includes(term))
   if (!accepted(matched, terms, match)) return null

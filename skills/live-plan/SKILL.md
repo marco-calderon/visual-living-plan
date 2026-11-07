@@ -182,7 +182,7 @@ Do this as soon as you read the comment, before a long edit, so the page shows r
 | `execution start\|push\|stop --url <url>` | Turn the live workflow overlay on, update it, or turn it off. A flag you leave out keeps its current value. Same on a local and a `--cloud` URL. |
 | `processes` | List plans hosted by the service (directory, git status, site URL). |
 | `logs` | Print the development log saved under `~/.config/living-plan/logs`. The page does not show it. `--level error`, `warn`, or `log`. `--day YYYY-MM-DD` reads one registry day. `--url` reads that plan. |
-| `dashboard` | Open the registry dashboard for running and executed plans. |
+| `dashboard` | Open the registry dashboard for running and executed plans. Its search field finds terms across every listed plan, live text by default. |
 | `lan on\|off\|status` | Opt in to LAN publishing. Off until `lan on`. Prints a LAN URL for other devices on the network. Agents keep the loopback URL from `serve`. |
 | `tui` | The registry in the terminal. Starts the plan service if it is down, and leaves it running on quit. `p` lists running plans. `d` is the dashboard (`--period day`, `week`, or `month`). Active plans are listed first. |
 | `account login --url https://plan.logspace.qzz.io` | Sign in or sign up before `serve --cloud` or `review --cloud`. Opens the browser sign-in page, which links to sign-up. Stores the session in `~/.config/living-plan/cloud.json`. `LIVE_PLAN_CLOUD_URL` supplies the host when `--url` is omitted. `--headless` prints the `/cli-token` page link and exits. `--token <token>` (or `--token -` for stdin) saves the token that page shows. |

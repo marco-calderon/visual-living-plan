@@ -410,3 +410,9 @@ test('a forwarded plan read keeps its query, so search reaches the plan object i
   assert.equal(forwarded.searchParams.get('q'), 'redis "fail open"')
   assert.equal(forwarded.searchParams.get('version'), 'all')
 })
+
+test('account search needs a signed-in account', async () => {
+  const hostEnv: HostEnv = { ...env(), DB: authDatabase(new Database(':memory:')) }
+  const response = await createHostApp(hostEnv).fetch(new Request('https://plans.example/api/account/search?q=redis'))
+  assert.equal(response.status, 401)
+})
