@@ -331,7 +331,10 @@ test('the local session replays one comment and lets an agent edit win', async (
   assert.equal(snapshot.revision, 0)
   assert.equal(snapshot.comments.length, 1)
   await writeFile(planPath, '# Demo\n\nAgent edit\n')
-  await new Promise((resolve) => setTimeout(resolve, 50))
+  // The session reads the file once the writes settle.
+  for (let waited = 0; waited < 2000 && session.offlineSnapshot().revision === snapshot.revision; waited += 25) {
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
   const after = session.offlineSnapshot()
   assert.equal(after.revision > snapshot.revision, true)
   assert.match(after.source, /Agent edit/)

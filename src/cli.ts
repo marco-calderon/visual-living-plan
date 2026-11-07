@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { spawn } from 'node:child_process'
+import { planNotReadyReason } from './planReady'
 import { writeSync } from 'node:fs'
 import { access, readFile, writeFile, mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
@@ -439,7 +440,8 @@ async function changeExecution(url: string, action: ExecutionAction, patch: Exec
 async function cmdCheck(file: string): Promise<number> {
   const source = await readFile(resolve(file), 'utf8')
   const plan = parsePlan(source, file)
-  const workflowError = workflowRequirementError(plan)
+  // The same check the watchers run before a change reaches the page: it must compile as MDX.
+  const workflowError = workflowRequirementError(plan) ?? (await planNotReadyReason(source))
   const workflow = workflowError ? undefined : planToExpectedGraph(plan)
   console.log(
     JSON.stringify(

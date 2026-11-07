@@ -4,6 +4,7 @@ import { dirname } from 'node:path'
 import { uploadJson, uploadSource } from './cloudClient'
 import { readCloudFile, writeCloudFile, type CloudPlanRecord } from './cloudStore'
 import { readGitSnapshot } from './gitStatus'
+import { planNotReadyReason } from './planReady'
 import { configPathBesidePlan, loadThemeConfig } from './theme'
 
 async function rememberRevision(record: CloudPlanRecord, revision: number, home?: string): Promise<void> {
@@ -50,19 +51,29 @@ export function watchPlanFile(options: {
 }): void {
   let timer: ReturnType<typeof setTimeout> | undefined
   let revision = options.record.revision
+  let held: string | undefined
   const schedule = () => {
     if (timer) clearTimeout(timer)
     timer = setTimeout(() => {
       void readFile(options.record.planPath, 'utf8')
-        .then((markdown) =>
-          uploadSource({
+        .then(async (markdown) => {
+          // A half-written or broken edit stays local. The page keeps the last good plan.
+          const reason = await planNotReadyReason(markdown)
+          if (reason) {
+            if (held !== reason) console.error(`Plan not uploaded yet: ${reason} The page keeps the last good version until the file is fixed.`)
+            held = reason
+            return undefined
+          }
+          held = undefined
+          return uploadSource({
             planUrl: options.record.url,
             token: options.record.token,
             markdown,
             revision,
-          }),
-        )
+          })
+        })
         .then(async (next) => {
+          if (next === undefined) return
           revision = next
           await rememberRevision({ ...options.record, revision }, next, options.home)
         })
