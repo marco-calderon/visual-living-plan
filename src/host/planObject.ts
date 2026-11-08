@@ -29,6 +29,7 @@ import {
   putSource,
   socketLimit,
   StaleRevision,
+  editSource,
   submitComment,
   submitInteraction,
   submitReview,
@@ -224,7 +225,9 @@ export class PlanObject extends DurableObject {
       .onError(({ code, error }) => {
         // A route this object does not serve is 404, not a server error.
         if (code === 'NOT_FOUND') return text(404, 'Not found')
-        if (error instanceof StaleRevision) return Response.json({ revision: error.revision }, { status: 409 })
+        if (error instanceof StaleRevision) {
+          return Response.json({ revision: error.revision, ...(error.pageEdit ? { pageEdit: true, error: error.message } : {}) }, { status: 409 })
+        }
         if (error instanceof PlanRoomError) return text(error.status, error.message)
         return text(500, error instanceof Error ? error.message : 'Unknown error')
       })
@@ -266,6 +269,19 @@ export class PlanObject extends DurableObject {
         this.publish([...result.outbound, { event: 'execution', data: await liveExecution(sql) }])
         await this.armAlarm()
         return Response.json({ revision: result.revision })
+      })
+      .put('/api/plan-mdx/source', async ({ request }) => {
+        if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'edit')) return text(401, 'Sign in required')
+        const body = (await request.json()) as { base?: unknown; source?: unknown; title?: unknown }
+        if (typeof body.base !== 'string' || typeof body.source !== 'string') return text(400, 'source and base are required')
+        const result = editSource(sql, {
+          base: body.base,
+          source: body.source,
+          title: typeof body.title === 'string' ? body.title : undefined,
+        })
+        this.publish([...result.outbound, { event: 'execution', data: await liveExecution(sql) }])
+        await this.armAlarm()
+        return Response.json({ source: body.source, revision: result.revision })
       })
       .put('/theme', ({ request }) => this.putNamedBlob(request, sql, 'theme'))
       .put('/git', ({ request }) => this.putNamedBlob(request, sql, 'git'))

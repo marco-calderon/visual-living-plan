@@ -8,9 +8,11 @@
 
 .plan-editor-bar {
   position: sticky;
-  top: 0;
+  /* Below the app's title bar, which is sticky too. */
+  top: calc(var(--titlebar-offset, 3.75rem) + var(--space-xs));
   z-index: 5;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-sm);
@@ -20,9 +22,22 @@
   background: var(--canvas);
 }
 
+.plan-editor-status-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.plan-editor-status-text[data-plan-draft-state='failed'] {
+  color: var(--danger);
+}
+
 .plan-editor-hint {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .plan-editor-hint kbd {
@@ -34,6 +49,8 @@
 
 .plan-editor-actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: var(--space-xs);
 }
 

@@ -8,22 +8,24 @@
 
 ### Summary
 
-A local plan can be edited on the page. Edit opens the plan as editable cards; type `/` to add a phase, callout, choice, form, questions, approval, or checklist. Saving writes the plan file and tells the agent.
+A plan can be edited on its page, on the local service and on the host. Edits are a draft on your device until you press Publish, which makes a new version of the plan and tells the agent.
 
 ### New features
 
-- An Edit button on a local plan opens an editor with the same cards, icons, and labels as the page. Titles, prompts, status, kind, icon, and ids are fields on each card, and each body is editable text.
+- An Edit button on a local plan, and on a hosted plan you own, opens an editor with the same cards, icons, and labels as the page. Titles, prompts, status, kind, icon, and ids are fields on each card, and each body is editable text.
 - Typing `/` opens a menu of cards with their icon and label. Arrow keys move, Enter adds, Escape closes. Inside a card it also adds options, fields, and items.
-- A new phase or question card is added to the workflow between its neighbours.
-- `events` prints an `edit` when a person saves the plan from the page, so the agent reads the file again before its next write.
+- Edits are saved on this device about once a second, also offline. Close the tab and Resume draft brings them back. Discard drops them.
+- Publish makes a new version: a snapshot on the local service, a saved version on the host. A new phase or question card joins the workflow between its neighbours.
+- `events` prints an `edit` when a person publishes from the page. On a hosted plan it first writes their version into the local plan file.
 
 ### Improvements
 
-- A save only rewrites the blocks that changed. The rest of the file stays as the agent wrote it.
+- Publishing only rewrites the blocks that changed. The rest of the file stays as the agent wrote it.
+- A hosted upload that missed a page edit is refused instead of overwriting it, and the CLI says to run `events` first.
 
 ### Notes
 
-A save is refused when the agent changed the file while the editor was open, or while a run is live. Hosted plans are not editable yet. Restart the registry to pick up the new route.
+Publish is refused when the plan changed after the draft started, and while a run is live; the draft stays on the device. Needs a Worker deploy for hosted plans. Restart the registry to pick up the new route.
 
 ## 2.14.1
 

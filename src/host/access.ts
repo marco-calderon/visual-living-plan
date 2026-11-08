@@ -33,7 +33,7 @@ export function agentSlotsMessage(tier: Tier): string {
   return `This ${tier} account can have ${cap} plan${cap === 1 ? '' : 's'} with an agent listening at once. Stop an agent on another plan, or close that plan, then try again.`
 }
 
-export type PlanAction = 'register' | 'read' | 'submit' | 'upload' | 'agent' | 'close' | 'search' | 'versions'
+export type PlanAction = 'register' | 'read' | 'submit' | 'upload' | 'edit' | 'agent' | 'close' | 'search' | 'versions'
 
 export function allows(actor: Actor | null, action: PlanAction): boolean {
   if (action === 'register') return actor === 'account'
@@ -43,5 +43,7 @@ export function allows(actor: Actor | null, action: PlanAction): boolean {
   if (action === 'versions') return actor === 'account' || actor === 'plan'
   if (action === 'read' || action === 'submit') return actor === 'account' || actor === 'viewer'
   if (action === 'close') return actor === 'account' || actor === 'plan'
+  // The owner edits the plan from the page. The agent uploads its file instead.
+  if (action === 'edit') return actor === 'account'
   return actor === 'plan'
 }

@@ -26,6 +26,7 @@ import { markChangedBlocks, readBlockSignatures, restoreScrollAnchor, scrollAnch
 import { viewingPlanVersion } from './versionView.ts'
 import { sendPlanMutation, sharedQueryClient } from './queryClient.tsx'
 import { Button } from './ui/button.tsx'
+import { readDraft, type PlanDraft } from './editor/draftStore.ts'
 import { PencilLine } from 'lucide-react'
 
 type PlanWindow = Window & {
@@ -125,12 +126,19 @@ const LazyPlanEditor = lazy(() => import('./editor/PlanEditor.tsx').then((module
 
 type SaveResult = { ok: true } | { ok: false; message: string }
 
+/** Publish an edit. The same route on the local service and on the host, where it also saves a version. */
 async function saveEditedSource(base: string, source: string): Promise<SaveResult & { payload?: Partial<Boot> }> {
-  const response = await fetch(apiPath('/api/plan-mdx/source'), {
-    method: 'PUT',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ base, source }),
-  })
+  let response: Response
+  try {
+    response = await fetch(apiPath('/api/plan-mdx/source'), {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ base, source }),
+    })
+  } catch {
+    return { ok: false, message: 'Could not reach the plan. The draft is still on this device; publish again when you are back online.' }
+  }
   if (response.ok) return { ok: true, payload: (await response.json()) as Partial<Boot> }
   const text = await response.text().catch(() => '')
   let message = text
@@ -373,8 +381,13 @@ function PlanMdxApp() {
   const signatures = useRef<BlockSignatures | null>(null)
   const [error, setError] = useState<string | null>(null)
   // The source editing started from. Null while the page shows the plan.
-  const [editBase, setEditBase] = useState<string | null>(null)
-  const canEdit = viewingPlanVersion() === null && planContext().host === 'local'
+  // The open edit: the plan file it started from and the draft it continues. Null while the page shows the plan.
+  const [editing, setEditing] = useState<{ base: string; draft: PlanDraft | null } | null>(null)
+  const planId = planContext().id
+  const [hasDraft, setHasDraft] = useState(() => readDraft(planId) !== null)
+  // A local plan, or a hosted plan this account owns. A saved version is read-only.
+  const canEdit =
+    viewingPlanVersion() === null && (planContext().host === 'local' || document.body.dataset.planOwner === 'true')
   // The source on screen. It lags `boot.source` when the newest source does not compile.
   const [shownSource, setShownSource] = useState<string>(boot.source)
   const stale = shownSource !== boot.source
@@ -635,14 +648,19 @@ function PlanMdxApp() {
           {error}
         </p>
       ) : null}
-      {editBase !== null ? (
+      {editing !== null ? (
         <Suspense fallback={<p data-plan-rendering="">Opening the editor…</p>}>
           <LazyPlanEditor
-            source={editBase}
-            outdated={boot.source !== editBase}
-            onClose={() => setEditBase(null)}
-            save={async (next) => {
-              const result = await saveEditedSource(editBase, next)
+            planId={planId}
+            base={editing.base}
+            draft={editing.draft}
+            outdated={boot.source !== editing.base}
+            onClose={() => {
+              setEditing(null)
+              setHasDraft(readDraft(planId) !== null)
+            }}
+            publish={async (next) => {
+              const result = await saveEditedSource(editing.base, next)
               if (result.ok && result.payload) {
                 const payload = result.payload
                 setBoot((current) => ({
@@ -657,22 +675,25 @@ function PlanMdxApp() {
           />
         </Suspense>
       ) : null}
-      {content && editBase === null && canEdit ? (
+      {content && editing === null && canEdit ? (
         <div className="plan-edit-toggle">
           <Button
             variant="secondary"
             data-plan-edit=""
-            disabled={locked}
-            title={locked ? 'The plan cannot be edited while a run is live' : 'Edit this plan'}
-            onClick={() => setEditBase(boot.source)}
+            data-plan-has-draft={hasDraft ? 'true' : undefined}
+            title={hasDraft ? 'Continue the unpublished edit saved on this device' : 'Edit this plan'}
+            onClick={() => {
+              const draft = readDraft(planId)
+              setEditing({ base: draft?.base ?? boot.source, draft })
+            }}
           >
             <PencilLine size={16} aria-hidden="true" />
-            Edit
+            {hasDraft ? 'Resume draft' : 'Edit'}
           </Button>
         </div>
       ) : null}
       {content ? (
-        <article className="plan-document plan-ui" data-plan-rendered="" hidden={editBase !== null}>
+        <article className="plan-document plan-ui" data-plan-rendered="" hidden={editing !== null}>
           {content}
         </article>
       ) : error ? null : (

@@ -24,8 +24,12 @@ export class PlanRoomError extends Error {
 }
 
 export class StaleRevision extends PlanRoomError {
-  constructor(readonly revision: number) {
-    super(409, 'Stale revision')
+  constructor(
+    readonly revision: number,
+    /** The revisions the upload missed include an edit a person published from the page. */
+    readonly pageEdit = false,
+  ) {
+    super(409, pageEdit ? 'A person edited this plan on the page. Pull their version before uploading.' : 'Stale revision')
   }
 }
 
@@ -219,11 +223,15 @@ export function putSource(
 ): { revision: number; outbound: Outbound[] } {
   requireOpen(sql)
   const current = Number(meta(sql, 'revision') ?? '0')
-  if (input.revision !== current) throw new StaleRevision(current)
   // An unchanged file keeps its revision. Otherwise every reconnecting CLI would make open pages stale.
+  // It also tells a watcher that wrote a pulled page edit back the revision it missed.
   if (input.markdown === meta(sql, 'source') && (!input.title || input.title === meta(sql, 'title'))) {
     touchPlan(sql)
     return { revision: current, outbound: [] }
+  }
+  if (input.revision !== current) {
+    // An upload that never saw a page edit would overwrite it. The agent pulls it first.
+    throw new StaleRevision(current, input.revision < Number(meta(sql, 'page_revision') ?? '0'))
   }
   const next = current + 1
   setMeta(sql, 'source', input.markdown)
@@ -243,6 +251,51 @@ export function putSource(
           // The page sends this revision with its next answer, so it must hear the new one.
           revision: next,
           // An edit during a run must not unlock the page's forms.
+          locked: executionActive(view),
+          snapshots: [],
+          headSnapshotId: null,
+        },
+      },
+    ],
+  }
+}
+
+/**
+ * The owner saved the plan from the page editor. `base` is the source the editor started from;
+ * a plan that changed since then is refused, so neither edit is lost. The agent hears an `edit`
+ * with the new source, which `live-plan events` writes into the local plan file.
+ */
+export function editSource(
+  sql: PlanSql,
+  input: { base: string; source: string; title?: string },
+): { revision: number; outbound: Outbound[] } {
+  requireOpen(sql)
+  const current = Number(meta(sql, 'revision') ?? '0')
+  if (executionActive(planView(sql))) throw new PlanRoomError(409, 'The plan cannot be edited while execution is live')
+  if (input.base !== (meta(sql, 'source') ?? '')) {
+    throw new PlanRoomError(409, 'The plan changed while you were editing. Reload to see the new version.')
+  }
+  if (!input.source.trim()) throw new PlanRoomError(400, 'The plan is empty.')
+  if (input.source === input.base) return { revision: current, outbound: [] }
+  const next = current + 1
+  setMeta(sql, 'source', input.source)
+  setMeta(sql, 'revision', String(next))
+  setMeta(sql, 'page_revision', String(next))
+  if (input.title) setMeta(sql, 'title', input.title)
+  touchPlan(sql)
+  const view = planView(sql)
+  const record = pushEvent(sql, 'edit', { at: Date.now(), by: 'page', title: view.title, revision: next, source: input.source })
+  return {
+    revision: next,
+    outbound: [
+      { event: 'notice', data: record },
+      {
+        event: 'plan',
+        data: {
+          source: view.source,
+          title: view.title,
+          responses: view.responses,
+          revision: next,
           locked: executionActive(view),
           snapshots: [],
           headSnapshotId: null,

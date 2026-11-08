@@ -140,6 +140,14 @@ export async function registerCloudPlan(
   }
 }
 
+function pageEditConflict(raw: string): boolean {
+  try {
+    return (JSON.parse(raw) as { pageEdit?: unknown }).pageEdit === true
+  } catch {
+    return false
+  }
+}
+
 function jsonRevision(raw: string): number | null {
   try {
     const parsed = JSON.parse(raw) as { revision?: unknown }
@@ -167,6 +175,12 @@ export async function uploadSource(options: {
   let response = await send(options.revision)
   if (response.status === 409) {
     const raw = await response.text()
+    // Retrying would overwrite what a person published from the page. The agent pulls it first.
+    if (pageEditConflict(raw)) {
+      throw new Error(
+        'A person edited this plan on the page since your last upload, so your file was not uploaded. Run `live-plan events --url <plan-url>` to write their version into the plan file, then make your change again.',
+      )
+    }
     const stale = jsonRevision(raw)
     if (stale == null) throw new Error(raw.trim() || 'The hosted plan rejected the upload.')
     response = await send(stale)
