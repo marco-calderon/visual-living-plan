@@ -1,6 +1,6 @@
 import { addComposerChild$, addNestedEditorChild$, insertJsx$, realmPlugin, usePublisher } from '@mdxeditor/editor'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
-import { $getSelection, $isRangeSelection, $isTextNode } from 'lexical'
+import { $getNodeByKey, $getSelection, $isDecoratorNode, $isParagraphNode, $isRangeSelection, $isTextNode } from 'lexical'
 import { LexicalTypeaheadMenuPlugin, MenuOption, useBasicTypeaheadTriggerMatch } from '@lexical/react/LexicalTypeaheadMenuPlugin'
 import type { MdxJsxAttribute, MdxJsxFlowElement } from 'mdast-util-mdx-jsx'
 import type { Paragraph } from 'mdast'
@@ -168,9 +168,12 @@ function SlashMenu({ nested }: { nested: boolean }) {
 
   const onSelect = useCallback(
     (option: CardOption, typed: { remove: () => void } | null, close: () => void) => {
+      let line: string | null = null
       editor.update(
         () => {
           typed?.remove()
+          const at = $getSelection()
+          if ($isRangeSelection(at)) line = at.anchor.getNode().getTopLevelElement()?.getKey() ?? null
           // The menu can lag a fast typist by a key, so drop whatever is left of "/query" before the caret.
           const selection = $getSelection()
           if (!$isRangeSelection(selection) || !selection.isCollapsed()) return
@@ -196,6 +199,14 @@ function SlashMenu({ nested }: { nested: boolean }) {
           ),
         ),
         children: node.children,
+      })
+      // The card goes after the line the "/" was typed on. A line left empty by that goes away,
+      // so the card takes its place.
+      requestAnimationFrame(() => {
+        editor.update(() => {
+          const emptied = line ? $getNodeByKey(line) : null
+          if ($isParagraphNode(emptied) && emptied.getTextContent() === '' && $isDecoratorNode(emptied.getNextSibling())) emptied.remove()
+        })
       })
     },
     [editor, insertJsx],

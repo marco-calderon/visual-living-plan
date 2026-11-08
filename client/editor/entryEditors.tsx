@@ -1,11 +1,13 @@
 import {
   GenericJsxEditor,
+  NESTED_EDITOR_UPDATED_COMMAND,
   NestedLexicalEditor,
   useLexicalNodeRemove,
-  useMdastNodeUpdater,
+  useNestedEditorContext,
   type JsxComponentDescriptor,
   type JsxEditorProps,
 } from '@mdxeditor/editor'
+import { $getNodeByKey, HISTORY_PUSH_TAG, SKIP_DOM_SELECTION_TAG, SKIP_SCROLL_INTO_VIEW_TAG } from 'lexical'
 import { Trash2 } from 'lucide-react'
 import type { MdxJsxAttribute, MdxJsxFlowElement, MdxJsxTextElement } from 'mdast-util-mdx-jsx'
 import { useId, useRef } from 'react'
@@ -219,8 +221,27 @@ function PropControl({ spec, value, onChange }: { spec: PropSpec; value: string;
   )
 }
 
+/**
+ * Write a card's fields into the plan. Unlike the editor's own updater, this one leaves the caret
+ * and the scroll position alone: the person is typing in a field, not in the text.
+ */
+function useCardUpdater(): (patch: Partial<JsxNode>) => void {
+  const { parentEditor, lexicalNode, mdastNode } = useNestedEditorContext<JsxNode>()
+  return (patch) => {
+    parentEditor.update(
+      () => {
+        const current = $getNodeByKey(lexicalNode.getKey()) as { setMdastNode?: (node: JsxNode) => void } | null
+        current?.setMdastNode?.({ ...mdastNode, ...patch } as JsxNode)
+      },
+      { discrete: true, tag: [HISTORY_PUSH_TAG, SKIP_DOM_SELECTION_TAG, SKIP_SCROLL_INTO_VIEW_TAG] },
+    )
+    // A card inside another card's body passes the change up to that card.
+    parentEditor.dispatchCommand(NESTED_EDITOR_UPDATED_COMMAND, undefined)
+  }
+}
+
 function EntryEditor({ spec, mdastNode }: { spec: EntrySpec; mdastNode: JsxNode }) {
-  const update = useMdastNodeUpdater()
+  const update = useCardUpdater()
   const remove = useLexicalNodeRemove()
   const icon = readAttr(mdastNode, 'icon') || spec.icon
   const status = phaseStatus(readAttr(mdastNode, 'status') || undefined)

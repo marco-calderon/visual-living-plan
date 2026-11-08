@@ -15,7 +15,7 @@ import {
   type MDXEditorMethods,
 } from '@mdxeditor/editor'
 import '@mdxeditor/editor/style.css'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { planSourceFromEditor, splitFrontmatter, toEditorMarkdown } from '../../src/planMdx/editSource.ts'
 import { planNotReadyReason } from '../../src/planReady.ts'
 import { Button } from '../ui/button.tsx'
@@ -23,6 +23,7 @@ import { clearDraft, throttle, writeDraft, type PlanDraft } from './draftStore.t
 import { planJsxDescriptors } from './entryEditors.tsx'
 import { useIsolatedFromEditor } from './isolate.ts'
 import { slashMenuPlugin } from './slashMenu.tsx'
+import { blockHandlesPlugin, releaseOuterCarets, syncFocusedNestedEditor } from './blockHandles.tsx'
 import './planEditor.css'
 
 /** Fences (code, mermaid, the workflow table) are edited as plain text. */
@@ -50,6 +51,47 @@ function PlainCodeEditor({ code, language }: CodeBlockEditorProps) {
 }
 
 const plainCode: CodeBlockEditorDescriptor = { priority: 0, match: () => true, Editor: PlainCodeEditor }
+
+/**
+ * A keystroke never needs to move the page so far that the field being typed in leaves the screen.
+ * Some browsers do that when the editor updates around a focused field; put the page back.
+ */
+function useKeepTypingInView(surface: RefObject<HTMLElement | null>): void {
+  useEffect(() => {
+    const node = surface.current
+    if (!node) return
+    let typedAt = 0
+    let scrollY = window.scrollY
+    const typed = () => {
+      typedAt = performance.now()
+      scrollY = window.scrollY
+    }
+    const onScroll = () => {
+      if (performance.now() - typedAt > 600) return
+      const active = document.activeElement
+      if (!(active instanceof HTMLElement) || !node.contains(active)) return
+      const rect = caretRect(active)
+      if (rect.bottom < 0 || rect.top > window.innerHeight) window.scrollTo(0, scrollY)
+    }
+    for (const type of ['keydown', 'beforeinput', 'input'] as const) node.addEventListener(type, typed, true)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      for (const type of ['keydown', 'beforeinput', 'input'] as const) node.removeEventListener(type, typed, true)
+      window.removeEventListener('scroll', onScroll)
+    }
+  }, [surface])
+}
+
+function caretRect(active: HTMLElement): DOMRect {
+  if (active.isContentEditable) {
+    const selection = window.getSelection()
+    if (selection && selection.rangeCount > 0) {
+      const rect = selection.getRangeAt(0).getBoundingClientRect()
+      if (rect.height > 0) return rect
+    }
+  }
+  return active.getBoundingClientRect()
+}
 
 export type PublishResult = { ok: true } | { ok: false; message: string }
 
@@ -103,6 +145,7 @@ export function PlanEditor({ planId, base, draft, outdated, publish, onClose }: 
 
   // The plan file this edit would publish, or null when it is the same as the base.
   const nextSource = useCallback((): string | null => {
+    syncFocusedNestedEditor()
     const edited = editor.current?.getMarkdown()
     if (edited === undefined) return null
     const next = planSourceFromEditor({ source: base, edited })
@@ -113,6 +156,7 @@ export function PlanEditor({ planId, base, draft, outdated, publish, onClose }: 
   const saver = useMemo(
     () =>
       throttle(() => {
+        syncFocusedNestedEditor()
         const edited = editor.current?.getMarkdown()
         if (edited === undefined) return
         let changed = true
@@ -148,6 +192,29 @@ export function PlanEditor({ planId, base, draft, outdated, publish, onClose }: 
     }
   }, [saver])
 
+  const surface = useRef<HTMLDivElement>(null)
+
+  // Typing in a card body changes that card's own editor, which the plan hears about later.
+  // Any input inside the editor counts as a change to keep.
+  useEffect(() => {
+    const node = surface.current
+    if (!node) return
+    const changed = () => {
+      setConfirmDiscard(false)
+      setState((current) => (current.kind === 'unsaved' || current.kind === 'failed' ? current : { kind: 'unsaved' }))
+      saver.call()
+    }
+    const focused = (event: FocusEvent) => releaseOuterCarets(event.target)
+    node.addEventListener('input', changed)
+    node.addEventListener('focusin', focused)
+    return () => {
+      node.removeEventListener('input', changed)
+      node.removeEventListener('focusin', focused)
+    }
+  }, [saver])
+
+  useKeepTypingInView(surface)
+
   const plugins = useMemo(
     () => [
       headingsPlugin(),
@@ -159,6 +226,7 @@ export function PlanEditor({ planId, base, draft, outdated, publish, onClose }: 
       codeBlockPlugin({ codeBlockEditorDescriptors: [plainCode] }),
       jsxPlugin({ jsxComponentDescriptors: planJsxDescriptors }),
       slashMenuPlugin(),
+      blockHandlesPlugin(),
       markdownShortcutPlugin(),
     ],
     [],
@@ -221,7 +289,7 @@ export function PlanEditor({ planId, base, draft, outdated, publish, onClose }: 
   const hasChanges = state.kind !== 'clean'
 
   return (
-    <div className="plan-editor" data-plan-editor="">
+    <div className="plan-editor" data-plan-editor="" ref={surface}>
       <div className="plan-editor-bar" role="toolbar" aria-label="Edit plan">
         <span className="plan-editor-status-text" role="status" data-plan-draft-state={state.kind}>
           {status}
@@ -272,7 +340,7 @@ export function PlanEditor({ planId, base, draft, outdated, publish, onClose }: 
         plugins={plugins}
         onChange={() => {
           setConfirmDiscard(false)
-          setState((current) => (current.kind === 'failed' ? current : { kind: 'unsaved' }))
+          setState((current) => (current.kind === 'unsaved' || current.kind === 'failed' ? current : { kind: 'unsaved' }))
           saver.call()
         }}
         onError={({ error }) => setMessage(`The editor could not read part of this plan: ${error}`)}

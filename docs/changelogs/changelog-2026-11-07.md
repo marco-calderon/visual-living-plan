@@ -14,6 +14,7 @@ A plan can be edited on its page, on the local service and on the host. Edits ar
 
 - An Edit button on a local plan, and on a hosted plan you own, opens an editor with the same cards, icons, and labels as the page. Titles, prompts, status, kind, icon, and ids are fields on each card, and each body is editable text.
 - Typing `/` opens a menu of cards with their icon and label. Arrow keys move, Enter adds, Escape closes. Inside a card it also adds options, fields, and items.
+- Every block has a `+` and a grip on its left. `+` adds a line below and opens the card menu, so a card can go between two others. Drag the grip to move a block, or tap it for Add below, Move up, Move down, and Delete. Options, fields, and items inside a card have their own grip.
 - Edits are saved on this device about once a second, also offline. Close the tab and Resume draft brings them back. Discard drops them.
 - Publish makes a new version: a snapshot on the local service, a saved version on the host. A new phase or question card joins the workflow between its neighbours.
 - `events` prints an `edit` when a person publishes from the page. On a hosted plan it first writes their version into the local plan file.
