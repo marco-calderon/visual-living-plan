@@ -501,7 +501,7 @@
   opacity: 0.4;
 }
 
-/* The + under a block: a short dashed bar in the gap before the next one. Height matches BAR_HEIGHT. */
+/* The + under a block: a short gray bar in the gap before the next one. Height matches BAR_HEIGHT. */
 .plan-block-add {
   position: absolute;
   z-index: 5;
@@ -511,14 +511,13 @@
   box-sizing: border-box;
   height: 16px;
   padding: 0;
-  border: 1px dashed var(--hairline-strong);
+  border: 0;
   border-radius: 6px;
-  background: transparent;
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
   color: var(--muted);
   cursor: pointer;
   transition:
     top 80ms ease-out,
-    border-color 120ms ease-out,
     color 120ms ease-out,
     background-color 120ms ease-out;
 }
@@ -536,9 +535,8 @@
 
 .plan-block-add:hover,
 .plan-block-add:active {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 6%, transparent);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--ink) 13%, transparent);
+  color: var(--ink);
 }
 
 .plan-block-add:focus-visible {

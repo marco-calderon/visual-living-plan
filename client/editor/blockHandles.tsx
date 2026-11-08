@@ -24,7 +24,7 @@ import { createPortal } from 'react-dom'
 
 /**
  * Block handles, like a block editor's side menu: a grip to drag a block to another place, and in
- * the top-level document a dashed + bar under the block to add one below it. Tapping the grip
+ * the top-level document a gray + bar under the block to add one below it. Tapping the grip
  * opens Add below, Move up, Move down, and Delete, so touch screens can reorder too. A card's
  * body has the grip only.
  */

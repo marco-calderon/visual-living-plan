@@ -8,11 +8,11 @@
 
 ### Summary
 
-In the page editor, a short dashed `+` under a card or paragraph adds a new block right there. The card menu now starts with Text, so the new block can be a plain paragraph.
+In the page editor, a short gray `+` button under a card or paragraph adds a new block right there. The card menu now starts with Text, so the new block can be a plain paragraph.
 
 ### New features
 
-- A dashed `+` bar shows in the gap under the card or paragraph you point at, or the one you are editing on a phone. It adds a line below and opens the card menu.
+- A gray `+` bar shows in the gap under the card or paragraph you point at, or the one you are editing on a phone. It adds a line below and opens the card menu.
 - The card menu starts with Text, which keeps the new line a paragraph to write in.
 
 ### Improvements
