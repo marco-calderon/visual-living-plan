@@ -85,6 +85,13 @@
   --warning-text: #92400e;
   --code-chip-bg: var(--brand-blue-200);
   --code-chip-fg: var(--brand-blue-700);
+  /* Card icon colors (`color="..."` on a card). */
+  --icon-blue: var(--brand-blue);
+  --icon-green: #0a7a38;
+  --icon-orange: #ea580c;
+  --icon-red: #dc2626;
+  --icon-pink: #db2777;
+  --icon-purple: var(--brand-purple);
 }
 
 :root[data-theme="dark"] {
@@ -142,6 +149,12 @@
   --warning-text: #fbbf24;
   --code-chip-bg: rgba(147, 197, 253, 0.16);
   --code-chip-fg: #93c5fd;
+  --icon-blue: #60a5fa;
+  --icon-green: #6edb8f;
+  --icon-orange: #fdba74;
+  --icon-red: #f87171;
+  --icon-pink: #f472b6;
+  --icon-purple: #a78bfa;
 }
 
 .plan-ui {
@@ -708,6 +721,20 @@ a.plan-step-label:hover {
   color: var(--accent-2);
   background: color-mix(in srgb, var(--accent-2) 12%, transparent);
   border-color: color-mix(in srgb, var(--accent-2) 40%, transparent);
+}
+
+/* A card's own `color` wins over the callout kind's tint. */
+.plan-card-icon[data-color="blue"] { --card-icon-color: var(--icon-blue); }
+.plan-card-icon[data-color="green"] { --card-icon-color: var(--icon-green); }
+.plan-card-icon[data-color="orange"] { --card-icon-color: var(--icon-orange); }
+.plan-card-icon[data-color="red"] { --card-icon-color: var(--icon-red); }
+.plan-card-icon[data-color="pink"] { --card-icon-color: var(--icon-pink); }
+.plan-card-icon[data-color="purple"] { --card-icon-color: var(--icon-purple); }
+
+.plan-card-label .plan-card-icon[data-color] {
+  color: var(--card-icon-color);
+  background: color-mix(in srgb, var(--card-icon-color) 12%, transparent);
+  border-color: color-mix(in srgb, var(--card-icon-color) 40%, transparent);
 }
 
 .plan-choice-group {
@@ -1498,4 +1525,11 @@ body.plan-live .block.plan-changed {
   body.plan-live .block.plan-changed {
     animation: none;
   }
+}
+
+/* The Edit button above a plan. The editor's own styles load with the editor. */
+.plan-edit-toggle {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-sm);
 }

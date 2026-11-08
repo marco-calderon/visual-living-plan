@@ -17,6 +17,8 @@ export type WorkflowProps = {
   className?: string
   /** Icon name or element shown in a square before the card label. */
   icon?: CardIcon
+  /** Tints the icon square: blue, green, orange, red, pink, or purple. */
+  color?: string
   onOpenDiagram?: () => void
 }
 
@@ -34,6 +36,7 @@ export function Workflow({
   children,
   className,
   icon,
+  color,
   onOpenDiagram,
 }: WorkflowProps) {
   const { matches, rest } = partitionEntries(children, 'step')
@@ -47,7 +50,7 @@ export function Workflow({
       data-entry-id={id}
     >
       <VStack gap="sm">
-        <CardLabel icon={icon}>Expected workflow</CardLabel>
+        <CardLabel icon={icon} color={color}>Expected workflow</CardLabel>
         <h3 className="plan-title">{title}</h3>
         <p className="plan-note">
           These steps are the execution plan before the run is laid down. The workflow diagram draws the same path.

@@ -9,6 +9,7 @@ import { loadClientAssets } from './assets'
 import { parsePlan } from './parse'
 import { formatSearchResponse, type DashboardSearchResponse, type SearchResponse } from './planSearch'
 import { formatDashboardSearch } from './dashboardSearchView'
+import { pullPageEdit } from './pageEditPull'
 import {
   ackPlanEvents,
   pendingFromHello,
@@ -293,12 +294,20 @@ async function listenForSubmissions(url: string, token?: string, once = true): P
       .filter((submission) => submission.deliveredAt == null && !delivered.has(submission.id))
       .sort((left, right) => left.seq - right.seq)
     if (fresh.length === 0) return
-    for (const submission of fresh) {
-      delivered.add(submission.id)
-      printJsonLine({ event: submission.event, id: submission.id, seq: submission.seq, data: submission.data })
-    }
+    for (const submission of fresh) delivered.add(submission.id)
     const ids = fresh.map((submission) => submission.id)
     ackChain = ackChain.then(async () => {
+      for (const submission of fresh) {
+        // A page edit on a hosted plan lands in the plan file before the agent reads the line.
+        if (submission.event === 'edit') {
+          const written = await pullPageEdit(url, submission.data).catch((error: unknown) => {
+            console.error(`Could not write the page edit into the plan file: ${error instanceof Error ? error.message : error}`)
+            return null
+          })
+          if (written) console.error(`Wrote the page edit into ${written}`)
+        }
+        printJsonLine({ event: submission.event, id: submission.id, seq: submission.seq, data: printableData(submission) })
+      }
       const acked = await acknowledgeSubmissions(url, token, ids)
       if (!acked) ackFailed = true
     })
@@ -338,6 +347,13 @@ async function listenForSubmissions(url: string, token?: string, once = true): P
   }
   if (once && ackFailed) return 1
   return 0
+}
+
+/** The source in a hosted `edit` is already in the plan file. The printed line stays short. */
+function printableData(submission: PlanSubmissionEvent): unknown {
+  if (submission.event !== 'edit' || !submission.data || typeof submission.data !== 'object') return submission.data
+  const { source: _source, ...rest } = submission.data as Record<string, unknown>
+  return rest
 }
 
 function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {

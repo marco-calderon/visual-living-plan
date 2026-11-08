@@ -60,10 +60,22 @@ const CARD_ICONS: Record<string, LucideIcon> = {
 
 export const cardIconNames = Object.keys(CARD_ICONS) as readonly string[]
 
+/** Colors a plan file can pass as `color="..."` to tint a card's icon square. */
+export const cardIconColors = ['blue', 'green', 'orange', 'red', 'pink', 'purple'] as const
+
+export type CardIconColor = (typeof cardIconColors)[number]
+
+/** A known color name, or undefined so the icon keeps the card's own tint. */
+export function cardIconColor(value: string | undefined): CardIconColor | undefined {
+  const name = value?.trim().toLowerCase()
+  return (cardIconColors as readonly string[]).includes(name ?? '') ? (name as CardIconColor) : undefined
+}
+
 /** A card icon: a known name from a plan file, or any element from code. */
 export type CardIcon = string | ReactNode
 
-function resolveIcon(icon: CardIcon): ReactNode {
+/** The glyph for a card icon, or null when the name is unknown. */
+export function cardIconGlyph(icon: CardIcon): ReactNode {
   if (typeof icon === 'string') {
     const Icon = CARD_ICONS[icon.trim().toLowerCase()]
     return Icon ? <Icon size={16} strokeWidth={2} /> : null
@@ -73,6 +85,8 @@ function resolveIcon(icon: CardIcon): ReactNode {
 
 export type CardLabelProps = {
   icon?: CardIcon
+  /** Tints the icon square. Unknown names keep the card's own tint. */
+  color?: string
   children: ReactNode
   className?: string
 } & Omit<HTMLAttributes<HTMLDivElement>, 'className' | 'children'>
@@ -82,8 +96,8 @@ export type CardLabelProps = {
  * Without an icon it is the plain kicker. With one, the icon sits in an outlined
  * square like a phase number and the label follows it in capitals.
  */
-export function CardLabel({ icon, children, className, ...rest }: CardLabelProps) {
-  const glyph = icon === undefined ? null : resolveIcon(icon)
+export function CardLabel({ icon, color, children, className, ...rest }: CardLabelProps) {
+  const glyph = icon === undefined ? null : cardIconGlyph(icon)
   if (!glyph) {
     return (
       <div {...rest} className={cx('plan-kicker', className)}>
@@ -93,7 +107,7 @@ export function CardLabel({ icon, children, className, ...rest }: CardLabelProps
   }
   return (
     <div {...rest} className={cx('plan-card-label', className)} data-has-icon="true">
-      <span className="plan-card-icon" aria-hidden="true">
+      <span className="plan-card-icon" data-color={cardIconColor(color)} aria-hidden="true">
         {glyph}
       </span>
       <span className="plan-card-label-text">{children}</span>

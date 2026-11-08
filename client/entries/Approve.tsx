@@ -18,10 +18,12 @@ export type ApproveProps = {
   className?: string
   /** Icon name or element shown in a square before the card label. */
   icon?: CardIcon
+  /** Tints the icon square: blue, green, orange, red, pink, or purple. */
+  color?: string
   onDecide?: (response: ApproveResponse) => void
 }
 
-export function Approve({ id, prompt, children, note, approved, locked, className, icon, onDecide }: ApproveProps) {
+export function Approve({ id, prompt, children, note, approved, locked, className, icon, color, onDecide }: ApproveProps) {
   const [noteText, setNoteText] = useState(note ?? '')
   const [localDecision, setLocalDecision] = useState<boolean | undefined>(undefined)
   const picked = useRef(false)
@@ -61,7 +63,7 @@ export function Approve({ id, prompt, children, note, approved, locked, classNam
       data-locked={locked ? 'true' : undefined}
     >
       <VStack gap="sm">
-        <CardLabel icon={icon}>Approval gate</CardLabel>
+        <CardLabel icon={icon} color={color}>Approval gate</CardLabel>
         <h3 className="plan-title">{prompt}</h3>
         {children ? <div className="plan-rich">{children}</div> : null}
         <label className="plan-field">

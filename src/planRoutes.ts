@@ -102,6 +102,9 @@ export function registerPlanRoutes(app: any, options: PlanRouteOptions): any {
     .get(route('/api/plan-mdx'), (context: RouteContext) => sessionFor(idOf(context)).planMdxPayload())
     .get(route('/api/search'), (context: RouteContext) => sessionFor(idOf(context)).search(new URL(context.request.url)))
     .get(route('/api/snapshot'), (context: RouteContext) => sessionFor(idOf(context)).offlineSnapshot())
+    .put(route('/api/plan-mdx/source'), (context: RouteContext) =>
+      sessionFor(idOf(context)).saveMdxSource(jsonBody(context.body, true)),
+    )
     .post(route('/api/plan-mdx/restore'), (context: RouteContext) => {
       const body = jsonBody(context.body, true) as { snapshotId?: unknown }
       if (typeof body.snapshotId !== 'string' || !body.snapshotId) {

@@ -7,6 +7,7 @@ type ViteManifest = Record<
   {
     file: string
     css?: string[]
+    imports?: string[]
     isEntry?: boolean
     name?: string
   }
@@ -35,6 +36,27 @@ function manifestEntry(manifest: ViteManifest, names: string[]): ViteManifest[st
   return undefined
 }
 
+/**
+ * Stylesheets an entry needs: its own and those of every chunk it imports statically. The build
+ * moves CSS shared with a lazy chunk (such as the editor) into that shared chunk, so the entry's
+ * own `css` list alone can miss the plan's card styles.
+ */
+function cssOf(manifest: ViteManifest, entry: ViteManifest[string] | undefined): string[] {
+  const files: string[] = []
+  const seen = new Set<string>()
+  const visit = (item: ViteManifest[string] | undefined) => {
+    if (!item) return
+    for (const key of item.imports ?? []) {
+      if (seen.has(key)) continue
+      seen.add(key)
+      visit(manifest[key])
+    }
+    files.push(...(item.css ?? []))
+  }
+  visit(entry)
+  return [...new Set(files)].map((file) => `/client/${file}`)
+}
+
 export async function loadClientAssets(): Promise<ClientAssets | null> {
   const manifestPath = join(here, '../dist/client/.vite/manifest.json')
   try {
@@ -59,15 +81,15 @@ export async function loadClientAssets(): Promise<ClientAssets | null> {
     const planMdx = manifestEntry(manifest, ['client/planMdx.tsx', 'planMdx'])
     return {
       jsHref: `/client/${entry.file}`,
-      cssHrefs: (entry.css ?? []).map((file) => `/client/${file}`),
+      cssHrefs: cssOf(manifest, entry),
       mermaidHref: mermaid ? `/client/${mermaid.file}` : null,
-      mermaidCssHrefs: (mermaid?.css ?? []).map((file) => `/client/${file}`),
+      mermaidCssHrefs: cssOf(manifest, mermaid),
       highlightHref: highlight ? `/client/${highlight.file}` : null,
-      highlightCssHrefs: (highlight?.css ?? []).map((file) => `/client/${file}`),
+      highlightCssHrefs: cssOf(manifest, highlight),
       selectorHref: selector ? `/client/${selector.file}` : null,
-      selectorCssHrefs: (selector?.css ?? []).map((file) => `/client/${file}`),
+      selectorCssHrefs: cssOf(manifest, selector),
       planMdxHref: planMdx ? `/client/${planMdx.file}` : null,
-      planMdxCssHrefs: (planMdx?.css ?? []).map((file) => `/client/${file}`),
+      planMdxCssHrefs: cssOf(manifest, planMdx),
     }
   } catch {
     return null

@@ -20,6 +20,8 @@ export type FormProps = {
   className?: string
   /** Icon name or element shown in a square before the card label. */
   icon?: CardIcon
+  /** Tints the icon square: blue, green, orange, red, pink, or purple. */
+  color?: string
   onSubmit?: (response: FormResponse) => void
 }
 
@@ -105,7 +107,7 @@ function firstEmptyRequiredCheckbox(form: HTMLFormElement): HTMLInputElement | n
   return null
 }
 
-export function Form({ id, prompt, fields, values, locked, children, className, icon, onSubmit }: FormProps) {
+export function Form({ id, prompt, fields, values, locked, children, className, icon, color, onSubmit }: FormProps) {
   const [sent, setSent] = useState(false)
   const [editing, setEditing] = useState(false)
   const [progress, setProgress] = useState<{ checked: number; total: number } | null>(null)
@@ -218,7 +220,7 @@ export function Form({ id, prompt, fields, values, locked, children, className, 
               </div>
             ) : (
               <>
-                <CardLabel icon={icon}>
+                <CardLabel icon={icon} color={color}>
                   {locked ? 'Locked' : editing ? 'Editing' : submitted ? 'Saved' : 'Needs input'}
                 </CardLabel>
                 <h3 className="plan-title">{prompt}</h3>

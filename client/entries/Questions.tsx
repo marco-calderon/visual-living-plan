@@ -19,6 +19,8 @@ export type QuestionsProps = {
   className?: string
   /** Icon name or element shown in a square before the card label. */
   icon?: CardIcon
+  /** Tints the icon square: blue, green, orange, red, pink, or purple. */
+  color?: string
   onSubmit?: (response: QuestionsResponse) => void
 }
 
@@ -32,7 +34,7 @@ function readAnswers(form: HTMLFormElement): Record<string, string> {
   return answers
 }
 
-export function Questions({ id, prompt, items, answers, locked, children, className, icon, onSubmit }: QuestionsProps) {
+export function Questions({ id, prompt, items, answers, locked, children, className, icon, color, onSubmit }: QuestionsProps) {
   const [sent, setSent] = useState(false)
   const sentRef = useRef(false)
   const disabled = Boolean(locked || sent || answers)
@@ -60,7 +62,7 @@ export function Questions({ id, prompt, items, answers, locked, children, classN
       data-locked={locked ? 'true' : undefined}
     >
       <VStack gap="sm">
-        <CardLabel icon={icon}>Open questions</CardLabel>
+        <CardLabel icon={icon} color={color}>Open questions</CardLabel>
         <h3 className="plan-title">{prompt || 'Please answer'}</h3>
         {rest.length > 0 ? <div className="plan-rich">{rest}</div> : null}
         <ItemContext.Provider value={{ mode: 'questions', disabled, answers }}>

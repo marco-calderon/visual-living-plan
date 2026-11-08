@@ -1,3 +1,4 @@
+import { preparePlanSource } from '../planMdx/frontmatter'
 import { Elysia } from 'elysia'
 import type { ProgressFields } from '../processRecord'
 import { STORAGE_CAPS, agentSlotsFull, agentSlotsMessage, allows, normalizeTier, type Tier } from './access'
@@ -426,6 +427,10 @@ async function forwardPlan(
   if (request.method === 'PUT' && (rest === '/source' || rest === '/source/')) {
     return publishSource(request, env, planId, actor)
   }
+  if (request.method === 'PUT' && rest === '/api/plan-mdx/source') {
+    if (!account) return text(401, 'Sign in required')
+    return publishPageEdit(request, env, planId, actor)
+  }
   // An agent stream takes one of the account's slots. Checked only for a caller with credentials,
   // so the object still answers 401 to anyone else.
   if (request.method === 'GET' && isAgentStream(rest) && (account || bearerHeader(request))) {
@@ -536,6 +541,41 @@ async function publishSource(request: Request, env: HostEnv, planId: string, act
   if (typeof body.title === 'string' && body.title.trim()) {
     await env.DB.prepare('UPDATE plans SET title = ? WHERE id = ?').bind(title, planId).run()
   }
+  return forwarded
+}
+
+/**
+ * The owner published an edit from the page editor. Like an agent upload it is checked against the
+ * storage limit first and becomes a saved version, so the versions menu lists it.
+ */
+async function publishPageEdit(request: Request, env: HostEnv, planId: string, actor: string): Promise<Response> {
+  const raw = await request.text()
+  let body: { base?: unknown; source?: unknown }
+  try {
+    body = JSON.parse(raw) as { base?: unknown; source?: unknown }
+  } catch {
+    return text(400, 'source and base are required')
+  }
+  if (typeof body.source !== 'string' || typeof body.base !== 'string') return text(400, 'source and base are required')
+  const row = await env.DB.prepare('SELECT p.user_id, p.title, u.tier FROM plans p LEFT JOIN user u ON u.id = p.user_id WHERE p.id = ?')
+    .bind(planId)
+    .first<{ user_id: string; title: string | null; tier: unknown }>()
+  if (!row) return text(404, 'Plan not found on this host.')
+  const declared = preparePlanSource(body.source).meta.title
+  const title = (typeof declared === 'string' && declared.trim() ? declared : row.title || 'Living plan').slice(0, 200)
+  const full = await storageRefusal(env.DB, normalizeTier(row.tier), { planId, userId: row.user_id, title, source: body.source })
+  if (full) return full
+  const forwarded = await planFetch(
+    env,
+    planId,
+    new Request(request.url, { method: 'PUT', headers: request.headers, body: JSON.stringify({ base: body.base, source: body.source, title }) }),
+    '/api/plan-mdx/source',
+    actor,
+  )
+  if (!forwarded.ok) return forwarded
+  await syncPlanProgress(env, planId)
+  await publishPlanVersion(env.DB, { planId, userId: row.user_id, title, source: body.source }).catch(() => undefined)
+  if (title !== row.title) await env.DB.prepare('UPDATE plans SET title = ? WHERE id = ?').bind(title, planId).run()
   return forwarded
 }
 

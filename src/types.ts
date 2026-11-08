@@ -150,7 +150,7 @@ export type SectionDiff = {
 export type PlanSubmissionEvent = {
   id: string
   seq: number
-  event: 'interaction' | 'review' | 'comment'
+  event: 'interaction' | 'review' | 'comment' | 'edit'
   data: unknown
   createdAt: number
   deliveredAt: number | null

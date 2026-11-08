@@ -12,11 +12,13 @@ export type CalloutProps = {
   title?: string
   /** Icon name or element shown in a square before the label. */
   icon?: CardIcon
+  /** Tints the icon square: blue, green, orange, red, pink, or purple. */
+  color?: string
   children?: ReactNode
   className?: string
 }
 
-export function Callout({ id, kind, title, icon, children, className }: CalloutProps) {
+export function Callout({ id, kind, title, icon, color, children, className }: CalloutProps) {
   const normalized = calloutKind(kind)
   const label = title ? `${normalized} · ${title}` : normalized
   return (
@@ -32,6 +34,7 @@ export function Callout({ id, kind, title, icon, children, className }: CalloutP
       <VStack gap="sm">
         <CardLabel
           icon={icon}
+          color={color}
           className="plan-callout-label"
           data-plan-part={id ? `callout:${id}/label` : undefined}
           data-plan-kind="label"
