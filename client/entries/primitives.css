@@ -1499,3 +1499,10 @@ body.plan-live .block.plan-changed {
     animation: none;
   }
 }
+
+/* The Edit button above a plan. The editor's own styles load with the editor. */
+.plan-edit-toggle {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-sm);
+}

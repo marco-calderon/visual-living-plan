@@ -266,9 +266,3 @@
   color: var(--muted);
   font-size: 12px;
 }
-
-.plan-edit-toggle {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: var(--space-sm);
-}
