@@ -1413,7 +1413,8 @@ a.plan-step-label:hover {
   letter-spacing: -0.02em;
 }
 
-.mermaid-diagram {
+.mermaid-diagram,
+.plan-editor-mermaid {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -1445,7 +1446,7 @@ a.plan-step-label:hover {
   --pele-series-8: color-mix(in srgb, var(--ok) 55%, var(--accent));
 }
 
-:root[data-theme="dark"] .mermaid-diagram {
+:root[data-theme="dark"] :is(.mermaid-diagram, .plan-editor-mermaid) {
   --pele-surface: color-mix(in srgb, var(--accent) 22%, var(--paper));
   --pele-surface-alt: color-mix(in srgb, var(--accent) 12%, var(--paper-2));
   --pele-line: color-mix(in srgb, var(--accent) 78%, var(--ink));

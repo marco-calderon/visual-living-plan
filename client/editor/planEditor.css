@@ -323,32 +323,75 @@
   outline: none;
 }
 
+/* A fence: a language picker, Pierre's code editor in the page's code frame, and a mermaid figure below. */
 .plan-editor-code {
-  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.plan-editor-code textarea {
-  box-sizing: border-box;
-  width: 100%;
-  padding: var(--space-xs) var(--space-sm);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--canvas);
-  color: var(--ink);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 13px;
-  line-height: 1.5;
-  resize: vertical;
+.plan-editor-code-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.plan-editor .plan-editor-code-select {
+  min-width: 9em;
 }
 
 .plan-editor-code-lang {
-  position: absolute;
-  top: 4px;
-  right: 8px;
   color: var(--muted);
   font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  pointer-events: none;
+}
+
+.plan-editor-code-body {
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.plan-editor-code-body:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+}
+
+.plan-editor-code-file {
+  display: block;
+  max-width: 100%;
+  min-height: 44px;
+  overflow-x: auto;
+}
+
+.plan-editor-mermaid {
+  margin: 0;
+}
+
+.plan-editor-mermaid-figure:empty {
+  display: none;
+}
+
+.plan-editor-mermaid-figure svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  padding: var(--space-sm);
+}
+
+/* Mermaid's parse errors point at the column with a ^ line, so keep their lines and spacing. */
+.plan-editor-mermaid-error {
+  margin: 0;
+  padding: 6px var(--space-sm);
+  border-top: 1px solid var(--line);
+  color: var(--danger);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .plan-slash-menu {

@@ -273,6 +273,15 @@ function BlockHandles({ level }: { level: Level }) {
     }
   }, [editor, place])
 
+  // A block can also change size on its own, like a mermaid figure drawn after typing stops.
+  useEffect(() => {
+    const element = key ? editor.getElementByKey(key) : null
+    if (!element || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => place())
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [editor, key, place])
+
   useEffect(() => {
     if (!menu) return
     const close = (event: Event) => {
@@ -339,6 +348,10 @@ function BlockHandles({ level }: { level: Level }) {
       paragraph.selectEnd()
       added = paragraph.getKey()
     })
+    // A code editor or card field keeps focus through the + (it does not take focus on press), and
+    // the plan's editor counts focus inside it as its own. Let go of it, so the "/" line gets the keys.
+    const active = document.activeElement
+    if (active instanceof HTMLElement && active !== editor.getRootElement()) active.blur()
     editor.focus()
     if (added) setKey(added)
   }, [change, editor, key])

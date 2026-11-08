@@ -8,12 +8,19 @@
 
 ### Summary
 
-In the page editor, a short gray `+` button under a card or paragraph adds a new block right there. The card menu now starts with Text, so the new block can be a plain paragraph, and a phase's status is set from its status icon.
+In the page editor, a short gray `+` button under a card or paragraph adds a new block right there. The card menu now starts with Text, so the new block can be a plain paragraph, a phase's status is set from its status icon, and code blocks are edited with highlighting, a language picker, and a live mermaid diagram.
+
+### Bugs fixed
+
+- Picking from the card menu inside a card's body adds the card or code block there. It used to leave the typed `/query` as text and add nothing.
+- A card picked with a fast Enter right after typing its name no longer leaves an empty line above it.
 
 ### New features
 
 - A gray `+` bar shows in the gap under the card or paragraph you point at, or the one you are editing on a phone. It adds a line below and opens the card menu.
 - The card menu starts with Text, which keeps the new line a paragraph to write in.
+- Code blocks in the editor use Pierre's code editor, with the same syntax highlighting and theme as the page. A picker above each block sets its language.
+- The card menu has Code and Mermaid. Mermaid blocks draw their diagram under the code as you type, and show the parse error when the code does not parse.
 - Click a phase's status icon to change its status. A short list shows each status with its icon. It replaces the Status dropdown.
 
 ### Improvements
@@ -26,4 +33,4 @@ In the page editor, a short gray `+` button under a card or paragraph adds a new
 
 ### Notes
 
-Editor-only change in the browser bundle. No plan format, CLI, or Worker route changes.
+Editor-only change in the browser bundle. No plan format, CLI, or Worker route changes. `shiki` is now a direct dev dependency (it was already installed through `@pierre/diffs`) so the editor can tell which languages it highlights.

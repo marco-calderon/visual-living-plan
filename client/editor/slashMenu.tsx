@@ -1,22 +1,29 @@
-import { addComposerChild$, addNestedEditorChild$, insertJsx$, realmPlugin, usePublisher } from '@mdxeditor/editor'
+import { $createCodeBlockNode, activeEditor$, addComposerChild$, addNestedEditorChild$, insertJsx$, realmPlugin, usePublisher } from '@mdxeditor/editor'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import {
   $getNodeByKey,
+  $getRoot,
+  $isElementNode,
+  $setSelection,
   $getSelection,
   $isDecoratorNode,
   $isParagraphNode,
   $isRangeSelection,
   $isTextNode,
+  COMMAND_PRIORITY_HIGH,
   COMMAND_PRIORITY_NORMAL,
+  KEY_ENTER_COMMAND,
   KEY_ESCAPE_COMMAND,
+  KEY_TAB_COMMAND,
 } from 'lexical'
 import { LexicalTypeaheadMenuPlugin, MenuOption, useBasicTypeaheadTriggerMatch } from '@lexical/react/LexicalTypeaheadMenuPlugin'
 import type { MdxJsxAttribute, MdxJsxFlowElement } from 'mdast-util-mdx-jsx'
 import type { Paragraph } from 'mdast'
-import { Type } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Code, Type, Workflow } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CardLabel, type CardIcon } from '../entries/CardLabel.tsx'
+import { focusFenceWhenReady } from './codeFence.tsx'
 
 type Card = {
   key: string
@@ -32,8 +39,10 @@ type Card = {
    * approvals). The editor still edits them where the plan has them, but the menu does not offer them.
    */
   agentOnly?: boolean
-  /** The card to add. Without one the line stays a paragraph. */
+  /** The card to add. Without one (and without a fence) the line stays a paragraph. */
   build?: () => MdxJsxFlowElement
+  /** A fenced code block to add instead of a card. */
+  fence?: { language: string; code: string }
 }
 
 function shortId(prefix: string): string {
@@ -72,6 +81,22 @@ export const SLASH_CARDS: Card[] = [
     hint: 'A paragraph to write in',
     icon: <Type size={16} strokeWidth={2} />,
     keywords: ['text', 'paragraph', 'plain'],
+  },
+  {
+    key: 'code',
+    label: 'Code',
+    hint: 'A code block with syntax highlighting',
+    icon: <Code size={16} strokeWidth={2} />,
+    keywords: ['code', 'snippet', 'fence', 'block'],
+    fence: { language: 'ts', code: '' },
+  },
+  {
+    key: 'mermaid',
+    label: 'Mermaid',
+    hint: 'A diagram drawn from mermaid code',
+    icon: <Workflow size={16} strokeWidth={2} />,
+    keywords: ['mermaid', 'diagram', 'chart', 'flowchart'],
+    fence: { language: 'mermaid', code: 'flowchart LR\n  A[Start] --> B[Finish]' },
   },
   {
     key: 'phase',
@@ -169,12 +194,68 @@ export const SLASH_CARDS: Card[] = [
   },
 ]
 
+/**
+ * Removing the typed "/query" can remove the text the caret was in, and a selection on a removed
+ * node fails the whole update. Put the caret back at the end of the line when that happens.
+ */
+function caretBackInLine(line: string | null): void {
+  const selection = $getSelection()
+  const lost =
+    !$isRangeSelection(selection) || $getNodeByKey(selection.anchor.key) === null || $getNodeByKey(selection.focus.key) === null
+  if (!lost) return
+  const node = line ? $getNodeByKey(line) : null
+  if ($isElementNode(node)) node.selectEnd()
+  else $setSelection(null)
+}
+
+/** The menu can lag a fast typist by a key, so drop whatever is left of "/query" before the caret. */
+function removeSlashQuery(): void {
+  const selection = $getSelection()
+  if (!$isRangeSelection(selection) || !selection.isCollapsed()) return
+  const node = selection.anchor.getNode()
+  if (!$isTextNode(node)) return
+  const offset = selection.anchor.offset
+  const before = node.getTextContent().slice(0, offset)
+  const slash = before.lastIndexOf('/')
+  if (slash >= 0 && /^\/\S*$/.test(before.slice(slash)) && (slash === 0 || /\s/.test(before[slash - 1] ?? ''))) {
+    node.spliceText(slash, offset - slash, '', true)
+  }
+}
+
+/** Put a code block where the "/" line was (or after it, when it still has text), and type in it. */
+function insertFence(line: string | null, fence: { language: string; code: string }): void {
+  const block = $createCodeBlockNode({ code: fence.code, language: fence.language, meta: '' })
+  const target = line ? $getNodeByKey(line) : null
+  // The caret moves into the code editor, so the plan's editor lets go of it first: a caret left in
+  // the replaced line would point at a removed node.
+  $setSelection(null)
+  if ($isParagraphNode(target) && target.getTextContent() === '') target.replace(block)
+  else if (target) target.insertAfter(block)
+  else $getRoot().append(block)
+  focusFenceWhenReady(block.getKey())
+}
+
 class CardOption extends MenuOption {
   card: Card
   constructor(card: Card) {
     super(card.key)
     this.card = card
   }
+}
+
+/** The menu's options for a query, in its order. */
+function menuOptions(nested: boolean, query: string): CardOption[] {
+  return SLASH_CARDS.filter((card) => !card.agentOnly && (nested || !card.nested) && matches(card, query)).map((card) => new CardOption(card))
+}
+
+/** The query after a "/" right before the caret (the menu's trigger), or null when there is none. */
+function $slashQueryAtCaret(): string | null {
+  const selection = $getSelection()
+  if (!$isRangeSelection(selection) || !selection.isCollapsed()) return null
+  const node = selection.anchor.getNode()
+  if (!$isTextNode(node)) return null
+  const match = /(?:^|\s)\/(\S{0,24})$/.exec(node.getTextContent().slice(0, selection.anchor.offset))
+  return match ? (match[1] ?? '') : null
 }
 
 function matches(card: Card, query: string): boolean {
@@ -186,15 +267,14 @@ function matches(card: Card, query: string): boolean {
 function SlashMenu({ nested }: { nested: boolean }) {
   const [editor] = useLexicalComposerContext()
   const insertJsx = usePublisher(insertJsx$)
+  const setActiveEditor = usePublisher(activeEditor$)
   const [query, setQuery] = useState<string | null>(null)
+  const open = useRef(false)
+  const highlighted = useRef(0)
+  const shownQuery = useRef<string | null>(null)
+  const selectAndClose = useRef<((option: CardOption) => void) | null>(null)
   const trigger = useBasicTypeaheadTriggerMatch('/', { minLength: 0, maxLength: 24 })
-  const options = useMemo(
-    () =>
-      SLASH_CARDS.filter((card) => !card.agentOnly && (nested || !card.nested) && matches(card, query ?? '')).map(
-        (card) => new CardOption(card),
-      ),
-    [nested, query],
-  )
+  const options = useMemo(() => menuOptions(nested, query ?? ''), [nested, query])
 
   // Escape on a line that holds only the `/` (as the + under a block leaves it) empties the line.
   useEffect(
@@ -217,31 +297,78 @@ function SlashMenu({ nested }: { nested: boolean }) {
     [editor],
   )
 
+  // The editor adds a card once it has focus, which can take a few frames, and splits the "/" line
+  // around it. When the card appears, the empty line before it goes away, so the card takes the
+  // line's place; the empty line after it keeps the caret. `line` is read late: the update that
+  // finds it runs after this menu's own update.
+  const removeEmptiedLine = useCallback(
+    (line: () => string | null) => {
+      const known = new Set(editor.getEditorState().read(() => $getRoot().getChildrenKeys()))
+      const stop = editor.registerUpdateListener(({ editorState }) => {
+        const card = editorState.read(
+          () => $getRoot().getChildren().find((node) => $isDecoratorNode(node) && !known.has(node.getKey()))?.getKey() ?? null,
+        )
+        if (!card) return
+        stop()
+        clearTimeout(timer)
+        editor.update(() => {
+          const before = $getNodeByKey(card)?.getPreviousSibling()
+          const ours = before && (before.getKey() === line() || !known.has(before.getKey()))
+          if (ours && $isParagraphNode(before) && before.getTextContent() === '') before.remove()
+        })
+      })
+      const timer = setTimeout(stop, 1000)
+    },
+    [editor],
+  )
+
+  const pick = useRef<(option: CardOption, typed: string) => void>(() => {})
+
+  // The menu takes Enter and Tab itself. Inside a card's body the editor would otherwise also start
+  // a new line first, and the menu would no longer find the "/query" it replaces.
+  useEffect(() => {
+    const take = (event: KeyboardEvent | null) => {
+      if (!open.current) return false
+      // Read the query from the text: a fast typist can press Enter before the menu shows the last key.
+      const typed = editor.getEditorState().read($slashQueryAtCaret)
+      if (typed === null) return false
+      const list = menuOptions(nested, typed)
+      const option = list[typed === shownQuery.current ? highlighted.current : 0]
+      if (!option) return false
+      event?.preventDefault()
+      event?.stopImmediatePropagation()
+      pick.current(option, typed)
+      return true
+    }
+    const enter = editor.registerCommand(KEY_ENTER_COMMAND, take, COMMAND_PRIORITY_HIGH)
+    const tab = editor.registerCommand(KEY_TAB_COMMAND, take, COMMAND_PRIORITY_HIGH)
+    return () => {
+      enter()
+      tab()
+    }
+  }, [editor, nested])
+
   const onSelect = useCallback(
     (option: CardOption, typed: { remove: () => void } | null, close: () => void) => {
+      const { build, fence } = option.card
       let line: string | null = null
       editor.update(
         () => {
-          typed?.remove()
+          // The line first: removing the typed "/query" can take the caret out of it.
           const at = $getSelection()
           if ($isRangeSelection(at)) line = at.anchor.getNode().getTopLevelElement()?.getKey() ?? null
-          // The menu can lag a fast typist by a key, so drop whatever is left of "/query" before the caret.
-          const selection = $getSelection()
-          if (!$isRangeSelection(selection) || !selection.isCollapsed()) return
-          const node = selection.anchor.getNode()
-          if (!$isTextNode(node)) return
-          const offset = selection.anchor.offset
-          const before = node.getTextContent().slice(0, offset)
-          const slash = before.lastIndexOf('/')
-          if (slash >= 0 && /^\/\S*$/.test(before.slice(slash)) && (slash === 0 || /\s/.test(before[slash - 1] ?? ''))) {
-            node.spliceText(slash, offset - slash, '', true)
-          }
+          typed?.remove()
+          caretBackInLine(line)
+          removeSlashQuery()
+          if (fence) insertFence(line, fence)
         },
         { discrete: true },
       )
       close()
-      if (!option.card.build) return
-      const node = option.card.build()
+      if (fence || !build) return
+      const node = build()
+      // The card goes into the editor the "/" was typed in, also a card's body.
+      setActiveEditor(editor)
       insertJsx({
         kind: 'flow',
         name: node.name ?? '',
@@ -252,25 +379,39 @@ function SlashMenu({ nested }: { nested: boolean }) {
         ),
         children: node.children,
       })
-      // The card goes after the line the "/" was typed on. A line left empty by that goes away,
-      // so the card takes its place.
-      requestAnimationFrame(() => {
-        editor.update(() => {
-          const emptied = line ? $getNodeByKey(line) : null
-          if ($isParagraphNode(emptied) && emptied.getTextContent() === '' && $isDecoratorNode(emptied.getNextSibling())) emptied.remove()
-        })
-      })
+      removeEmptiedLine(() => line)
     },
-    [editor, insertJsx],
+    [editor, insertJsx, removeEmptiedLine, setActiveEditor],
   )
+  // Picked with Enter or Tab: through the menu, so it closes too. A key typed just before may not be on
+  // screen yet, so wait a frame or two for the menu to show it.
+  pick.current = (option, typed) => {
+    open.current = false
+    let frames = 0
+    const attempt = () => {
+      const select = shownQuery.current === typed ? selectAndClose.current : null
+      if (select) select(option)
+      else if (frames++ < 3) requestAnimationFrame(attempt)
+      else onSelect(option, null, () => {})
+    }
+    attempt()
+  }
 
   return (
     <LexicalTypeaheadMenuPlugin<CardOption>
-      onQueryChange={setQuery}
+      onQueryChange={(next) => {
+        open.current = next !== null
+        if (next === null) selectAndClose.current = null
+        setQuery(next)
+      }}
       onSelectOption={onSelect}
       triggerFn={trigger}
       options={options}
-      menuRenderFn={(anchor, { selectedIndex, selectOptionAndCleanUp, setHighlightedIndex }) =>
+      menuRenderFn={(anchor, { selectedIndex, selectOptionAndCleanUp, setHighlightedIndex }) => {
+        highlighted.current = selectedIndex ?? 0
+        shownQuery.current = query
+        selectAndClose.current = selectOptionAndCleanUp
+        return (
         anchor.current && options.length > 0
           ? createPortal(
               <div className="plan-slash-menu" role="listbox" aria-label="Add a card" data-plan-grab-ignore="">
@@ -297,7 +438,8 @@ function SlashMenu({ nested }: { nested: boolean }) {
               anchor.current,
             )
           : null
-      }
+        )
+      }}
     />
   )
 }
