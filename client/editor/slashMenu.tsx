@@ -27,6 +27,11 @@ type Card = {
   keywords: string[]
   /** Rows only make sense inside a card. */
   nested?: boolean
+  /**
+   * Cards the agent writes for the person to answer (decisions, choices, forms, questions,
+   * approvals). The editor still edits them where the plan has them, but the menu does not offer them.
+   */
+  agentOnly?: boolean
   /** The card to add. Without one the line stays a paragraph. */
   build?: () => MdxJsxFlowElement
 }
@@ -47,9 +52,10 @@ function element(name: string, values: Record<string, string>, children: MdxJsxF
   return { type: 'mdxJsxFlowElement', name, attributes: attrs(values), children }
 }
 
-function callout(kind: string, icon: string, label: string): Card {
+function callout(kind: string, icon: string, label: string, agentOnly = false): Card {
   return {
     key: `callout-${kind}`,
+    agentOnly,
     label,
     hint: `A ${kind} callout`,
     icon,
@@ -58,7 +64,7 @@ function callout(kind: string, icon: string, label: string): Card {
   }
 }
 
-/** Everything the slash menu can add, in the order it lists them. */
+/** Everything the slash menu knows, in the order it lists them. */
 export const SLASH_CARDS: Card[] = [
   {
     key: 'text',
@@ -78,10 +84,11 @@ export const SLASH_CARDS: Card[] = [
   callout('note', 'info', 'Note'),
   callout('tip', 'idea', 'Tip'),
   callout('risk', 'alert', 'Risk'),
-  callout('decision', 'decision', 'Decision'),
+  callout('decision', 'decision', 'Decision', true),
   callout('warning', 'shield', 'Warning'),
   {
     key: 'choice',
+    agentOnly: true,
     label: 'Choice',
     hint: 'The person picks one option',
     icon: 'decision',
@@ -94,6 +101,7 @@ export const SLASH_CARDS: Card[] = [
   },
   {
     key: 'form',
+    agentOnly: true,
     label: 'Form',
     hint: 'Fields the person fills in',
     icon: 'file',
@@ -105,6 +113,7 @@ export const SLASH_CARDS: Card[] = [
   },
   {
     key: 'questions',
+    agentOnly: true,
     label: 'Questions',
     hint: 'Free-text answers, one per item',
     icon: 'help',
@@ -116,6 +125,7 @@ export const SLASH_CARDS: Card[] = [
   },
   {
     key: 'approve',
+    agentOnly: true,
     label: 'Approval',
     hint: 'A yes or no gate',
     icon: 'check',
@@ -180,7 +190,9 @@ function SlashMenu({ nested }: { nested: boolean }) {
   const trigger = useBasicTypeaheadTriggerMatch('/', { minLength: 0, maxLength: 24 })
   const options = useMemo(
     () =>
-      SLASH_CARDS.filter((card) => (nested || !card.nested) && matches(card, query ?? '')).map((card) => new CardOption(card)),
+      SLASH_CARDS.filter((card) => !card.agentOnly && (nested || !card.nested) && matches(card, query ?? '')).map(
+        (card) => new CardOption(card),
+      ),
     [nested, query],
   )
 

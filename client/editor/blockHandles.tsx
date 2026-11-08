@@ -36,6 +36,8 @@ type Bar = { top: number; left: number; width: number }
 /** Height of the + bar, and the room the last block leaves under it. Match planEditor.css. */
 const BAR_HEIGHT = 16
 const BAR_ROOM = 24
+/** How long the grip's menu takes to fade out. Match planEditor.css. */
+const MENU_OUT_MS = 120
 
 /**
  * A card body is its own editor, and only tells the plan about its text when it loses focus.
@@ -126,6 +128,21 @@ function dropAt(editor: LexicalEditor, y: number, dragged: string): { drop: Drop
   return { drop: { afterKey: last.key }, lineY: last.element.getBoundingClientRect().bottom + 6 }
 }
 
+/** Keeps a menu on screen a moment after it closes, so it can animate out. */
+function usePresence(open: boolean, ms: number): 'open' | 'closing' | null {
+  const [state, setState] = useState<'open' | 'closing' | null>(open ? 'open' : null)
+  useEffect(() => {
+    if (open) {
+      setState('open')
+      return
+    }
+    setState((current) => (current ? 'closing' : null))
+    const timer = setTimeout(() => setState(null), ms)
+    return () => clearTimeout(timer)
+  }, [open, ms])
+  return open ? 'open' : state
+}
+
 function BlockHandles({ level }: { level: Level }) {
   const [editor] = useLexicalComposerContext()
   const [container, setContainer] = useState<HTMLElement | null>(null)
@@ -134,6 +151,7 @@ function BlockHandles({ level }: { level: Level }) {
   const [menu, setMenu] = useState(false)
   const [line, setLine] = useState<number | null>(null)
   const [bar, setBar] = useState<Bar | null>(null)
+  const menuPresence = usePresence(menu, MENU_OUT_MS)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const handlesRef = useRef<HTMLDivElement>(null)
   const barRef = useRef<HTMLButtonElement>(null)
@@ -412,8 +430,14 @@ function BlockHandles({ level }: { level: Level }) {
         >
           <GripVertical size={16} aria-hidden="true" />
         </button>
-        {menu ? (
-          <div className="plan-block-menu" role="menu" aria-label="Block actions">
+        {menuPresence ? (
+          <div
+            className="plan-block-menu"
+            role="menu"
+            aria-label="Block actions"
+            data-closing={menuPresence === 'closing' ? '' : undefined}
+            inert={menuPresence === 'closing'}
+          >
             <button type="button" role="menuitem" onClick={addBelow}>
               <Plus size={14} aria-hidden="true" /> Add below
             </button>

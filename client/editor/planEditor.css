@@ -560,3 +560,151 @@
     width: 24px;
   }
 }
+
+/* The phase's status icon is the button that opens the status picker. */
+.plan-editor .plan-editor-status-button {
+  position: relative;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color 120ms var(--ease-out),
+    box-shadow 120ms var(--ease-out);
+}
+
+/* A finger gets a larger target than the 28px button. */
+.plan-editor .plan-editor-status-button::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+
+.plan-editor .plan-editor-status-button:hover,
+.plan-editor .plan-editor-status-button[data-popup-open] {
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+
+.plan-editor .plan-editor-status-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+:is(.plan-editor-status-button, .plan-status-option)[data-status="active"] { color: var(--accent); }
+:is(.plan-editor-status-button, .plan-status-option)[data-status="done"] { color: var(--ok); }
+:is(.plan-editor-status-button, .plan-status-option)[data-status="failed"] { color: var(--danger); }
+:is(.plan-editor-status-button, .plan-status-option)[data-status="blocked"] { color: var(--accent-2); }
+
+.plan-popover.plan-status-popover {
+  width: auto;
+  min-width: 10rem;
+  padding: 4px;
+}
+
+.plan-status-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.plan-status-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.plan-status-option-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+
+.plan-status-option-label {
+  flex: 1;
+  color: var(--ink);
+}
+
+.plan-status-option-check {
+  color: var(--ink);
+}
+
+.plan-status-option:hover,
+.plan-status-option:focus-visible {
+  background: var(--panel);
+  outline: none;
+}
+
+/* Menus grow in from where they open; the grip's menu also fades out. */
+@keyframes plan-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+
+@keyframes plan-menu-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+
+.plan-slash-menu,
+.plan-block-menu {
+  transform-origin: top left;
+  animation: plan-menu-in 160ms var(--ease-out);
+}
+
+.plan-block-menu[data-closing] {
+  animation: plan-menu-out 120ms var(--ease-out) forwards;
+}
+
+.plan-select-popup.plan-editor-select-popup[data-starting-style],
+.plan-select-popup.plan-editor-select-popup[data-ending-style] {
+  transform: scale(0.96);
+}
+
+@keyframes plan-menu-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes plan-menu-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-slash-menu,
+  .plan-block-menu {
+    animation-name: plan-menu-fade-in;
+  }
+
+  .plan-block-menu[data-closing] {
+    animation-name: plan-menu-fade-out;
+  }
+
+  .plan-select-popup.plan-editor-select-popup[data-starting-style],
+  .plan-select-popup.plan-editor-select-popup[data-ending-style] {
+    transform: none;
+  }
+}

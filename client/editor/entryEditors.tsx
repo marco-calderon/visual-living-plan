@@ -11,17 +11,16 @@ import { $getNodeByKey, HISTORY_PUSH_TAG, SKIP_DOM_SELECTION_TAG, SKIP_SCROLL_IN
 import { Trash2 } from 'lucide-react'
 import type { MdxJsxAttribute, MdxJsxFlowElement, MdxJsxTextElement } from 'mdast-util-mdx-jsx'
 import { useId, useRef } from 'react'
-import { StatusIcon } from '../execution-canvas/adapters/reactFlow/StatusIcon.tsx'
 import { CardLabel } from '../entries/CardLabel.tsx'
 import { cx } from '../entries/styles.ts'
 import { calloutKind, phaseStatus } from '../entries/types.ts'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select.tsx'
 import { IconPicker } from './iconPicker.tsx'
+import { StatusPicker } from './statusPicker.tsx'
 import { useIsolatedFromEditor } from './isolate.ts'
 
 type JsxNode = MdxJsxFlowElement | MdxJsxTextElement
 
-const PHASE_STATUSES = ['pending', 'active', 'blocked', 'done', 'failed']
 const CALLOUT_KINDS = ['note', 'tip', 'risk', 'decision', 'warning']
 const FIELD_TYPES = ['text', 'number', 'textarea', 'select', 'checkbox', 'stepper']
 
@@ -43,6 +42,8 @@ type EntrySpec = {
   icon?: string
   /** The card takes `icon` and `color`: its icon square opens the icon picker. */
   pickIcon?: boolean
+  /** The card takes `status`: its status icon opens the status picker. */
+  pickStatus?: boolean
   props: PropSpec[]
   hasChildren: boolean
   /** A row inside a card (option, field, item) rather than a card of its own. */
@@ -63,11 +64,8 @@ export const ENTRY_SPECS: EntrySpec[] = [
   {
     tag: 'phase',
     label: 'Phase',
-    props: [
-      { name: 'title', label: 'Title', control: 'text', wide: true, placeholder: 'Phase title' },
-      { name: 'status', label: 'Status', control: 'select', options: PHASE_STATUSES },
-      ID,
-    ],
+    pickStatus: true,
+    props: [{ name: 'title', label: 'Title', control: 'text', wide: true, placeholder: 'Phase title' }, ID],
     hasChildren: true,
   },
   {
@@ -202,7 +200,7 @@ function PropControl({ spec, value, onChange }: { spec: PropSpec; value: string;
         <SelectTrigger className="plan-editor-select" aria-label={spec.label}>
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="plan-editor-select-popup">
           {options.map((option) => (
             <SelectItem key={option} value={option}>
               {option}
@@ -257,14 +255,10 @@ function EntryEditor({ spec, mdastNode }: { spec: EntrySpec; mdastNode: JsxNode 
       className={cx('plan-editor-card', spec.row ? 'plan-editor-row' : 'plan-entry', spec.tag === 'callout' && 'plan-callout')}
       data-editor-entry={spec.tag}
       data-kind={kind}
-      data-status={spec.tag === 'phase' ? status : undefined}
+      data-status={spec.pickStatus ? status : undefined}
     >
       <div className="plan-editor-head" ref={head}>
-        {spec.tag === 'phase' ? (
-          <span className="plan-phase-status plan-editor-status" aria-hidden="true">
-            <StatusIcon status={status} />
-          </span>
-        ) : null}
+        {spec.pickStatus ? <StatusPicker status={status} onChange={(next) => set('status', next)} /> : null}
         {spec.pickIcon ? (
           <IconPicker
             icon={readAttr(mdastNode, 'icon')}
@@ -329,7 +323,11 @@ export const planJsxDescriptors: JsxComponentDescriptor[] = [
   ...ENTRY_SPECS.map((spec) => ({
     name: spec.tag,
     kind: 'flow' as const,
-    props: [...spec.props.map((prop) => prop.name), ...(spec.pickIcon ? ['icon', 'color'] : [])].map((name) => ({
+    props: [
+      ...spec.props.map((prop) => prop.name),
+      ...(spec.pickIcon ? ['icon', 'color'] : []),
+      ...(spec.pickStatus ? ['status'] : []),
+    ].map((name) => ({
       name,
       type: 'string' as const,
     })),
