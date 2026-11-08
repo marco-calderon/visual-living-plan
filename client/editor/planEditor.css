@@ -68,8 +68,9 @@
   outline: none;
 }
 
-.plan-editor-content > * + * {
-  margin-top: var(--space-md);
+/* Further apart than on the page, so the + bar fits between blocks (BAR_ROOM). Beats the page's card and paragraph margins. */
+.plan-editor .plan-editor-content.plan-document > * + * {
+  margin-top: var(--space-xl);
 }
 
 .plan-editor-card {
@@ -385,7 +386,7 @@
   font-size: 12px;
 }
 
-/* Block handles: + and a grip beside the block under the pointer or the caret. */
+/* Block handles: a grip beside the block under the pointer or the caret, and a + bar under it. */
 .plan-block-handles {
   position: absolute;
   z-index: 6;
@@ -500,22 +501,64 @@
   opacity: 0.4;
 }
 
+/* The + under a block: a short dashed bar in the gap before the next one. Height matches BAR_HEIGHT. */
+.plan-block-add {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 16px;
+  padding: 0;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    top 80ms ease-out,
+    border-color 120ms ease-out,
+    color 120ms ease-out,
+    background-color 120ms ease-out;
+}
+
+/* A taller target than the bar, still inside the gap. */
+.plan-block-add::before {
+  content: '';
+  position: absolute;
+  inset: -4px 0;
+}
+
+.plan-block-add[hidden] {
+  display: none;
+}
+
+.plan-block-add:hover,
+.plan-block-add:active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  color: var(--accent);
+}
+
+.plan-block-add:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 /* Room for the grip inside a card. */
 .plan-editor-body {
   margin-left: 8px;
 }
 
-/* The page clips anything outside the plan column, so the handles get a gutter inside it. */
+/* The page clips anything outside the plan column, so the grip gets a gutter inside it, and the last + bar room below. */
 .plan-editor .plan-editor-content {
-  padding-left: 56px;
+  padding-left: 28px;
+  padding-bottom: var(--space-xl);
 }
 
 @media (max-width: 600px) {
-  .plan-editor .plan-editor-content {
-    padding-left: 44px;
-  }
-
-  .plan-block-handles[data-level='root'] .plan-block-button {
-    width: 21px;
+  .plan-block-handles[data-level='root'] .plan-block-grip {
+    width: 24px;
   }
 }

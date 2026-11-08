@@ -15,19 +15,27 @@ import {
   SKIP_SCROLL_INTO_VIEW_TAG,
   RootNode,
   type LexicalEditor,
+  type LexicalNode,
+  type ParagraphNode,
 } from 'lexical'
 import { ArrowDown, ArrowUp, GripVertical, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 
 /**
- * Block handles, like a block editor's side menu: a + to add a block below and a grip to drag a
- * block to another place. Tapping the grip opens Move up, Move down, Add below, and Delete, so
- * touch screens can reorder too. The top-level document has + and the grip; a card's body has the grip.
+ * Block handles, like a block editor's side menu: a grip to drag a block to another place, and in
+ * the top-level document a dashed + bar under the block to add one below it. Tapping the grip
+ * opens Add below, Move up, Move down, and Delete, so touch screens can reorder too. A card's
+ * body has the grip only.
  */
 
 type Level = 'root' | 'nested'
 type Drop = { beforeKey: string } | { afterKey: string }
+type Bar = { top: number; left: number; width: number }
+
+/** Height of the + bar, and the room the last block leaves under it. Match planEditor.css. */
+const BAR_HEIGHT = 16
+const BAR_ROOM = 24
 
 /**
  * A card body is its own editor, and only tells the plan about its text when it loses focus.
@@ -64,6 +72,10 @@ function blockKeys(editor: LexicalEditor): string[] {
   return editor.getEditorState().read(() => $getRoot().getChildrenKeys())
 }
 
+function isEmptyLine(node: LexicalNode | null): node is ParagraphNode {
+  return $isParagraphNode(node) && node.getTextContent() === ''
+}
+
 function blocks(editor: LexicalEditor): Array<{ key: string; element: HTMLElement }> {
   return blockKeys(editor).flatMap((key) => {
     const element = editor.getElementByKey(key)
@@ -81,14 +93,19 @@ function blockOf(editor: LexicalEditor, target: EventTarget | null): string | nu
   return blocks(editor).find((block) => block.element === element)?.key ?? null
 }
 
-/** The block level with the pointer, or the nearest one. */
+/**
+ * The block level with the pointer, or the nearest one. The gap under a block belongs to it,
+ * so the + bar there stays while the pointer moves down to it.
+ */
 function blockAt(editor: LexicalEditor, y: number): string | null {
+  const list = blocks(editor)
   let nearest: string | null = null
   let distance = Infinity
-  for (const { key, element } of blocks(editor)) {
+  for (const [index, { key, element }] of list.entries()) {
     const rect = element.getBoundingClientRect()
-    if (y >= rect.top - 8 && y <= rect.bottom + 8) return key
-    const gap = Math.min(Math.abs(y - rect.top), Math.abs(y - rect.bottom))
+    const end = list[index + 1]?.element.getBoundingClientRect().top ?? rect.bottom + BAR_ROOM
+    if (y >= rect.top - (index === 0 ? 8 : 0) && y < end) return key
+    const gap = Math.min(Math.abs(y - rect.top), Math.abs(y - end))
     if (gap < distance) {
       distance = gap
       nearest = key
@@ -116,9 +133,16 @@ function BlockHandles({ level }: { level: Level }) {
   const [top, setTop] = useState(0)
   const [menu, setMenu] = useState(false)
   const [line, setLine] = useState<number | null>(null)
+  const [bar, setBar] = useState<Bar | null>(null)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const handlesRef = useRef<HTMLDivElement>(null)
+  const barRef = useRef<HTMLButtonElement>(null)
   const drag = useRef<{ key: string; pointerId: number; startY: number; moved: boolean; drop: Drop | null } | null>(null)
+  const inHandles = useCallback(
+    (target: EventTarget | null) =>
+      target instanceof Node && Boolean(handlesRef.current?.contains(target) || barRef.current?.contains(target)),
+    [],
+  )
 
   // The handles sit beside the editor's text, in its parent.
   useEffect(
@@ -149,17 +173,17 @@ function BlockHandles({ level }: { level: Level }) {
     cancelHide()
     hideTimer.current = setTimeout(() => {
       if (drag.current || menu) return
-      if (handlesRef.current?.contains(document.activeElement)) return
+      if (inHandles(document.activeElement)) return
       setKey(null)
     }, 600)
-  }, [cancelHide, menu])
+  }, [cancelHide, inHandles, menu])
 
   // Follow the pointer on a screen with one, and the caret or the focused field everywhere.
   useEffect(() => {
     if (!container) return
     const onMove = (event: globalThis.PointerEvent) => {
       if (drag.current || menu || event.pointerType === 'touch') return
-      if (handlesRef.current?.contains(event.target as Node)) return
+      if (inHandles(event.target)) return
       const found = blockAt(editor, event.clientY)
       if (found) {
         cancelHide()
@@ -167,7 +191,7 @@ function BlockHandles({ level }: { level: Level }) {
       }
     }
     const onFocus = (event: FocusEvent) => {
-      if (handlesRef.current?.contains(event.target as Node)) return
+      if (inHandles(event.target)) return
       const found = blockOf(editor, event.target)
       if (found) {
         cancelHide()
@@ -182,7 +206,7 @@ function BlockHandles({ level }: { level: Level }) {
       container.removeEventListener('pointerleave', scheduleHide)
       container.removeEventListener('focusin', onFocus)
     }
-  }, [cancelHide, container, editor, menu, scheduleHide])
+  }, [cancelHide, container, editor, inHandles, menu, scheduleHide])
 
   useEffect(
     () =>
@@ -206,8 +230,18 @@ function BlockHandles({ level }: { level: Level }) {
       setKey(null)
       return
     }
-    setTop(element.getBoundingClientRect().top - container.getBoundingClientRect().top)
-  }, [container, editor, key])
+    const rect = element.getBoundingClientRect()
+    const box = container.getBoundingClientRect()
+    setTop(rect.top - box.top)
+    if (level !== 'root') return
+    // The bar sits in the middle of the gap under the block, as wide as the block.
+    const next = element.nextElementSibling?.getBoundingClientRect().top ?? rect.bottom + BAR_ROOM
+    setBar({
+      top: rect.bottom + Math.max(0, next - rect.bottom - BAR_HEIGHT) / 2 - box.top,
+      left: rect.left - box.left,
+      width: rect.width,
+    })
+  }, [container, editor, key, level])
   useLayoutEffect(place, [place])
   useEffect(() => {
     window.addEventListener('resize', place)
@@ -265,7 +299,10 @@ function BlockHandles({ level }: { level: Level }) {
     [editor, key, move],
   )
 
-  /** Add an empty line below the block with a `/` in it, which opens the card menu. */
+  /**
+   * Add an empty line below the block with a `/` in it, which opens the card menu. The menu's
+   * Text keeps it a paragraph. An empty line already there is used instead of a new one.
+   */
   const addBelow = useCallback(() => {
     if (!key) return
     setMenu(false)
@@ -273,7 +310,8 @@ function BlockHandles({ level }: { level: Level }) {
     change(() => {
       const node = $getNodeByKey(key)
       if (!node) return
-      let paragraph = $isParagraphNode(node) && node.getTextContent() === '' ? node : null
+      const next = node.getNextSibling()
+      let paragraph = isEmptyLine(node) ? node : isEmptyLine(next) ? next : null
       if (!paragraph) {
         paragraph = $createParagraphNode()
         node.insertAfter(paragraph)
@@ -358,19 +396,6 @@ function BlockHandles({ level }: { level: Level }) {
         onPointerEnter={cancelHide}
         onPointerLeave={scheduleHide}
       >
-        {level === 'root' ? (
-          <button
-            type="button"
-            className="plan-block-button"
-            aria-label="Add a block below"
-            title="Add a block below"
-            data-block-add=""
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={addBelow}
-          >
-            <Plus size={16} aria-hidden="true" />
-          </button>
-        ) : null}
         <button
           type="button"
           className="plan-block-button plan-block-grip"
@@ -410,6 +435,25 @@ function BlockHandles({ level }: { level: Level }) {
           </div>
         ) : null}
       </div>
+      {level === 'root' ? (
+        <button
+          ref={barRef}
+          type="button"
+          className="plan-block-add"
+          aria-label="Add a block below"
+          title="Add a block below"
+          data-block-add=""
+          data-plan-grab-ignore=""
+          hidden={!key || !bar || line !== null}
+          style={bar ? { top: bar.top, left: bar.left, width: bar.width } : undefined}
+          onPointerEnter={cancelHide}
+          onPointerLeave={scheduleHide}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={addBelow}
+        >
+          <Plus size={12} strokeWidth={2.25} aria-hidden="true" />
+        </button>
+      ) : null}
       {line !== null ? <div className="plan-block-drop-line" style={{ top: line }} aria-hidden="true" /> : null}
     </>,
     container,

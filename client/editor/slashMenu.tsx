@@ -1,23 +1,34 @@
 import { addComposerChild$, addNestedEditorChild$, insertJsx$, realmPlugin, usePublisher } from '@mdxeditor/editor'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
-import { $getNodeByKey, $getSelection, $isDecoratorNode, $isParagraphNode, $isRangeSelection, $isTextNode } from 'lexical'
+import {
+  $getNodeByKey,
+  $getSelection,
+  $isDecoratorNode,
+  $isParagraphNode,
+  $isRangeSelection,
+  $isTextNode,
+  COMMAND_PRIORITY_NORMAL,
+  KEY_ESCAPE_COMMAND,
+} from 'lexical'
 import { LexicalTypeaheadMenuPlugin, MenuOption, useBasicTypeaheadTriggerMatch } from '@lexical/react/LexicalTypeaheadMenuPlugin'
 import type { MdxJsxAttribute, MdxJsxFlowElement } from 'mdast-util-mdx-jsx'
 import type { Paragraph } from 'mdast'
-import { useCallback, useMemo, useState } from 'react'
+import { Type } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { CardLabel } from '../entries/CardLabel.tsx'
+import { CardLabel, type CardIcon } from '../entries/CardLabel.tsx'
 
 type Card = {
   key: string
   label: string
   hint: string
-  icon: string
+  icon: CardIcon
   /** Words that also find this card. */
   keywords: string[]
   /** Rows only make sense inside a card. */
   nested?: boolean
-  build: () => MdxJsxFlowElement
+  /** The card to add. Without one the line stays a paragraph. */
+  build?: () => MdxJsxFlowElement
 }
 
 function shortId(prefix: string): string {
@@ -49,6 +60,13 @@ function callout(kind: string, icon: string, label: string): Card {
 
 /** Everything the slash menu can add, in the order it lists them. */
 export const SLASH_CARDS: Card[] = [
+  {
+    key: 'text',
+    label: 'Text',
+    hint: 'A paragraph to write in',
+    icon: <Type size={16} strokeWidth={2} />,
+    keywords: ['text', 'paragraph', 'plain'],
+  },
   {
     key: 'phase',
     label: 'Phase',
@@ -166,6 +184,27 @@ function SlashMenu({ nested }: { nested: boolean }) {
     [nested, query],
   )
 
+  // Escape on a line that holds only the `/` (as the + under a block leaves it) empties the line.
+  useEffect(
+    () =>
+      editor.registerCommand(
+        KEY_ESCAPE_COMMAND,
+        () => {
+          const selection = $getSelection()
+          if (!$isRangeSelection(selection)) return false
+          const line = selection.anchor.getNode().getTopLevelElement()
+          if ($isParagraphNode(line) && line.getTextContent() === '/') {
+            line.clear()
+            line.select()
+          }
+          // The menu still closes itself.
+          return false
+        },
+        COMMAND_PRIORITY_NORMAL,
+      ),
+    [editor],
+  )
+
   const onSelect = useCallback(
     (option: CardOption, typed: { remove: () => void } | null, close: () => void) => {
       let line: string | null = null
@@ -189,6 +228,7 @@ function SlashMenu({ nested }: { nested: boolean }) {
         { discrete: true },
       )
       close()
+      if (!option.card.build) return
       const node = option.card.build()
       insertJsx({
         kind: 'flow',
