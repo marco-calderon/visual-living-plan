@@ -57,10 +57,18 @@ A Redis outage must not take down the API.
 
 `icon`: `alert` | `branch` | `bug` | `check` | `clock` | `database` | `decision` | `file` | `flag` | `globe` | `help` | `idea` | `info` | `key` | `list` | `lock` | `message` | `package` | `rocket` | `server` | `shield` | `sparkles` | `users` | `wrench` | `zap`.
 
+An optional `color` tints the square instead, and wins over a callout's `kind` tint. Without `icon` it does nothing. An unknown name keeps the card's own tint.
+
+`color`: `blue` | `green` | `orange` | `red` | `pink` | `purple`.
+
 ```mdx
 <callout kind="risk" title="Redis dependency" icon="alert">
 A Redis outage must not take down the API.
 </callout>
+
+<approve id="launch" prompt="Ship on Friday?" icon="rocket" color="purple">
+Approve when the release checks pass.
+</approve>
 ```
 
 ## choice

@@ -32,3 +32,19 @@ test('a callout icon keeps the comment anchor on the label', () => {
   assert.match(label, /class="plan-card-label plan-callout-label"/)
   assert.match(html, /<span class="plan-card-label-text">risk · Redis<\/span>/)
 })
+
+test('a card color tints the icon square, and an unknown color keeps the card tint', () => {
+  const tinted = renderToStaticMarkup(createElement(Approve, { id: 'go', prompt: 'Proceed?', icon: 'rocket', color: 'Purple' }))
+  assert.match(tinted, /<span class="plan-card-icon" data-color="purple" aria-hidden="true">/)
+  const unknown = renderToStaticMarkup(createElement(CardLabel, { icon: 'rocket', color: 'teal' }, 'Label'))
+  assert.match(unknown, /<span class="plan-card-icon" aria-hidden="true">/)
+  const noIcon = renderToStaticMarkup(createElement(CardLabel, { color: 'blue' }, 'Label'))
+  assert.equal(noIcon, '<div class="plan-kicker">Label</div>')
+})
+
+test('a callout passes its color to the icon', () => {
+  const html = renderToStaticMarkup(
+    createElement(Callout, { id: 'redis', kind: 'risk', title: 'Redis', icon: 'alert', color: 'orange' }),
+  )
+  assert.match(html, /data-color="orange"/)
+})

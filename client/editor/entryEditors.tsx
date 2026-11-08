@@ -12,10 +12,11 @@ import { Trash2 } from 'lucide-react'
 import type { MdxJsxAttribute, MdxJsxFlowElement, MdxJsxTextElement } from 'mdast-util-mdx-jsx'
 import { useId, useRef } from 'react'
 import { StatusIcon } from '../execution-canvas/adapters/reactFlow/StatusIcon.tsx'
-import { CardLabel, cardIconNames } from '../entries/CardLabel.tsx'
+import { CardLabel } from '../entries/CardLabel.tsx'
 import { cx } from '../entries/styles.ts'
 import { calloutKind, phaseStatus } from '../entries/types.ts'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select.tsx'
+import { IconPicker } from './iconPicker.tsx'
 import { useIsolatedFromEditor } from './isolate.ts'
 
 type JsxNode = MdxJsxFlowElement | MdxJsxTextElement
@@ -23,12 +24,11 @@ type JsxNode = MdxJsxFlowElement | MdxJsxTextElement
 const PHASE_STATUSES = ['pending', 'active', 'blocked', 'done', 'failed']
 const CALLOUT_KINDS = ['note', 'tip', 'risk', 'decision', 'warning']
 const FIELD_TYPES = ['text', 'number', 'textarea', 'select', 'checkbox', 'stepper']
-const NO_ICON = '__none__'
 
 type PropSpec = {
   name: string
   label: string
-  control: 'text' | 'select' | 'icon' | 'flag'
+  control: 'text' | 'select' | 'flag'
   options?: string[]
   /** Takes the free width of the header row. */
   wide?: boolean
@@ -39,8 +39,10 @@ type EntrySpec = {
   /** The tag name the editor sees. */
   tag: string
   label: string
-  /** Icon shown when the card has none of its own. */
+  /** Icon the card label always shows, for cards without an `icon` of their own. */
   icon?: string
+  /** The card takes `icon` and `color`: its icon square opens the icon picker. */
+  pickIcon?: boolean
   props: PropSpec[]
   hasChildren: boolean
   /** A row inside a card (option, field, item) rather than a card of its own. */
@@ -48,7 +50,14 @@ type EntrySpec = {
 }
 
 const ID: PropSpec = { name: 'id', label: 'Id', control: 'text', placeholder: 'id' }
-const ICON: PropSpec = { name: 'icon', label: 'Icon', control: 'icon' }
+
+/** A callout's icon tint without a color of its own, for the picker's default swatch. */
+const KIND_TINT: Record<string, string> = {
+  tip: 'var(--ok)',
+  risk: 'var(--danger)',
+  warning: 'var(--danger)',
+  decision: 'var(--accent-2)',
+}
 
 export const ENTRY_SPECS: EntrySpec[] = [
   {
@@ -64,11 +73,10 @@ export const ENTRY_SPECS: EntrySpec[] = [
   {
     tag: 'callout',
     label: 'Callout',
-    icon: 'info',
+    pickIcon: true,
     props: [
       { name: 'title', label: 'Title', control: 'text', wide: true, placeholder: 'Callout title' },
       { name: 'kind', label: 'Kind', control: 'select', options: CALLOUT_KINDS },
-      ICON,
       ID,
     ],
     hasChildren: true,
@@ -76,8 +84,8 @@ export const ENTRY_SPECS: EntrySpec[] = [
   {
     tag: 'choice',
     label: 'Choice',
-    icon: 'decision',
-    props: [{ name: 'prompt', label: 'Prompt', control: 'text', wide: true, placeholder: 'What should the person pick?' }, ICON, ID],
+    pickIcon: true,
+    props: [{ name: 'prompt', label: 'Prompt', control: 'text', wide: true, placeholder: 'What should the person pick?' }, ID],
     hasChildren: true,
   },
   {
@@ -90,8 +98,8 @@ export const ENTRY_SPECS: EntrySpec[] = [
   {
     tag: 'plan-form',
     label: 'Form',
-    icon: 'file',
-    props: [{ name: 'prompt', label: 'Prompt', control: 'text', wide: true, placeholder: 'What should the person fill in?' }, ICON, ID],
+    pickIcon: true,
+    props: [{ name: 'prompt', label: 'Prompt', control: 'text', wide: true, placeholder: 'What should the person fill in?' }, ID],
     hasChildren: true,
   },
   {
@@ -111,8 +119,8 @@ export const ENTRY_SPECS: EntrySpec[] = [
   {
     tag: 'questions',
     label: 'Questions',
-    icon: 'help',
-    props: [{ name: 'prompt', label: 'Prompt', control: 'text', wide: true, placeholder: 'What should the person answer?' }, ICON, ID],
+    pickIcon: true,
+    props: [{ name: 'prompt', label: 'Prompt', control: 'text', wide: true, placeholder: 'What should the person answer?' }, ID],
     hasChildren: true,
   },
   {
@@ -125,8 +133,8 @@ export const ENTRY_SPECS: EntrySpec[] = [
   {
     tag: 'approve',
     label: 'Approval',
-    icon: 'check',
-    props: [{ name: 'prompt', label: 'Prompt', control: 'text', wide: true, placeholder: 'What should the person approve?' }, ICON, ID],
+    pickIcon: true,
+    props: [{ name: 'prompt', label: 'Prompt', control: 'text', wide: true, placeholder: 'What should the person approve?' }, ID],
     hasChildren: true,
   },
   {
@@ -169,6 +177,14 @@ function withAttr(node: JsxNode, name: string, value: string): JsxNode['attribut
   return next
 }
 
+/** Change several attributes at once; an empty value removes one. */
+function withAttrs(node: JsxNode, changes: Record<string, string>): JsxNode['attributes'] {
+  return Object.entries(changes).reduce(
+    (attributes, [name, value]) => withAttr({ ...node, attributes } as JsxNode, name, value),
+    node.attributes,
+  )
+}
+
 function PropControl({ spec, value, onChange }: { spec: PropSpec; value: string; onChange: (value: string) => void }) {
   const id = useId()
   if (spec.control === 'flag') {
@@ -179,30 +195,17 @@ function PropControl({ spec, value, onChange }: { spec: PropSpec; value: string;
       </label>
     )
   }
-  if (spec.control === 'select' || spec.control === 'icon') {
-    const options = spec.control === 'icon' ? [NO_ICON, ...cardIconNames] : (spec.options ?? [])
-    const current = spec.control === 'icon' ? value || NO_ICON : value || (spec.options?.[0] ?? '')
+  if (spec.control === 'select') {
+    const options = spec.options ?? []
     return (
-      <Select value={current} onValueChange={(next) => onChange(next === NO_ICON ? '' : String(next ?? ''))}>
+      <Select value={value || (options[0] ?? '')} onValueChange={(next) => onChange(String(next ?? ''))}>
         <SelectTrigger className="plan-editor-select" aria-label={spec.label}>
-          <SelectValue>
-            {(selected: string) =>
-              spec.control === 'icon' ? (
-                selected && selected !== NO_ICON ? (
-                  <CardLabel icon={selected}>{selected}</CardLabel>
-                ) : (
-                  'No icon'
-                )
-              ) : (
-                selected
-              )
-            }
-          </SelectValue>
+          <SelectValue />
         </SelectTrigger>
         <SelectContent>
           {options.map((option) => (
             <SelectItem key={option} value={option}>
-              {spec.control === 'icon' ? option === NO_ICON ? 'No icon' : <CardLabel icon={option}>{option}</CardLabel> : option}
+              {option}
             </SelectItem>
           ))}
         </SelectContent>
@@ -243,10 +246,10 @@ function useCardUpdater(): (patch: Partial<JsxNode>) => void {
 function EntryEditor({ spec, mdastNode }: { spec: EntrySpec; mdastNode: JsxNode }) {
   const update = useCardUpdater()
   const remove = useLexicalNodeRemove()
-  const icon = readAttr(mdastNode, 'icon') || spec.icon
   const status = phaseStatus(readAttr(mdastNode, 'status') || undefined)
   const kind = spec.tag === 'callout' ? calloutKind(readAttr(mdastNode, 'kind') || undefined) : undefined
   const set = (name: string, value: string) => update({ attributes: withAttr(mdastNode, name, value) })
+  const label = kind ? `${spec.label} · ${kind}` : spec.label
   const head = useRef<HTMLDivElement>(null)
   useIsolatedFromEditor(head)
   return (
@@ -262,9 +265,19 @@ function EntryEditor({ spec, mdastNode }: { spec: EntrySpec; mdastNode: JsxNode 
             <StatusIcon status={status} />
           </span>
         ) : null}
-        <CardLabel icon={icon} className="plan-editor-kicker">
-          {kind ? `${spec.label} · ${kind}` : spec.label}
-        </CardLabel>
+        {spec.pickIcon ? (
+          <IconPicker
+            icon={readAttr(mdastNode, 'icon')}
+            color={readAttr(mdastNode, 'color')}
+            label={label}
+            defaultTint={kind ? KIND_TINT[kind] : undefined}
+            onChange={(next) => update({ attributes: withAttrs(mdastNode, next) })}
+          />
+        ) : (
+          <CardLabel icon={spec.icon} className="plan-editor-kicker">
+            {label}
+          </CardLabel>
+        )}
         {spec.props
           .filter((prop) => prop.wide)
           .map((prop) => (
@@ -316,7 +329,10 @@ export const planJsxDescriptors: JsxComponentDescriptor[] = [
   ...ENTRY_SPECS.map((spec) => ({
     name: spec.tag,
     kind: 'flow' as const,
-    props: spec.props.map((prop) => ({ name: prop.name, type: 'string' as const })),
+    props: [...spec.props.map((prop) => prop.name), ...(spec.pickIcon ? ['icon', 'color'] : [])].map((name) => ({
+      name,
+      type: 'string' as const,
+    })),
     hasChildren: spec.hasChildren,
     Editor: editorFor(spec),
   })),

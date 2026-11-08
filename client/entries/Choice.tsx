@@ -20,6 +20,8 @@ export type ChoiceProps = {
   className?: string
   /** Icon name or element shown in a square before the card label. */
   icon?: CardIcon
+  /** Tints the icon square: blue, green, orange, red, pink, or purple. */
+  color?: string
   onSelect?: (response: ChoiceResponse) => void
 }
 
@@ -33,6 +35,7 @@ export function Choice({
   children,
   className,
   icon,
+  color,
   onSelect,
 }: ChoiceProps) {
   const [localSelected, setLocalSelected] = useState<{ id: string; label: string } | undefined>(undefined)
@@ -73,7 +76,7 @@ export function Choice({
       data-locked={locked ? 'true' : undefined}
     >
       <VStack gap="sm">
-        <CardLabel icon={icon}>Needs your choice</CardLabel>
+        <CardLabel icon={icon} color={color}>Needs your choice</CardLabel>
         <h3 className="plan-title" id={promptId}>
           {prompt}
         </h3>

@@ -2,7 +2,7 @@
 
 ## 2.15.0
 
-**PR:** pending
+**PR:** [#168](https://github.com/marco-calderon/visual-living-plan/pull/168)
 
 **Bump:** minor
 
@@ -12,7 +12,9 @@ A plan can be edited on its page, on the local service and on the host. Edits ar
 
 ### New features
 
-- An Edit button on a local plan, and on a hosted plan you own, opens an editor with the same cards, icons, and labels as the page. Titles, prompts, status, kind, icon, and ids are fields on each card, and each body is editable text.
+- An Edit button on a local plan, and on a hosted plan you own, opens an editor with the same cards, icons, and labels as the page. Titles, prompts, status, kind, and ids are fields on each card, and each body is editable text.
+- Click a card's icon in the editor to change it. A popover shows every icon and the icon colors, and the card updates as you pick.
+- Cards take a `color` for their icon: `blue`, `green`, `orange`, `red`, `pink`, or `purple`. It shows on the page in light and dark themes.
 - Typing `/` opens a menu of cards with their icon and label. Arrow keys move, Enter adds, Escape closes. Inside a card it also adds options, fields, and items.
 - Every block has a `+` and a grip on its left. `+` adds a line below and opens the card menu, so a card can go between two others. Drag the grip to move a block, or tap it for Add below, Move up, Move down, and Delete. Options, fields, and items inside a card have their own grip.
 - Edits are saved on this device about once a second, also offline. Close the tab and Resume draft brings them back. Discard drops them.

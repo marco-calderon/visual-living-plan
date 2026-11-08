@@ -1,7 +1,7 @@
 # ADR 0033: A person edits a plan on the page as a draft on their device, and publishes it as a new version
 
 - Status: Accepted
-- Date: 2026-11-07, revised 2026-11-08
+- Date: 2026-11-07, revised 2026-11-08 (block handles, icon picker)
 
 ## Context
 
@@ -12,7 +12,8 @@ The plan file is the agent's document. A person could answer and comment on the 
 ### Editor
 
 - The plan page has an Edit button on a local plan and on a hosted plan the signed-in account owns. A saved version stays read-only. Edit opens [MDXEditor](https://mdxeditor.dev) in place of the document. The editor loads as its own chunk, only when Edit is pressed.
-- Each plan tag has an editor that reuses the page's card look: `CardLabel` and its icons, the phase `StatusIcon`, and the page's `Select`. Short fields (`title`, `prompt`, `status`, `kind`, `icon`, `id`, field settings) are controls in the card header. The body is a nested rich-text editor. Fences (code, mermaid, the workflow table) are plain text areas. Layout and chart tags use MDXEditor's generic editor.
+- Each plan tag has an editor that reuses the page's card look: `CardLabel` and its icons, the phase `StatusIcon`, and the page's `Select`. Short fields (`title`, `prompt`, `status`, `kind`, `id`, field settings) are controls in the card header. The body is a nested rich-text editor. Fences (code, mermaid, the workflow table) are plain text areas. Layout and chart tags use MDXEditor's generic editor.
+- A card that takes an icon edits it where the page shows it: its icon square is a button. It opens a popover with every card icon and the icon colors, drawn in the color picked. A pick shows on the card at once, and the popover stays open until Escape or a click outside, so icon and color are set together. Arrow keys move in each grid. A card without an icon shows a dashed square to add one. No icon also drops the color. The color is the card's `color` attribute (`blue`, `green`, `orange`, `red`, `pink`, `purple`), which the page draws too, over a callout's kind tint.
 - `<form>` and `<option>` are also HTML tags, which MDXEditor would treat as HTML. They are renamed `<plan-form>` and `<plan-option>` while editing and back on publish.
 - Typing `/` opens a menu of cards with their icon and label: phase, the five callout kinds, choice, form, questions, approval, and checklist. Inside a card it also offers option, field, and item. Arrow keys move, Enter or Tab adds, Escape closes.
 - Each block has handles in a gutter on its left, like a block editor's side menu: `+` adds a line below with `/` in it, which opens the card menu, and a grip drags the block to another place with a drop line. Tapping the grip opens Add below, Move up, Move down, and Delete, so a touch screen can reorder too. A card's body has its own grip for its options, fields, items, and paragraphs. The handles sit inside the plan column, because the page clips anything outside it. The document always ends with an empty line, so there is somewhere to type after the last card.
