@@ -12,6 +12,9 @@ function precacheManifestPlugin(): Plugin {
   return {
     name: 'living-plan-precache-manifest',
     apply: 'build',
+    // After Vite's CSS step, which drops the empty JS chunk of a CSS-only import (hostToolbar.css).
+    // Listed before that, the chunk 404s and fails its whole precache batch.
+    enforce: 'post',
     generateBundle(_options, bundle) {
       const name = this.environment?.name
       if (name && name !== 'client') return
