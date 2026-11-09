@@ -10,6 +10,8 @@ export default defineConfig({
   // Without this, Vite's modulepreload helper prefixes chunk URLs as /assets/...,
   // which 404s on plan pages and floods the console during highlight/workflow loads.
   base: '/client/',
+  // Code is highlighted with Pierre's Highlights; Shiki is never loaded, so none of it is built.
+  resolve: { alias: [{ find: /^shiki(\/.*)?$/, replacement: resolve(rootDir, 'client/noShiki.ts') }] },
   plugins: [react()],
   build: {
     outDir: 'dist/client',

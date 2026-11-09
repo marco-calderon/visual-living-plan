@@ -21,6 +21,7 @@ In the page editor, a short gray `+` button under a card or paragraph adds a new
 - The card menu starts with Text, which keeps the new line a paragraph to write in.
 - Code blocks in the editor use Pierre's code editor, with the same syntax highlighting and theme as the page. A picker above each block sets its language.
 - Code on the page and in the editor is highlighted by Highlights, Pierre's WebAssembly highlighter, in place of Shiki. It covers 152 languages and every code theme in Settings, and the page no longer downloads a grammar per language.
+- The hosted app installs for offline use with about half the download: Shiki's 244 language grammars (8.8 MB) are no longer built or precached.
 - The card menu has Code and Mermaid. Mermaid blocks draw their diagram under the code as you type, and show the parse error when the code does not parse.
 - Click a phase's status icon to change its status. A short list shows each status with its icon. It replaces the Status dropdown.
 
@@ -34,4 +35,4 @@ In the page editor, a short gray `+` button under a card or paragraph adds a new
 
 ### Notes
 
-Browser bundle only. No plan format, CLI, or Worker route changes. `@pierre/diffs` moves from 1.5.2 to 1.6.4, which brings `@pierre/highlights` 0.4.0; it is also a direct dev dependency, since the editor asks it which languages it highlights. Shiki stays installed as Pierre's other backend but no longer loads.
+Browser bundle only. No plan format, CLI, or Worker route changes. `@pierre/diffs` moves from 1.5.2 to 1.6.4, which brings `@pierre/highlights` 0.4.0; it is also a direct dev dependency, since the editor asks it which languages it highlights. Shiki stays installed as Pierre's other backend, but both Vite builds point `shiki` at a stand-in (`client/noShiki.ts`), so none of it is built. The hosted client goes from 616 files (18.4 MB) to 290 (9.6 MB), and its service worker precaches 291 files instead of 617; the local client goes from 541 files to 215.
