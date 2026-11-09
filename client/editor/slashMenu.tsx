@@ -1,6 +1,22 @@
-import { $createCodeBlockNode, activeEditor$, addComposerChild$, addNestedEditorChild$, insertJsx$, realmPlugin, usePublisher } from '@mdxeditor/editor'
-import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import {
+  $createCodeBlockNode,
+  $createImageNode,
+  activeEditor$,
+  addComposerChild$,
+  addNestedEditorChild$,
+  insertJsx$,
+  NESTED_EDITOR_UPDATED_COMMAND,
+  realmPlugin,
+  usePublisher,
+} from '@mdxeditor/editor'
+import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
+import { $createLinkNode } from '@lexical/link'
+import { $createHeadingNode, $createQuoteNode, type HeadingTagType } from '@lexical/rich-text'
+import { $setBlocksType } from '@lexical/selection'
+import {
+  $createParagraphNode,
+  $createRangeSelection,
+  $createTextNode,
   $getNodeByKey,
   $getRoot,
   $isElementNode,
@@ -15,18 +31,40 @@ import {
   KEY_ENTER_COMMAND,
   KEY_ESCAPE_COMMAND,
   KEY_TAB_COMMAND,
+  type ElementNode,
+  type LexicalEditor,
 } from 'lexical'
 import { LexicalTypeaheadMenuPlugin, MenuOption, useBasicTypeaheadTriggerMatch } from '@lexical/react/LexicalTypeaheadMenuPlugin'
 import type { MdxJsxAttribute, MdxJsxFlowElement } from 'mdast-util-mdx-jsx'
 import type { Paragraph } from 'mdast'
-import { Code, Type, Workflow } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Code,
+  Heading1,
+  Heading2,
+  Heading3,
+  Heading4,
+  Heading5,
+  Heading6,
+  Image as ImageIcon,
+  Link as LinkIcon,
+  Quote,
+  Type,
+  Workflow,
+  type LucideIcon,
+} from 'lucide-react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CardLabel, type CardIcon } from '../entries/CardLabel.tsx'
 import { focusFenceWhenReady } from './codeFence.tsx'
+import { InsertPrompt, type InsertKind, type InsertValues } from './insertPrompt.tsx'
+
+/** The menu's sections, in the order it shows them. */
+const SECTIONS = ['Text', 'Links and media', 'Code', 'Cards', 'In this card'] as const
+type Section = (typeof SECTIONS)[number]
 
 type Card = {
   key: string
+  section: Section
   label: string
   hint: string
   icon: CardIcon
@@ -43,6 +81,10 @@ type Card = {
   build?: () => MdxJsxFlowElement
   /** A fenced code block to add instead of a card. */
   fence?: { language: string; code: string }
+  /** The block the "/" line becomes, keeping its text: a heading, a quote, or a plain paragraph. */
+  block?: () => ElementNode
+  /** Asks for an address first, then adds a link or an image where the "/" was. */
+  prompt?: InsertKind
 }
 
 function shortId(prefix: string): string {
@@ -61,9 +103,29 @@ function element(name: string, values: Record<string, string>, children: MdxJsxF
   return { type: 'mdxJsxFlowElement', name, attributes: attrs(values), children }
 }
 
+function glyph(Icon: LucideIcon) {
+  return <Icon size={16} strokeWidth={2} />
+}
+
+const HEADING_ICONS: LucideIcon[] = [Heading1, Heading2, Heading3, Heading4, Heading5, Heading6]
+
+function heading(level: number): Card {
+  const tag = `h${level}` as HeadingTagType
+  return {
+    key: tag,
+    section: 'Text',
+    label: `Heading ${level}`,
+    hint: level === 1 ? 'The largest title' : level === 6 ? 'The smallest title' : `A level ${level} title`,
+    icon: glyph(HEADING_ICONS[level - 1]!),
+    keywords: [tag, 'heading', `heading${level}`, 'title', '#'.repeat(level)],
+    block: () => $createHeadingNode(tag),
+  }
+}
+
 function callout(kind: string, icon: string, label: string, agentOnly = false): Card {
   return {
     key: `callout-${kind}`,
+    section: 'Cards',
     agentOnly,
     label,
     hint: `A ${kind} callout`,
@@ -77,29 +139,62 @@ function callout(kind: string, icon: string, label: string, agentOnly = false): 
 export const SLASH_CARDS: Card[] = [
   {
     key: 'text',
+    section: 'Text',
     label: 'Text',
     hint: 'A paragraph to write in',
-    icon: <Type size={16} strokeWidth={2} />,
+    icon: glyph(Type),
     keywords: ['text', 'paragraph', 'plain'],
+    block: () => $createParagraphNode(),
+  },
+  ...[1, 2, 3, 4, 5, 6].map(heading),
+  {
+    key: 'quote',
+    section: 'Text',
+    label: 'Quote',
+    hint: 'Quoted text, shown set apart',
+    icon: glyph(Quote),
+    keywords: ['quote', 'blockquote', 'citation', '>'],
+    block: () => $createQuoteNode(),
+  },
+  {
+    key: 'link',
+    section: 'Links and media',
+    label: 'Link',
+    hint: 'A link to a web address',
+    icon: glyph(LinkIcon),
+    keywords: ['link', 'url', 'href', 'web'],
+    prompt: 'link',
+  },
+  {
+    key: 'image',
+    section: 'Links and media',
+    label: 'Image',
+    hint: 'An image from a web address',
+    icon: glyph(ImageIcon),
+    keywords: ['image', 'picture', 'photo', 'img', 'screenshot'],
+    prompt: 'image',
   },
   {
     key: 'code',
+    section: 'Code',
     label: 'Code',
     hint: 'A code block with syntax highlighting',
-    icon: <Code size={16} strokeWidth={2} />,
+    icon: glyph(Code),
     keywords: ['code', 'snippet', 'fence', 'block'],
     fence: { language: 'ts', code: '' },
   },
   {
     key: 'mermaid',
+    section: 'Code',
     label: 'Mermaid',
     hint: 'A diagram drawn from mermaid code',
-    icon: <Workflow size={16} strokeWidth={2} />,
+    icon: glyph(Workflow),
     keywords: ['mermaid', 'diagram', 'chart', 'flowchart'],
     fence: { language: 'mermaid', code: 'flowchart LR\n  A[Start] --> B[Finish]' },
   },
   {
     key: 'phase',
+    section: 'Cards',
     label: 'Phase',
     hint: 'A step of the work, with a status',
     icon: 'flag',
@@ -113,6 +208,7 @@ export const SLASH_CARDS: Card[] = [
   callout('warning', 'shield', 'Warning'),
   {
     key: 'choice',
+    section: 'Cards',
     agentOnly: true,
     label: 'Choice',
     hint: 'The person picks one option',
@@ -126,6 +222,7 @@ export const SLASH_CARDS: Card[] = [
   },
   {
     key: 'form',
+    section: 'Cards',
     agentOnly: true,
     label: 'Form',
     hint: 'Fields the person fills in',
@@ -138,6 +235,7 @@ export const SLASH_CARDS: Card[] = [
   },
   {
     key: 'questions',
+    section: 'Cards',
     agentOnly: true,
     label: 'Questions',
     hint: 'Free-text answers, one per item',
@@ -150,6 +248,7 @@ export const SLASH_CARDS: Card[] = [
   },
   {
     key: 'approve',
+    section: 'Cards',
     agentOnly: true,
     label: 'Approval',
     hint: 'A yes or no gate',
@@ -159,6 +258,7 @@ export const SLASH_CARDS: Card[] = [
   },
   {
     key: 'checklist',
+    section: 'Cards',
     label: 'Checklist',
     hint: 'Lines the agent ticks off',
     icon: 'list',
@@ -167,6 +267,7 @@ export const SLASH_CARDS: Card[] = [
   },
   {
     key: 'option',
+    section: 'In this card',
     label: 'Option',
     hint: 'One more option for a choice',
     icon: 'branch',
@@ -176,6 +277,7 @@ export const SLASH_CARDS: Card[] = [
   },
   {
     key: 'field',
+    section: 'In this card',
     label: 'Field',
     hint: 'One more field for a form',
     icon: 'wrench',
@@ -185,6 +287,7 @@ export const SLASH_CARDS: Card[] = [
   },
   {
     key: 'item',
+    section: 'In this card',
     label: 'Item',
     hint: 'A question or checklist line',
     icon: 'message',
@@ -222,6 +325,19 @@ function removeSlashQuery(): void {
   }
 }
 
+/**
+ * "Tiny /h2" leaves "Tiny " once the "/h2" goes. When the line becomes another block, the space
+ * that came before the "/" goes too. A link or image keeps it: it sits after that space.
+ */
+function dropSpaceBeforeCaret(): void {
+  const selection = $getSelection()
+  if (!$isRangeSelection(selection) || !selection.isCollapsed()) return
+  const node = selection.anchor.getNode()
+  const offset = selection.anchor.offset
+  if (!$isTextNode(node) || offset !== node.getTextContentSize() || offset === 0) return
+  if (/\s/.test(node.getTextContent()[offset - 1] ?? '')) node.spliceText(offset - 1, 1, '', true)
+}
+
 /** Put a code block where the "/" line was (or after it, when it still has text), and type in it. */
 function insertFence(line: string | null, fence: { language: string; code: string }): void {
   const block = $createCodeBlockNode({ code: fence.code, language: fence.language, meta: '' })
@@ -233,6 +349,49 @@ function insertFence(line: string | null, fence: { language: string; code: strin
   else if (target) target.insertAfter(block)
   else $getRoot().append(block)
   focusFenceWhenReady(block.getKey())
+}
+
+type Point = { key: string; offset: number; type: 'text' | 'element' }
+
+/** Where the caret is, to come back to after the link or image form. */
+function $caretPoint(): Point | null {
+  const selection = $getSelection()
+  if (!$isRangeSelection(selection)) return null
+  const { key, offset, type } = selection.anchor
+  return { key, offset, type }
+}
+
+/** Put the caret back where the "/" was, or at the end of its line if that text is gone. */
+function $caretBack(point: Point | null, line: string | null): void {
+  if (point && $getNodeByKey(point.key)) {
+    const selection = $createRangeSelection()
+    selection.anchor.set(point.key, point.offset, point.type)
+    selection.focus.set(point.key, point.offset, point.type)
+    $setSelection(selection)
+    return
+  }
+  const node = line ? $getNodeByKey(line) : null
+  if ($isElementNode(node)) node.selectEnd()
+  else $getRoot().selectEnd()
+}
+
+/** Add the link or image at the caret. */
+function $insertAtCaret(kind: InsertKind, values: InsertValues): void {
+  const selection = $getSelection()
+  if (!$isRangeSelection(selection)) return
+  if (kind === 'link') {
+    const link = $createLinkNode(values.url)
+    link.append($createTextNode(values.text || values.url))
+    selection.insertNodes([link])
+  } else {
+    selection.insertNodes([$createImageNode({ src: values.url, altText: values.text })])
+  }
+}
+
+/** The line the menu was opened on, in the viewport, for the link or image form to sit under. */
+function lineRect(editor: LexicalEditor, line: string | null): DOMRect {
+  const element = line ? editor.getElementByKey(line) : null
+  return (element ?? editor.getRootElement())?.getBoundingClientRect() ?? new DOMRect(16, 16, 0, 0)
 }
 
 class CardOption extends MenuOption {
@@ -273,6 +432,7 @@ function SlashMenu({ nested }: { nested: boolean }) {
   const highlighted = useRef(0)
   const shownQuery = useRef<string | null>(null)
   const selectAndClose = useRef<((option: CardOption) => void) | null>(null)
+  const [prompt, setPrompt] = useState<{ kind: InsertKind; point: Point | null; line: string | null; anchor: DOMRect } | null>(null)
   const trigger = useBasicTypeaheadTriggerMatch('/', { minLength: 0, maxLength: 24 })
   const options = useMemo(() => menuOptions(nested, query ?? ''), [nested, query])
 
@@ -350,8 +510,9 @@ function SlashMenu({ nested }: { nested: boolean }) {
 
   const onSelect = useCallback(
     (option: CardOption, typed: { remove: () => void } | null, close: () => void) => {
-      const { build, fence } = option.card
+      const { build, fence, block, prompt: ask } = option.card
       let line: string | null = null
+      let point: Point | null = null
       editor.update(
         () => {
           // The line first: removing the typed "/query" can take the caret out of it.
@@ -361,10 +522,20 @@ function SlashMenu({ nested }: { nested: boolean }) {
           caretBackInLine(line)
           removeSlashQuery()
           if (fence) insertFence(line, fence)
+          else if (block) {
+            dropSpaceBeforeCaret()
+            $setBlocksType($getSelection(), block)
+          }
+          else if (ask) point = $caretPoint()
         },
         { discrete: true },
       )
       close()
+      if (ask) {
+        // The update above runs after this one, so read what it found on the next frame.
+        requestAnimationFrame(() => setPrompt({ kind: ask, point, line, anchor: lineRect(editor, line) }))
+        return
+      }
       if (fence || !build) return
       const node = build()
       // The card goes into the editor the "/" was typed in, also a card's body.
@@ -397,7 +568,26 @@ function SlashMenu({ nested }: { nested: boolean }) {
     attempt()
   }
 
+  const closePrompt = (values: InsertValues | null) => {
+    if (!prompt) return
+    setPrompt(null)
+    editor.update(
+      () => {
+        $caretBack(prompt.point, prompt.line)
+        if (values) $insertAtCaret(prompt.kind, values)
+      },
+      { discrete: true },
+    )
+    editor.focus()
+    // A card's body tells the plan about its text through its card.
+    if (values) editor.dispatchCommand(NESTED_EDITOR_UPDATED_COMMAND, undefined)
+  }
+
   return (
+    <>
+    {prompt ? (
+      <InsertPrompt kind={prompt.kind} anchor={prompt.anchor} onSubmit={(values) => closePrompt(values)} onCancel={() => closePrompt(null)} />
+    ) : null}
     <LexicalTypeaheadMenuPlugin<CardOption>
       onQueryChange={(next) => {
         open.current = next !== null
@@ -414,25 +604,31 @@ function SlashMenu({ nested }: { nested: boolean }) {
         return (
         anchor.current && options.length > 0
           ? createPortal(
-              <div className="plan-slash-menu" role="listbox" aria-label="Add a card" data-plan-grab-ignore="">
+              <div className="plan-slash-menu" role="listbox" aria-label="Add a block" data-plan-grab-ignore="">
                 {options.map((option, index) => (
-                  <div
-                    key={option.key}
-                    ref={(element) => option.setRefElement(element)}
-                    role="option"
-                    aria-selected={selectedIndex === index}
-                    className="plan-slash-item"
-                    data-slash-card={option.card.key}
-                    onMouseEnter={() => setHighlightedIndex(index)}
-                    onMouseDown={(event) => {
-                      event.preventDefault()
-                      setHighlightedIndex(index)
-                      selectOptionAndCleanUp(option)
-                    }}
-                  >
-                    <CardLabel icon={option.card.icon}>{option.card.label}</CardLabel>
-                    <span className="plan-slash-hint">{option.card.hint}</span>
-                  </div>
+                  <Fragment key={option.key}>
+                    {option.card.section !== options[index - 1]?.card.section ? (
+                      <div className="plan-slash-section" role="presentation" data-slash-section={option.card.section}>
+                        {option.card.section}
+                      </div>
+                    ) : null}
+                    <div
+                      ref={(element) => option.setRefElement(element)}
+                      role="option"
+                      aria-selected={selectedIndex === index}
+                      className="plan-slash-item"
+                      data-slash-card={option.card.key}
+                      onMouseEnter={() => setHighlightedIndex(index)}
+                      onMouseDown={(event) => {
+                        event.preventDefault()
+                        setHighlightedIndex(index)
+                        selectOptionAndCleanUp(option)
+                      }}
+                    >
+                      <CardLabel icon={option.card.icon}>{option.card.label}</CardLabel>
+                      <span className="plan-slash-hint">{option.card.hint}</span>
+                    </div>
+                  </Fragment>
                 ))}
               </div>,
               anchor.current,
@@ -441,6 +637,7 @@ function SlashMenu({ nested }: { nested: boolean }) {
         )
       }}
     />
+    </>
   )
 }
 
@@ -452,7 +649,10 @@ function NestedSlashMenu() {
   return <SlashMenu nested />
 }
 
-/** Type `/` to add a card. Arrow keys move, Enter or Tab adds, Escape closes. */
+/**
+ * Type `/` to add a block: text, headings, a quote, a link, an image, code, a diagram, or a card,
+ * listed in sections. Arrow keys move, Enter or Tab adds, Escape closes.
+ */
 export const slashMenuPlugin = realmPlugin({
   init(realm) {
     realm.pubIn({

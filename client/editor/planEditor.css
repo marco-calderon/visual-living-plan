@@ -410,6 +410,24 @@
   box-shadow: var(--shadow-modal);
 }
 
+/* Section titles stay at the top while the menu scrolls through that section. */
+.plan-slash-section {
+  position: sticky;
+  top: -4px;
+  z-index: 1;
+  background: var(--canvas);
+  padding: 8px 8px 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.plan-slash-section:first-child {
+  padding-top: 4px;
+}
+
 .plan-slash-item {
   display: flex;
   flex-direction: column;
@@ -750,4 +768,99 @@
   .plan-select-popup.plan-editor-select-popup[data-ending-style] {
     transform: none;
   }
+}
+
+/* The link and image form the card menu opens. */
+.plan-popover.plan-insert-prompt {
+  width: min(20rem, calc(100vw - 24px));
+  padding: var(--space-sm);
+}
+
+.plan-insert-prompt form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.plan-insert-prompt-title {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.plan-insert-prompt-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.plan-insert-prompt-field input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 var(--space-xs);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--canvas);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.plan-insert-prompt-field input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.plan-insert-prompt-field input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.plan-insert-prompt-error {
+  margin: -2px 0 0;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.plan-insert-prompt-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-height: 140px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.plan-insert-prompt-preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 140px;
+  object-fit: contain;
+}
+
+.plan-insert-prompt-preview[data-broken] {
+  padding: var(--space-xs) var(--space-sm);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.plan-insert-prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+  margin-top: 2px;
+}
+
+/* An image in the editor fits the column, like on the page. */
+.plan-editor-content img {
+  max-width: 100%;
+  height: auto;
 }

@@ -2,6 +2,7 @@ import {
   MDXEditor,
   codeBlockPlugin,
   headingsPlugin,
+  imagePlugin,
   jsxPlugin,
   linkPlugin,
   listsPlugin,
@@ -194,6 +195,8 @@ export function PlanEditor({ planId, base, draft, outdated, publish, onClose }: 
       quotePlugin(),
       thematicBreakPlugin(),
       linkPlugin(),
+      // Images from an address, added with Image in the card menu. Sized by the page, not by dragging.
+      imagePlugin({ disableImageResize: true, disableImageSettingsButton: true }),
       tablePlugin(),
       codeBlockPlugin({ codeBlockEditorDescriptors: [codeFenceEditor] }),
       jsxPlugin({ jsxComponentDescriptors: planJsxDescriptors }),
@@ -266,7 +269,7 @@ export function PlanEditor({ planId, base, draft, outdated, publish, onClose }: 
         <span className="plan-editor-status-text" role="status" data-plan-draft-state={state.kind}>
           {status}
           <span className="plan-editor-hint">
-            Type <kbd>/</kbd> to add a card
+            Type <kbd>/</kbd> to add a block
           </span>
         </span>
         <span className="plan-editor-actions">
