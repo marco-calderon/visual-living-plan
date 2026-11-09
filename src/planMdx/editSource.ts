@@ -169,7 +169,7 @@ export function mergeEditedBody(original: string, edited: string): string {
         base[i]!.key === next[j]!.key ? table[i + 1]![j + 1]! + 1 : Math.max(table[i + 1]![j]!, table[i]![j + 1]!)
     }
   }
-  const pieces: Array<{ kept: number } | { text: string }> = []
+  const pieces: Array<{ kept: number } | { moved: number } | { text: string }> = []
   let i = 0
   let j = 0
   while (j < cols) {
@@ -185,6 +185,25 @@ export function mergeEditedBody(original: string, edited: string): string {
     }
   }
 
+  // A block that only moved is outside the run above but unchanged: it keeps the file text too.
+  const kept = new Set(pieces.flatMap((piece) => ('kept' in piece ? [piece.kept] : [])))
+  const unused = new Map<string, number[]>()
+  base.forEach((block, index) => {
+    if (kept.has(index)) return
+    unused.set(block.key, [...(unused.get(block.key) ?? []), index])
+  })
+  let at = 0
+  for (const [index, piece] of pieces.entries()) {
+    if ('kept' in piece) {
+      at += 1
+      continue
+    }
+    const key = next[at]!.key
+    at += 1
+    const match = unused.get(key)?.shift()
+    if (match !== undefined) pieces[index] = { moved: match }
+  }
+
   let out = ''
   let previous: number | null = null
   for (const piece of pieces) {
@@ -197,6 +216,11 @@ export function mergeEditedBody(original: string, edited: string): string {
       }
       out += original.slice(block.start, block.end)
       previous = piece.kept
+    } else if ('moved' in piece) {
+      const block = base[piece.moved]!
+      if (out) out += '\n\n'
+      out += original.slice(block.start, block.end)
+      previous = null
     } else {
       if (out) out += '\n\n'
       out += piece.text
