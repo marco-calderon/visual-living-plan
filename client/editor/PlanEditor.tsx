@@ -20,6 +20,7 @@ import { Button } from '../ui/button.tsx'
 import { clearDraft, throttle, writeDraft, type PlanDraft } from './draftStore.ts'
 import { planJsxDescriptors } from './entryEditors.tsx'
 import { slashMenuPlugin } from './slashMenu.tsx'
+import { lockedCardsPlugin } from './lockedPlugin.tsx'
 import { codeFenceEditor } from './codeFence.tsx'
 import { blockHandlesPlugin, releaseOuterCarets, syncFocusedNestedEditor } from './blockHandles.tsx'
 import './planEditor.css'
@@ -201,6 +202,7 @@ export function PlanEditor({ planId, base, draft, outdated, publish, onClose }: 
       codeBlockPlugin({ codeBlockEditorDescriptors: [codeFenceEditor] }),
       jsxPlugin({ jsxComponentDescriptors: planJsxDescriptors }),
       slashMenuPlugin(),
+      lockedCardsPlugin(),
       blockHandlesPlugin(),
       markdownShortcutPlugin(),
     ],

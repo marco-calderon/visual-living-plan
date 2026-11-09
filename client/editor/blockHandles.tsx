@@ -21,6 +21,7 @@ import {
 import { ArrowDown, ArrowUp, GripVertical, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { createPortal } from 'react-dom'
+import { isLockedNode } from './locked.ts'
 
 /**
  * Block handles, like a block editor's side menu: a grip to drag a block to another place, and in
@@ -151,6 +152,13 @@ function BlockHandles({ level }: { level: Level }) {
   const [menu, setMenu] = useState(false)
   const [line, setLine] = useState<number | null>(null)
   const [bar, setBar] = useState<Bar | null>(null)
+  // A locked card's body is read-only: its rows keep their order, so it has no grip.
+  const [editable, setEditable] = useState(() => editor.isEditable())
+  useEffect(() => {
+    // The body can turn read-only before this listens, so read where it is now too.
+    setEditable(editor.isEditable())
+    return editor.registerEditableListener(setEditable)
+  }, [editor])
   const menuPresence = usePresence(menu, MENU_OUT_MS)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const handlesRef = useRef<HTMLDivElement>(null)
@@ -358,10 +366,11 @@ function BlockHandles({ level }: { level: Level }) {
 
   const remove = useCallback(() => {
     if (!key) return
+    if (editor.getEditorState().read(() => isLockedNode($getNodeByKey(key)))) return
     setMenu(false)
     change(() => $getNodeByKey(key)?.remove())
     setKey(null)
-  }, [change, key])
+  }, [change, editor, key])
 
   function onGripDown(event: PointerEvent<HTMLButtonElement>) {
     if (!key || event.button !== 0) return
@@ -412,9 +421,10 @@ function BlockHandles({ level }: { level: Level }) {
     }
   }
 
-  if (!container) return null
+  if (!container || !editable) return null
   const keys = key ? blockKeys(editor) : []
   const index = key ? keys.indexOf(key) : -1
+  const locked = key ? editor.getEditorState().read(() => isLockedNode($getNodeByKey(key))) : false
   return createPortal(
     <>
       <div
@@ -466,7 +476,14 @@ function BlockHandles({ level }: { level: Level }) {
             >
               <ArrowDown size={14} aria-hidden="true" /> Move down
             </button>
-            <button type="button" role="menuitem" className="plan-block-menu-danger" onClick={remove}>
+            <button
+              type="button"
+              role="menuitem"
+              className="plan-block-menu-danger"
+              disabled={locked}
+              title={locked ? 'Locked cards cannot be removed' : undefined}
+              onClick={remove}
+            >
               <Trash2 size={14} aria-hidden="true" /> Delete
             </button>
           </div>

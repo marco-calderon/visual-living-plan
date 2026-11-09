@@ -288,12 +288,24 @@
   .plan-icon-popover .plan-icon-option { width: 2rem; height: 2rem; }
 }
 
-.plan-editor-flag {
+.plan-editor .plan-editor-flag {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   color: var(--muted);
   font-size: 13px;
+  white-space: nowrap;
+}
+
+/* The page's form inputs are 40px tall; a flag in the card header is a plain small checkbox. */
+.plan-editor .plan-editor-flag input[type='checkbox'] {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--accent);
 }
 
 .plan-editor-remove {
@@ -863,4 +875,58 @@
 .plan-editor-content img {
   max-width: 100%;
   height: auto;
+}
+
+/*
+ * A locked card (LOCKED_ENTRY_TAGS in locked.ts) and its rows: shown as they are, grayed out with
+ * the project's surface and muted tokens, and every control disabled like the page's own.
+ */
+.plan-editor-card[data-locked='true'] {
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+
+.plan-editor-card[data-locked='true'] .plan-editor-card[data-locked='true'] {
+  background: var(--surface);
+}
+
+.plan-editor-card[data-locked='true'] .plan-editor-body,
+.plan-editor-card[data-locked='true'] .plan-editor-body :is(p, li, blockquote, h1, h2, h3, h4, h5, h6) {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.plan-editor-card[data-locked='true'] :is(input, button, .plan-select-trigger):disabled,
+.plan-editor-card[data-locked='true'] .plan-select-trigger[data-disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.plan-editor .plan-editor-card[data-locked='true'] .plan-editor-input:disabled {
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.plan-editor-card[data-locked='true'] .plan-editor-remove:disabled:hover {
+  background: transparent;
+  color: var(--muted);
+}
+
+.plan-editor-card[data-locked='true'] .plan-card-label {
+  opacity: 0.72;
+}
+
+.plan-editor-locked {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: default;
 }

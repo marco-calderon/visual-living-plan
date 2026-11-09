@@ -8,14 +8,15 @@ import {
   type JsxEditorProps,
 } from '@mdxeditor/editor'
 import { $getNodeByKey, HISTORY_PUSH_TAG, SKIP_DOM_SELECTION_TAG, SKIP_SCROLL_INTO_VIEW_TAG } from 'lexical'
-import { Trash2 } from 'lucide-react'
+import { Lock, Trash2 } from 'lucide-react'
 import type { MdxJsxAttribute, MdxJsxFlowElement, MdxJsxTextElement } from 'mdast-util-mdx-jsx'
-import { useId, useRef } from 'react'
+import { Fragment, useContext, useId, useRef } from 'react'
 import { CardLabel } from '../entries/CardLabel.tsx'
 import { cx } from '../entries/styles.ts'
 import { calloutKind, phaseStatus } from '../entries/types.ts'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select.tsx'
 import { IconPicker } from './iconPicker.tsx'
+import { isLockedTag, LockedContext } from './locked.ts'
 import { StatusPicker } from './statusPicker.tsx'
 import { useIsolatedFromEditor } from './isolate.ts'
 
@@ -183,12 +184,27 @@ function withAttrs(node: JsxNode, changes: Record<string, string>): JsxNode['att
   )
 }
 
-function PropControl({ spec, value, onChange }: { spec: PropSpec; value: string; onChange: (value: string) => void }) {
+function PropControl({
+  spec,
+  value,
+  onChange,
+  disabled = false,
+}: {
+  spec: PropSpec
+  value: string
+  onChange: (value: string) => void
+  disabled?: boolean
+}) {
   const id = useId()
   if (spec.control === 'flag') {
     return (
       <label className="plan-editor-flag">
-        <input type="checkbox" checked={value === 'true'} onChange={(event) => onChange(event.target.checked ? 'true' : 'false')} />
+        <input
+          type="checkbox"
+          checked={value === 'true'}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.checked ? 'true' : 'false')}
+        />
         {spec.label}
       </label>
     )
@@ -196,7 +212,7 @@ function PropControl({ spec, value, onChange }: { spec: PropSpec; value: string;
   if (spec.control === 'select') {
     const options = spec.options ?? []
     return (
-      <Select value={value || (options[0] ?? '')} onValueChange={(next) => onChange(String(next ?? ''))}>
+      <Select value={value || (options[0] ?? '')} disabled={disabled} onValueChange={(next) => onChange(String(next ?? ''))}>
         <SelectTrigger className="plan-editor-select" aria-label={spec.label}>
           <SelectValue />
         </SelectTrigger>
@@ -217,6 +233,7 @@ function PropControl({ spec, value, onChange }: { spec: PropSpec; value: string;
       aria-label={spec.label}
       placeholder={spec.placeholder}
       value={value}
+      disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
     />
   )
@@ -250,16 +267,29 @@ function EntryEditor({ spec, mdastNode }: { spec: EntrySpec; mdastNode: JsxNode 
   const label = kind ? `${spec.label} · ${kind}` : spec.label
   const head = useRef<HTMLDivElement>(null)
   useIsolatedFromEditor(head)
+  // A card in LOCKED_ENTRY_TAGS, and every row inside one, shows as it is and cannot be changed.
+  const insideLocked = useContext(LockedContext)
+  const lockedHere = isLockedTag(spec.tag)
+  const locked = insideLocked || lockedHere
+  const control = (prop: PropSpec) => (
+    <PropControl spec={prop} value={readAttr(mdastNode, prop.name)} disabled={locked} onChange={(value) => set(prop.name, value)} />
+  )
   return (
     <section
       className={cx('plan-editor-card', spec.row ? 'plan-editor-row' : 'plan-entry', spec.tag === 'callout' && 'plan-callout')}
       data-editor-entry={spec.tag}
       data-kind={kind}
       data-status={spec.pickStatus ? status : undefined}
+      data-locked={locked ? 'true' : undefined}
+      aria-disabled={locked || undefined}
     >
       <div className="plan-editor-head" ref={head}>
-        {spec.pickStatus ? <StatusPicker status={status} onChange={(next) => set('status', next)} /> : null}
-        {spec.pickIcon ? (
+        {spec.pickStatus ? <StatusPicker status={status} disabled={locked} onChange={(next) => set('status', next)} /> : null}
+        {spec.pickIcon && locked ? (
+          <CardLabel icon={readAttr(mdastNode, 'icon') || undefined} color={readAttr(mdastNode, 'color')} className="plan-editor-kicker">
+            {label}
+          </CardLabel>
+        ) : spec.pickIcon ? (
           <IconPicker
             icon={readAttr(mdastNode, 'icon')}
             color={readAttr(mdastNode, 'color')}
@@ -275,9 +305,22 @@ function EntryEditor({ spec, mdastNode }: { spec: EntrySpec; mdastNode: JsxNode 
         {spec.props
           .filter((prop) => prop.wide)
           .map((prop) => (
-            <PropControl key={prop.name} spec={prop} value={readAttr(mdastNode, prop.name)} onChange={(value) => set(prop.name, value)} />
+            <Fragment key={prop.name}>{control(prop)}</Fragment>
           ))}
-        <button type="button" className="plan-editor-remove" aria-label={`Remove ${spec.label.toLowerCase()}`} title="Remove" onClick={remove}>
+        {lockedHere ? (
+          <span className="plan-editor-locked" title="The agent writes this card for people to answer on the page. Move it with its grip.">
+            <Lock size={12} strokeWidth={2.25} aria-hidden="true" />
+            Locked
+          </span>
+        ) : null}
+        <button
+          type="button"
+          className="plan-editor-remove"
+          aria-label={`Remove ${spec.label.toLowerCase()}`}
+          title={locked ? 'Locked cards cannot be removed' : 'Remove'}
+          disabled={locked}
+          onClick={remove}
+        >
           <Trash2 size={14} aria-hidden="true" />
         </button>
         <div className="plan-editor-props">
@@ -285,13 +328,13 @@ function EntryEditor({ spec, mdastNode }: { spec: EntrySpec; mdastNode: JsxNode 
             .filter((prop) => !prop.wide)
             .map((prop) =>
               prop.control === 'flag' ? (
-                <PropControl key={prop.name} spec={prop} value={readAttr(mdastNode, prop.name)} onChange={(value) => set(prop.name, value)} />
+                <Fragment key={prop.name}>{control(prop)}</Fragment>
               ) : (
                 <span key={prop.name} className="plan-editor-prop">
                   <span className="plan-editor-prop-name" aria-hidden="true">
                     {prop.label}
                   </span>
-                  <PropControl spec={prop} value={readAttr(mdastNode, prop.name)} onChange={(value) => set(prop.name, value)} />
+                  {control(prop)}
                 </span>
               ),
             )}
@@ -299,11 +342,13 @@ function EntryEditor({ spec, mdastNode }: { spec: EntrySpec; mdastNode: JsxNode 
       </div>
       {spec.hasChildren ? (
         <div className="plan-editor-body plan-rich">
-          <NestedLexicalEditor<JsxNode>
-            block
-            getContent={(node) => node.children}
-            getUpdatedMdastNode={(node, children) => ({ ...node, children } as JsxNode)}
-          />
+          <LockedContext.Provider value={locked}>
+            <NestedLexicalEditor<JsxNode>
+              block
+              getContent={(node) => node.children}
+              getUpdatedMdastNode={(node, children) => ({ ...node, children } as JsxNode)}
+            />
+          </LockedContext.Provider>
         </div>
       ) : null}
     </section>

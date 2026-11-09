@@ -22,7 +22,15 @@ function moveInList(event: KeyboardEvent<HTMLElement>) {
  * A phase's status icon, as a button. It opens a short list of statuses, each with its icon;
  * a pick sets the status and closes the list.
  */
-export function StatusPicker({ status, onChange }: { status: PhaseStatus; onChange: (next: PhaseStatus) => void }) {
+export function StatusPicker({
+  status,
+  onChange,
+  disabled = false,
+}: {
+  status: PhaseStatus
+  onChange: (next: PhaseStatus) => void
+  disabled?: boolean
+}) {
   const [open, setOpen] = useState(false)
   const picked = useRef<HTMLButtonElement>(null)
   return (
@@ -31,6 +39,7 @@ export function StatusPicker({ status, onChange }: { status: PhaseStatus; onChan
         className="plan-phase-status plan-editor-status plan-editor-status-button"
         data-status={status}
         data-status-picker=""
+        disabled={disabled}
         aria-label={`Status ${statusLabel(status)}. Change status`}
         title="Change status"
       >
