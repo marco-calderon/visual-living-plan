@@ -54,7 +54,8 @@ export function useWrapCode(): boolean {
 export function appearance(wrap: boolean) {
   return {
     themeType: 'system' as const,
-    preferredHighlighter: 'shiki-js' as const,
+    // Pierre's WebAssembly highlighter. Every theme in Settings has a Highlights palette.
+    preferredHighlighter: 'highlights' as const,
     overflow: wrap ? ('wrap' as const) : ('scroll' as const),
     unsafeCSS: `
     :host {

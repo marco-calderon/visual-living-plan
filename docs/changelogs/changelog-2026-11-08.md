@@ -20,6 +20,7 @@ In the page editor, a short gray `+` button under a card or paragraph adds a new
 - A gray `+` bar shows in the gap under the card or paragraph you point at, or the one you are editing on a phone. It adds a line below and opens the card menu.
 - The card menu starts with Text, which keeps the new line a paragraph to write in.
 - Code blocks in the editor use Pierre's code editor, with the same syntax highlighting and theme as the page. A picker above each block sets its language.
+- Code on the page and in the editor is highlighted by Highlights, Pierre's WebAssembly highlighter, in place of Shiki. It covers 152 languages and every code theme in Settings, and the page no longer downloads a grammar per language.
 - The card menu has Code and Mermaid. Mermaid blocks draw their diagram under the code as you type, and show the parse error when the code does not parse.
 - Click a phase's status icon to change its status. A short list shows each status with its icon. It replaces the Status dropdown.
 
@@ -33,4 +34,4 @@ In the page editor, a short gray `+` button under a card or paragraph adds a new
 
 ### Notes
 
-Editor-only change in the browser bundle. No plan format, CLI, or Worker route changes. `shiki` is now a direct dev dependency (it was already installed through `@pierre/diffs`) so the editor can tell which languages it highlights.
+Browser bundle only. No plan format, CLI, or Worker route changes. `@pierre/diffs` moves from 1.5.2 to 1.6.4, which brings `@pierre/highlights` 0.4.0; it is also a direct dev dependency, since the editor asks it which languages it highlights. Shiki stays installed as Pierre's other backend but no longer loads.

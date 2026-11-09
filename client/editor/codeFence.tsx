@@ -1,7 +1,7 @@
 import { useCodeBlockEditorContext, type CodeBlockEditorDescriptor, type CodeBlockEditorProps } from '@mdxeditor/editor'
 import { EditProvider, File, type EditorFactory, type FileContents } from '@pierre/diffs/react'
 import { Editor } from '@pierre/diffs/edit'
-import { bundledLanguages, bundledLanguagesAlias } from 'shiki/langs'
+import { isSupportedLanguage } from '@pierre/highlights'
 import { useEffect, useId, useMemo, useRef, useState, type RefObject } from 'react'
 import { appearance, useDiffsThemePair, useWrapCode } from '../CodeBlock.tsx'
 import { renderMermaidSvg } from '../mdx/Mermaid.tsx'
@@ -37,7 +37,7 @@ const FIXED_LANGUAGES = new Set(['workflow'])
 /** The fence's language when the highlighter knows it, or plain text (as for `workflow`). */
 export function highlightLanguage(lang: string): string {
   const id = lang.trim().toLowerCase()
-  return id in bundledLanguages || id in bundledLanguagesAlias ? id : 'text'
+  return isSupportedLanguage(id) ? id : 'text'
 }
 
 type FenceEditor = Editor<'file', undefined, undefined>
