@@ -7,6 +7,8 @@ type ColumnProps = {
   filter?: boolean | string
   search?: boolean | string
   sort?: boolean | string
+  /** `wrap` for every cell in this column, such as `true` or `"40%"`. A cell can set its own. Short cells stay on one line. */
+  wrap?: boolean | string | number
   children?: ReactNode
 }
 

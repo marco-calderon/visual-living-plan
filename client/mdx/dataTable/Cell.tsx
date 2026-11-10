@@ -3,7 +3,7 @@ import { markPart } from './model.tsx'
 
 type CellProps = {
   value?: string | number
-  /** `true` wraps the cell. A percentage, such as `"40%"` or `40`, wraps it inside that share of the table. */
+  /** `true` wraps the cell. A percentage, such as `"40%"` or `40`, wraps it inside that share of the table. `false` keeps it on one line. */
   wrap?: boolean | string | number
   children?: ReactNode
 }

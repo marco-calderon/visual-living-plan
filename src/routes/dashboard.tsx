@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, isRedirect, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { planActivity, type DashboardPeriod, type DashboardSummary } from "../dashboard.ts";
@@ -7,6 +7,7 @@ import {
   completionLabel,
   DASHBOARD_FILTERS,
   dashboardStatusLine,
+  emptyPlansText,
   formatDuration,
   formatWhen,
   periodIndex,
@@ -21,6 +22,7 @@ import { loadAccount, type AccountPayload } from "../planFns.ts";
 import type { PlanRecord } from "../processRecord.ts";
 import { PlanRowActions } from "./PlanRowActions.tsx";
 import { DashboardSearch } from "./DashboardSearch.tsx";
+import { dashboardLoadingCss, ROW_SKELETON_WIDTHS, STAT_SKELETONS } from "../dashboardLoading.ts";
 import { startOfflineEngine } from "../../client/offline/engine.ts";
 import { refreshDeviceDashboards } from "../../client/offline/warmPlans.ts";
 import { dashboardAccountDecision, isAccountNetworkFailure } from "../offlineSync.ts";
@@ -37,6 +39,8 @@ const PERIODS: Array<{ id: DashboardPeriod; label: string; aria?: string }> = [
 ];
 
 const FILTERS = DASHBOARD_FILTERS;
+
+const PERIOD_PHRASE: Record<DashboardPeriod, string> = { day: "today", week: "this week", month: "this month" };
 
 type DashboardSearch = { period?: DashboardPeriod };
 
@@ -109,6 +113,7 @@ function DashboardPage() {
   const [filter, setFilter] = useState<DashboardFilter>("all");
   const [searching, setSearching] = useState(false);
   const [shift, setShift] = useState<Shift>("enter");
+  const [refreshing, setRefreshing] = useState(false);
   const [online, setOnline] = useState(() =>
     typeof navigator === "undefined" ? true : navigator.onLine,
   );
@@ -122,6 +127,8 @@ function DashboardPage() {
     refetchInterval: () => (navigator.onLine ? DASHBOARD_POLL_MS : false),
     // The query reads this device's copy itself when the network is down.
     networkMode: "always",
+    // A new period keeps the last numbers on screen, dimmed, until its own arrive.
+    placeholderData: keepPreviousData,
   });
 
   useEffect(() => {
@@ -166,12 +173,26 @@ function DashboardPage() {
   const payload = dashboard.data?.body ?? null;
   const error = dashboard.isError ? "Could not read the dashboard." : "";
   const offlineAt = !dashboard.isError && dashboard.data?.offline ? dashboard.data.savedAt : null;
+  // The rows on screen belong to the period before this one. Its own are on the way.
+  const switching = dashboard.isPlaceholderData && !dashboard.isError;
 
+  // The shift plays when the new rows arrive, not while the old ones wait.
   useEffect(() => {
-    if (!payload || shift === "quiet") return;
+    if (!payload || shift === "quiet" || switching) return;
     const timer = window.setTimeout(() => setShift("quiet"), 240);
     return () => window.clearTimeout(timer);
-  }, [payload, shift]);
+  }, [payload, shift, switching]);
+
+  async function refresh() {
+    if (refreshing) return;
+    setShift("filter");
+    setRefreshing(true);
+    try {
+      await dashboard.refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   function choosePeriod(next: DashboardPeriod) {
     if (next === period) return;
@@ -206,15 +227,19 @@ function DashboardPage() {
   const plans = payload?.plans ?? [];
   const shown = visiblePlans(plans, filter);
   const offline = !online || offlineAt !== null;
-  const status = offlineAt
-    ? `Offline · updated ${formatWhen(offlineAt)}`
-    : error || (payload ? dashboardStatusLine(payload.summary, shown.length, filter) : "Loading…");
+  const loading = !payload && !error;
+  const status = switching
+    ? `Loading ${PERIOD_PHRASE[period]}…`
+    : offlineAt
+      ? `Offline · updated ${formatWhen(offlineAt)}`
+      : error || (payload ? dashboardStatusLine(payload.summary, shown.length, filter) : "Loading plans…");
 
   return (
     <>
       <HostBar title="Dashboard" label={account.user.name || account.user.email} />
+      <style dangerouslySetInnerHTML={{ __html: dashboardLoadingCss() }} />
       <main className="dashboard">
-        <div className="dashboard-live" data-shift={shift}>
+        <div className="dashboard-live" data-shift={switching ? "quiet" : shift}>
           <section className="dash-section" aria-label="Summary">
             <div className="section-bar">
               <div className="tabs" role="group" aria-label="Summary period">
@@ -235,17 +260,22 @@ function DashboardPage() {
                 type="button"
                 variant="ghost"
                 className="titlebar-action"
-                onClick={() => {
-                  setShift("filter");
-                  void dashboard.refetch();
-                }}
+                aria-busy={refreshing || undefined}
+                disabled={refreshing}
+                onClick={() => void refresh()}
               >
-                <RefreshCcw />
-                Refresh
+                <RefreshCcw className={refreshing ? "dash-spin" : undefined} />
+                {refreshing ? "Refreshing…" : "Refresh"}
               </Button>
             </div>
-            <section className="stats" aria-live="polite">
-              {payload ? (
+            <section
+              className={switching ? "stats dash-pending" : "stats"}
+              aria-live="polite"
+              aria-busy={loading || switching || undefined}
+            >
+              {loading ? (
+                <StatSkeletons />
+              ) : payload ? (
                 <>
                   <Stat label="Active" value={String(payload.summary.active ?? 0)} />
                   <Stat label="Idle" value={String(payload.summary.idle ?? payload.summary.running)} />
@@ -258,7 +288,10 @@ function DashboardPage() {
               ) : null}
             </section>
             <p className="lede">{LEDE}</p>
-            <p className="status">{status}</p>
+            <div className="dash-status-row">
+              {loading || switching ? <span className="dash-spinner" aria-hidden="true" /> : null}
+              <p className="status">{status}</p>
+            </div>
           </section>
           <section className="dash-section" aria-label="Plans">
             <div className="section-bar">
@@ -277,7 +310,11 @@ function DashboardPage() {
               </div>
             </div>
             <DashboardSearch offline={offline} onActiveChange={setSearching} />
-            <div className="table-wrap" hidden={searching}>
+            <div
+              className={switching ? "table-wrap dash-pending" : "table-wrap"}
+              hidden={searching}
+              aria-busy={loading || switching || undefined}
+            >
               <table>
                 <caption>Plans</caption>
                 <thead>
@@ -290,10 +327,21 @@ function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {payload && shown.length === 0 ? (
+                  {loading ? (
+                    <RowSkeletons />
+                  ) : !payload ? (
                     <tr>
                       <td className="empty" colSpan={5}>
-                        No plans in this view.
+                        Could not read the dashboard.
+                        <Button type="button" variant="secondary" className="dash-retry" onClick={() => void refresh()}>
+                          Try again
+                        </Button>
+                      </td>
+                    </tr>
+                  ) : shown.length === 0 ? (
+                    <tr>
+                      <td className="empty" colSpan={5}>
+                        {emptyPlansText(filter, period)}
                       </td>
                     </tr>
                   ) : (
@@ -315,6 +363,48 @@ function isAccountPayload(value: unknown): value is AccountPayload {
   if (!value || typeof value !== "object") return false;
   const user = (value as { user?: { email?: unknown } }).user;
   return Boolean(user && typeof user.email === "string");
+}
+
+/** Placeholder cards while the first numbers load. The status line says what is loading. */
+function StatSkeletons() {
+  return (
+    <>
+      {Array.from({ length: STAT_SKELETONS }, (_, index) => (
+        <article className="stat stat-skeleton" aria-hidden="true" key={index}>
+          <span className="dash-skeleton" />
+          <span className="dash-skeleton" />
+        </article>
+      ))}
+    </>
+  );
+}
+
+/** Placeholder rows shaped like plan rows: title, status pill, meter, start time. */
+function RowSkeletons() {
+  return (
+    <>
+      {ROW_SKELETON_WIDTHS.map((width, index) => (
+        <tr className="row-skeleton" aria-hidden="true" key={index}>
+          <td>
+            <span className="dash-skeleton skel-title" style={{ width: width.title }} />
+            <span className="dash-skeleton skel-sub" style={{ width: width.sub }} />
+            <span className="dash-skeleton skel-sub" style={{ width: width.path }} />
+          </td>
+          <td>
+            <span className="dash-skeleton skel-pill" />
+          </td>
+          <td>
+            <span className="dash-skeleton skel-meter" />
+            <span className="dash-skeleton skel-sub" style={{ width: "96px" }} />
+          </td>
+          <td>
+            <span className="dash-skeleton skel-sub" style={{ width: width.when }} />
+          </td>
+          <td />
+        </tr>
+      ))}
+    </>
+  );
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

@@ -34,7 +34,8 @@ The service and the private server are Elysia apps. Route handlers live in `src/
 | `src/httpServer.ts` | `Bun.serve` binding for an Elysia app |
 | `src/agentEvents.ts` | Client-side SSE reader. Use `planApiUrl` so `/plans/<id>/` URLs resolve correctly |
 | `src/parse.ts`, `src/planMdx/`, `client/planMdx.tsx`, `client/entries/`, `client/mdx/` | Plan file in. The page compiles it as MDX and renders the React plan |
-| `src/planSearch.ts` | Search one plan block by block (`GET /api/search` on the local session and on the plan's Durable Object), or every plan a dashboard lists (`GET /api/dashboard/search` locally, `GET /api/account/search` on the host). Live by default; saved versions only when `version` asks |
+| `src/planSearch.ts`, `src/searchMatch.ts` | Search one plan block by block (`GET /api/search` on the local session and on the plan's Durable Object), or every plan a dashboard lists by title and text (`GET /api/dashboard/search` locally, `GET /api/account/search` on the host). Live by default; saved versions only when `version` asks. Exact unless `fuzzy=on`, which the dashboards send |
+| `src/dashboardLoading.ts` | Skeletons, the spinner, and the dimmed state both dashboards show while plans or search results load |
 | `src/workflow.ts`, `src/execution.ts` | Expected workflow and the live execution overlay |
 | `client/` | React Flow canvas. It reads `window.__LIVE_PLAN_BASE__` and calls `/api/...` under that prefix |
 | `src/host/` | Worker session for `--cloud`: Better Auth, D1 plan rows, Elysia routes, and one SQLite Durable Object per plan |
@@ -66,11 +67,26 @@ This project runs on Bun, not Node. Use `bun` for installs, scripts, and tests. 
 
 ```bash
 bun install
+bunx playwright install chromium   # once, for the tests that open a browser
 bun test ./test
 bun run typecheck
+bun run test:e2e
 ```
 
-`bun test ./test` is the same as `bun run test`. Service behavior is covered in `test/planService.test.ts`. The older registry catalog is covered in `test/registry.test.ts`.
+`bun test ./test` is the same as `bun run test`. Service behavior is covered in `test/planService.test.ts`. The older registry catalog is covered in `test/registry.test.ts`. A few unit tests open headless Chromium through Playwright, so they fail until the browser is installed.
+
+`bun run test:e2e` builds the page client, starts the e2e plan servers from `scripts/e2e-server.ts`, and runs the Playwright specs in `e2e/`. The plan's code blocks finish drawing after the plan renders and change its height, so a spec that reads a scroll position calls `waitForCodeBlocks` from `e2e/fixtures/codeBlocks.ts` first.
+
+### Continuous integration
+
+`.github/workflows/test.yml` runs two jobs on every pull request and every push to `main`:
+
+| Check | Runs |
+|---|---|
+| `Unit tests` | `bun run typecheck`, then `bun run test` |
+| `E2E tests` | `bun run test:e2e`. Traces of failed tests are uploaded as the `playwright-results` artifact |
+
+`publish.yml` calls the same workflow, so a release is published to npm only when both checks pass. To block a merge on a failure, a repository admin requires the `Unit tests` and `E2E tests` checks on `main` in Settings → Rules → Rulesets (or Settings → Branches).
 
 When a change alters how plans are hosted, how agents are notified, or what survives a restart, add an architecture decision under [docs/architecture/decisions](architecture/decisions/README.md) and update [docs/architecture/README.md](architecture/README.md) if the current picture changed. Update [docs/agent-guidelines.md](agent-guidelines.md) and [skills/live-plan/SKILL.md](../skills/live-plan/SKILL.md) when the CLI contract changes. Leave [skills/live-plan/primitives.md](../skills/live-plan/primitives.md) alone unless the plan vocabulary changed.
 

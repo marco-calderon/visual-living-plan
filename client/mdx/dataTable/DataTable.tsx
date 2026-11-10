@@ -30,12 +30,14 @@ type DataTableProps = {
   children?: ReactNode
   label?: string
   placeholder?: string
+  /** `wrap` for every column: `true`, or a percentage of the table. A column or a cell can set its own, or `wrap={false}`. Short cells stay on one line. */
+  wrap?: boolean | string | number
 }
 
 type SortColumn = Column<DataTableFeatures, RowModel, unknown>
 
-export function DataTable({ children, label, placeholder = 'Search' }: DataTableProps) {
-  const model = useMemo(() => readDataTable(children), [children])
+export function DataTable({ children, label, placeholder = 'Search', wrap }: DataTableProps) {
+  const model = useMemo(() => readDataTable(children, wrap), [children, wrap])
   const searchIndexes = model.columns.flatMap((column, index) => (column.search ? [index] : []))
   const filterColumn = model.columns.find((column) => column.filter)
   const filterIndex = filterColumn ? model.columns.indexOf(filterColumn) : -1
