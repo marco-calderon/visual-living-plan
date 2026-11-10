@@ -80,9 +80,10 @@ function clientScript(
   let interactionsLocked = ${JSON.stringify(executionActive)};
   let currentAccent = ${JSON.stringify(theme.accent)};
   const toast = document.getElementById('toast');
-  function showToast(message) {
+  // type is a Ding toast kind: success (default), error, info, or warning. The fallback toast ignores it.
+  function showToast(message, type) {
     if (typeof window.showPlanToast === 'function') {
-      window.showPlanToast(message);
+      window.showPlanToast(message, type);
       return;
     }
     if (!toast) return;
@@ -338,7 +339,7 @@ function clientScript(
       try {
         await putAccent(accent);
       } catch (error) {
-        showToast(error instanceof Error ? error.message : 'Accent update failed');
+        showToast(error instanceof Error ? error.message : 'Accent update failed', 'error');
       }
     });
   });
@@ -357,7 +358,7 @@ function clientScript(
       try {
         await putAccent(picker.value);
       } catch (error) {
-        showToast(error instanceof Error ? error.message : 'Accent update failed');
+        showToast(error instanceof Error ? error.message : 'Accent update failed', 'error');
       }
     });
   }
@@ -375,7 +376,7 @@ function clientScript(
       showToast(next ? 'Code wraps' : 'Code scrolls');
     } catch (error) {
       applyWrapCode(previous);
-      showToast(error instanceof Error ? error.message : 'Could not save code wrap');
+      showToast(error instanceof Error ? error.message : 'Could not save code wrap', 'error');
     }
   });
 
@@ -390,7 +391,7 @@ function clientScript(
         showToast((pageWidthLabels[next] || 'Page') + ' width');
       } catch (error) {
         applyLayout(previous);
-        showToast(error instanceof Error ? error.message : 'Layout update failed');
+        showToast(error instanceof Error ? error.message : 'Layout update failed', 'error');
       }
     });
   });
@@ -433,7 +434,7 @@ function clientScript(
     } catch (error) {
       applyDiffsTheme(previous, previousLabel);
       window.dispatchEvent(new CustomEvent('living-plan-theme', { detail: { diffsTheme: previous } }));
-      showToast(error instanceof Error ? error.message : 'Diff theme update failed');
+      showToast(error instanceof Error ? error.message : 'Diff theme update failed', 'error');
     }
   });
 
@@ -547,7 +548,7 @@ function clientScript(
     const instant = Boolean(options && options.instant);
     const section = findPlanTarget(ref);
     if (!section) {
-      if (recordHistory) showToast('No plan section for this step');
+      if (recordHistory) showToast('No plan section for this step', 'info');
       return;
     }
     const canonical = canonicalRef(section, decodeToken(ref));
@@ -845,7 +846,7 @@ function clientScript(
 
   window.livingPlanFocusPlanRef = focusPlanRef;
   window.livingPlanWorkflowFocusMissed = function () {
-    showToast('No workflow step for this section');
+    showToast('No workflow step for this section', 'info');
   };
 
   try {
@@ -1238,7 +1239,7 @@ function clientScript(
       if (nextPending) syncPending(nextPending.textContent || '0');
       if (parsed.title) document.title = parsed.title;
     } catch {
-      showToast('Could not update the plan');
+      showToast('Could not update the plan', 'error');
     } finally {
       refreshing = false;
     }

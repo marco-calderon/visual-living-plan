@@ -2,7 +2,7 @@ type PlanWindow = Window & {
   livingPlanPendingWorkflowFocus?: string | null
   livingPlanFocusPlanRef?: (ref: string) => void
   livingPlanWorkflowFocusMissed?: () => void
-  showPlanToast?: (message: string) => void
+  showPlanToast?: (message: string, type?: 'success' | 'error' | 'info' | 'warning') => void
   __planChromeBound?: boolean
 }
 
@@ -113,8 +113,9 @@ function setTocOpen(open: boolean): void {
   if (backdrop instanceof HTMLElement) backdrop.hidden = docked || !open
 }
 
+/** Says that a jump found nothing to show. */
 function toast(message: string): void {
-  ;(window as PlanWindow).showPlanToast?.(message)
+  ;(window as PlanWindow).showPlanToast?.(message, 'info')
 }
 
 function historyState(): JumpState {

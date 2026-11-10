@@ -64,7 +64,7 @@ export default defineConfig({
       'use-sync-external-store/shim/index.js',
       'use-sync-external-store/shim/with-selector.js',
       'lucide-react',
-      'sonner',
+      '@yusufceng1z/ding-react',
       'elkjs/lib/elk.bundled.js',
       '@pierre/diffs/react',
       '@tanstack/react-table',

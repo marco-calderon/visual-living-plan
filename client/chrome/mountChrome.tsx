@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import { toast, Toaster } from 'sonner'
+import { toast, Toaster } from '@yusufceng1z/ding-react'
 import { AccountMenu } from './AccountMenu.tsx'
 import { CodeWrapSwitch } from './CodeWrapSwitch.tsx'
 import { DiffsThemePicker } from './DiffsThemePicker.tsx'
@@ -8,11 +8,14 @@ import { PlanVersionsMenu } from './PlanVersionsMenu.tsx'
 import { PlansMenu } from './PlansMenu.tsx'
 import { SettingsAccordion } from './SettingsAccordion.tsx'
 import { QueryProvider } from '../queryClient.tsx'
-import 'sonner/dist/styles.css'
+import './toaster.css'
+
+/** The Ding toast kinds the plan page uses. Loading is left out: plan toasts confirm a finished action. */
+export type PlanToastType = 'success' | 'error' | 'info' | 'warning'
 
 declare global {
   interface Window {
-    showPlanToast?: (message: string) => void
+    showPlanToast?: (message: string, type?: PlanToastType) => void
   }
 }
 
@@ -126,6 +129,10 @@ function mountAccountMenu() {
   )
 }
 
+/** Confirmations close after this long once the toast has opened. Errors stay until dismissed. */
+const PLAN_TOAST_MS = 1600
+const PLAN_TOAST_TYPES: readonly PlanToastType[] = ['success', 'error', 'info', 'warning']
+
 function mountToaster() {
   if (document.getElementById('plan-toaster-root')) return
   const legacy = document.getElementById('toast')
@@ -133,18 +140,13 @@ function mountToaster() {
   const host = document.createElement('div')
   host.id = 'plan-toaster-root'
   document.body.append(host)
-  window.showPlanToast = (message: string) => {
-    toast(message, { id: 'plan-toast', duration: 1600 })
+  // Ding shows one toast at a time: a new message morphs the open one instead of stacking.
+  window.showPlanToast = (message: string, type: PlanToastType = 'success') => {
+    // The server-rendered page script calls this untyped, so an unknown kind falls back to success.
+    const kind: PlanToastType = PLAN_TOAST_TYPES.includes(type) ? type : 'success'
+    toast[kind](message, kind === 'error' ? undefined : { duration: PLAN_TOAST_MS })
   }
-  createRoot(host).render(
-    <Toaster
-      position="top-left"
-      offset={{ top: '4.5rem', left: '1rem' }}
-      duration={1600}
-      visibleToasts={1}
-      toastOptions={{ className: 'plan-toast' }}
-    />,
-  )
+  createRoot(host).render(<Toaster position="top-left" theme="system" />)
 }
 
 if (typeof document !== 'undefined') {
