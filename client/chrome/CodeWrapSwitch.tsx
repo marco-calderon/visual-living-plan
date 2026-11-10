@@ -80,7 +80,7 @@ export function CodeWrapSwitch({ initialChecked }: CodeWrapSwitchProps) {
       setChecked(previous)
       publishWrapCode(previous)
       const message = error instanceof Error ? error.message : 'Could not save code wrap'
-      window.showPlanToast?.(message)
+      window.showPlanToast?.(message, 'error')
     }
   }
 

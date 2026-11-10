@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { useOwnPlanServer } from './fixtures/ownServer.ts'
+import { planToast } from './fixtures/toast.ts'
 
 // Counts and checks the plan as it is on disk, so it does not share a server with other specs.
 useOwnPlanServer(9483)
@@ -93,7 +94,7 @@ test('sample plan works on a desktop viewport', async ({ page }) => {
     await page.getByRole('button', { name: 'Sky accent' }).click()
     await expect(page.locator('#theme-accent-hex')).toHaveText('#0369a1')
     await expect(page.locator('html')).toHaveAttribute('data-accent', '#0369a1')
-    await expect(page.locator('[data-sonner-toast]')).toHaveText('Accent saved')
+    await expect(planToast(page)).toHaveText('Accent saved')
 
     await expect(page.locator('html')).toHaveAttribute('data-layout', 'default')
     await expect(page.locator('.shell')).toHaveCSS('width', '720px')
@@ -101,10 +102,10 @@ test('sample plan works on a desktop viewport', async ({ page }) => {
     await page.getByRole('radio', { name: 'Wide' }).click()
     await expect(page.locator('html')).toHaveAttribute('data-layout', 'wide')
     await expect(page.locator('.shell')).toHaveCSS('width', '1120px')
-    await expect(page.locator('[data-sonner-toast]')).toHaveText('Wide width')
+    await expect(planToast(page)).toHaveText('Wide width')
     await page.getByRole('radio', { name: 'Full' }).click()
     await expect(page.locator('html')).toHaveAttribute('data-layout', 'full')
-    await expect(page.locator('[data-sonner-toast]')).toHaveText('Full width')
+    await expect(planToast(page)).toHaveText('Full width')
     const fullWidths = await page.evaluate(() => {
       const shell = document.querySelector('.shell')
       return {
@@ -128,7 +129,7 @@ test('sample plan works on a desktop viewport', async ({ page }) => {
     await page.getByRole('radio', { name: 'Default', exact: true }).click()
     await expect(page.locator('html')).toHaveAttribute('data-layout', 'default')
     await expect(page.locator('.shell')).toHaveCSS('width', '720px')
-    await expect(page.locator('[data-sonner-toast]')).toHaveText('Default width')
+    await expect(planToast(page)).toHaveText('Default width')
   })
 
   await test.step('settings syntax theme saves', async () => {
@@ -142,7 +143,7 @@ test('sample plan works on a desktop viewport', async ({ page }) => {
     await soft.click()
     await expect(page.locator('html')).toHaveAttribute('data-diffs-theme', next ?? '')
     await expect(soft).toHaveAttribute('aria-checked', 'true')
-    await expect(page.locator('[data-sonner-toast]')).toHaveText('Diff theme saved')
+    await expect(planToast(page)).toHaveText('Diff theme saved')
   })
 
   await test.step('comment on a plan part', async () => {

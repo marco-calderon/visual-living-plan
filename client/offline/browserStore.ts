@@ -493,7 +493,7 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
       const latest = settings.get(row.id)
       // A rejected change (signed out, bad value) is dropped. Only a newer edit keeps the pending flag.
       if (latest && latest.updatedAt === row.updatedAt) writeSettings({ ...latest, pending: false })
-      if (!response.ok) window.showPlanToast?.('Could not save those settings.')
+      if (!response.ok) window.showPlanToast?.('Could not save those settings.', 'error')
     } catch {
       reachable = false
     }

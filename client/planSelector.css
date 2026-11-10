@@ -694,25 +694,3 @@ button.plan-agent-toggle {
 .plan-popover.plan-card {
   padding: 1rem 1.1rem 0.95rem;
 }
-
-[data-sonner-toaster] {
-  --normal-bg: var(--toast-bg);
-  --normal-text: var(--toast-fg);
-  --normal-border: transparent;
-  font-family: var(--font-body);
-}
-
-[data-sonner-toaster][data-sonner-theme='light'],
-[data-sonner-toaster][data-sonner-theme='dark'] {
-  --normal-bg: var(--toast-bg);
-  --normal-text: var(--toast-fg);
-  --normal-border: transparent;
-}
-
-[data-sonner-toast] {
-  background: var(--toast-bg) !important;
-  color: var(--toast-fg) !important;
-  border-color: transparent !important;
-  border-radius: 12px !important;
-  box-shadow: none !important;
-}

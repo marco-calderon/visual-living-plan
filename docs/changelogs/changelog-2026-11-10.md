@@ -1,5 +1,26 @@
 # Changelog — 2026-11-10
 
+## 2.20.0
+
+**PR:** link once known
+
+**Bump:** minor
+
+### Summary
+
+Plan toasts now use [Ding](https://ding.yusufcengiz.dev/) instead of Sonner. Each toast shows an icon for what happened, and an error stays on screen until you close it.
+
+### Improvements
+
+- A toast shows a check for a saved or sent change, a cross for an error, and an "i" when a jump finds nothing to show, such as "No plan section for this step".
+- An error toast, such as "Could not save those settings.", stays until you close it, press Escape, or a new toast replaces it. Other toasts still close after about 1.6 seconds.
+- A new toast changes the one on screen into the new message instead of stacking. The same message twice shows a ×2 counter.
+- The toast keeps the plan's look: the black pill in light mode, the white pill in dark mode, DM Sans, below the title bar on the left. Hovering it pauses its timer, and Alt+T moves focus to it.
+
+### Notes
+
+`window.showPlanToast(message, type?)` takes an optional second argument: `success` (the default), `error`, `info`, or `warning`. Sonner is removed, and the `[data-sonner-*]` style overrides with it. `package-lock.json` is back in step with `package.json`. `SHELL_CACHE_VERSION` moves to 2.20.0 so the shell worker replaces the previous cache. No plan format or storage changes, and no registry restart is needed.
+
 ## 2.19.1
 
 **PR:** [#176](https://github.com/marco-calderon/visual-living-plan/pull/176)
