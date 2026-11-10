@@ -1,8 +1,33 @@
 # Changelog — 2026-11-10
 
-## 2.17.0
+## 2.17.1
 
 **PR:** link once known
+
+**Bump:** patch
+
+### Summary
+
+A new plan no longer shows an empty "label" step in its workflow. A header row or markdown table syntax in the `<workflow>` body is read as a table, not as steps.
+
+### Bugs fixed
+
+- A `<workflow>` body that started with the column header `id | label | ref | detail` drew an extra step named "label". The header row is now skipped, on the Workflow tab and in the diagram on the plan page.
+- A markdown separator row (`---|---`) in the workflow body drew a "---" step. It is now skipped.
+- Workflow lines written with outer pipes (`| design | Design | design |`) were dropped, so `check` could report a missing workflow. They now read as steps.
+- A `from -> to` header line under `--` no longer adds an edge between steps that do not exist.
+
+### Improvements
+
+- The skill and primitives docs say to write one line per step and no header row.
+
+### Notes
+
+The plan page, the Workflow tab, the editor, and search now read the workflow body with one shared parser (`src/workflowSource.ts`). No registry restart needed.
+
+## 2.17.0
+
+**PR:** [#172](https://github.com/marco-calderon/visual-living-plan/pull/172)
 
 **Bump:** minor
 
