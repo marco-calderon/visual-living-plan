@@ -541,20 +541,32 @@ a.plan-step-label:hover {
 
 .vlp-row { gap: var(--space-sm); }
 
+/*
+ * Plan headings: ink on every theme, one size per level (DESIGN.md heading-md down to body-sm).
+ * The color is set here so the editor's own text color does not dim them.
+ */
 .plan-document > :is(h1, h2, h3, h4, h5, h6),
 .plan-rich :is(h1, h2, h3, h4, h5, h6):not(.plan-title) {
+  color: var(--ink);
   font-family: var(--font-display);
   font-weight: 600;
   letter-spacing: -0.02em;
   margin: 0 0 0.55rem;
-  line-height: 1.15;
+  line-height: 1.25;
 }
 
-.plan-document > h1 {
-  font-size: 1.45rem;
-  letter-spacing: -0.03em;
-  line-height: 1.05;
-}
+.plan-document > h1,
+.plan-rich h1:not(.plan-title) { font-size: 2rem; letter-spacing: -0.03em; line-height: 1.2; }
+.plan-document > h2,
+.plan-rich h2:not(.plan-title) { font-size: 1.5rem; }
+.plan-document > h3,
+.plan-rich h3:not(.plan-title) { font-size: 1.25rem; }
+.plan-document > h4,
+.plan-rich h4:not(.plan-title) { font-size: 1.125rem; }
+.plan-document > h5,
+.plan-rich h5:not(.plan-title) { font-size: 1rem; }
+.plan-document > h6,
+.plan-rich h6:not(.plan-title) { font-size: 0.875rem; letter-spacing: 0.02em; text-transform: uppercase; }
 
 .plan-rich :is(p, li),
 .plan-document > :is(p, li) {
@@ -573,14 +585,6 @@ a.plan-step-label:hover {
 
 .plan-rich :is(ul, ol),
 .plan-document > :is(ul, ol) { margin: 0 0 var(--space-sm); padding-left: 1.2rem; }
-
-/* Headings below h3 step down from the body size, so each level still reads as smaller. */
-.plan-document > h4,
-.plan-rich h4 { font-size: 1rem; }
-.plan-document > h5,
-.plan-rich h5 { font-size: 0.9rem; }
-.plan-document > h6,
-.plan-rich h6 { font-size: 0.8rem; letter-spacing: 0.02em; text-transform: uppercase; color: var(--muted); }
 
 /* Images from a plan fit the column and keep their shape. */
 .plan-document img,
