@@ -16,6 +16,8 @@ export type FormProps = {
   fields?: FormFieldSpec[]
   values?: Record<string, FormValue>
   locked?: boolean
+  /** What the card says while locked. The page's default is that a run is going on. */
+  lockedState?: string
   children?: ReactNode
   className?: string
   /** Icon name or element shown in a square before the card label. */
@@ -107,7 +109,7 @@ function firstEmptyRequiredCheckbox(form: HTMLFormElement): HTMLInputElement | n
   return null
 }
 
-export function Form({ id, prompt, fields, values, locked, children, className, icon, color, onSubmit }: FormProps) {
+export function Form({ id, prompt, fields, values, locked, lockedState, children, className, icon, color, onSubmit }: FormProps) {
   const [sent, setSent] = useState(false)
   const [editing, setEditing] = useState(false)
   const [progress, setProgress] = useState<{ checked: number; total: number } | null>(null)
@@ -186,7 +188,7 @@ export function Form({ id, prompt, fields, values, locked, children, className, 
   }
 
   const state = locked
-    ? 'Locked during execution'
+    ? (lockedState ?? 'Locked during execution')
     : editing
       ? 'Editing'
       : submitted

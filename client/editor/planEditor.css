@@ -930,3 +930,35 @@
   font-weight: 600;
   cursor: default;
 }
+
+/* A locked card the page can draw: the page's own card, locked, under a short note. */
+.plan-editor-locked-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: not-allowed;
+}
+
+.plan-editor-locked-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.plan-editor-locked-card > .plan-entry {
+  margin: 0;
+  background: var(--surface-soft);
+}
+
+.plan-editor-locked-card :is(input, textarea, select, button, [role='radio'], [role='checkbox']) {
+  cursor: not-allowed;
+}
+
+.plan-editor-locked-card :is(input, textarea, .plan-select-trigger):disabled,
+.plan-editor-locked-card .plan-select-trigger[data-disabled] {
+  background: var(--surface);
+  color: var(--muted);
+}

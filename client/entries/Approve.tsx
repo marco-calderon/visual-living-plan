@@ -15,6 +15,8 @@ export type ApproveProps = {
   note?: string
   approved?: boolean
   locked?: boolean
+  /** What the card says while locked. The page's default is that a run is going on. */
+  lockedState?: string
   className?: string
   /** Icon name or element shown in a square before the card label. */
   icon?: CardIcon
@@ -23,7 +25,7 @@ export type ApproveProps = {
   onDecide?: (response: ApproveResponse) => void
 }
 
-export function Approve({ id, prompt, children, note, approved, locked, className, icon, color, onDecide }: ApproveProps) {
+export function Approve({ id, prompt, children, note, approved, locked, lockedState, className, icon, color, onDecide }: ApproveProps) {
   const [noteText, setNoteText] = useState(note ?? '')
   const [localDecision, setLocalDecision] = useState<boolean | undefined>(undefined)
   const picked = useRef(false)
@@ -44,7 +46,7 @@ export function Approve({ id, prompt, children, note, approved, locked, classNam
   }
 
   const state = locked
-    ? 'Locked during execution'
+    ? (lockedState ?? 'Locked during execution')
     : decision === true
       ? 'Approved'
       : decision === false

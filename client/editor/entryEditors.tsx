@@ -10,13 +10,14 @@ import {
 import { $getNodeByKey, HISTORY_PUSH_TAG, SKIP_DOM_SELECTION_TAG, SKIP_SCROLL_INTO_VIEW_TAG } from 'lexical'
 import { Lock, Trash2 } from 'lucide-react'
 import type { MdxJsxAttribute, MdxJsxFlowElement, MdxJsxTextElement } from 'mdast-util-mdx-jsx'
-import { Fragment, useContext, useId, useRef } from 'react'
+import { Fragment, useContext, useId, useMemo, useRef } from 'react'
 import { CardLabel } from '../entries/CardLabel.tsx'
 import { cx } from '../entries/styles.ts'
 import { calloutKind, phaseStatus } from '../entries/types.ts'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select.tsx'
 import { IconPicker } from './iconPicker.tsx'
 import { isLockedTag, LockedContext } from './locked.ts'
+import { hasLockedPreview, renderLockedPreview } from './lockedPreview.tsx'
 import { StatusPicker } from './statusPicker.tsx'
 import { useIsolatedFromEditor } from './isolate.ts'
 
@@ -271,6 +272,22 @@ function EntryEditor({ spec, mdastNode }: { spec: EntrySpec; mdastNode: JsxNode 
   const insideLocked = useContext(LockedContext)
   const lockedHere = isLockedTag(spec.tag)
   const locked = insideLocked || lockedHere
+  // A locked card the page can draw shows as the page draws it: no editing controls, all disabled.
+  const preview = useMemo(
+    () => (lockedHere && hasLockedPreview(spec.tag) ? renderLockedPreview(mdastNode) : null),
+    [lockedHere, mdastNode, spec.tag],
+  )
+  if (preview) {
+    return (
+      <section className="plan-editor-locked-card" data-editor-entry={spec.tag} data-locked="true" aria-disabled="true" ref={head}>
+        <div className="plan-editor-locked-note">
+          <Lock size={12} strokeWidth={2.25} aria-hidden="true" />
+          <span>Answered on the page · it can be moved, not changed</span>
+        </div>
+        {preview}
+      </section>
+    )
+  }
   const control = (prop: PropSpec) => (
     <PropControl spec={prop} value={readAttr(mdastNode, prop.name)} disabled={locked} onChange={(value) => set(prop.name, value)} />
   )

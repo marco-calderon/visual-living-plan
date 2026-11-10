@@ -15,6 +15,8 @@ export type QuestionsProps = {
   items?: string[]
   answers?: Record<string, string>
   locked?: boolean
+  /** What the card says while locked. The page's default is that a run is going on. */
+  lockedState?: string
   children?: ReactNode
   className?: string
   /** Icon name or element shown in a square before the card label. */
@@ -34,7 +36,7 @@ function readAnswers(form: HTMLFormElement): Record<string, string> {
   return answers
 }
 
-export function Questions({ id, prompt, items, answers, locked, children, className, icon, color, onSubmit }: QuestionsProps) {
+export function Questions({ id, prompt, items, answers, locked, lockedState, children, className, icon, color, onSubmit }: QuestionsProps) {
   const [sent, setSent] = useState(false)
   const sentRef = useRef(false)
   const disabled = Boolean(locked || sent || answers)
@@ -49,7 +51,7 @@ export function Questions({ id, prompt, items, answers, locked, children, classN
     onSubmit?.({ kind: 'questions', id, answers: readAnswers(event.currentTarget) })
   }
 
-  const state = locked ? 'Locked during execution' : disabled ? 'Answers sent' : 'Waiting for answers'
+  const state = locked ? (lockedState ?? 'Locked during execution') : disabled ? 'Answers sent' : 'Waiting for answers'
 
   return (
     <Box

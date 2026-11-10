@@ -27,7 +27,7 @@ In the page editor, a short gray `+` button under a card or paragraph adds a new
 - Text adds Heading 1 to Heading 6 and Quote. Each turns the `/` line into that block and keeps its text; Text turns it back into a paragraph.
 - Link and Image ask for an address and a text, then add a markdown link or image where the `/` was. A bare host gets `https://`; script and file addresses are refused. Image shows a preview once the address is complete.
 - The card menu has Code and Mermaid. Mermaid blocks draw their diagram under the code as you type, and show the parse error when the code does not parse.
-- Forms and questions are locked in the editor. They show grayed out with a Locked badge; their prompt, id, icon, fields, and items cannot be changed, and they cannot be removed, but they can still be moved. The list of locked cards is `LOCKED_ENTRY_TAGS` in `client/editor/locked.ts`.
+- Forms and questions are locked in the editor. They show as the page draws them, with their fields, options, and questions, grayed out and with every control disabled, and no editing controls. They cannot be changed or removed, but they can still be moved. The list of locked cards is `LOCKED_ENTRY_TAGS` in `client/editor/locked.ts`.
 - Click a phase's status icon to change its status. A short list shows each status with its icon. It replaces the Status dropdown.
 
 ### Improvements
