@@ -11,6 +11,12 @@ const PART = Symbol.for('visual-living-plan.table-part')
 /** `true` wraps in the column. A number is the percentage of the table the cell wraps inside. */
 export type CellWrap = true | number
 
+/**
+ * A `wrap` set on the table or a column skips a cell with less visible text than this.
+ * That text already fits about 8rem, the width a wrapping cell keeps, so the cell stays on one line at its own width.
+ */
+export const INHERITED_WRAP_MIN_TEXT = 20
+
 export type CellModel = {
   value: string
   search: string
@@ -43,6 +49,7 @@ type ColumnProps = {
   filter?: boolean | string
   search?: boolean | string
   sort?: boolean | string
+  wrap?: boolean | string | number
   children?: ReactNode
 }
 
@@ -75,9 +82,20 @@ export function partKind(type: unknown): string | undefined {
   return typeof kind === 'string' ? kind : undefined
 }
 
-export function readDataTable(children: ReactNode): { columns: ColumnModel[]; rows: RowModel[] } {
+/**
+ * `wrap` on the table applies to every column. `<Column wrap>` replaces it for that column, and `<Cell wrap>` for that cell.
+ * `wrap={false}` on a column or a cell keeps it on one line. A wrap from the table or a column skips short cells.
+ */
+export function readDataTable(
+  children: ReactNode,
+  wrap?: boolean | string | number,
+): { columns: ColumnModel[]; rows: RowModel[] } {
   const columns: ColumnModel[] = []
+  const columnWraps: (CellWrap | undefined)[] = []
   const rows: RowModel[] = []
+  const ownWrap = new WeakSet<CellModel>()
+  const longText = new WeakSet<CellModel>()
+  const tableWrap = readWrap(wrap)
   Children.forEach(children, (child) => {
     if (!isValidElement(child)) return
     const part = partKind(child.type)
@@ -93,13 +111,18 @@ export function readDataTable(children: ReactNode): { columns: ColumnModel[]; ro
         sort: enabled(props.sort),
         wraps: false,
       })
+      columnWraps.push(props.wrap === undefined ? tableWrap : readWrap(props.wrap))
       return
     }
     if (part === 'row') {
       const cells: CellModel[] = []
       Children.forEach((child.props as { children?: ReactNode }).children, (cell) => {
         if (!isValidElement(cell) || partKind(cell.type) !== 'cell') return
-        cells.push(readCell(cell.props as CellProps))
+        const props = cell.props as CellProps
+        const { model, text } = readCell(props)
+        if (props.wrap !== undefined) ownWrap.add(model)
+        if (text.length >= INHERITED_WRAP_MIN_TEXT) longText.add(model)
+        cells.push(model)
       })
       rows.push({ id: `row-${rows.length + 1}`, cells })
     }
@@ -108,6 +131,11 @@ export function readDataTable(children: ReactNode): { columns: ColumnModel[]; ro
   for (const row of rows) {
     while (row.cells.length < width) row.cells.push(emptyCell())
     if (row.cells.length > width) row.cells.length = width
+    row.cells.forEach((cell, index) => {
+      if (ownWrap.has(cell) || !longText.has(cell)) return
+      const columnWrap = columnWraps[index]
+      if (columnWrap != null) cell.wrap = columnWrap
+    })
   }
   let seenFilter = false
   for (const column of columns) {
@@ -171,13 +199,13 @@ export function filterOptions(rows: readonly RowModel[], index: number): string[
   return options
 }
 
-function readCell(props: CellProps): CellModel {
+function readCell(props: CellProps): { model: CellModel; text: string } {
   const visible = collectText(props.children).replace(/\s+/g, ' ').trim()
   const extra = controlSearch(props.children)
   const explicit = props.value == null ? '' : String(props.value).trim()
   const value = explicit || visible || extra || ''
   const search = joinSearch([explicit, visible, extra])
-  return { value, search, content: props.children ?? null, wrap: readWrap(props.wrap) }
+  return { model: { value, search, content: props.children ?? null, wrap: readWrap(props.wrap) }, text: visible }
 }
 
 function controlSearch(children: ReactNode): string {

@@ -1494,8 +1494,7 @@ body.plan-live .block.change-applied {
   background: var(--panel-strong);
 }
 .rich-table table {
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
   border-collapse: collapse;
   margin: 0;
 }
@@ -1508,9 +1507,11 @@ body.plan-live .block.change-applied {
   color: var(--ink);
   border-bottom: 1px solid var(--line);
 }
+/* Cell text wraps between words to fit the column. A word is never split, so a column is never
+ * narrower than its longest word. When the columns still do not fit, the table scrolls sideways. */
 .rich-table :is(th, td),
 .rich-table :is(th, td) * {
-  white-space: nowrap;
+  white-space: normal;
   word-break: normal;
   overflow-wrap: normal;
 }

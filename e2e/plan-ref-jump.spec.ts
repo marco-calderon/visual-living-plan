@@ -1,10 +1,13 @@
 import { expect, test } from '@playwright/test'
+import { waitForCodeBlocks } from './fixtures/codeBlocks.ts'
 
 test('a workflow node title jumps to the plan entry and Back returns', async ({ page }) => {
   await page.goto('/')
   // The plan's workflow diagram links each step to its entry.
   const step = page.locator('#plan-mdx-root a[data-plan-jump="design"]').first()
   await expect(step).toBeAttached()
+  // The page height changes once the code blocks are drawn, so wait before reading the bottom.
+  await waitForCodeBlocks(page)
   // Start far from the entry, so the jump moves the page and Back has a position to restore.
   // The plan grows as it renders, so scroll until the bottom holds.
   await expect

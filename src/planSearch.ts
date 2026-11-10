@@ -3,6 +3,7 @@ import { preparePlanSource } from './planMdx/frontmatter'
 import { buildMdxOutline, legacyPlanSyntaxError } from './planMdx/outline'
 import { createMatcher, type Matcher } from './searchMatch'
 import type { PlanBlock } from './types'
+import { isWorkflowTableChrome, workflowCells } from './workflowSource'
 
 /** Most terms one query may hold. */
 export const SEARCH_TERM_LIMIT = 10
@@ -467,8 +468,9 @@ function blockTitle(block: PlanBlock): string | undefined {
 function workflowText(line: string): string {
   const trimmed = line.trim()
   if (trimmed === '--' || /^[\w.-]+\s*->\s*[\w.-]+/.test(trimmed)) return ''
-  const cells = trimmed.split('|').map((cell) => cell.trim())
+  const cells = workflowCells(trimmed)
   if (cells.length < 2) return visibleText(line)
+  if (isWorkflowTableChrome(cells)) return ''
   return [cells[1], cells[3]].filter(Boolean).join(' · ')
 }
 

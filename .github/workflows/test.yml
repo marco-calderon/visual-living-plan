@@ -1,0 +1,76 @@
+name: Tests
+
+# Unit and end-to-end tests for every pull request and every push to main.
+# publish.yml calls this workflow too, so a release is published only when both jobs pass.
+#
+# To block merging on a failure, require the "Unit tests" and "E2E tests" checks on main
+# (Settings → Rules → Rulesets, or Settings → Branches). See docs/context.md.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+# A newer push to the same pull request replaces the run in progress.
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      # The Bun version comes from packageManager in package.json.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      # Some unit tests drive headless Chromium through Playwright.
+      - name: Install Chromium for Playwright
+        run: bunx playwright install --with-deps --only-shell chromium
+
+      - name: Unit tests
+        run: bun run test
+
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - run: bun install --frozen-lockfile
+
+      - name: Install Chromium for Playwright
+        run: bunx playwright install --with-deps --only-shell chromium
+
+      # Builds the plan page client, then starts the e2e plan servers and runs e2e/.
+      - name: E2E tests
+        run: bun run test:e2e
+
+      # Traces and screenshots of failed tests. Open a trace with `bunx playwright show-trace`.
+      - name: Upload Playwright results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-results
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore

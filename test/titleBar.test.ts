@@ -138,7 +138,11 @@ test('the status chip opens a card; the title sits on the solid bar', () => {
   assert.match(html, /--shell-width:\s*min\(var\(--page-column\)/)
   assert.match(html, /#plan-mdx-root/)
   assert.match(html, /\.rich-table[\s\S]*?overflow-x:\s*auto/)
-  assert.match(html, /\.rich-table :is\(th, td\) \*\s*\{[^}]*white-space:\s*nowrap/)
+  // Pipe table cells wrap between words. Inline code stays on one line.
+  assert.match(html, /\.rich-table :is\(th, td\) \*\s*\{[^}]*white-space:\s*normal/)
+  assert.match(html, /\.rich-table :is\(th, td\) \*\s*\{[^}]*overflow-wrap:\s*normal/)
+  assert.match(html, /\.rich-table :is\(th, td\) code\s*\{[^}]*white-space:\s*nowrap/)
+  assert.doesNotMatch(html, /\.rich-table table\s*\{[^}]*width:\s*max-content/)
   assert.match(html, /class="layout-default"/)
 
   const wide = page(themePayload({ ...defaultThemeConfig(), pageWidth: 'wide' }, 'live-plan.config.json'))
