@@ -1,5 +1,19 @@
 # Changelog — 2026-11-10
 
+## 2.18.1
+
+**PR:** pending
+
+**Bump:** patch
+
+### Summary
+
+List items, bold text, and inline code in the plan editor are readable in dark mode again.
+
+### Bugs fixed
+
+- In the editor, list items, bold text, and inline code used the editor library's near-black text color, so in dark mode they were gray on black. They now use the plan's ink color, like headings and paragraphs.
+
 ## 2.18.0
 
 **PR:** [#175](https://github.com/marco-calderon/visual-living-plan/pull/175)

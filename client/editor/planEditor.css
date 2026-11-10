@@ -68,6 +68,11 @@
   outline: none;
 }
 
+/* MDXEditor colors its editable area with its own near-black text, which hid list items, bold, and code in dark mode. */
+.plan-editor .plan-editor-content {
+  color: var(--ink);
+}
+
 /* Further apart than on the page, so the + bar fits between blocks (BAR_ROOM). Beats the page's card and paragraph margins. */
 .plan-editor .plan-editor-content.plan-document > * + * {
   margin-top: var(--space-xl);
