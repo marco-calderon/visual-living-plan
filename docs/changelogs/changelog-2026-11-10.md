@@ -1,5 +1,24 @@
 # Changelog — 2026-11-10
 
+## 2.19.0
+
+**PR:** [#177](https://github.com/marco-calderon/visual-living-plan/pull/177)
+
+**Bump:** minor
+
+### Summary
+
+Living Plan has a new logo: three steps on an open circle, for plan, review, iterate. It replaces the tetrahedron everywhere the logo appears.
+
+### Improvements
+
+- The new logo is in the title bar of the plan page, the dashboard, the plan list, the sign-in screen, and the sample page.
+- Browser tabs, the install icons for Chrome, Edge, Windows, macOS, ChromeOS and Android, and the iOS home screen icon all use the new logo. The tab icon still adds the plan's status dot in the bottom-right corner.
+
+### Notes
+
+The logo's vector source is `scripts/pwa-icons/logo.svg`. The other proposals are kept in `docs/logo-proposals/`. `SHELL_CACHE_VERSION` moves to 2.19.0 so installed apps fetch the new icons. No plan format or storage changes, and no registry restart is needed.
+
 ## 2.18.0
 
 **PR:** [#175](https://github.com/marco-calderon/visual-living-plan/pull/175)
