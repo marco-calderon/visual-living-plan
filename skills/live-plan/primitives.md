@@ -1,6 +1,6 @@
 # Live Plan primitives
 
-Author each entry as an MDX component. The component name is the entry type (`phase`, `callout`, `choice`, `form`, `questions`, `approve`, `checklist`, `workflow`). Anything outside those components is markdown. A pipe table in that markdown renders as a markdown table: cells stay on one line, and the table scrolls sideways when it is wider than the column. A `<DataTable>` is a separate table. A mermaid fence draws a figure. Any other fence is highlighted source.
+Author each entry as an MDX component. The component name is the entry type (`phase`, `callout`, `choice`, `form`, `questions`, `approve`, `checklist`, `workflow`). Anything outside those components is markdown. A pipe table in that markdown renders as a markdown table: cell text wraps between words to fit the column, and the table scrolls sideways only when it still does not fit. A `<DataTable>` is a separate table. A mermaid fence draws a figure. Any other fence is highlighted source.
 
 A component can contain another component. A callout can contain a choice.
 
@@ -280,7 +280,7 @@ A mermaid fence in the plan markdown, or inside a phase, callout, or approve com
 
 A pipe table in the plan markdown, or inside a phase, callout, or approve body, renders as a table. It is not `<DataTable>`. It does not sort, search, filter, or page.
 
-The row under the header is a separator such as `| --- |`. `:---`, `---:`, and `:---:` align that column left, right, and center. A blank line ends the table. Cell text stays on one line. When the table is wider than the page column, the table scrolls sideways. Inline code, emphasis, and links inside a cell still render.
+The row under the header is a separator such as `| --- |`. `:---`, `---:`, and `:---:` align that column left, right, and center. A blank line ends the table. Cell text wraps between words to fit the page column. Inline code stays on one line, and a word is never split. When the columns still do not fit, the table scrolls sideways. Inline code, emphasis, and links inside a cell still render.
 
 ```markdown
 | Route | State | Owner |
@@ -299,6 +299,8 @@ One column may set `filter`. That column gets a select of its values, plus All. 
 `value` on `<Cell>` is the sort key and, on the filter column, the select value. Search also matches the visible text, a checkbox's checked state, and a checkbox field's label. Omit `value` to sort and filter by that visible text.
 
 `wrap` on `<Cell>` lets that cell break onto more than one line. `wrap="40%"` or `wrap={40}` wraps it inside 40% of the table, which is that column's share, and the header wraps inside the same share. A cell without `wrap` stays on one line. The table still scrolls sideways when those columns do not fit.
+
+`wrap` on `<Column>` gives that `wrap` to every cell in the column. `wrap` on `<DataTable>` gives it to every column. Use them when a column holds sentences, so the reader does not scroll sideways. Under a column or table `wrap`, a cell with less than 20 characters of text stays on one line at its own width. A column or a cell can set its own `wrap`, and `wrap={false}` keeps it on one line.
 
 A cell's children can be text, a `<Chip>`, a `<Pill>`, a markdown list, `<Checkbox checked />`, a `<field type="checkbox">`, or any other plan component. Chip and pill are the label primitives above.
 
@@ -331,6 +333,21 @@ The table body scrolls sideways when the columns are wider than the page column.
 <Cell wrap>The gateway retries while the previous worker holds the lease.</Cell>
 <Cell wrap="40%">Hourly copy stays in this share of the table.</Cell>
 ```
+
+```mdx
+<DataTable label="Risks" wrap>
+<Column id="risk" header="Risk" />
+<Column id="state" header="State" />
+<Column id="mitigation" header="Mitigation" />
+<Row>
+<Cell>Two workers copy the same hourly window when the lease clock drifts.</Cell>
+<Cell value="open"><Pill tone="warning">open</Pill></Cell>
+<Cell>Renew the lease before each retry and compare the window id.</Cell>
+</Row>
+</DataTable>
+```
+
+`<Column id="notes" header="Notes" wrap />` wraps one column the same way.
 
 ## code
 
