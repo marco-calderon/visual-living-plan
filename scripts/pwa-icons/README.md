@@ -9,4 +9,4 @@
 | `maskable-icon-192x192.png`, `maskable-icon-512x512.png` | `mark.png` on white | Manifest `maskable`: Android adaptive launcher icons |
 | `apple-touch-icon-180x180.png` | `mark.png` on white | iOS and iPadOS home screen |
 
-`mark.png` is the mark from `src/favicon.png`, cropped to its edges on a transparent background. If the logo changes, update both.
+`logo.svg` is the logo's vector source: the Cycle mark on a 1024 grid, 36px strokes, filled nodes of radius 55, black on transparent. `src/favicon.png` is that mark at 1024px on a white circle the size of the canvas, and `public/favicon.png` is a copy of it. `mark.png` is the same mark cropped to its edges on a transparent background. `src/faviconBase64.ts` embeds `src/favicon.png` for builds that cannot read the file. If the logo changes, update all of them, then run `bun run icons`.
