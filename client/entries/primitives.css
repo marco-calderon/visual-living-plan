@@ -586,6 +586,22 @@ a.plan-step-label:hover {
 .plan-rich :is(ul, ol),
 .plan-document > :is(ul, ol) { margin: 0 0 var(--space-sm); padding-left: 1.2rem; }
 
+/* A markdown task list (`- [ ]`, `- [x]`). The box takes the bullet's place, so wrapped lines stay under the text. */
+:is(.plan-rich, .plan-document) .contains-task-list { padding-left: 1.6rem; }
+
+.task-list-item {
+  position: relative;
+  list-style: none;
+}
+
+.task-list-item .plan-task-checkbox {
+  position: absolute;
+  top: calc((1lh - 16px) / 2);
+  left: -1.6rem;
+  margin: 0;
+  pointer-events: none;
+}
+
 /* Images from a plan fit the column and keep their shape. */
 .plan-document img,
 .plan-rich img {

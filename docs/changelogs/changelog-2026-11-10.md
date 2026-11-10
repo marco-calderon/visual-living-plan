@@ -1,5 +1,24 @@
 # Changelog — 2026-11-10
 
+## 2.20.1
+
+**PR:** link once known
+
+**Bump:** patch
+
+### Summary
+
+Markdown task lists (`- [ ]`, `- [x]`) on the plan page now show checkboxes instead of the raw brackets, and the page editor opens plans whose checklist items are written one per line.
+
+### Bugs fixed
+
+- A task list on the plan page showed `[ ]` and `[x]` as text. Each item now starts with a checkbox in the bullet's place, drawn like the form checkboxes and checked for `[x]`. It is read-only: the agent ticks it in the file. Nested, loose, and numbered task lists work, and plain items in the same list keep their bullet.
+- The page editor showed a blank page for a checklist written as the docs show it, `<item done="true">Text</item>` on one line. It now shows each item with its Done checkbox, and ticking Done keeps the item on one line when published.
+
+### Notes
+
+The plan compiler parses GitHub task list items (`mdast-util-gfm-task-list-item` and `micromark-extension-gfm-task-list-item`, already installed with the editor, are now direct dev dependencies). `SHELL_CACHE_VERSION` moves to 2.20.1. No plan format or storage changes, and no registry restart is needed.
+
 ## 2.20.0
 
 **PR:** link once known
