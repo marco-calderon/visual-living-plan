@@ -223,6 +223,76 @@ test('a cell wraps on its own, or inside a percentage of the table', () => {
   assert.match(tableCssText(), /\.plan-data-table-value\[data-wrap\]/)
 })
 
+test('wrap on the table or a column reaches every long cell under it', () => {
+  const long = 'The gateway retries while the previous worker holds the lease.'
+  const model = readDataTable(
+    [
+      createElement(Column, { id: 'name', header: 'Name' }),
+      createElement(Column, { id: 'detail', header: 'Detail' }),
+      createElement(Column, { id: 'share', header: 'Share', wrap: '40%' }),
+      createElement(Column, { id: 'route', header: 'Route', wrap: false }),
+      createElement(
+        Row,
+        null,
+        createElement(Cell, null, 'Gateway'),
+        createElement(Cell, null, long),
+        createElement(Cell, null, long),
+        createElement(Cell, null, long),
+      ),
+      createElement(
+        Row,
+        null,
+        createElement(Cell, null, long),
+        createElement(Cell, { wrap: false }, long),
+        createElement(Cell, { wrap: true }, long),
+        createElement(Cell, { wrap: true }, 'Saved'),
+      ),
+    ],
+    true,
+  )
+  // A short cell stays on one line. It already fits the width a wrapping cell keeps.
+  assert.equal(model.rows[0]?.cells[0]?.wrap, undefined)
+  assert.equal(model.rows[1]?.cells[0]?.wrap, true)
+  assert.equal(model.rows[0]?.cells[1]?.wrap, true)
+  assert.equal(model.rows[1]?.cells[1]?.wrap, undefined)
+  assert.equal(model.rows[0]?.cells[2]?.wrap, 40)
+  assert.equal(model.rows[1]?.cells[2]?.wrap, true)
+  assert.equal(model.rows[0]?.cells[3]?.wrap, undefined)
+  assert.equal(model.rows[1]?.cells[3]?.wrap, true)
+  assert.deepEqual(
+    model.columns.map((column) => column.wraps),
+    [true, true, true, true],
+  )
+  assert.equal(model.columns[2]?.share, 40)
+
+  const columnOnly = readDataTable([
+    createElement(Column, { id: 'name', header: 'Name' }),
+    createElement(Column, { id: 'notes', header: 'Notes', wrap: true }),
+    createElement(Row, null, createElement(Cell, null, long), createElement(Cell, null, long)),
+    createElement(Row, null, createElement(Cell, null, 'Edge'), createElement(Cell, null, 'Short note.')),
+  ])
+  assert.equal(columnOnly.rows[0]?.cells[0]?.wrap, undefined)
+  assert.equal(columnOnly.rows[0]?.cells[1]?.wrap, true)
+  assert.equal(columnOnly.rows[1]?.cells[1]?.wrap, undefined)
+  assert.equal(columnOnly.columns[0]?.wraps, false)
+  assert.equal(columnOnly.columns[1]?.wraps, true)
+
+  const html = renderToStaticMarkup(
+    createElement(
+      DataTable,
+      { label: 'Wrap', wrap: true },
+      createElement(Column, { id: 'name', header: 'Name' }),
+      createElement(Column, { id: 'detail', header: 'Detail' }),
+      createElement(Row, null, createElement(Cell, null, 'Gateway'), createElement(Cell, null, long)),
+    ),
+  )
+  assert.match(html, /data-has-wrap="true"/)
+  const cells = tags(html, 'td')
+  assert.match(cells[0] ?? '', /data-fit="true"/)
+  assert.doesNotMatch(cells[0] ?? '', /data-wrap=/)
+  assert.match(cells[1] ?? '', /data-wrap="true"/)
+})
+
 test('data table cells keep a logical comment token', () => {
   const html = renderToStaticMarkup(
     createElement(
