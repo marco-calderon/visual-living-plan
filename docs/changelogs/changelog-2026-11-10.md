@@ -1,5 +1,30 @@
 # Changelog — 2026-11-10
 
+## 2.20.2
+
+**PR:** link once known
+
+**Bump:** patch
+
+### Summary
+
+The Approve button on a hosted plan works again. A click reaches the host, the agent hears the review, and the page goes back to watch.
+
+### Bugs fixed
+
+- Approve on a hosted plan did nothing. The page's device outbox only sends a change that also edits a row on the device, and a review edited none, so it was settled as sent without a request. A review now updates the stored plan, and a change with nothing to store is sent straight away. Marking a comment addressed from the page had the same gap.
+- The hosted page never heard that its mode changed, so Approve did not appear when the agent asked for review and stayed after a decision. The page now follows the host's mode, review, and hello events.
+- Right after an agent edit, the first Approve could be refused as stale. Live updates close together each rewrote the stored plan from the copy before the previous write was saved, so the older revision came back. Each update now starts from the newest row this page wrote.
+
+### Improvements
+
+- A double click on Approve sends one review, and a refused approve shows an error toast.
+- A change the host refuses with a 4xx is not sent again, so it no longer holds up the plan's later changes.
+
+### Notes
+
+Browser code only. `SHELL_CACHE_VERSION` moves to 2.20.2 so the shell worker replaces the previous cache. No Worker, plan format, or storage changes, and no registry restart is needed.
+
 ## 2.20.1
 
 **PR:** link once known

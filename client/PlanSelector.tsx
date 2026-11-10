@@ -88,6 +88,17 @@ function readComments(): PlanComment[] {
   }
 }
 
+/** The host's reason for a refusal: the `error` of a JSON body, or the text itself. */
+function refusalReason(text: string): string {
+  try {
+    const parsed = JSON.parse(text) as { error?: unknown } | null
+    if (typeof parsed?.error === 'string') return parsed.error
+  } catch {
+    // Plain text.
+  }
+  return text.trim()
+}
+
 function rectClose(left: DOMRect, right: DOMRect): boolean {
   return (
     Math.abs(left.top - right.top) < 0.5 &&
@@ -185,6 +196,7 @@ export function PlanSelector() {
   const [sentReview, setSentReview] = useState<SentReview | null>(readSentReview)
   const overlayVisibleRef = useRef(false)
   const iterateLocked = useRef(false)
+  const approving = useRef(false)
   const [marks, setMarks] = useState<Mark[]>([])
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
@@ -227,16 +239,40 @@ export function PlanSelector() {
     return () => window.removeEventListener('living-plan-document', onDocument)
   }, [])
 
+  function followMode(next: unknown) {
+    if (next !== 'watch' && next !== 'comment' && next !== 'review') return
+    if (next === modeRef.current) return
+    modeRef.current = next
+    setMode(next)
+    setCommentsOn(next !== 'watch')
+  }
+
   useEffect(() => {
-    const onMode = (event: Event) => {
-      const next = (event as CustomEvent<{ mode?: SessionMode }>).detail?.mode
-      if (next !== 'watch' && next !== 'comment' && next !== 'review') return
-      if (next === modeRef.current) return
-      setMode(next)
-      setCommentsOn(next !== 'watch')
-    }
+    const onMode = (event: Event) => followMode((event as CustomEvent<{ mode?: SessionMode }>).detail?.mode)
     window.addEventListener('living-plan-mode', onMode)
-    return () => window.removeEventListener('living-plan-mode', onMode)
+    // The local page script forwards mode changes as `living-plan-mode`. The hosted page has no such
+    // script, so the selector follows the host's events itself.
+    const read = (event: MessageEvent): Record<string, unknown> | null => {
+      try {
+        const parsed = JSON.parse(event.data) as unknown
+        return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null
+      } catch {
+        return null
+      }
+    }
+    const stopMode = subscribePlanEvents('mode', (event) => followMode(read(event)?.mode))
+    const stopHello = subscribePlanEvents('hello', (event) => followMode(read(event)?.mode))
+    const stopReview = subscribePlanEvents('review', (event) => {
+      const decision = read(event)?.decision
+      // Approve and deny return the session to watch.
+      if (decision === 'approve' || decision === 'deny') followMode('watch')
+    })
+    return () => {
+      window.removeEventListener('living-plan-mode', onMode)
+      stopMode()
+      stopHello()
+      stopReview()
+    }
   }, [])
 
   function commitComments(update: (current: PlanComment[]) => PlanComment[]) {
@@ -290,8 +326,22 @@ export function PlanSelector() {
   }, [enabled, replyReveal])
 
   async function approvePlan() {
-    const response = await sendPlanMutation('review', apiPath('/api/review'), { decision: 'approve' })
-    if (!response.ok && !response.queued) setError(response.text || 'Could not approve')
+    if (approving.current) return
+    approving.current = true
+    try {
+      const response = await sendPlanMutation('review', apiPath('/api/review'), { decision: 'approve' })
+      if (!response.ok && !response.queued) {
+        const reason = refusalReason(response.text)
+        const message = reason ? `Could not approve: ${reason}` : 'Could not approve'
+        setError(message)
+        window.showPlanToast?.(message, 'error')
+        return
+      }
+      // Approve returns the session to watch. The host says so too, but the button goes now.
+      followMode('watch')
+    } finally {
+      approving.current = false
+    }
   }
 
   async function sendTrayMessage(text: string) {
