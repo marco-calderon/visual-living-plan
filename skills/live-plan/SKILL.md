@@ -212,7 +212,7 @@ Each structured block is an MDX component. The component name is the type. Give 
 - `<questions>` with `<item>` children — one free-text item per question. Response: `{ kind, id, answers }`. Answer keys are item indexes `"0"`, `"1"`.
 - `<approve>` — yes/no plus optional note. Response: `{ kind, id, approved, note? }`.
 - `<checklist>` — definition of done. You set `done="true"` on an item when that line is finished. The page shows a filled check for a finished line and an empty ring for a line still to do. The line text stays. The human does not toggle it and does not submit it.
-- `<workflow>` — required. This component is the execution path. Its body is a pipe table (`id | label | ref | detail`, then `--`, then `from -> to`). The Workflow tab draws it before the run, and the live run follows it.
+- `<workflow>` — required. This component is the execution path. Its body is one line per step with the columns `id | label | ref | detail`, then `--`, then one `from -> to` line per edge. Do not write a header row. The Workflow tab draws it before the run, and the live run follows it.
 - `<Box>`, `<HStack>`, `<VStack>`, `<Stack>`, `<Row>`, `<ResponsiveStack>` arrange children. They are not plan entries. In a plan that contains `<DataTable>`, `<Row>` is a table row. Use `<HStack>` for a horizontal arrangement in that plan.
 - `<Chip>` and `<Pill tone="success|warning|danger|neutral">` are short labels. They are not plan entries. Use them in a phase, a callout, or a table cell. Omit `tone` for a neutral pill.
 - `<Mermaid>`, `<BarChart>`, and `<LineChart>` draw figures. A `mermaid` fence, a language fence, and a `diff` fence still render in the markdown.

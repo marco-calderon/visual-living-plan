@@ -241,7 +241,7 @@ implement -> implement @ right>right | retry
 </workflow>
 ```
 
-Node columns are `id | label | ref | detail`. `ref` and `detail` are optional.
+Node columns are `id | label | ref | detail`. `ref` and `detail` are optional. Write one line per step and no header row. A header row (`id | label | …`), a `---` separator row, and outer pipes (`| a | A |`) are ignored if present.
 
 Edge lines are `from -> to`, optionally `from -> to @ fromSide>toSide`, then `| label`. Sides are `top`, `right`, `bottom`, or `left`. An edge that points at its own node is drawn as an arc.
 

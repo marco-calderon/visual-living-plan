@@ -12,6 +12,7 @@ import {
   roundLayout,
   WORKFLOW_ELK_OPTIONS,
 } from '../../src/workflowLayoutShared.ts'
+import { parseWorkflowSource } from '../../src/workflowSource.ts'
 
 type ElkFakeWorker = {
   dispatcher: { saveDispatch: (event: { data: unknown }) => void }
@@ -103,45 +104,11 @@ export function parseWorkflowDocument(source: string): {
   nodes: PlanWorkflowNode[]
   edges: PlanWorkflowEdge[]
 } {
-  const [head, tail = ''] = source.trim().split(/\n\s*--\s*\n/)
-  const nodes: PlanWorkflowNode[] = []
-  for (const line of (head ?? '').split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('```')) continue
-    const [id, label, planRef, detail] = trimmed.split('|').map((part) => part.trim())
-    if (!id || !label) continue
-    nodes.push({
-      id,
-      label,
-      ...(planRef ? { planRef } : {}),
-      ...(detail ? { detail } : {}),
-    })
+  const parsed = parseWorkflowSource(source)
+  return {
+    nodes: parsed.nodes.map(({ ref, ...node }) => (ref ? { ...node, planRef: ref } : node)),
+    edges: parsed.edges,
   }
-  const edges: PlanWorkflowEdge[] = []
-  for (const line of tail.split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('```')) continue
-    const [path, label] = trimmed.split('|').map((part) => part.trim())
-    const match = /^(\S+)\s*->\s*(\S+)(?:\s+@\s*(\w+)>(\w+))?$/.exec(path ?? '')
-    if (!match) continue
-    const from = match[1] ?? ''
-    const to = match[2] ?? ''
-    const fromSide = sideOf(match[3])
-    const toSide = sideOf(match[4])
-    edges.push({
-      from,
-      to,
-      ...(label ? { label } : {}),
-      ...(fromSide ? { fromSide } : {}),
-      ...(toSide ? { toSide } : {}),
-    })
-  }
-  return { nodes, edges }
-}
-
-function sideOf(value: string | undefined): PortSide | undefined {
-  if (value === 'top' || value === 'right' || value === 'bottom' || value === 'left') return value
-  return undefined
 }
 
 /** Place steps with the plan's ELK options, then draw edges on separate rails. */

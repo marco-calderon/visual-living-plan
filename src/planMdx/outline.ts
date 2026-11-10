@@ -1,5 +1,6 @@
 import { renderPlanMarkdown } from './markdown'
 import { calloutKind, phaseStatus, slugify } from './payload'
+import { parseWorkflowSource } from '../workflowSource'
 import type {
   ChecklistItem,
   ChoiceOption,
@@ -405,46 +406,7 @@ function checklistItems(node: ElementNode): ChecklistItem[] {
 }
 
 function workflowOf(node: ElementNode): { nodes: WorkflowNodeSpec[]; edges: WorkflowEdgeSpec[] } {
-  const [head, tail = ''] = textOf(node.children).trim().split(/\n\s*--\s*\n/)
-  const nodes: WorkflowNodeSpec[] = []
-  for (const line of (head ?? '').split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('```')) continue
-    const [id, label, ref, detail] = trimmed.split('|').map((part) => part.trim())
-    if (!id || !label) continue
-    nodes.push({
-      id,
-      label,
-      ...(ref ? { ref } : {}),
-      ...(detail ? { detail } : {}),
-    })
-  }
-  const edges: WorkflowEdgeSpec[] = []
-  for (const line of tail.split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('```')) continue
-    const [path, label] = trimmed.split('|').map((part) => part.trim())
-    const match = /^(\S+)\s*->\s*(\S+)(?:\s+@\s*(\w+)>(\w+))?$/.exec(path ?? '')
-    if (!match) continue
-    const from = match[1] ?? ''
-    const to = match[2] ?? ''
-    if (!from || !to) continue
-    const fromSide = sideOf(match[3])
-    const toSide = sideOf(match[4])
-    edges.push({
-      from,
-      to,
-      ...(label ? { label } : {}),
-      ...(fromSide ? { fromSide } : {}),
-      ...(toSide ? { toSide } : {}),
-    })
-  }
-  return { nodes, edges }
-}
-
-function sideOf(value: string | undefined): string | undefined {
-  if (value === 'top' || value === 'right' || value === 'bottom' || value === 'left') return value
-  return undefined
+  return parseWorkflowSource(textOf(node.children))
 }
 
 function visit(nodes: Array<ElementNode | string>, fn: (node: ElementNode) => void): void {

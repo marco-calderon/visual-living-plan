@@ -3,6 +3,7 @@ import { mdxFromMarkdown } from 'mdast-util-mdx'
 import { mdxjs } from 'micromark-extension-mdxjs'
 import type { Code, Root, RootContent } from 'mdast'
 import type { MdxJsxFlowElement, MdxJsxTextElement } from 'mdast-util-mdx-jsx'
+import { workflowNodeCells } from '../workflowSource'
 
 /**
  * Helpers for editing a plan on the page.
@@ -260,13 +261,14 @@ function splitWorkflow(value: string): WorkflowLines {
   return { nodes: head.filter((line) => line.trim()), edges: tail.filter((line) => line.trim()) }
 }
 
+/** A header or separator row reads as no step, so it has no id or ref. */
 function nodeRef(line: string): string {
-  const [id = '', , ref] = line.split('|').map((part) => part.trim())
+  const [id = '', , ref] = workflowNodeCells(line) ?? []
   return ref || id
 }
 
 function nodeId(line: string): string {
-  return (line.split('|')[0] ?? '').trim()
+  return workflowNodeCells(line)?.[0] ?? ''
 }
 
 /**
@@ -282,7 +284,8 @@ export function wireNewSteps(body: string, known: Set<string>): string {
   if (!fence || start === undefined || end === undefined) return body
 
   const lines = splitWorkflow(fence.value)
-  const refs = () => new Map(lines.nodes.map((line) => [nodeRef(line), nodeId(line)]))
+  const refs = () =>
+    new Map(lines.nodes.filter((line) => workflowNodeCells(line)).map((line) => [nodeRef(line), nodeId(line)]))
   const entries = tree.children.flatMap((node) => {
     if (!isJsx(node) || !node.name || node.name === 'workflow') return []
     const id = attr(node, 'id')
@@ -300,8 +303,10 @@ export function wireNewSteps(body: string, known: Set<string>): string {
     const nextNode = next ? placed.get(next.id) : undefined
     const line = `${entry.id} | ${entry.label.replace(/\|/g, '/')} | ${entry.id}`
     const after = prevNode ? lines.nodes.findIndex((node) => nodeId(node) === prevNode) : -1
+    // With no step before it, the new step goes first, after any header row.
+    const first = lines.nodes.findIndex((node) => workflowNodeCells(node))
     if (after >= 0) lines.nodes.splice(after + 1, 0, line)
-    else lines.nodes.unshift(line)
+    else lines.nodes.splice(first < 0 ? lines.nodes.length : first, 0, line)
     const direct = lines.edges.findIndex((edge) => {
       const match = /^(\S+)\s*->\s*(\S+)/.exec(edge.trim())
       return match?.[1] === prevNode && match?.[2] === nextNode
