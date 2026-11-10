@@ -541,8 +541,8 @@ a.plan-step-label:hover {
 
 .vlp-row { gap: var(--space-sm); }
 
-.plan-document > :is(h1, h2, h3),
-.plan-rich :is(h1, h2, h3):not(.plan-title) {
+.plan-document > :is(h1, h2, h3, h4, h5, h6),
+.plan-rich :is(h1, h2, h3, h4, h5, h6):not(.plan-title) {
   font-family: var(--font-display);
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -573,6 +573,22 @@ a.plan-step-label:hover {
 
 .plan-rich :is(ul, ol),
 .plan-document > :is(ul, ol) { margin: 0 0 var(--space-sm); padding-left: 1.2rem; }
+
+/* Headings below h3 step down from the body size, so each level still reads as smaller. */
+.plan-document > h4,
+.plan-rich h4 { font-size: 1rem; }
+.plan-document > h5,
+.plan-rich h5 { font-size: 0.9rem; }
+.plan-document > h6,
+.plan-rich h6 { font-size: 0.8rem; letter-spacing: 0.02em; text-transform: uppercase; color: var(--muted); }
+
+/* Images from a plan fit the column and keep their shape. */
+.plan-document img,
+.plan-rich img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
 
 .plan-document > blockquote {
   margin: 0 0 0.85rem;
@@ -1413,7 +1429,8 @@ a.plan-step-label:hover {
   letter-spacing: -0.02em;
 }
 
-.mermaid-diagram {
+.mermaid-diagram,
+.plan-editor-mermaid {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -1445,7 +1462,7 @@ a.plan-step-label:hover {
   --pele-series-8: color-mix(in srgb, var(--ok) 55%, var(--accent));
 }
 
-:root[data-theme="dark"] .mermaid-diagram {
+:root[data-theme="dark"] :is(.mermaid-diagram, .plan-editor-mermaid) {
   --pele-surface: color-mix(in srgb, var(--accent) 22%, var(--paper));
   --pele-surface-alt: color-mix(in srgb, var(--accent) 12%, var(--paper-2));
   --pele-line: color-mix(in srgb, var(--accent) 78%, var(--ink));

@@ -16,6 +16,8 @@ export type ChoiceProps = {
   selectedId?: string
   selectedLabel?: string
   locked?: boolean
+  /** What the card says while locked. The page's default is that a run is going on. */
+  lockedState?: string
   children?: ReactNode
   className?: string
   /** Icon name or element shown in a square before the card label. */
@@ -32,6 +34,7 @@ export function Choice({
   selectedId,
   selectedLabel: savedLabel,
   locked,
+  lockedState,
   children,
   className,
   icon,
@@ -59,7 +62,7 @@ export function Choice({
   }
 
   const state = locked
-    ? 'Locked during execution'
+    ? (lockedState ?? 'Locked during execution')
     : selected
       ? 'selected'
       : 'Waiting for a selection'

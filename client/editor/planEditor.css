@@ -68,8 +68,9 @@
   outline: none;
 }
 
-.plan-editor-content > * + * {
-  margin-top: var(--space-md);
+/* Further apart than on the page, so the + bar fits between blocks (BAR_ROOM). Beats the page's card and paragraph margins. */
+.plan-editor .plan-editor-content.plan-document > * + * {
+  margin-top: var(--space-xl);
 }
 
 .plan-editor-card {
@@ -287,12 +288,24 @@
   .plan-icon-popover .plan-icon-option { width: 2rem; height: 2rem; }
 }
 
-.plan-editor-flag {
+.plan-editor .plan-editor-flag {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   color: var(--muted);
   font-size: 13px;
+  white-space: nowrap;
+}
+
+/* The page's form inputs are 40px tall; a flag in the card header is a plain small checkbox. */
+.plan-editor .plan-editor-flag input[type='checkbox'] {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--accent);
 }
 
 .plan-editor-remove {
@@ -322,32 +335,75 @@
   outline: none;
 }
 
+/* A fence: a language picker, Pierre's code editor in the page's code frame, and a mermaid figure below. */
 .plan-editor-code {
-  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.plan-editor-code textarea {
-  box-sizing: border-box;
-  width: 100%;
-  padding: var(--space-xs) var(--space-sm);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--canvas);
-  color: var(--ink);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 13px;
-  line-height: 1.5;
-  resize: vertical;
+.plan-editor-code-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.plan-editor .plan-editor-code-select {
+  min-width: 9em;
 }
 
 .plan-editor-code-lang {
-  position: absolute;
-  top: 4px;
-  right: 8px;
   color: var(--muted);
   font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  pointer-events: none;
+}
+
+.plan-editor-code-body {
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.plan-editor-code-body:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+}
+
+.plan-editor-code-file {
+  display: block;
+  max-width: 100%;
+  min-height: 44px;
+  overflow-x: auto;
+}
+
+.plan-editor-mermaid {
+  margin: 0;
+}
+
+.plan-editor-mermaid-figure:empty {
+  display: none;
+}
+
+.plan-editor-mermaid-figure svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  padding: var(--space-sm);
+}
+
+/* Mermaid's parse errors point at the column with a ^ line, so keep their lines and spacing. */
+.plan-editor-mermaid-error {
+  margin: 0;
+  padding: 6px var(--space-sm);
+  border-top: 1px solid var(--line);
+  color: var(--danger);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .plan-slash-menu {
@@ -364,6 +420,24 @@
   border-radius: 12px;
   background: var(--canvas);
   box-shadow: var(--shadow-modal);
+}
+
+/* Section titles stay at the top while the menu scrolls through that section. */
+.plan-slash-section {
+  position: sticky;
+  top: -4px;
+  z-index: 1;
+  background: var(--canvas);
+  padding: 8px 8px 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.plan-slash-section:first-child {
+  padding-top: 4px;
 }
 
 .plan-slash-item {
@@ -385,7 +459,7 @@
   font-size: 12px;
 }
 
-/* Block handles: + and a grip beside the block under the pointer or the caret. */
+/* Block handles: a grip beside the block under the pointer or the caret, and a + bar under it. */
 .plan-block-handles {
   position: absolute;
   z-index: 6;
@@ -500,22 +574,391 @@
   opacity: 0.4;
 }
 
+/* The + under a block: a short gray bar in the gap before the next one. Height matches BAR_HEIGHT. */
+.plan-block-add {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    top 80ms ease-out,
+    color 120ms ease-out,
+    background-color 120ms ease-out;
+}
+
+/* A taller target than the bar, still inside the gap. */
+.plan-block-add::before {
+  content: '';
+  position: absolute;
+  inset: -4px 0;
+}
+
+.plan-block-add[hidden] {
+  display: none;
+}
+
+.plan-block-add:hover,
+.plan-block-add:active {
+  background: color-mix(in srgb, var(--ink) 13%, transparent);
+  color: var(--ink);
+}
+
+.plan-block-add:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 /* Room for the grip inside a card. */
 .plan-editor-body {
   margin-left: 8px;
 }
 
-/* The page clips anything outside the plan column, so the handles get a gutter inside it. */
+/* The page clips anything outside the plan column, so the grip gets a gutter inside it, and the last + bar room below. */
 .plan-editor .plan-editor-content {
-  padding-left: 56px;
+  padding-left: 28px;
+  padding-bottom: var(--space-xl);
 }
 
 @media (max-width: 600px) {
-  .plan-editor .plan-editor-content {
-    padding-left: 44px;
+  .plan-block-handles[data-level='root'] .plan-block-grip {
+    width: 24px;
+  }
+}
+
+/* The phase's status icon is the button that opens the status picker. */
+.plan-editor .plan-editor-status-button {
+  position: relative;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color 120ms var(--ease-out),
+    box-shadow 120ms var(--ease-out);
+}
+
+/* A finger gets a larger target than the 28px button. */
+.plan-editor .plan-editor-status-button::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+
+.plan-editor .plan-editor-status-button:hover,
+.plan-editor .plan-editor-status-button[data-popup-open] {
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+
+.plan-editor .plan-editor-status-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+:is(.plan-editor-status-button, .plan-status-option)[data-status="active"] { color: var(--accent); }
+:is(.plan-editor-status-button, .plan-status-option)[data-status="done"] { color: var(--ok); }
+:is(.plan-editor-status-button, .plan-status-option)[data-status="failed"] { color: var(--danger); }
+:is(.plan-editor-status-button, .plan-status-option)[data-status="blocked"] { color: var(--accent-2); }
+
+.plan-popover.plan-status-popover {
+  width: auto;
+  min-width: 10rem;
+  padding: 4px;
+}
+
+.plan-status-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.plan-status-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.plan-status-option-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+
+.plan-status-option-label {
+  flex: 1;
+  color: var(--ink);
+}
+
+.plan-status-option-check {
+  color: var(--ink);
+}
+
+.plan-status-option:hover,
+.plan-status-option:focus-visible {
+  background: var(--panel);
+  outline: none;
+}
+
+/* Menus grow in from where they open; the grip's menu also fades out. */
+@keyframes plan-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+
+@keyframes plan-menu-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+
+.plan-slash-menu,
+.plan-block-menu {
+  transform-origin: top left;
+  animation: plan-menu-in 160ms var(--ease-out);
+}
+
+.plan-block-menu[data-closing] {
+  animation: plan-menu-out 120ms var(--ease-out) forwards;
+}
+
+.plan-select-popup.plan-editor-select-popup[data-starting-style],
+.plan-select-popup.plan-editor-select-popup[data-ending-style] {
+  transform: scale(0.96);
+}
+
+@keyframes plan-menu-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes plan-menu-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-slash-menu,
+  .plan-block-menu {
+    animation-name: plan-menu-fade-in;
   }
 
-  .plan-block-handles[data-level='root'] .plan-block-button {
-    width: 21px;
+  .plan-block-menu[data-closing] {
+    animation-name: plan-menu-fade-out;
   }
+
+  .plan-select-popup.plan-editor-select-popup[data-starting-style],
+  .plan-select-popup.plan-editor-select-popup[data-ending-style] {
+    transform: none;
+  }
+}
+
+/* The link and image form the card menu opens. */
+.plan-popover.plan-insert-prompt {
+  width: min(20rem, calc(100vw - 24px));
+  padding: var(--space-sm);
+}
+
+.plan-insert-prompt form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.plan-insert-prompt-title {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.plan-insert-prompt-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.plan-insert-prompt-field input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 var(--space-xs);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--canvas);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.plan-insert-prompt-field input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.plan-insert-prompt-field input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.plan-insert-prompt-error {
+  margin: -2px 0 0;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.plan-insert-prompt-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-height: 140px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.plan-insert-prompt-preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 140px;
+  object-fit: contain;
+}
+
+.plan-insert-prompt-preview[data-broken] {
+  padding: var(--space-xs) var(--space-sm);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.plan-insert-prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+  margin-top: 2px;
+}
+
+/* An image in the editor fits the column, like on the page. */
+.plan-editor-content img {
+  max-width: 100%;
+  height: auto;
+}
+
+/*
+ * A locked card (LOCKED_ENTRY_TAGS in locked.ts) and its rows: shown as they are, grayed out with
+ * the project's surface and muted tokens, and every control disabled like the page's own.
+ */
+.plan-editor-card[data-locked='true'] {
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+
+.plan-editor-card[data-locked='true'] .plan-editor-card[data-locked='true'] {
+  background: var(--surface);
+}
+
+.plan-editor-card[data-locked='true'] .plan-editor-body,
+.plan-editor-card[data-locked='true'] .plan-editor-body :is(p, li, blockquote, h1, h2, h3, h4, h5, h6) {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.plan-editor-card[data-locked='true'] :is(input, button, .plan-select-trigger):disabled,
+.plan-editor-card[data-locked='true'] .plan-select-trigger[data-disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.plan-editor .plan-editor-card[data-locked='true'] .plan-editor-input:disabled {
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.plan-editor-card[data-locked='true'] .plan-editor-remove:disabled:hover {
+  background: transparent;
+  color: var(--muted);
+}
+
+.plan-editor-card[data-locked='true'] .plan-card-label {
+  opacity: 0.72;
+}
+
+.plan-editor-locked {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: default;
+}
+
+/* A locked card the page can draw: the page's own card, locked, under a short note. */
+.plan-editor-locked-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: not-allowed;
+}
+
+.plan-editor-locked-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.plan-editor-locked-card > .plan-entry {
+  margin: 0;
+  background: var(--surface-soft);
+}
+
+.plan-editor-locked-card :is(input, textarea, select, button, [role='radio'], [role='checkbox']) {
+  cursor: not-allowed;
+}
+
+.plan-editor-locked-card :is(input, textarea, .plan-select-trigger):disabled,
+.plan-editor-locked-card .plan-select-trigger[data-disabled] {
+  background: var(--surface);
+  color: var(--muted);
 }

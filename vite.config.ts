@@ -3,6 +3,7 @@ import { cloudflare } from '@cloudflare/vite-plugin'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
+import { fileURLToPath } from 'node:url'
 
 const PRECACHE_ASSET = /\.(?:js|mjs|css|wasm|woff2?|ttf|otf|png|jpe?g|gif|webp|avif|svg|ico)$/i
 
@@ -11,6 +12,9 @@ function precacheManifestPlugin(): Plugin {
   return {
     name: 'living-plan-precache-manifest',
     apply: 'build',
+    // After Vite's CSS step, which drops the empty JS chunk of a CSS-only import (hostToolbar.css).
+    // Listed before that, the chunk 404s and fails its whole precache batch.
+    enforce: 'post',
     generateBundle(_options, bundle) {
       const name = this.environment?.name
       if (name && name !== 'client') return
@@ -37,6 +41,8 @@ export default defineConfig({
   resolve: {
     tsconfigPaths: true,
     dedupe: ['react', 'react-dom'],
+    // Code is highlighted with Pierre's Highlights; Shiki is never loaded, so none of it is built or precached.
+    alias: [{ find: /^shiki(\/.*)?$/, replacement: fileURLToPath(new URL('./client/noShiki.ts', import.meta.url)) }],
   },
   ssr: {
     noExternal: ['yaml', 'winston', 'winston-daily-rotate-file'],

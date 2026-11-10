@@ -58,6 +58,14 @@ test('repeated blank lines in a changed card collapse, but not inside code', () 
   )
 })
 
+test('a block that only moved keeps the file text', () => {
+  const form = '<form id="f" prompt="F">\n<field name="a" label="A" />\n<field name="b" label="B" />\n</form>'
+  const original = `One.\n\n${form}\n\n<phase id="p" title="P">\nBody.\n</phase>\n`
+  // The editor writes the moved form with blank lines between its fields.
+  const edited = 'One.\n\n<phase id="p" title="P">\n  Body.\n</phase>\n\n<form id="f" prompt="F">\n  <field name="a" label="A" />\n\n  <field name="b" label="B" />\n</form>\n'
+  assert.equal(mergeEditedBody(original, fromEditorMarkdown(edited)), `One.\n\n<phase id="p" title="P">\nBody.\n</phase>\n\n${form}\n`)
+})
+
 test('an inserted block lands between the untouched ones, and a removed block is dropped', () => {
   assert.equal(mergeEditedBody('One.\n\nTwo.\n\nThree.\n', 'One.\n\nNew.\n\nThree.\n'), 'One.\n\nNew.\n\nThree.\n')
 })

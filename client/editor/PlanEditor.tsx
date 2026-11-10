@@ -2,6 +2,7 @@ import {
   MDXEditor,
   codeBlockPlugin,
   headingsPlugin,
+  imagePlugin,
   jsxPlugin,
   linkPlugin,
   listsPlugin,
@@ -9,9 +10,6 @@ import {
   quotePlugin,
   tablePlugin,
   thematicBreakPlugin,
-  useCodeBlockEditorContext,
-  type CodeBlockEditorDescriptor,
-  type CodeBlockEditorProps,
   type MDXEditorMethods,
 } from '@mdxeditor/editor'
 import '@mdxeditor/editor/style.css'
@@ -21,36 +19,12 @@ import { planNotReadyReason } from '../../src/planReady.ts'
 import { Button } from '../ui/button.tsx'
 import { clearDraft, throttle, writeDraft, type PlanDraft } from './draftStore.ts'
 import { planJsxDescriptors } from './entryEditors.tsx'
-import { useIsolatedFromEditor } from './isolate.ts'
 import { slashMenuPlugin } from './slashMenu.tsx'
+import { lockedCardsPlugin } from './lockedPlugin.tsx'
+import { codeFenceEditor } from './codeFence.tsx'
 import { blockHandlesPlugin, releaseOuterCarets, syncFocusedNestedEditor } from './blockHandles.tsx'
 import './planEditor.css'
 
-/** Fences (code, mermaid, the workflow table) are edited as plain text. */
-function PlainCodeEditor({ code, language }: CodeBlockEditorProps) {
-  const { setCode } = useCodeBlockEditorContext()
-  const [value, setValue] = useState(code)
-  const box = useRef<HTMLDivElement>(null)
-  useIsolatedFromEditor(box)
-  const rows = Math.min(24, Math.max(3, value.split('\n').length + 1))
-  return (
-    <div className="plan-editor-code" ref={box}>
-      {language ? <span className="plan-editor-code-lang">{language}</span> : null}
-      <textarea
-        aria-label={language ? `${language} code` : 'Code'}
-        spellCheck={false}
-        rows={rows}
-        value={value}
-        onChange={(event) => {
-          setValue(event.target.value)
-          setCode(event.target.value)
-        }}
-      />
-    </div>
-  )
-}
-
-const plainCode: CodeBlockEditorDescriptor = { priority: 0, match: () => true, Editor: PlainCodeEditor }
 
 /**
  * A keystroke never needs to move the page so far that the field being typed in leaves the screen.
@@ -222,10 +196,13 @@ export function PlanEditor({ planId, base, draft, outdated, publish, onClose }: 
       quotePlugin(),
       thematicBreakPlugin(),
       linkPlugin(),
+      // Images from an address, added with Image in the card menu. Sized by the page, not by dragging.
+      imagePlugin({ disableImageResize: true, disableImageSettingsButton: true }),
       tablePlugin(),
-      codeBlockPlugin({ codeBlockEditorDescriptors: [plainCode] }),
+      codeBlockPlugin({ codeBlockEditorDescriptors: [codeFenceEditor] }),
       jsxPlugin({ jsxComponentDescriptors: planJsxDescriptors }),
       slashMenuPlugin(),
+      lockedCardsPlugin(),
       blockHandlesPlugin(),
       markdownShortcutPlugin(),
     ],
@@ -294,7 +271,7 @@ export function PlanEditor({ planId, base, draft, outdated, publish, onClose }: 
         <span className="plan-editor-status-text" role="status" data-plan-draft-state={state.kind}>
           {status}
           <span className="plan-editor-hint">
-            Type <kbd>/</kbd> to add a card
+            Type <kbd>/</kbd> to add a block
           </span>
         </span>
         <span className="plan-editor-actions">

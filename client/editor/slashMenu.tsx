@@ -1,23 +1,90 @@
-import { addComposerChild$, addNestedEditorChild$, insertJsx$, realmPlugin, usePublisher } from '@mdxeditor/editor'
+import {
+  $createCodeBlockNode,
+  $createImageNode,
+  activeEditor$,
+  addComposerChild$,
+  addNestedEditorChild$,
+  insertJsx$,
+  NESTED_EDITOR_UPDATED_COMMAND,
+  realmPlugin,
+  usePublisher,
+} from '@mdxeditor/editor'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
-import { $getNodeByKey, $getSelection, $isDecoratorNode, $isParagraphNode, $isRangeSelection, $isTextNode } from 'lexical'
+import { $createLinkNode } from '@lexical/link'
+import { $createHeadingNode, $createQuoteNode, type HeadingTagType } from '@lexical/rich-text'
+import { $setBlocksType } from '@lexical/selection'
+import {
+  $createParagraphNode,
+  $createRangeSelection,
+  $createTextNode,
+  $getNodeByKey,
+  $getRoot,
+  $isElementNode,
+  $setSelection,
+  $getSelection,
+  $isDecoratorNode,
+  $isParagraphNode,
+  $isRangeSelection,
+  $isTextNode,
+  COMMAND_PRIORITY_HIGH,
+  COMMAND_PRIORITY_NORMAL,
+  KEY_ENTER_COMMAND,
+  KEY_ESCAPE_COMMAND,
+  KEY_TAB_COMMAND,
+  type ElementNode,
+  type LexicalEditor,
+} from 'lexical'
 import { LexicalTypeaheadMenuPlugin, MenuOption, useBasicTypeaheadTriggerMatch } from '@lexical/react/LexicalTypeaheadMenuPlugin'
 import type { MdxJsxAttribute, MdxJsxFlowElement } from 'mdast-util-mdx-jsx'
 import type { Paragraph } from 'mdast'
-import { useCallback, useMemo, useState } from 'react'
+import {
+  Code,
+  Heading1,
+  Heading2,
+  Heading3,
+  Heading4,
+  Heading5,
+  Heading6,
+  Image as ImageIcon,
+  Link as LinkIcon,
+  Quote,
+  Type,
+  Workflow,
+  type LucideIcon,
+} from 'lucide-react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { CardLabel } from '../entries/CardLabel.tsx'
+import { CardLabel, type CardIcon } from '../entries/CardLabel.tsx'
+import { focusFenceWhenReady } from './codeFence.tsx'
+import { InsertPrompt, type InsertKind, type InsertValues } from './insertPrompt.tsx'
+
+/** The menu's sections, in the order it shows them. */
+const SECTIONS = ['Text', 'Links and media', 'Code', 'Cards', 'In this card'] as const
+type Section = (typeof SECTIONS)[number]
 
 type Card = {
   key: string
+  section: Section
   label: string
   hint: string
-  icon: string
+  icon: CardIcon
   /** Words that also find this card. */
   keywords: string[]
   /** Rows only make sense inside a card. */
   nested?: boolean
-  build: () => MdxJsxFlowElement
+  /**
+   * Cards the agent writes for the person to answer (decisions, choices, forms, questions,
+   * approvals). The editor still edits them where the plan has them, but the menu does not offer them.
+   */
+  agentOnly?: boolean
+  /** The card to add. Without one (and without a fence) the line stays a paragraph. */
+  build?: () => MdxJsxFlowElement
+  /** A fenced code block to add instead of a card. */
+  fence?: { language: string; code: string }
+  /** The block the "/" line becomes, keeping its text: a heading, a quote, or a plain paragraph. */
+  block?: () => ElementNode
+  /** Asks for an address first, then adds a link or an image where the "/" was. */
+  prompt?: InsertKind
 }
 
 function shortId(prefix: string): string {
@@ -36,9 +103,30 @@ function element(name: string, values: Record<string, string>, children: MdxJsxF
   return { type: 'mdxJsxFlowElement', name, attributes: attrs(values), children }
 }
 
-function callout(kind: string, icon: string, label: string): Card {
+function glyph(Icon: LucideIcon) {
+  return <Icon size={16} strokeWidth={2} />
+}
+
+const HEADING_ICONS: LucideIcon[] = [Heading1, Heading2, Heading3, Heading4, Heading5, Heading6]
+
+function heading(level: number): Card {
+  const tag = `h${level}` as HeadingTagType
+  return {
+    key: tag,
+    section: 'Text',
+    label: `Heading ${level}`,
+    hint: level === 1 ? 'The largest title' : level === 6 ? 'The smallest title' : `A level ${level} title`,
+    icon: glyph(HEADING_ICONS[level - 1]!),
+    keywords: [tag, 'heading', `heading${level}`, 'title', '#'.repeat(level)],
+    block: () => $createHeadingNode(tag),
+  }
+}
+
+function callout(kind: string, icon: string, label: string, agentOnly = false): Card {
   return {
     key: `callout-${kind}`,
+    section: 'Cards',
+    agentOnly,
     label,
     hint: `A ${kind} callout`,
     icon,
@@ -47,10 +135,66 @@ function callout(kind: string, icon: string, label: string): Card {
   }
 }
 
-/** Everything the slash menu can add, in the order it lists them. */
+/** Everything the slash menu knows, in the order it lists them. */
 export const SLASH_CARDS: Card[] = [
   {
+    key: 'text',
+    section: 'Text',
+    label: 'Text',
+    hint: 'A paragraph to write in',
+    icon: glyph(Type),
+    keywords: ['text', 'paragraph', 'plain'],
+    block: () => $createParagraphNode(),
+  },
+  ...[1, 2, 3, 4, 5, 6].map(heading),
+  {
+    key: 'quote',
+    section: 'Text',
+    label: 'Quote',
+    hint: 'Quoted text, shown set apart',
+    icon: glyph(Quote),
+    keywords: ['quote', 'blockquote', 'citation', '>'],
+    block: () => $createQuoteNode(),
+  },
+  {
+    key: 'link',
+    section: 'Links and media',
+    label: 'Link',
+    hint: 'A link to a web address',
+    icon: glyph(LinkIcon),
+    keywords: ['link', 'url', 'href', 'web'],
+    prompt: 'link',
+  },
+  {
+    key: 'image',
+    section: 'Links and media',
+    label: 'Image',
+    hint: 'An image from a web address',
+    icon: glyph(ImageIcon),
+    keywords: ['image', 'picture', 'photo', 'img', 'screenshot'],
+    prompt: 'image',
+  },
+  {
+    key: 'code',
+    section: 'Code',
+    label: 'Code',
+    hint: 'A code block with syntax highlighting',
+    icon: glyph(Code),
+    keywords: ['code', 'snippet', 'fence', 'block'],
+    fence: { language: 'ts', code: '' },
+  },
+  {
+    key: 'mermaid',
+    section: 'Code',
+    label: 'Mermaid',
+    hint: 'A diagram drawn from mermaid code',
+    icon: glyph(Workflow),
+    keywords: ['mermaid', 'diagram', 'chart', 'flowchart'],
+    fence: { language: 'mermaid', code: 'flowchart LR\n  A[Start] --> B[Finish]' },
+  },
+  {
     key: 'phase',
+    section: 'Cards',
     label: 'Phase',
     hint: 'A step of the work, with a status',
     icon: 'flag',
@@ -60,10 +204,12 @@ export const SLASH_CARDS: Card[] = [
   callout('note', 'info', 'Note'),
   callout('tip', 'idea', 'Tip'),
   callout('risk', 'alert', 'Risk'),
-  callout('decision', 'decision', 'Decision'),
+  callout('decision', 'decision', 'Decision', true),
   callout('warning', 'shield', 'Warning'),
   {
     key: 'choice',
+    section: 'Cards',
+    agentOnly: true,
     label: 'Choice',
     hint: 'The person picks one option',
     icon: 'decision',
@@ -76,6 +222,8 @@ export const SLASH_CARDS: Card[] = [
   },
   {
     key: 'form',
+    section: 'Cards',
+    agentOnly: true,
     label: 'Form',
     hint: 'Fields the person fills in',
     icon: 'file',
@@ -87,6 +235,8 @@ export const SLASH_CARDS: Card[] = [
   },
   {
     key: 'questions',
+    section: 'Cards',
+    agentOnly: true,
     label: 'Questions',
     hint: 'Free-text answers, one per item',
     icon: 'help',
@@ -98,6 +248,8 @@ export const SLASH_CARDS: Card[] = [
   },
   {
     key: 'approve',
+    section: 'Cards',
+    agentOnly: true,
     label: 'Approval',
     hint: 'A yes or no gate',
     icon: 'check',
@@ -106,6 +258,7 @@ export const SLASH_CARDS: Card[] = [
   },
   {
     key: 'checklist',
+    section: 'Cards',
     label: 'Checklist',
     hint: 'Lines the agent ticks off',
     icon: 'list',
@@ -114,6 +267,7 @@ export const SLASH_CARDS: Card[] = [
   },
   {
     key: 'option',
+    section: 'In this card',
     label: 'Option',
     hint: 'One more option for a choice',
     icon: 'branch',
@@ -123,6 +277,7 @@ export const SLASH_CARDS: Card[] = [
   },
   {
     key: 'field',
+    section: 'In this card',
     label: 'Field',
     hint: 'One more field for a form',
     icon: 'wrench',
@@ -132,6 +287,7 @@ export const SLASH_CARDS: Card[] = [
   },
   {
     key: 'item',
+    section: 'In this card',
     label: 'Item',
     hint: 'A question or checklist line',
     icon: 'message',
@@ -141,12 +297,124 @@ export const SLASH_CARDS: Card[] = [
   },
 ]
 
+/**
+ * Removing the typed "/query" can remove the text the caret was in, and a selection on a removed
+ * node fails the whole update. Put the caret back at the end of the line when that happens.
+ */
+function caretBackInLine(line: string | null): void {
+  const selection = $getSelection()
+  const lost =
+    !$isRangeSelection(selection) || $getNodeByKey(selection.anchor.key) === null || $getNodeByKey(selection.focus.key) === null
+  if (!lost) return
+  const node = line ? $getNodeByKey(line) : null
+  if ($isElementNode(node)) node.selectEnd()
+  else $setSelection(null)
+}
+
+/** The menu can lag a fast typist by a key, so drop whatever is left of "/query" before the caret. */
+function removeSlashQuery(): void {
+  const selection = $getSelection()
+  if (!$isRangeSelection(selection) || !selection.isCollapsed()) return
+  const node = selection.anchor.getNode()
+  if (!$isTextNode(node)) return
+  const offset = selection.anchor.offset
+  const before = node.getTextContent().slice(0, offset)
+  const slash = before.lastIndexOf('/')
+  if (slash >= 0 && /^\/\S*$/.test(before.slice(slash)) && (slash === 0 || /\s/.test(before[slash - 1] ?? ''))) {
+    node.spliceText(slash, offset - slash, '', true)
+  }
+}
+
+/**
+ * "Tiny /h2" leaves "Tiny " once the "/h2" goes. When the line becomes another block, the space
+ * that came before the "/" goes too. A link or image keeps it: it sits after that space.
+ */
+function dropSpaceBeforeCaret(): void {
+  const selection = $getSelection()
+  if (!$isRangeSelection(selection) || !selection.isCollapsed()) return
+  const node = selection.anchor.getNode()
+  const offset = selection.anchor.offset
+  if (!$isTextNode(node) || offset !== node.getTextContentSize() || offset === 0) return
+  if (/\s/.test(node.getTextContent()[offset - 1] ?? '')) node.spliceText(offset - 1, 1, '', true)
+}
+
+/** Put a code block where the "/" line was (or after it, when it still has text), and type in it. */
+function insertFence(line: string | null, fence: { language: string; code: string }): void {
+  const block = $createCodeBlockNode({ code: fence.code, language: fence.language, meta: '' })
+  const target = line ? $getNodeByKey(line) : null
+  // The caret moves into the code editor, so the plan's editor lets go of it first: a caret left in
+  // the replaced line would point at a removed node.
+  $setSelection(null)
+  if ($isParagraphNode(target) && target.getTextContent() === '') target.replace(block)
+  else if (target) target.insertAfter(block)
+  else $getRoot().append(block)
+  focusFenceWhenReady(block.getKey())
+}
+
+type Point = { key: string; offset: number; type: 'text' | 'element' }
+
+/** Where the caret is, to come back to after the link or image form. */
+function $caretPoint(): Point | null {
+  const selection = $getSelection()
+  if (!$isRangeSelection(selection)) return null
+  const { key, offset, type } = selection.anchor
+  return { key, offset, type }
+}
+
+/** Put the caret back where the "/" was, or at the end of its line if that text is gone. */
+function $caretBack(point: Point | null, line: string | null): void {
+  if (point && $getNodeByKey(point.key)) {
+    const selection = $createRangeSelection()
+    selection.anchor.set(point.key, point.offset, point.type)
+    selection.focus.set(point.key, point.offset, point.type)
+    $setSelection(selection)
+    return
+  }
+  const node = line ? $getNodeByKey(line) : null
+  if ($isElementNode(node)) node.selectEnd()
+  else $getRoot().selectEnd()
+}
+
+/** Add the link or image at the caret. */
+function $insertAtCaret(kind: InsertKind, values: InsertValues): void {
+  const selection = $getSelection()
+  if (!$isRangeSelection(selection)) return
+  if (kind === 'link') {
+    const link = $createLinkNode(values.url)
+    link.append($createTextNode(values.text || values.url))
+    selection.insertNodes([link])
+  } else {
+    selection.insertNodes([$createImageNode({ src: values.url, altText: values.text })])
+  }
+}
+
+/** The line the menu was opened on, in the viewport, for the link or image form to sit under. */
+function lineRect(editor: LexicalEditor, line: string | null): DOMRect {
+  const element = line ? editor.getElementByKey(line) : null
+  return (element ?? editor.getRootElement())?.getBoundingClientRect() ?? new DOMRect(16, 16, 0, 0)
+}
+
 class CardOption extends MenuOption {
   card: Card
   constructor(card: Card) {
     super(card.key)
     this.card = card
   }
+}
+
+/** The menu's options for a query, in its order. */
+function menuOptions(nested: boolean, query: string): CardOption[] {
+  return SLASH_CARDS.filter((card) => !card.agentOnly && (nested || !card.nested) && matches(card, query)).map((card) => new CardOption(card))
+}
+
+/** The query after a "/" right before the caret (the menu's trigger), or null when there is none. */
+function $slashQueryAtCaret(): string | null {
+  const selection = $getSelection()
+  if (!$isRangeSelection(selection) || !selection.isCollapsed()) return null
+  const node = selection.anchor.getNode()
+  if (!$isTextNode(node)) return null
+  const match = /(?:^|\s)\/(\S{0,24})$/.exec(node.getTextContent().slice(0, selection.anchor.offset))
+  return match ? (match[1] ?? '') : null
 }
 
 function matches(card: Card, query: string): boolean {
@@ -158,38 +426,120 @@ function matches(card: Card, query: string): boolean {
 function SlashMenu({ nested }: { nested: boolean }) {
   const [editor] = useLexicalComposerContext()
   const insertJsx = usePublisher(insertJsx$)
+  const setActiveEditor = usePublisher(activeEditor$)
   const [query, setQuery] = useState<string | null>(null)
+  const open = useRef(false)
+  const highlighted = useRef(0)
+  const shownQuery = useRef<string | null>(null)
+  const selectAndClose = useRef<((option: CardOption) => void) | null>(null)
+  const [prompt, setPrompt] = useState<{ kind: InsertKind; point: Point | null; line: string | null; anchor: DOMRect } | null>(null)
   const trigger = useBasicTypeaheadTriggerMatch('/', { minLength: 0, maxLength: 24 })
-  const options = useMemo(
+  const options = useMemo(() => menuOptions(nested, query ?? ''), [nested, query])
+
+  // Escape on a line that holds only the `/` (as the + under a block leaves it) empties the line.
+  useEffect(
     () =>
-      SLASH_CARDS.filter((card) => (nested || !card.nested) && matches(card, query ?? '')).map((card) => new CardOption(card)),
-    [nested, query],
+      editor.registerCommand(
+        KEY_ESCAPE_COMMAND,
+        () => {
+          const selection = $getSelection()
+          if (!$isRangeSelection(selection)) return false
+          const line = selection.anchor.getNode().getTopLevelElement()
+          if ($isParagraphNode(line) && line.getTextContent() === '/') {
+            line.clear()
+            line.select()
+          }
+          // The menu still closes itself.
+          return false
+        },
+        COMMAND_PRIORITY_NORMAL,
+      ),
+    [editor],
   )
+
+  // The editor adds a card once it has focus, which can take a few frames, and splits the "/" line
+  // around it. When the card appears, the empty line before it goes away, so the card takes the
+  // line's place; the empty line after it keeps the caret. `line` is read late: the update that
+  // finds it runs after this menu's own update.
+  const removeEmptiedLine = useCallback(
+    (line: () => string | null) => {
+      const known = new Set(editor.getEditorState().read(() => $getRoot().getChildrenKeys()))
+      const stop = editor.registerUpdateListener(({ editorState }) => {
+        const card = editorState.read(
+          () => $getRoot().getChildren().find((node) => $isDecoratorNode(node) && !known.has(node.getKey()))?.getKey() ?? null,
+        )
+        if (!card) return
+        stop()
+        clearTimeout(timer)
+        editor.update(() => {
+          const before = $getNodeByKey(card)?.getPreviousSibling()
+          const ours = before && (before.getKey() === line() || !known.has(before.getKey()))
+          if (ours && $isParagraphNode(before) && before.getTextContent() === '') before.remove()
+        })
+      })
+      const timer = setTimeout(stop, 1000)
+    },
+    [editor],
+  )
+
+  const pick = useRef<(option: CardOption, typed: string) => void>(() => {})
+
+  // The menu takes Enter and Tab itself. Inside a card's body the editor would otherwise also start
+  // a new line first, and the menu would no longer find the "/query" it replaces.
+  useEffect(() => {
+    const take = (event: KeyboardEvent | null) => {
+      if (!open.current) return false
+      // Read the query from the text: a fast typist can press Enter before the menu shows the last key.
+      const typed = editor.getEditorState().read($slashQueryAtCaret)
+      if (typed === null) return false
+      const list = menuOptions(nested, typed)
+      const option = list[typed === shownQuery.current ? highlighted.current : 0]
+      if (!option) return false
+      event?.preventDefault()
+      event?.stopImmediatePropagation()
+      pick.current(option, typed)
+      return true
+    }
+    const enter = editor.registerCommand(KEY_ENTER_COMMAND, take, COMMAND_PRIORITY_HIGH)
+    const tab = editor.registerCommand(KEY_TAB_COMMAND, take, COMMAND_PRIORITY_HIGH)
+    return () => {
+      enter()
+      tab()
+    }
+  }, [editor, nested])
 
   const onSelect = useCallback(
     (option: CardOption, typed: { remove: () => void } | null, close: () => void) => {
+      const { build, fence, block, prompt: ask } = option.card
       let line: string | null = null
+      let point: Point | null = null
       editor.update(
         () => {
-          typed?.remove()
+          // The line first: removing the typed "/query" can take the caret out of it.
           const at = $getSelection()
           if ($isRangeSelection(at)) line = at.anchor.getNode().getTopLevelElement()?.getKey() ?? null
-          // The menu can lag a fast typist by a key, so drop whatever is left of "/query" before the caret.
-          const selection = $getSelection()
-          if (!$isRangeSelection(selection) || !selection.isCollapsed()) return
-          const node = selection.anchor.getNode()
-          if (!$isTextNode(node)) return
-          const offset = selection.anchor.offset
-          const before = node.getTextContent().slice(0, offset)
-          const slash = before.lastIndexOf('/')
-          if (slash >= 0 && /^\/\S*$/.test(before.slice(slash)) && (slash === 0 || /\s/.test(before[slash - 1] ?? ''))) {
-            node.spliceText(slash, offset - slash, '', true)
+          typed?.remove()
+          caretBackInLine(line)
+          removeSlashQuery()
+          if (fence) insertFence(line, fence)
+          else if (block) {
+            dropSpaceBeforeCaret()
+            $setBlocksType($getSelection(), block)
           }
+          else if (ask) point = $caretPoint()
         },
         { discrete: true },
       )
       close()
-      const node = option.card.build()
+      if (ask) {
+        // The update above runs after this one, so read what it found on the next frame.
+        requestAnimationFrame(() => setPrompt({ kind: ask, point, line, anchor: lineRect(editor, line) }))
+        return
+      }
+      if (fence || !build) return
+      const node = build()
+      // The card goes into the editor the "/" was typed in, also a card's body.
+      setActiveEditor(editor)
       insertJsx({
         kind: 'flow',
         name: node.name ?? '',
@@ -200,53 +550,94 @@ function SlashMenu({ nested }: { nested: boolean }) {
         ),
         children: node.children,
       })
-      // The card goes after the line the "/" was typed on. A line left empty by that goes away,
-      // so the card takes its place.
-      requestAnimationFrame(() => {
-        editor.update(() => {
-          const emptied = line ? $getNodeByKey(line) : null
-          if ($isParagraphNode(emptied) && emptied.getTextContent() === '' && $isDecoratorNode(emptied.getNextSibling())) emptied.remove()
-        })
-      })
+      removeEmptiedLine(() => line)
     },
-    [editor, insertJsx],
+    [editor, insertJsx, removeEmptiedLine, setActiveEditor],
   )
+  // Picked with Enter or Tab: through the menu, so it closes too. A key typed just before may not be on
+  // screen yet, so wait a frame or two for the menu to show it.
+  pick.current = (option, typed) => {
+    open.current = false
+    let frames = 0
+    const attempt = () => {
+      const select = shownQuery.current === typed ? selectAndClose.current : null
+      if (select) select(option)
+      else if (frames++ < 3) requestAnimationFrame(attempt)
+      else onSelect(option, null, () => {})
+    }
+    attempt()
+  }
+
+  const closePrompt = (values: InsertValues | null) => {
+    if (!prompt) return
+    setPrompt(null)
+    editor.update(
+      () => {
+        $caretBack(prompt.point, prompt.line)
+        if (values) $insertAtCaret(prompt.kind, values)
+      },
+      { discrete: true },
+    )
+    editor.focus()
+    // A card's body tells the plan about its text through its card.
+    if (values) editor.dispatchCommand(NESTED_EDITOR_UPDATED_COMMAND, undefined)
+  }
 
   return (
+    <>
+    {prompt ? (
+      <InsertPrompt kind={prompt.kind} anchor={prompt.anchor} onSubmit={(values) => closePrompt(values)} onCancel={() => closePrompt(null)} />
+    ) : null}
     <LexicalTypeaheadMenuPlugin<CardOption>
-      onQueryChange={setQuery}
+      onQueryChange={(next) => {
+        open.current = next !== null
+        if (next === null) selectAndClose.current = null
+        setQuery(next)
+      }}
       onSelectOption={onSelect}
       triggerFn={trigger}
       options={options}
-      menuRenderFn={(anchor, { selectedIndex, selectOptionAndCleanUp, setHighlightedIndex }) =>
+      menuRenderFn={(anchor, { selectedIndex, selectOptionAndCleanUp, setHighlightedIndex }) => {
+        highlighted.current = selectedIndex ?? 0
+        shownQuery.current = query
+        selectAndClose.current = selectOptionAndCleanUp
+        return (
         anchor.current && options.length > 0
           ? createPortal(
-              <div className="plan-slash-menu" role="listbox" aria-label="Add a card" data-plan-grab-ignore="">
+              <div className="plan-slash-menu" role="listbox" aria-label="Add a block" data-plan-grab-ignore="">
                 {options.map((option, index) => (
-                  <div
-                    key={option.key}
-                    ref={(element) => option.setRefElement(element)}
-                    role="option"
-                    aria-selected={selectedIndex === index}
-                    className="plan-slash-item"
-                    data-slash-card={option.card.key}
-                    onMouseEnter={() => setHighlightedIndex(index)}
-                    onMouseDown={(event) => {
-                      event.preventDefault()
-                      setHighlightedIndex(index)
-                      selectOptionAndCleanUp(option)
-                    }}
-                  >
-                    <CardLabel icon={option.card.icon}>{option.card.label}</CardLabel>
-                    <span className="plan-slash-hint">{option.card.hint}</span>
-                  </div>
+                  <Fragment key={option.key}>
+                    {option.card.section !== options[index - 1]?.card.section ? (
+                      <div className="plan-slash-section" role="presentation" data-slash-section={option.card.section}>
+                        {option.card.section}
+                      </div>
+                    ) : null}
+                    <div
+                      ref={(element) => option.setRefElement(element)}
+                      role="option"
+                      aria-selected={selectedIndex === index}
+                      className="plan-slash-item"
+                      data-slash-card={option.card.key}
+                      onMouseEnter={() => setHighlightedIndex(index)}
+                      onMouseDown={(event) => {
+                        event.preventDefault()
+                        setHighlightedIndex(index)
+                        selectOptionAndCleanUp(option)
+                      }}
+                    >
+                      <CardLabel icon={option.card.icon}>{option.card.label}</CardLabel>
+                      <span className="plan-slash-hint">{option.card.hint}</span>
+                    </div>
+                  </Fragment>
                 ))}
               </div>,
               anchor.current,
             )
           : null
-      }
+        )
+      }}
     />
+    </>
   )
 }
 
@@ -258,7 +649,10 @@ function NestedSlashMenu() {
   return <SlashMenu nested />
 }
 
-/** Type `/` to add a card. Arrow keys move, Enter or Tab adds, Escape closes. */
+/**
+ * Type `/` to add a block: text, headings, a quote, a link, an image, code, a diagram, or a card,
+ * listed in sections. Arrow keys move, Enter or Tab adds, Escape closes.
+ */
 export const slashMenuPlugin = realmPlugin({
   init(realm) {
     realm.pubIn({

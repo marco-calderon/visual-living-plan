@@ -9,7 +9,8 @@ function readDiffsThemePair(): DiffsThemePair {
   return diffsThemePair(document.documentElement.dataset.diffsTheme ?? DEFAULT_DIFFS_THEME)
 }
 
-function useDiffsThemePair(): DiffsThemePair {
+/** The page's code theme pair, following Settings. */
+export function useDiffsThemePair(): DiffsThemePair {
   const [pair, setPair] = useState<DiffsThemePair>(readDiffsThemePair)
 
   useEffect(() => {
@@ -32,7 +33,8 @@ function readWrapCode(): boolean {
   return document.documentElement.dataset.wrapCode === 'true'
 }
 
-function useWrapCode(): boolean {
+/** Whether Settings wraps long code lines. */
+export function useWrapCode(): boolean {
   const [wrap, setWrap] = useState(readWrapCode)
 
   useEffect(() => {
@@ -48,10 +50,12 @@ function useWrapCode(): boolean {
   return wrap
 }
 
-function appearance(wrap: boolean) {
+/** Pierre options the page's code blocks share. */
+export function appearance(wrap: boolean) {
   return {
     themeType: 'system' as const,
-    preferredHighlighter: 'shiki-js' as const,
+    // Pierre's WebAssembly highlighter. Every theme in Settings has a Highlights palette.
+    preferredHighlighter: 'highlights' as const,
     overflow: wrap ? ('wrap' as const) : ('scroll' as const),
     unsafeCSS: `
     :host {
