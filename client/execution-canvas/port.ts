@@ -9,5 +9,8 @@ import type { ExecutionCanvasProps } from './types.ts'
 export type ExecutionCanvasAdapter = {
   id: string
   label: string
+  /** May be lazy: the host renders it inside a Suspense boundary. */
   Component: ComponentType<ExecutionCanvasProps>
+  /** Starts fetching a lazy `Component`, such as when the pointer reaches the Workflow tab. */
+  preload?: () => void
 }

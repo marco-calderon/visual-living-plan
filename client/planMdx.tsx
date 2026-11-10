@@ -7,7 +7,7 @@ import type { PlanSnapshotRecord } from '../src/planSnapshots.ts'
 import { planSourceToMdx } from '../src/planMdx/source.ts'
 import { buildPlanToc, renderTocItemsHtml } from '../src/planToc.ts'
 import type { InteractionResponse } from '../src/types.ts'
-import { planComponents } from './planComponents.tsx'
+import { planComponents, preloadPlanComponents } from './planComponents.tsx'
 import { compilePlanMdx } from '../src/planMdx/compilePlanMdx.ts'
 import { planHasDataTable } from './mdx/dataTable/detect.ts'
 import { MarkdownTable } from './mdx/MarkdownTable.tsx'
@@ -523,7 +523,11 @@ function PlanMdxApp() {
     if (!root?.querySelector('[data-plan-rendered]')) root?.classList.add('plan-mdx-pending')
     const source = boot.source
     const render = async (Content: PlanModule, from: string): Promise<boolean> => {
-      const tableModule = planHasDataTable(planSourceToMdx(from)) ? await import('./mdx/dataTable/register.tsx') : null
+      const fromMdx = planSourceToMdx(from)
+      const [tableModule] = await Promise.all([
+        planHasDataTable(fromMdx) ? import('./mdx/dataTable/register.tsx') : null,
+        preloadPlanComponents(fromMdx),
+      ])
       if (cancelled) return false
       const components = {
         ...planComponents,
@@ -554,6 +558,8 @@ function PlanMdxApp() {
       setShownSource(from)
       return true
     }
+    // Fetch the workflow, diagram, and chart code while the plan compiles.
+    void preloadPlanComponents(mdx)
     compileMdx(mdx).then(
       async (Content) => {
         if (cancelled) return

@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { registerServiceWorker } from "../src/registerServiceWorker.ts";
 import { startOfflineEngine } from "./offline/engine.ts";
 import { useEffect, useMemo, useState } from "react";
-import { ExecutionCanvas } from "./ExecutionCanvas";
+import { ExecutionCanvas, preloadExecutionCanvas } from "./ExecutionCanvas";
 import type { ExecutionState } from "../src/execution.ts";
 import { createIdleExecutionState, mergePlannedExecution } from "../src/execution.ts";
 import { subscribePlanEvents } from "./planEvents.ts";
@@ -36,6 +36,47 @@ function readBootstrap(): ExecutionState {
   }
 }
 
+/** The tab panel that holds the canvas. */
+function workflowPanel(): HTMLElement | null {
+  return document.getElementById("execution-root")?.closest<HTMLElement>("[data-tab-panel]") ?? null;
+}
+
+/**
+ * True from the first time the Workflow tab shows. The canvas, with React Flow and ELK, is
+ * fetched and laid out then, not with the page.
+ */
+function useWorkflowTabShown(): boolean {
+  const [shown, setShown] = useState(() => !workflowPanel()?.hidden);
+  useEffect(() => {
+    if (shown) return;
+    const panel = workflowPanel();
+    if (!panel) {
+      setShown(true);
+      return;
+    }
+    const check = () => {
+      if (!panel.hidden) setShown(true);
+    };
+    const observer = new MutationObserver(check);
+    observer.observe(panel, { attributes: true, attributeFilter: ["hidden"] });
+    check();
+    return () => observer.disconnect();
+  }, [shown]);
+  return shown;
+}
+
+/** Start fetching the canvas when the pointer or focus reaches the Workflow tab, before the click. */
+function preloadCanvasOnIntent(): void {
+  const onIntent = (event: Event) => {
+    if (!(event.target instanceof Element) || !event.target.closest('[data-tab-target="workflow"]')) return;
+    document.removeEventListener("pointerover", onIntent);
+    document.removeEventListener("focusin", onIntent);
+    preloadExecutionCanvas();
+  };
+  document.addEventListener("pointerover", onIntent);
+  document.addEventListener("focusin", onIntent);
+}
+
 async function readExecution(): Promise<ExecutionState> {
   const response = await fetch(apiPath("/api/execution"));
   if (!response.ok) throw new Error("Request failed");
@@ -54,6 +95,7 @@ function ExecutionApp() {
     refetchOnWindowFocus: false,
   });
   const execution = query.data;
+  const canvasShown = useWorkflowTabShown();
   const plannedGraph = useMemo(
     () => mergePlannedExecution(execution.planned, execution.graph),
     [execution.graph, execution.planned],
@@ -115,7 +157,7 @@ function ExecutionApp() {
   return (
     <div className="execution-shell">
       <div className="execution-stage">
-        <ExecutionCanvas execution={display} onSelectPlanRef={handleSelectPlanRef} />
+        {canvasShown ? <ExecutionCanvas execution={display} onSelectPlanRef={handleSelectPlanRef} /> : null}
       </div>
     </div>
   );
@@ -125,6 +167,7 @@ if (typeof document !== "undefined") {
   registerServiceWorker();
   void startOfflineEngine();
   startPlanStatusMark();
+  preloadCanvasOnIntent();
   const root = document.getElementById("execution-root");
   if (root)
     createRoot(root).render(
