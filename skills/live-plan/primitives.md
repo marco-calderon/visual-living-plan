@@ -1,6 +1,6 @@
 # Live Plan primitives
 
-Author each entry as an MDX component. The component name is the entry type (`phase`, `callout`, `choice`, `form`, `questions`, `approve`, `checklist`, `workflow`). Anything outside those components is markdown. A pipe table in that markdown renders as a markdown table: cell text wraps between words to fit the column, and the table scrolls sideways only when it still does not fit. A `<DataTable>` is a separate table. A mermaid fence draws a figure. Any other fence is highlighted source.
+Author each entry as an MDX component. The component name is the entry type (`phase`, `callout`, `choice`, `form`, `questions`, `approve`, `checklist`, `workflow`). Anything outside those components is markdown. A pipe table in that markdown renders as a markdown table: cell text wraps between words to fit the column, and the table scrolls sideways only when it still does not fit. A `<DataTable>` is a separate table. A task list (`- [ ]`, `- [x]`) shows a box per item, checked for `[x]`. The person cannot tick it; you change the file. Use `<checklist>` for the plan's definition of done. A mermaid fence draws a figure. Any other fence is highlighted source.
 
 A component can contain another component. A callout can contain a choice.
 

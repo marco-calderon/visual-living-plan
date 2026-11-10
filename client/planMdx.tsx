@@ -11,6 +11,7 @@ import { planComponents, preloadPlanComponents } from './planComponents.tsx'
 import { compilePlanMdx } from '../src/planMdx/compilePlanMdx.ts'
 import { planHasDataTable } from './mdx/dataTable/detect.ts'
 import { MarkdownTable } from './mdx/MarkdownTable.tsx'
+import { MarkdownTaskCheckbox } from './mdx/MarkdownTaskCheckbox.tsx'
 import { Approve } from './entries/Approve.tsx'
 import { Callout } from './entries/Callout.tsx'
 import { Checklist } from './entries/Checklist.tsx'
@@ -533,6 +534,7 @@ function PlanMdxApp() {
         ...planComponents,
         pre: PlanPre,
         table: MarkdownTable,
+        input: MarkdownTaskCheckbox,
         phase: PlanPhase,
         callout: PlanCallout,
         ...interactiveComponents,

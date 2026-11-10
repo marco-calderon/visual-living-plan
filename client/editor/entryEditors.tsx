@@ -360,8 +360,9 @@ function EntryEditor({ spec, mdastNode }: { spec: EntrySpec; mdastNode: JsxNode 
       {spec.hasChildren ? (
         <div className="plan-editor-body plan-rich">
           <LockedContext.Provider value={locked}>
+            {/* A row written on one line (`<item done="true">Text</item>`) holds text, not blocks. */}
             <NestedLexicalEditor<JsxNode>
-              block
+              block={mdastNode.type !== 'mdxJsxTextElement'}
               getContent={(node) => node.children}
               getUpdatedMdastNode={(node, children) => ({ ...node, children } as JsxNode)}
             />

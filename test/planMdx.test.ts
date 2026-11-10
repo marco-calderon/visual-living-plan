@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import * as runtime from 'react/jsx-runtime'
 import { compilePlanMdx } from '../src/planMdx/compilePlanMdx.ts'
 import { MarkdownTable } from '../client/mdx/MarkdownTable.tsx'
+import { MarkdownTaskCheckbox } from '../client/mdx/MarkdownTaskCheckbox.tsx'
 import { createIdleExecutionState } from '../src/execution.ts'
 import { planSourceFlags, planSourceToMdx, renderPlanStaticHtml } from '../src/planMdx/source.ts'
 import { parsePlan } from '../src/parse.ts'
@@ -48,6 +49,23 @@ test('pipe tables compile to tables and keep inline markdown in cells', async ()
   assert.match(html, /<code>\|<\/code>/)
   assert.match(html, /<code>foo \| bar<\/code>/)
   assert.doesNotMatch(html, /\| --- \|/)
+})
+
+test('task list items compile to read-only checkboxes in place of [ ] and [x]', async () => {
+  const source = `- [ ] Write the migration
+- [x] Review the schema
+- Plain item
+`
+  const file = await compilePlanMdx(source)
+  const loaded = await run(String(file), { ...runtime })
+  const Content = loaded.default as (props: { components: { input: typeof MarkdownTaskCheckbox } }) => ReactElement
+  const html = renderToStaticMarkup(createElement(Content, { components: { input: MarkdownTaskCheckbox } }))
+  assert.match(html, /<ul class="contains-task-list">/)
+  assert.equal(html.match(/<li class="task-list-item">/g)?.length, 2)
+  assert.match(html, /role="checkbox" aria-checked="false" aria-readonly="true" class="plan-checkbox-control plan-task-checkbox" data-unchecked=""><\/span> Write the migration/)
+  assert.match(html, /role="checkbox" aria-checked="true"[^>]*data-checked=""><span class="plan-checkbox-indicator"><svg[^]*?<\/span><\/span> Review the schema/)
+  assert.match(html, /<li>Plain item<\/li>/)
+  assert.doesNotMatch(html, /\[ \]|\[x\]|<input/)
 })
 
 function Passthrough({ children }: { children?: ReactNode }) {
