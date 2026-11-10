@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { waitForCodeBlocks } from './fixtures/codeBlocks.ts'
 
 // Submitting a plan form re-renders it in place. The plan is not hidden or rebuilt,
 // so the page does not flicker and the scroll position stays where the person left it.
@@ -8,6 +9,8 @@ test('a submitted form keeps the scroll position and its element', async ({ page
   await page.goto('/')
   const form = page.locator('[data-entry="form"][data-entry-id="limits"]')
   await expect(form).toBeVisible()
+  // The code blocks above the form change height once drawn. Read the position after that.
+  await waitForCodeBlocks(page)
   await form.scrollIntoViewIfNeeded()
   await page.evaluate(() => window.scrollBy(0, 40))
   const before = await page.evaluate(() => window.scrollY)
