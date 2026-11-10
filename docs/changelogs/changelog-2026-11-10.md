@@ -1,25 +1,5 @@
 # Changelog — 2026-11-10
 
-## 2.16.1
-
-**PR:** link once known
-
-**Bump:** patch
-
-### Summary
-
-A plan page downloads about a third of the code it used to. The workflow layout engine, the diagram renderer, the charts, and the Workflow tab's canvas load only when the page uses them.
-
-### Improvements
-
-- A plan with no workflow, diagram, or chart downloads 382 KB of compressed code instead of 1,166 KB, and the browser parses 1.2 MB of JavaScript instead of 3.6 MB.
-- The workflow, Mermaid diagram, and chart code is fetched only for a plan that has them, while the plan compiles, so the page still draws in one pass.
-- The Workflow tab's canvas (React Flow and ELK, about 500 KB compressed) loads the first time the tab opens. It starts loading when the pointer or keyboard focus reaches the tab.
-
-### Notes
-
-Browser bundle only. No plan format, CLI, or Worker route changes. The hosted app still precaches every file for offline use, so the canvas and the deferred blocks open offline. `SHELL_CACHE_VERSION` moves to 2.16.1 so the shell worker replaces the previous cache. Most of the remaining plan page code is the MDX compiler (about 157 KB compressed), which compiles the plan in the browser.
-
 ## 2.17.0
 
 **PR:** link once known
@@ -43,3 +23,43 @@ Tables in a plan are easier to read without scrolling sideways. A pipe table wra
 ### Notes
 
 The live-plan skill, `primitives.md`, and the agent guidelines describe the new wrapping. `SHELL_CACHE_VERSION` moves to 2.17.0 so the shell worker replaces the previous cache. No registry restart needed beyond the usual version check.
+
+## 2.16.2
+
+**PR:** [#171](https://github.com/marco-calderon/visual-living-plan/pull/171)
+
+**Bump:** patch
+
+### Summary
+
+Plan headings are white and step down in size from h1 to h6, on the page and in the editor. Tables in the editor read like the page's tables, and their add-row and add-column buttons match the + that adds a block.
+
+### Bugs fixed
+
+- Headings in the editor took the editor's own dark text color and were hard to read on the dark theme. They now use the ink color.
+- An h1 was smaller than an h2, and h2/h3 used browser default sizes. h1 to h6 now follow the design scale: 32, 24, 20, 18, 16 and 14px.
+- Table cells in the editor had dark text and bright white borders. They now use the ink color, the line border and a soft header row.
+
+### Improvements
+
+- A table's add-row and add-column buttons in the editor are slim bars with a +, like the bar that adds a block, and show when the table is hovered or focused.
+
+## 2.16.1
+
+**PR:** link once known
+
+**Bump:** patch
+
+### Summary
+
+A plan page downloads about a third of the code it used to. The workflow layout engine, the diagram renderer, the charts, and the Workflow tab's canvas load only when the page uses them.
+
+### Improvements
+
+- A plan with no workflow, diagram, or chart downloads 382 KB of compressed code instead of 1,166 KB, and the browser parses 1.2 MB of JavaScript instead of 3.6 MB.
+- The workflow, Mermaid diagram, and chart code is fetched only for a plan that has them, while the plan compiles, so the page still draws in one pass.
+- The Workflow tab's canvas (React Flow and ELK, about 500 KB compressed) loads the first time the tab opens. It starts loading when the pointer or keyboard focus reaches the tab.
+
+### Notes
+
+Browser bundle only. No plan format, CLI, or Worker route changes. The hosted app still precaches every file for offline use, so the canvas and the deferred blocks open offline. `SHELL_CACHE_VERSION` moves to 2.16.1 so the shell worker replaces the previous cache. Most of the remaining plan page code is the MDX compiler (about 157 KB compressed), which compiles the plan in the browser.

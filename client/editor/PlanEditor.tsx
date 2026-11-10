@@ -1,6 +1,7 @@
 import {
   MDXEditor,
   codeBlockPlugin,
+  defaultSvgIcons,
   headingsPlugin,
   imagePlugin,
   jsxPlugin,
@@ -10,10 +11,12 @@ import {
   quotePlugin,
   tablePlugin,
   thematicBreakPlugin,
+  type IconKey,
   type MDXEditorMethods,
 } from '@mdxeditor/editor'
 import '@mdxeditor/editor/style.css'
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { Plus } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type RefObject } from 'react'
 import { planSourceFromEditor, splitFrontmatter, toEditorMarkdown } from '../../src/planMdx/editSource.ts'
 import { planNotReadyReason } from '../../src/planReady.ts'
 import { Button } from '../ui/button.tsx'
@@ -24,6 +27,12 @@ import { lockedCardsPlugin } from './lockedPlugin.tsx'
 import { codeFenceEditor } from './codeFence.tsx'
 import { blockHandlesPlugin, releaseOuterCarets, syncFocusedNestedEditor } from './blockHandles.tsx'
 import './planEditor.css'
+
+/** A table's add-row and add-column bars use the same + as the bar that adds a block. */
+function iconFor(name: IconKey): ReactElement {
+  if (name === 'add_row' || name === 'add_column') return <Plus size={12} strokeWidth={2.25} aria-hidden="true" />
+  return defaultSvgIcons[name]
+}
 
 
 /**
@@ -315,6 +324,7 @@ export function PlanEditor({ planId, base, draft, outdated, publish, onClose }: 
         contentEditableClassName="plan-document plan-ui plan-editor-content"
         markdown={markdown}
         plugins={plugins}
+        iconComponentFor={iconFor}
         onChange={() => {
           setConfirmDiscard(false)
           setState((current) => (current.kind === 'unsaved' || current.kind === 'failed' ? current : { kind: 'unsaved' }))
