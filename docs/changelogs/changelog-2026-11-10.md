@@ -1,5 +1,36 @@
 # Changelog — 2026-11-10
 
+## 2.17.0
+
+**PR:** link once known
+
+**Bump:** minor
+
+### Summary
+
+Dashboard search now runs as you type and finds plans by title as well as text, even with typos. Both dashboards show placeholders while plans load, keep the last numbers on screen while a new period loads, and show a spinner while a search runs.
+
+### Improvements
+
+- The plan table and the summary cards show placeholder rows and cards on the first load, instead of an empty table and a bare "Loading…".
+- Switching between Today, Week, and Month keeps the last numbers on screen, dimmed, with "Loading this week…", until the new period arrives. The slide plays when the new rows are in.
+- Refresh spins its icon and reads "Refreshing…" while it runs. Polling every 4 seconds still changes nothing on screen until it answers.
+- A dashboard that cannot load shows "Could not read the dashboard." with a Try again button.
+- An empty filter names what is missing, such as "No idle plans this week."
+- While a search runs, the field's icon becomes a spinner. The first search shows placeholder results, and a later search keeps the last results dimmed until the new ones arrive. A failed search offers Try again.
+
+### New features
+
+- The dashboard search field searches while you type, from two characters, at most once every 300 ms. Each new search cancels the request it replaces. Enter still searches at once. The Search button is gone.
+- Dashboard search is fuzzy: it also matches the start of a word ("limit" finds "limiting"), small typos ("reids" finds "Redis"), and words run together ("ratelimit" finds "Rate limiting"). Exact matches rank first, and the matched words are highlighted.
+- Dashboard search matches plan titles. A title that holds every term lists the plan first, and terms in a title count toward each block of that plan, so "rate redis" finds the Redis sections of "Rate limiting rollout".
+- Search still runs on the host: the local service for the local dashboard, the Worker for the hosted one. The search APIs take `fuzzy=on`. Without it they match exactly, as before.
+- `live-plan search --fuzzy` turns on the same matching from the CLI. Without the flag the CLI matches exactly, as before.
+
+### Notes
+
+No plan format or storage changes, and no registry restart is needed. `SHELL_CACHE_VERSION` moves to 2.17.0 so the shell worker replaces the previous cache.
+
 ## 2.16.2
 
 **PR:** [#171](https://github.com/marco-calderon/visual-living-plan/pull/171)

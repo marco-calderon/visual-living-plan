@@ -1,3 +1,4 @@
+import { dashboardLoadingCss, rowSkeletonHtml, statSkeletonHtml } from './dashboardLoading'
 import { dashboardSearchCss } from './dashboardSearchView'
 import { hostToolbarCss } from './hostToolbar'
 
@@ -80,6 +81,9 @@ export function dashboardDocumentCss(): string {
     main { margin: 0; padding: 24px 32px 64px; }
     ${hostToolbarCss}
     ${dashboardSearchCss()}
+    ${dashboardLoadingCss()}
+    .dash-status-row { margin: 0 0 16px; }
+    .titlebar-action:disabled { cursor: progress; opacity: 0.75; }
     .plan-btn-ghost { border-color: transparent; background: transparent; }
     [hidden] { display: none !important; }
     .tab-label:focus-visible {
@@ -339,6 +343,10 @@ export function dashboardDocumentCss(): string {
     }`
 }
 
+/** Lucide "search", the field's leading icon. A spinner takes its place while a search runs. */
+const searchGlassSvg =
+  '<svg class="dash-search-glass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>'
+
 /** Dashboard table and summary, without the document shell. */
 export function dashboardMainHtml(lede: string): string {
   return `  <main>
@@ -349,11 +357,11 @@ export function dashboardMainHtml(lede: string): string {
           <button type="button" class="tab-label" data-period="week" aria-pressed="false" aria-label="This week">Week</button>
           <button type="button" class="tab-label" data-period="month" aria-pressed="false" aria-label="This month">Month</button>
         </div>
-        <button type="button" class="titlebar-action" id="refresh">Refresh</button>
+        <button type="button" class="titlebar-action" id="refresh"><span class="dash-spinner" id="refresh-spinner" aria-hidden="true" hidden></span><span id="refresh-label">Refresh</span></button>
       </div>
-      <section class="stats" id="stats" aria-live="polite"></section>
+      <section class="stats" id="stats" aria-live="polite" aria-busy="true">${statSkeletonHtml()}</section>
       <p class="lede">${lede}</p>
-      <p class="status" id="status">Loading…</p>
+      <div class="dash-status-row"><span class="dash-spinner" id="status-spinner" aria-hidden="true"></span><p class="status" id="status">Loading plans…</p></div>
     </section>
     <section class="dash-section" aria-label="Plans">
       <div class="section-bar">
@@ -366,19 +374,24 @@ export function dashboardMainHtml(lede: string): string {
         </div>
       </div>
       <form class="dash-search" id="search-form" role="search" aria-label="Search plans">
-        <input class="dash-search-field" id="search-query" type="search" name="q" maxlength="200" placeholder="Search plans" aria-label="Search plans" autocomplete="off" />
+        <span class="dash-search-box" id="search-box">
+          <span class="dash-search-icon" aria-hidden="true">${searchGlassSvg}<span class="dash-spinner"></span></span>
+          <input class="dash-search-field" id="search-query" type="search" name="q" maxlength="200" placeholder="Search plan titles and text" aria-label="Search plans" autocomplete="off" />
+        </span>
         <label class="dash-search-option"><input type="checkbox" id="search-versions" /> Include saved versions</label>
         <label class="dash-search-option"><input type="checkbox" id="search-any" /> Match any term</label>
-        <span class="dash-search-actions">
-          <button type="submit" class="plan-btn plan-btn-secondary" id="search-submit">Search</button>
-          <button type="button" class="plan-btn plan-btn-ghost" id="search-clear" hidden>Clear</button>
+        <span class="dash-search-actions" id="search-actions" hidden>
+          <button type="button" class="plan-btn plan-btn-ghost" id="search-clear">Clear</button>
         </span>
       </form>
       <div id="search-view" hidden>
-        <p class="dash-search-note" id="search-status" aria-live="polite"></p>
+        <div class="dash-search-note-row">
+          <p class="dash-search-note" id="search-status" aria-live="polite"></p>
+          <button type="button" class="plan-btn plan-btn-secondary" id="search-retry" hidden>Try again</button>
+        </div>
         <div class="dash-search-results" id="search-results"></div>
       </div>
-      <div class="table-wrap">
+      <div class="table-wrap" aria-busy="true">
       <table>
         <caption>Plans</caption>
         <thead>
@@ -390,7 +403,7 @@ export function dashboardMainHtml(lede: string): string {
             <th scope="col"></th>
           </tr>
         </thead>
-        <tbody id="rows"></tbody>
+        <tbody id="rows">${rowSkeletonHtml()}</tbody>
       </table>
       </div>
     </section>

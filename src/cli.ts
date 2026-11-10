@@ -88,8 +88,8 @@ Usage:
   live-plan mode <watch|comment|review> --url <plan-url>
   live-plan reply <comment-id> --url <plan-url> --text "..."
   live-plan addressing <comment-id> --url <plan-url>
-  live-plan search --query TERMS [--query TERMS] [--version live|all] [--any] [--json] [--cloud]
-  live-plan search --url <plan-url> --query TERMS [--query TERMS] [--version live|N|all] [--any] [--json] [--token TOKEN]
+  live-plan search --query TERMS [--query TERMS] [--version live|all] [--any] [--fuzzy] [--json] [--cloud]
+  live-plan search --url <plan-url> --query TERMS [--query TERMS] [--version live|N|all] [--any] [--fuzzy] [--json] [--token TOKEN]
   live-plan address <comment-id> --url <plan-url> [--outcome implemented|errored|issues]
   live-plan execution start --url <plan-url> [--step TEXT] [--detail TEXT] [--graph file.json]
   live-plan execution push --url <plan-url> [--step TEXT] [--detail TEXT] [--graph file.json] [--scene file.json]
@@ -119,7 +119,7 @@ Modes:
   reply       Answer one plan comment. The page shows the text on that comment's minibar or part thread.
   addressing  Mark one comment as being reviewed. The page shows Addressing or Working.
   address     Mark one comment answered. The page shows Addressed, or the outcome on a minibar message.
-  search      Find terms across every plan on this machine's service, or every plan on the hosted account with --cloud. --url searches one plan instead. Live text only unless --version all (or --version N with --url). Every term must be in one block unless --any. Exits 0 with hits, 2 with none.
+  search      Find terms across every plan on this machine's service, or every plan on the hosted account with --cloud. --url searches one plan instead. Live text only unless --version all (or --version N with --url). Every term must be in one block unless --any. Without --url the plan title counts toward every block. --fuzzy also matches word starts and small typos. Exits 0 with hits, 2 with none.
   execution   Start/push/stop the live workflow canvas (locks plan forms while active).
   account     Sign in to the hosted service. \`account login --url https://host\`. On a machine with no browser, \`--headless\` prints a page that shows a token, then \`--token <token>\` saves it.
   theme       Read or write the accent color in live-plan.config.json (or via a running server).
@@ -1009,8 +1009,8 @@ async function cmdAddress(args: string[]): Promise<number> {
 
 async function cmdSearch(args: string[]): Promise<number> {
   const usage = [
-    'Usage: live-plan search --query TERMS [--query TERMS] [--version live|all] [--any] [--json] [--cloud]',
-    '       live-plan search --url <plan-url> --query TERMS [--version live|N|all] [--any] [--json] [--token TOKEN]',
+    'Usage: live-plan search --query TERMS [--query TERMS] [--version live|all] [--any] [--fuzzy] [--json] [--cloud]',
+    '       live-plan search --url <plan-url> --query TERMS [--version live|N|all] [--any] [--fuzzy] [--json] [--token TOKEN]',
   ].join('\n')
   const published = getFlag(args, '--url')
   const queries = getFlags(args, '--query', '-q').filter((value) => value.trim())
@@ -1026,6 +1026,7 @@ async function cmdSearch(args: string[]): Promise<number> {
   const params = new URLSearchParams({ q: queries.join(' ') })
   if (version && version !== 'live') params.set('version', version)
   if (hasFlag(args, '--any')) params.set('match', 'any')
+  if (hasFlag(args, '--fuzzy')) params.set('fuzzy', 'on')
   if (!published) return searchAllPlans(args, params)
   const url = await localServiceUrl(published)
   const response = await fetch(planApiUrl(url, `/api/search?${params}`), {

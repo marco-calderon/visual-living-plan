@@ -1,5 +1,17 @@
 import { agentIconSvg } from './agentPresence'
-import { highlightParts, hitHref, hitWhere, searchSummary, versionLabel } from './dashboardSearchView'
+import { emptyPlansText } from './dashboardFormat'
+import { rowSkeletonHtml, searchSkeletonHtml } from './dashboardLoading'
+import {
+  highlightParts,
+  hitHref,
+  hitWhere,
+  planOpenUrl,
+  SEARCH_MIN_TYPED,
+  SEARCH_THROTTLE_MS,
+  searchSummary,
+  throttle,
+  versionLabel,
+} from './dashboardSearchView'
 
 /** Browser runtime for the plan dashboard. Loopback and the Start route share it. */
 export function dashboardClientScript(apiPath: string): string {
@@ -12,10 +24,23 @@ export function dashboardClientScript(apiPath: string): string {
       const rows = document.getElementById('rows');
       const periodButtons = Array.from(document.querySelectorAll('[data-period]'));
       const filterButtons = Array.from(document.querySelectorAll('[data-filter]'));
+      const tableWrap = document.querySelector('.table-wrap');
+      const statusSpinner = document.getElementById('status-spinner');
+      const refreshButton = document.getElementById('refresh');
+      const refreshSpinner = document.getElementById('refresh-spinner');
+      const refreshLabel = document.getElementById('refresh-label');
+      const emptyPlansText = (${emptyPlansText.toString()});
+      const rowSkeleton = ${JSON.stringify(rowSkeletonHtml())};
+      const periodPhrase = { day: 'today', week: 'this week', month: 'this month' };
       let period = 'day';
       let filter = 'all';
       let latest = null;
       let motion = 'enter';
+      // True once real rows replaced the skeleton. Until then a failed read shows Try again.
+      let painted = false;
+      // A read that answered and has not been painted yet. Its paint ends the loading state.
+      let awaitingPaint = false;
+      let refreshToken = 0;
 
       const initial = new URLSearchParams(window.location.search).get('period');
       if (initial === 'day' || initial === 'week' || initial === 'month') period = initial;
@@ -397,23 +422,67 @@ export function dashboardClientScript(apiPath: string): string {
 
       const easeOut = 'cubic-bezier(0.23, 1, 0.32, 1)';
 
-      function slideFrames(kind, shift, phase) {
+      // The out phase starts from the opacity on screen, so dimmed rows do not flash back first.
+      function slideFrames(kind, shift, phase, from) {
+        const start = typeof from === 'number' ? from : 1;
         if (kind === 'filter') {
           return phase === 'out'
-            ? [{ opacity: 1 }, { opacity: 0 }]
+            ? [{ opacity: start }, { opacity: 0 }]
             : [{ opacity: 0 }, { opacity: 1 }];
         }
         const outX = shift === 'back' ? '8px' : '-8px';
         const inX = shift === 'back' ? '-8px' : '8px';
         return phase === 'out'
-          ? [{ opacity: 1, transform: 'translateX(0px)' }, { opacity: 0, transform: 'translateX(' + outX + ')' }]
+          ? [{ opacity: start, transform: 'translateX(0px)' }, { opacity: 0, transform: 'translateX(' + outX + ')' }]
           : [{ opacity: 0, transform: 'translateX(' + inX + ')' }, { opacity: 1, transform: 'translateX(0px)' }];
       }
 
       let paintGeneration = 0;
 
+      // A period switch keeps the last rows on screen, dimmed, until the new ones are painted.
+      function setPending(on) {
+        for (const node of [stats, tableWrap]) {
+          node.classList.toggle('dash-pending', on);
+          if (on) node.setAttribute('aria-busy', 'true');
+          else node.removeAttribute('aria-busy');
+        }
+        statusSpinner.hidden = !on;
+      }
+
+      function setRefreshing(on) {
+        refreshButton.disabled = on;
+        refreshSpinner.hidden = !on;
+        refreshLabel.textContent = on ? 'Refreshing…' : 'Refresh';
+        if (on) refreshButton.setAttribute('aria-busy', 'true');
+        else refreshButton.removeAttribute('aria-busy');
+      }
+
+      function showLoadError() {
+        const row = document.createElement('tr');
+        const cell = text('td', 'empty', 'Could not read the dashboard.');
+        cell.colSpan = 5;
+        const retry = text('button', 'plan-btn plan-btn-secondary dash-retry', 'Try again');
+        retry.type = 'button';
+        retry.addEventListener('click', () => {
+          rows.innerHTML = rowSkeleton;
+          stats.setAttribute('aria-busy', 'true');
+          tableWrap.setAttribute('aria-busy', 'true');
+          statusSpinner.hidden = false;
+          status.textContent = 'Loading plans…';
+          refresh('first');
+        });
+        cell.append(retry);
+        row.append(cell);
+        rows.replaceChildren(row);
+      }
+
       function applyPaint(payload, reveal, meters) {
         latest = payload;
+        painted = true;
+        if (awaitingPaint) {
+          awaitingPaint = false;
+          setPending(false);
+        }
         const summary = payload.summary || {};
         const plans = Array.isArray(payload.plans) ? payload.plans : [];
         paintStats(summary, reveal);
@@ -435,7 +504,7 @@ export function dashboardClientScript(apiPath: string): string {
         rows.replaceChildren();
         if (shown.length === 0) {
           const row = document.createElement('tr');
-          const cell = text('td', 'empty', 'No plans in this view.');
+          const cell = text('td', 'empty', emptyPlansText(filter, period));
           cell.colSpan = 5;
           if (reveal) row.classList.add('enter');
           row.append(cell);
@@ -461,7 +530,8 @@ export function dashboardClientScript(apiPath: string): string {
           node.style.animation = 'none';
           node.style.opacity = '';
         }
-        const outgoing = nodes.map((node) => node.animate(slideFrames(kind, shift, 'out'), {
+        const starts = nodes.map((node) => Number(getComputedStyle(node).opacity) || 1);
+        const outgoing = nodes.map((node, index) => node.animate(slideFrames(kind, shift, 'out', starts[index]), {
           duration: 160,
           easing: easeOut,
           fill: 'forwards',
@@ -546,14 +616,38 @@ export function dashboardClientScript(apiPath: string): string {
         }
       }
 
-      async function refresh() {
+      // kind: 'first' (skeleton on screen), 'period' (dim the last rows), 'manual' (the Refresh
+      // button spins), or nothing for a poll, which changes nothing on screen until it answers.
+      async function refresh(kind) {
         syncPressed();
+        const mine = ++refreshToken;
+        if (kind === 'period' && painted) {
+          setPending(true);
+          status.textContent = 'Loading ' + (periodPhrase[period] || 'this period') + '…';
+        }
+        if (kind === 'manual') setRefreshing(true);
         try {
           const response = await fetch(apiPath + '?period=' + encodeURIComponent(period), { cache: 'no-store' });
           if (!response.ok) throw new Error('Request failed');
-          await paint(await response.json());
+          const payload = await response.json();
+          // A newer read is on the way. It paints instead.
+          if (mine !== refreshToken) return;
+          awaitingPaint = true;
+          stats.removeAttribute('aria-busy');
+          if (!painted) tableWrap.removeAttribute('aria-busy');
+          statusSpinner.hidden = !tableWrap.classList.contains('dash-pending');
+          await paint(payload);
         } catch (error) {
+          if (mine !== refreshToken) return;
+          setPending(false);
+          stats.removeAttribute('aria-busy');
           status.textContent = 'Could not read the dashboard.';
+          if (!painted) {
+            stats.replaceChildren();
+            showLoadError();
+          }
+        } finally {
+          if (kind === 'manual') setRefreshing(false);
         }
       }
 
@@ -573,7 +667,7 @@ export function dashboardClientScript(apiPath: string): string {
           const next = new URL(window.location.href);
           next.searchParams.set('period', period);
           history.replaceState(null, '', next);
-          refresh();
+          refresh('period');
         });
       }
       for (const button of filterButtons) {
@@ -587,40 +681,67 @@ export function dashboardClientScript(apiPath: string): string {
           if (latest) paint(latest);
         });
       }
-      document.getElementById('refresh').addEventListener('click', () => {
+      refreshButton.addEventListener('click', () => {
+        if (refreshButton.disabled) return;
         motion = 'filter';
-        refresh();
+        refresh('manual');
       });
       document.addEventListener('click', followInternalPage);
 
-      // Search across the listed plans. Live text only unless "Include saved versions" is checked.
+      // Search across the listed plans by title and text, with fuzzy matching. The service runs
+      // the search. The field searches while someone types, at most once per SEARCH_THROTTLE_MS,
+      // and Enter searches at once. Live text only unless "Include saved versions" is checked.
       const highlightParts = (${highlightParts.toString()});
       const hitHref = (${hitHref.toString()});
       const hitWhere = (${hitWhere.toString()});
+      const planOpenUrl = (${planOpenUrl.toString()});
       const searchSummary = (${searchSummary.toString()});
       const versionLabel = (${versionLabel.toString()});
+      const throttle = (${throttle.toString()});
+      const searchMinTyped = ${JSON.stringify(SEARCH_MIN_TYPED)};
+      const searchThrottleMs = ${JSON.stringify(SEARCH_THROTTLE_MS)};
+      const searchSkeleton = ${JSON.stringify(searchSkeletonHtml())};
       const searchForm = document.getElementById('search-form');
+      const searchBox = document.getElementById('search-box');
       const searchQuery = document.getElementById('search-query');
       const searchVersions = document.getElementById('search-versions');
       const searchAny = document.getElementById('search-any');
+      const searchActions = document.getElementById('search-actions');
       const searchClear = document.getElementById('search-clear');
+      const searchRetry = document.getElementById('search-retry');
       const searchView = document.getElementById('search-view');
       const searchStatus = document.getElementById('search-status');
       const searchResults = document.getElementById('search-results');
-      const tableWrap = document.querySelector('.table-wrap');
       let searchToken = 0;
+      let searchAbort = null;
+      // The results on screen. A new search keeps them, dimmed, until its own arrive.
+      let shownResult = null;
+      const typedSearch = throttle((value) => {
+        runSearch(value);
+      }, searchThrottleMs);
 
-      function showTable() {
+      function stopSearch() {
+        typedSearch.cancel();
         searchToken += 1;
-        searchView.hidden = true;
-        searchClear.hidden = true;
-        tableWrap.hidden = false;
-        searchResults.replaceChildren();
+        if (searchAbort) searchAbort.abort();
+        searchAbort = null;
+        delete searchBox.dataset.busy;
+        searchResults.removeAttribute('aria-busy');
       }
 
-      function snippetNode(snippet, terms) {
-        const node = text('span', 'dash-search-snippet');
-        for (const part of highlightParts(snippet, terms)) {
+      function showTable() {
+        stopSearch();
+        searchView.hidden = true;
+        searchActions.hidden = true;
+        searchRetry.hidden = true;
+        tableWrap.hidden = false;
+        searchResults.replaceChildren();
+        shownResult = null;
+      }
+
+      function markedNode(tag, className, value, terms, ranges) {
+        const node = text(tag, className);
+        for (const part of highlightParts(value, terms, ranges)) {
           node.append(part.match ? text('mark', '', part.text) : part.text);
         }
         return node;
@@ -637,20 +758,26 @@ export function dashboardClientScript(apiPath: string): string {
       }
 
       function renderSearch(result) {
+        shownResult = result;
         searchStatus.textContent = searchSummary(result);
         searchResults.replaceChildren();
         for (const plan of result.plans) {
           const card = text('article', 'dash-search-plan');
           const heading = document.createElement('h3');
-          const planUrl = relativeUrl(plan.url);
+          const title = plan.title || 'Untitled plan';
+          const matched = Array.isArray(plan.titleMatched) ? plan.titleMatched : [];
+          const label = matched.length > 0 ? markedNode('span', '', title, matched, plan.titleRanges) : document.createTextNode(title);
+          const planUrl = relativeUrl(planOpenUrl(plan));
           if (planUrl) {
-            const link = text('a', '', plan.title || 'Untitled plan');
+            const link = document.createElement('a');
             link.href = planUrl;
+            link.append(label);
             heading.append(link);
           } else {
-            heading.textContent = plan.title || 'Untitled plan';
+            heading.append(label);
           }
           card.append(heading);
+          if (plan.versions.length === 0 && matched.length > 0) card.append(text('span', 'dash-search-title-match', 'Title match'));
           for (const version of plan.versions) {
             const block = text('section', 'dash-search-version');
             block.append(text('span', version.live ? 'dash-search-version-label' : 'dash-search-version-label saved', versionLabel(version)));
@@ -661,7 +788,7 @@ export function dashboardClientScript(apiPath: string): string {
               const row = href ? document.createElement('a') : document.createElement('div');
               row.className = 'dash-search-hit';
               if (href) row.href = href;
-              row.append(text('span', 'dash-search-where', hitWhere(hit)), snippetNode(hit.snippet, result.terms));
+              row.append(text('span', 'dash-search-where', hitWhere(hit)), markedNode('span', 'dash-search-snippet', hit.snippet, result.terms, hit.ranges));
               item.append(row);
               list.append(item);
             }
@@ -672,54 +799,93 @@ export function dashboardClientScript(apiPath: string): string {
         }
       }
 
-      async function runSearch() {
-        const query = searchQuery.value.trim();
+      function searchFailed(message) {
+        shownResult = null;
+        searchResults.replaceChildren();
+        searchStatus.textContent = message;
+        searchRetry.hidden = false;
+      }
+
+      async function runSearch(value) {
+        const query = (typeof value === 'string' ? value : searchQuery.value).trim();
         if (!query) {
           showTable();
           return;
         }
-        const token = ++searchToken;
-        const params = new URLSearchParams({ q: query });
+        stopSearch();
+        const token = searchToken;
+        const controller = typeof AbortController === 'function' ? new AbortController() : null;
+        searchAbort = controller;
+        const params = new URLSearchParams({ q: query, fuzzy: 'on' });
         if (searchVersions.checked) params.set('version', 'all');
         if (searchAny.checked) params.set('match', 'any');
         tableWrap.hidden = true;
         searchView.hidden = false;
-        searchClear.hidden = false;
+        searchActions.hidden = false;
+        searchRetry.hidden = true;
+        searchBox.dataset.busy = '';
         searchStatus.textContent = 'Searching…';
+        if (shownResult) searchResults.setAttribute('aria-busy', 'true');
+        else searchResults.innerHTML = searchSkeleton;
         try {
-          const response = await fetch(apiPath + '/search?' + params.toString(), { cache: 'no-store' });
+          const response = await fetch(apiPath + '/search?' + params.toString(), {
+            cache: 'no-store',
+            signal: controller ? controller.signal : undefined,
+          });
           const body = await response.json().catch(() => null);
           if (token !== searchToken) return;
+          delete searchBox.dataset.busy;
+          searchResults.removeAttribute('aria-busy');
+          searchAbort = null;
           if (!response.ok) {
-            searchResults.replaceChildren();
-            searchStatus.textContent = (body && body.error) || 'Could not search the plans.';
+            searchFailed((body && body.error) || 'Could not search the plans.');
             return;
           }
           renderSearch(body);
         } catch (error) {
           if (token !== searchToken) return;
-          searchResults.replaceChildren();
-          searchStatus.textContent = 'Could not search the plans.';
+          delete searchBox.dataset.busy;
+          searchResults.removeAttribute('aria-busy');
+          searchAbort = null;
+          searchFailed('Could not search the plans.');
         }
       }
 
       searchForm.addEventListener('submit', (event) => {
         event.preventDefault();
+        typedSearch.cancel();
         runSearch();
+      });
+      searchQuery.addEventListener('input', () => {
+        const value = searchQuery.value.trim();
+        if (!value) {
+          if (!searchView.hidden) showTable();
+          else typedSearch.cancel();
+          return;
+        }
+        if (value.length < searchMinTyped) {
+          typedSearch.cancel();
+          return;
+        }
+        typedSearch(searchQuery.value);
       });
       // A changed option reruns a search that is already shown.
       for (const option of [searchVersions, searchAny]) {
         option.addEventListener('change', () => {
-          if (!searchView.hidden) runSearch();
+          if (!searchView.hidden) {
+            typedSearch.cancel();
+            runSearch();
+          }
         });
       }
+      searchRetry.addEventListener('click', () => runSearch());
       searchClear.addEventListener('click', () => {
         searchQuery.value = '';
         showTable();
         searchQuery.focus();
       });
       searchQuery.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && !searchView.hidden) {
+        if (event.key === 'Escape' && (!searchView.hidden || searchQuery.value)) {
           event.stopPropagation();
           searchQuery.value = '';
           showTable();
@@ -739,7 +905,7 @@ export function dashboardClientScript(apiPath: string): string {
         if (document.visibilityState !== 'hidden') refresh();
         startPolling();
       });
-      refresh();
+      refresh('first');
       startPolling();
     })();`
 }

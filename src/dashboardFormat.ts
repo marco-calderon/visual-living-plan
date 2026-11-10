@@ -98,6 +98,17 @@ export function visiblePlans<T extends { status: string; agentConnected?: boolea
   return plans.filter((plan) => planActivity(plan) === filter)
 }
 
+/**
+ * The empty table line for one period and status filter, such as "No idle plans this week."
+ * Self-contained: the local dashboard script inlines it with `toString()`.
+ */
+export function emptyPlansText(filter: string, period: string): string {
+  const when = period === 'week' ? 'this week' : period === 'month' ? 'this month' : 'today'
+  const kind =
+    filter === 'active' || filter === 'idle' || filter === 'executed' || filter === 'interrupted' ? `${filter} ` : ''
+  return `No ${kind}plans ${when}.`
+}
+
 export function dashboardStatusLine(
   summary: Pick<DashboardSummary, 'label' | 'from' | 'to' | 'plans' | 'started'> & Partial<Pick<DashboardSummary, 'active'>>,
   shown: number,

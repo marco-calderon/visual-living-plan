@@ -1,6 +1,7 @@
 import { blockAnchorId } from './parse'
 import { preparePlanSource } from './planMdx/frontmatter'
 import { buildMdxOutline, legacyPlanSyntaxError } from './planMdx/outline'
+import { createMatcher, type Matcher } from './searchMatch'
 import type { PlanBlock } from './types'
 
 /** Most terms one query may hold. */
@@ -29,6 +30,10 @@ export type SearchHit = {
   line: number
   snippet: string
   matched: string[]
+  /** Fuzzy search only: how close the block came, 0 to 1, averaged over the matched terms. */
+  score?: number
+  /** Fuzzy search only: `[start, end)` offsets in `snippet` to highlight. */
+  ranges?: Array<[number, number]>
 }
 
 export type SearchVersionResult = {
@@ -45,6 +50,8 @@ export type SearchResponse = {
   query: string
   terms: string[]
   match: SearchMatch
+  /** True when terms also matched word starts, typos, and words run together. */
+  fuzzy: boolean
   version: SearchVersion
   truncated: boolean
   versions: SearchVersionResult[]
@@ -100,15 +107,41 @@ export function parseSearchMatch(value: string | null | undefined): SearchMatch 
   throw new SearchRequestError(400, 'match must be all or any.')
 }
 
-/** Read `q`, `version`, and `match` from a search URL. */
-export function searchParams(url: URL): { query: string; terms: string[]; version: SearchVersion; match: SearchMatch } {
+/** Read the `fuzzy` parameter. Missing means exact matching. */
+export function parseSearchFuzzy(value: string | null | undefined): boolean {
+  if (value == null || value === '' || value === 'off' || value === 'false' || value === '0') return false
+  if (value === 'on' || value === 'true' || value === '1') return true
+  throw new SearchRequestError(400, 'fuzzy must be on or off.')
+}
+
+/** Read `q`, `version`, `match`, and `fuzzy` from a search URL. */
+export function searchParams(url: URL): {
+  query: string
+  terms: string[]
+  version: SearchVersion
+  match: SearchMatch
+  fuzzy: boolean
+} {
   const query = url.searchParams.get('q') ?? ''
   return {
     query,
     terms: parseSearchQuery(query),
     version: parseSearchVersion(url.searchParams.get('version')),
     match: parseSearchMatch(url.searchParams.get('match')),
+    fuzzy: parseSearchFuzzy(url.searchParams.get('fuzzy')),
   }
+}
+
+export type SearchOptions = {
+  /** Also match word starts, typos, and words run together. Off by default. */
+  fuzzy?: boolean
+  /**
+   * Terms found elsewhere in the plan, such as its title. With `match: 'all'` a block that
+   * holds the other terms is a hit. A block still needs one term of its own.
+   */
+  covered?: string[]
+  /** Reuse one matcher across documents so word scores are worked out once. */
+  matcher?: Matcher
 }
 
 type Unit = {
@@ -125,13 +158,16 @@ export function searchPlanSource(
   source: string,
   terms: string[],
   match: SearchMatch = 'all',
+  options: SearchOptions = {},
 ): { parsed: boolean; hits: SearchHit[] } {
+  const matcher = options.matcher ?? createMatcher(Boolean(options.fuzzy))
+  const covered = options.covered ?? []
   const normalized = source.replace(/^﻿/, '').replace(/\r\n/g, '\n')
   const units = planUnits(normalized)
-  if (!units) return { parsed: false, hits: searchLines(normalized, terms, match) }
+  if (!units) return { parsed: false, hits: searchLines(normalized, terms, match, matcher, covered) }
   const hits: SearchHit[] = []
   for (const unit of units) {
-    const hit = searchUnit(unit, terms, match)
+    const hit = searchUnit(unit, terms, match, matcher, covered)
     if (hit) hits.push(hit)
   }
   return { parsed: true, hits: ranked(hits) }
@@ -146,10 +182,13 @@ export function searchPlanDocuments(input: {
   query: string
   terms: string[]
   match: SearchMatch
+  fuzzy?: boolean
   version: SearchVersion
   live: SearchDocument | null
   saved: SearchDocument[]
 }): SearchResponse {
+  const fuzzy = Boolean(input.fuzzy)
+  const matcher = createMatcher(fuzzy)
   const documents: SearchDocument[] = []
   if (input.live && (input.version === 'live' || input.version === 'all')) documents.push(input.live)
   if (input.version === 'all') {
@@ -165,7 +204,7 @@ export function searchPlanDocuments(input: {
   let truncated = false
   const versions: SearchVersionResult[] = []
   for (const document of documents) {
-    const result = searchPlanSource(document.source, input.terms, input.match)
+    const result = searchPlanSource(document.source, input.terms, input.match, { matcher })
     let hits = result.hits
     if (hits.length > remaining) {
       hits = hits.slice(0, remaining)
@@ -186,6 +225,7 @@ export function searchPlanDocuments(input: {
     query: input.query,
     terms: input.terms,
     match: input.match,
+    fuzzy,
     version: input.version,
     truncated,
     versions,
@@ -209,6 +249,12 @@ export type DashboardSearchPlan = {
   planId: string
   title: string
   url: string | null
+  /** Where the plan title opens: its page while it runs, else its newest saved version where the host has one. */
+  openUrl?: string | null
+  /** Terms found in the plan title. A title that holds every term (or one, with `match: 'any'`) lists the plan on its own. */
+  titleMatched?: string[]
+  /** Fuzzy search only: `[start, end)` offsets in `title` to highlight. */
+  titleRanges?: Array<[number, number]>
   versions: DashboardSearchVersion[]
 }
 
@@ -216,14 +262,21 @@ export type DashboardSearchResponse = {
   query: string
   terms: string[]
   match: SearchMatch
+  fuzzy: boolean
   version: 'live' | 'all'
   truncated: boolean
   searchedPlans: number
   plans: DashboardSearchPlan[]
 }
 
-/** Read `q`, `version`, and `match` for a dashboard search. A version number only applies to one plan. */
-export function dashboardSearchParams(url: URL): { query: string; terms: string[]; version: 'live' | 'all'; match: SearchMatch } {
+/** Read `q`, `version`, `match`, and `fuzzy` for a dashboard search. A version number only applies to one plan. */
+export function dashboardSearchParams(url: URL): {
+  query: string
+  terms: string[]
+  version: 'live' | 'all'
+  match: SearchMatch
+  fuzzy: boolean
+} {
   const params = searchParams(url)
   if (typeof params.version === 'number') {
     throw new SearchRequestError(400, 'A dashboard search takes version=live or version=all. Search one plan for a version number.')
@@ -232,24 +285,34 @@ export function dashboardSearchParams(url: URL): { query: string; terms: string[
 }
 
 /**
- * Search every plan a dashboard lists. Only each plan's live document is read unless
- * `version` is `all`. Plans with the most matched terms come first, then the dashboard's order.
+ * Search every plan a dashboard lists, by title and by content. Only each plan's live document
+ * is read unless `version` is `all`. Plans with the most matched terms come first, then plans
+ * whose title matched, then the closest matches, then the dashboard's order.
  */
 export function searchPlans(input: {
   query: string
   terms: string[]
   match: SearchMatch
+  fuzzy?: boolean
   version: 'live' | 'all'
   plans: DashboardSearchSource[]
 }): DashboardSearchResponse {
+  const fuzzy = Boolean(input.fuzzy)
+  // One matcher for the whole request, so a word shared by many plans is scored once.
+  const matcher = createMatcher(fuzzy)
   const listed = input.plans.slice(0, DASHBOARD_PLAN_LIMIT)
   let remaining = SEARCH_HIT_LIMIT
   let truncated = input.plans.length > listed.length
-  const found: Array<{ plan: DashboardSearchPlan; best: number; hits: number; order: number }> = []
+  const found: Array<{ plan: DashboardSearchPlan; best: number; titled: number; score: number; hits: number; order: number }> = []
   listed.forEach((plan, order) => {
     const newest = [...plan.documents].sort((a, b) => b.seq - a.seq)
     const live = newest[0]
     if (!live) return
+    const title = live.title || plan.title
+    const titleScores = input.terms.map((term) => matcher.score(title, term))
+    const titleMatched = input.terms.filter((_, index) => (titleScores[index] ?? 0) > 0)
+    const titleListed =
+      titleMatched.length > 0 && (input.match === 'any' || titleMatched.length === input.terms.length)
     const documents = input.version === 'all' ? newest.slice(0, DASHBOARD_VERSIONS_PER_PLAN) : [live]
     const versions: DashboardSearchVersion[] = []
     for (const document of documents) {
@@ -260,7 +323,7 @@ export function searchPlans(input: {
       const isLive = document === live
       // An older version with the live text adds nothing.
       if (!isLive && document.source === live.source) continue
-      const result = searchPlanSource(document.source, input.terms, input.match)
+      const result = searchPlanSource(document.source, input.terms, input.match, { matcher, covered: titleMatched })
       if (result.hits.length === 0) continue
       let hits = result.hits
       if (hits.length > remaining) {
@@ -279,20 +342,36 @@ export function searchPlans(input: {
         url: isLive ? (plan.url ?? plan.versionUrl?.(document.seq) ?? null) : (plan.versionUrl?.(document.seq) ?? null),
       })
     }
-    if (versions.length === 0) return
+    if (versions.length === 0 && !titleListed) return
     const all = versions.flatMap((version) => version.hits)
+    // A hit counts the terms the title holds too, since the title names the whole plan.
+    const coverage = (matched: string[]) => new Set([...matched, ...titleMatched]).size
+    const titleScore = titleMatched.length > 0 ? average(titleScores.filter((value) => value > 0)) : 0
     found.push({
-      plan: { planId: plan.planId, title: live.title || plan.title, url: plan.url, versions },
-      best: Math.max(...all.map((hit) => hit.matched.length)),
+      plan: {
+        planId: plan.planId,
+        title,
+        url: plan.url,
+        openUrl: plan.url ?? plan.versionUrl?.(live.seq) ?? null,
+        titleMatched,
+        ...(fuzzy && titleMatched.length > 0 ? { titleRanges: matcher.ranges(title, titleMatched) } : {}),
+        versions,
+      },
+      best: Math.max(titleListed ? titleMatched.length : 0, ...all.map((hit) => coverage(hit.matched))),
+      titled: titleMatched.length,
+      score: Math.max(titleScore, ...all.map((hit) => hit.score ?? 1)),
       hits: all.length,
       order,
     })
   })
-  found.sort((a, b) => b.best - a.best || b.hits - a.hits || a.order - b.order)
+  found.sort(
+    (a, b) => b.best - a.best || b.titled - a.titled || b.score - a.score || b.hits - a.hits || a.order - b.order,
+  )
   return {
     query: input.query,
     terms: input.terms,
     match: input.match,
+    fuzzy,
     version: input.version,
     truncated,
     searchedPlans: listed.length,
@@ -393,52 +472,81 @@ function workflowText(line: string): string {
   return [cells[1], cells[3]].filter(Boolean).join(' · ')
 }
 
-function searchUnit(unit: Unit, terms: string[], match: SearchMatch): SearchHit | null {
+function searchUnit(unit: Unit, terms: string[], match: SearchMatch, matcher: Matcher, covered: string[]): SearchHit | null {
   const visible = unit.lines.map((line, index) =>
     unit.type === 'workflow' && index > 0 && !/^\s*<\/?workflow/.test(line) ? workflowText(line) : visibleText(line),
   )
   const joined = visible.join(' ').replace(/\s+/g, ' ').toLowerCase()
-  const matched = terms.filter((term) => joined.includes(term))
-  if (!accepted(matched, terms, match)) return null
-  const first = firstMatch(visible, matched)
+  const scores = terms.map((term) => matcher.score(joined, term))
+  const matched = terms.filter((_, index) => (scores[index] ?? 0) > 0)
+  if (!accepted(matched, terms, match, covered)) return null
+  const first = firstMatch(visible, matched, matcher)
+  const snippet = snippetAround(first.text, first.index, first.length)
   return {
     ...(unit.blockId ? { blockId: unit.blockId } : {}),
     type: unit.type,
     ...(unit.title ? { title: visibleText(unit.title).trim() } : {}),
     line: unit.startLine + first.offset,
-    snippet: snippetAround(first.text, first.index, first.length),
+    snippet,
     matched,
+    ...fuzzyDetail(matcher, snippet, matched, scores),
   }
 }
 
-function searchLines(source: string, terms: string[], match: SearchMatch): SearchHit[] {
+function searchLines(source: string, terms: string[], match: SearchMatch, matcher: Matcher, covered: string[]): SearchHit[] {
   const lower = source.replace(/\s+/g, ' ').toLowerCase()
   // Every term must still be somewhere in the version; each line that holds one is a hit.
-  if (!accepted(terms.filter((term) => lower.includes(term)), terms, match)) return []
+  if (!accepted(terms.filter((term) => matcher.score(lower, term) > 0), terms, match, covered)) return []
   const hits: SearchHit[] = []
   source.split('\n').forEach((line, offset) => {
-    const text = line.toLowerCase()
-    const matched = terms.filter((term) => text.includes(term))
+    const scores = terms.map((term) => matcher.score(line, term))
+    const matched = terms.filter((_, index) => (scores[index] ?? 0) > 0)
     if (matched.length === 0) return
-    const first = firstMatch([line], matched)
-    hits.push({ type: 'line', line: offset + 1, snippet: snippetAround(line, first.index, first.length), matched })
+    const first = firstMatch([line], matched, matcher)
+    const snippet = snippetAround(line, first.index, first.length)
+    hits.push({ type: 'line', line: offset + 1, snippet, matched, ...fuzzyDetail(matcher, snippet, matched, scores) })
   })
   return ranked(hits)
 }
 
-function accepted(matched: string[], terms: string[], match: SearchMatch): boolean {
-  return match === 'all' ? matched.length === terms.length : matched.length > 0
+/** The closeness score and highlight ranges a fuzzy hit carries. An exact hit carries neither. */
+function fuzzyDetail(
+  matcher: Matcher,
+  snippet: string,
+  matched: string[],
+  scores: number[],
+): Pick<SearchHit, 'score' | 'ranges'> {
+  if (!matcher.fuzzy) return {}
+  return {
+    score: Math.round(average(scores.filter((value) => value > 0)) * 1000) / 1000,
+    ranges: matcher.ranges(snippet, matched),
+  }
+}
+
+/**
+ * A block is a hit when it holds every term, or one term with `match: 'any'`. With `all`, terms
+ * the plan title holds (`covered`) count too, as long as the block holds one of its own and the
+ * title does not hold them all already.
+ */
+function accepted(matched: string[], terms: string[], match: SearchMatch, covered: string[] = []): boolean {
+  if (matched.length === 0) return false
+  if (match === 'any' || matched.length === terms.length) return true
+  if (covered.length === 0 || terms.every((term) => covered.includes(term))) return false
+  return terms.every((term) => matched.includes(term) || covered.includes(term))
 }
 
 /** The earliest line holding any matched term. A phrase that spans lines falls back to the first line. */
-function firstMatch(lines: string[], matched: string[]): { offset: number; text: string; index: number; length: number } {
+function firstMatch(
+  lines: string[],
+  matched: string[],
+  matcher: Matcher,
+): { offset: number; text: string; index: number; length: number } {
   for (let offset = 0; offset < lines.length; offset += 1) {
     const text = lines[offset] ?? ''
-    const lower = text.toLowerCase()
     let best: { index: number; length: number } | null = null
     for (const term of matched) {
-      const index = lower.indexOf(term)
-      if (index !== -1 && (!best || index < best.index)) best = { index, length: term.length }
+      const spot = matcher.locate(text, term)
+      if (spot && (!best || spot.start < best.index)) best = { index: spot.start, length: spot.end - spot.start }
     }
     if (best) return { offset, text, ...best }
   }
@@ -449,8 +557,13 @@ function firstMatch(lines: string[], matched: string[]): { offset: number; text:
   return { offset, text: lines[offset] ?? '', index: 0, length: 0 }
 }
 
+/** More distinct terms first, then (fuzzy only) the closer match, then position. */
 function ranked(hits: SearchHit[]): SearchHit[] {
-  return [...hits].sort((a, b) => b.matched.length - a.matched.length || a.line - b.line)
+  return [...hits].sort((a, b) => b.matched.length - a.matched.length || (b.score ?? 1) - (a.score ?? 1) || a.line - b.line)
+}
+
+function average(values: number[]): number {
+  return values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length
 }
 
 const VISIBLE_ATTRIBUTES = new Set(['title', 'prompt', 'label', 'description', 'options', 'placeholder', 'header', 'detail'])
