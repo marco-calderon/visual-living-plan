@@ -10,7 +10,8 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 1 : 0,
-  reporter: [['list']],
+  // In GitHub Actions, failures also show as annotations on the pull request.
+  reporter: process.env.CI ? [['list'], ['github']] : [['list']],
   use: {
     baseURL: 'http://127.0.0.1:9478',
     ...desktop,
