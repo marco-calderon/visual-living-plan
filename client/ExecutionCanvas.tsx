@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { Suspense, useMemo } from 'react'
 import type { ExecutionState } from '../src/execution.ts'
 import { getActiveExecutionCanvasAdapter } from './execution-canvas/registry.ts'
 import { executionToCanvasModel } from './execution-canvas/toCanvasModel.ts'
@@ -26,5 +26,14 @@ export function ExecutionCanvas({ execution, onSelectPlanRef }: Props) {
   }
 
   const { Component } = adapter
-  return <Component model={model} readonly onSelectPlanRef={onSelectPlanRef} />
+  return (
+    <Suspense fallback={<div className="execution-canvas" aria-busy="true" />}>
+      <Component model={model} readonly onSelectPlanRef={onSelectPlanRef} />
+    </Suspense>
+  )
+}
+
+/** Start fetching the active adapter's code, when it loads lazily. */
+export function preloadExecutionCanvas(): void {
+  getActiveExecutionCanvasAdapter().preload?.()
 }
