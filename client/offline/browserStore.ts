@@ -27,7 +27,7 @@ import {
   versionRowId,
   versionRowsFromList,
 } from '../../src/offlineSync.ts'
-import { paintOfflineStatus, planContext, type OfflineHandle } from './engine.ts'
+import { paintOfflineStatus, planContext, type OfflineHandle, type PlanPostResult } from './engine.ts'
 import { forgetCachedDocuments } from './forgetDocuments.ts'
 import { viewingPlanVersion } from '../versionView.ts'
 import { applyAppearance } from '../../src/appearanceDom.ts'
@@ -55,7 +55,8 @@ const SCHEMA = 1
  */
 type RowChange<T> = { put?: readonly T[]; drop?: readonly string[]; replace?: readonly T[] }
 
-type RowWriter<T> = ((change: RowChange<T>) => void) | null
+/** Returns once the write is saved and readable, or at once when it is not waited on. */
+type RowWriter<T> = ((change: RowChange<T>) => unknown) | null
 
 type QueuedMutation = {
   kind: UserMutationKind
@@ -91,7 +92,7 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
    */
   function syncOptions<T extends object>(
     id: string,
-    assign: (apply: (change: RowChange<T>) => void) => void,
+    assign: (apply: (change: RowChange<T>) => unknown) => void,
     rowUpdateMode: 'full' | 'partial' = 'full',
   ) {
     return {
@@ -113,7 +114,8 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
             // An update writes the row whether or not it is stored yet.
             for (const row of change.put ?? []) params.write({ type: 'update', value: row })
             for (const key of change.drop ?? []) params.write({ type: 'delete', key })
-            params.commit()
+            // Settles once the write is saved and shows in the collection.
+            return params.commit()
           })
           params.markReady()
         },
@@ -148,7 +150,7 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
   }
 
   async function sendMutation(meta: QueuedMutation, idempotencyKey: string): Promise<unknown> {
-    const plan = plans.get(meta.planId)
+    const plan = latestPlan(meta.planId)
     if (meta.kind === 'comment') {
       const partId = String((meta.body as { partId?: unknown } | null)?.partId ?? '')
       if (plan && !commentPartReady(plan.source, partId)) throw new NonRetriableError('The plan part is gone')
@@ -179,11 +181,28 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
         void refreshPlan()
         throw new NonRetriableError((await response.text()) || 'Rejected')
       }
+      // Sent again, a refused write would hold up every later write to the same plan.
+      if (refusedForGood(response.status)) {
+        reachable = true
+        throw new NonRetriableError((await response.text()) || `Request failed: ${response.status}`)
+      }
       if (!response.ok) throw new Error(`Request failed: ${response.status}`)
       reachable = true
       const payload = await response.json().catch(() => ({}))
       void refreshPlan()
       return payload
+    }
+  }
+
+  /** Send one write without the outbox. It is not kept for later if it fails. */
+  async function sendNow(meta: QueuedMutation, idempotencyKey: string): Promise<PlanPostResult> {
+    try {
+      const body = await sendMutation(meta, idempotencyKey)
+      notify()
+      return { ok: true, status: 200, body, text: '' }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not send'
+      return { ok: false, status: error instanceof NonRetriableError ? 409 : 0, body: null, text: message }
     }
   }
 
@@ -207,9 +226,41 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
     }
   }
 
+  /**
+   * Plan rows this page wrote that the collection may not show yet. A put is readable only once the
+   * one before it is saved, so a read-modify-write close behind another started from the older row
+   * and put it back: a mode event right after an agent edit restored the old revision and source.
+   * Reads that change a row use `latestPlan`. An entry goes once its write shows in the collection.
+   */
+  const writtenPlans = new Map<string, { row: PlanRow; seq: number }>()
+  let planSeq = 0
+
+  function latestPlan(id: string): PlanRow | undefined {
+    return writtenPlans.get(id)?.row ?? plans.get(id)
+  }
+
+  function writePlans(change: RowChange<PlanRow>): void {
+    const writer = writers.plans
+    if (!writer) return
+    if (change.replace) writtenPlans.clear()
+    for (const id of change.drop ?? []) writtenPlans.delete(id)
+    const seq = (planSeq += 1)
+    const put = change.put ?? []
+    for (const row of put) writtenPlans.set(row.id, { row, seq })
+    void Promise.resolve(writer(change))
+      .catch(() => undefined)
+      .then(() => {
+        for (const row of put) if (writtenPlans.get(row.id)?.seq === seq) writtenPlans.delete(row.id)
+      })
+  }
+
   function publishSnapshot(context: ReturnType<typeof planContext>, snapshot: PlanSnapshot): void {
+    writePlans(planChangeFromSnapshot(context, snapshot))
+  }
+
+  function planChangeFromSnapshot(context: ReturnType<typeof planContext>, snapshot: PlanSnapshot): RowChange<PlanRow> {
     const now = Date.now()
-    const previous = plans.get(context.id)
+    const previous = latestPlan(context.id)
     const row = planRowFromSnapshot(context.id, context.host, context.basePath, snapshot, previous, now)
     const keptPlans = [...plans.toArray].filter((entry) => entry.id !== row.id)
     const nextPlans = [...keptPlans, row]
@@ -224,15 +275,15 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
       .filter((entry) => entry.planId === context.id || drop.has(entry.planId) || entry.pending)
       .filter((entry) => !nextIds.has(entry.id))
       .map((entry) => entry.id)
-    writers.plans?.({ put: drop.has(row.id) ? [] : [row], drop: [...drop] })
     writers.comments?.({ put: nextComments, drop: staleComments })
     notify()
+    return { put: drop.has(row.id) ? [] : [row], drop: [...drop] }
   }
 
   function seedFromDocument(): void {
     if (viewingPlanVersion() !== null) return
     const context = planContext()
-    if (plans.get(context.id)) return
+    if (latestPlan(context.id)) return
     const node = document.getElementById('living-plan-mdx')
     if (!node?.textContent) return
     try {
@@ -320,10 +371,9 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
     syncPlan: () => refreshPlan(),
     noteLive: (event, data) => {
       const context = planContext()
-      const current = plans.get(context.id)
+      const current = latestPlan(context.id)
       if (!current) return
-      const next = applyLiveToPlan(current, event, data)
-      writers.plans?.({ put: [next] })
+      writePlans({ put: [applyLiveToPlan(current, event, data)] })
       if (event === 'comment' && data && typeof data === 'object') {
         const comment = data as Record<string, unknown>
         const id = typeof comment.id === 'string' ? comment.id : ''
@@ -342,8 +392,11 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
         body,
         basePath: context.basePath,
         planId: context.id,
-        baseRevision: plans.get(context.id)?.revision,
+        baseRevision: latestPlan(context.id)?.revision,
       }
+      const write = optimisticWrite(plans, comments, context.id, kind, body, idempotencyKey, path)
+      // Nothing on this device to change, so the outbox would drop it unsent. Send it now instead.
+      if (!write) return sendNow(metadata, idempotencyKey)
       // autoCommit stays off: mutate() would commit, and the commit() below would then throw.
       const transaction = executor.createOfflineTransaction({
         mutationFnName: 'submit',
@@ -351,9 +404,7 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
         idempotencyKey,
         metadata,
       })
-      transaction.mutate(() => {
-        rememberOptimistic(plans, comments, context.id, kind, body, idempotencyKey)
-      })
+      transaction.mutate(write)
       const settled = transaction
         .commit()
         .then(() => ({ ok: true as const, status: 200, body: results.get(idempotencyKey) ?? null, text: '' }))
@@ -385,7 +436,7 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
       const staleVersions = [...versions.toArray].filter((row) => releasedSet.has(row.planId)).map((row) => row.id)
       if (staleVersions.length > 0) writers.versions?.({ drop: staleVersions })
       if (drop.size > 0) {
-        writers.plans?.({ drop: [...drop] })
+        writePlans({ drop: [...drop] })
         writers.comments?.({ drop: [...comments.toArray].filter((row) => drop.has(row.planId)).map((row) => row.id) })
         forgetCachedDocuments([...drop].map((id) => `/plans/${id}`))
       }
@@ -432,7 +483,7 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
         if (!window.confirm(`${noun} not been sent. Sign out anyway?`)) return false
       }
       if (executor.getPendingCount() > 0) await executor.clearOutbox()
-      writers.plans?.({ replace: [] })
+      writePlans({ replace: [] })
       writers.comments?.({ replace: [] })
       writers.catalog?.({ replace: [] })
       writers.settings?.({ replace: [] })
@@ -537,46 +588,94 @@ export async function openBrowserStore(): Promise<OfflineHandle> {
   return handle
 }
 
-function rememberOptimistic(
-  plans: Collection<PlanRow, string>,
-  comments: Collection<CommentRow, string>,
+/**
+ * The device copy of one user write, applied while it waits in the outbox. Null when there is no
+ * row on this device for it to change. A TanStack transaction with no row change settles without
+ * calling its send function, so the caller sends that write straight away instead.
+ */
+export function optimisticWrite(
+  plans: Pick<Collection<PlanRow, string>, 'get' | 'update'>,
+  comments: Pick<Collection<CommentRow, string>, 'get' | 'insert' | 'update'>,
   planId: string,
   kind: UserMutationKind,
   body: unknown,
   idempotencyKey: string,
-): void {
+  path = '',
+): (() => void) | null {
   const record = body && typeof body === 'object' ? (body as Record<string, unknown>) : {}
   if (kind === 'comment') {
     const id = `pending:${idempotencyKey}`
-    comments.insert({
-      id,
-      planId,
-      partId: String(record.partId ?? ''),
-      pending: true,
-      comment: {
+    return () => {
+      comments.insert({
         id,
+        planId,
         partId: String(record.partId ?? ''),
-        kind: String(record.kind ?? 'part'),
-        text: String(record.text ?? ''),
-        excerpt: String(record.excerpt ?? ''),
-        createdAt: Date.now(),
-        addressingAt: null,
-        addressedAt: null,
-      },
-    })
+        pending: true,
+        comment: {
+          id,
+          partId: String(record.partId ?? ''),
+          kind: String(record.kind ?? 'part'),
+          text: String(record.text ?? ''),
+          excerpt: String(record.excerpt ?? ''),
+          createdAt: Date.now(),
+          addressingAt: null,
+          addressedAt: null,
+        },
+      })
+    }
   }
-  if (kind === 'mode' && plans.get(planId) && (record.mode === 'watch' || record.mode === 'comment' || record.mode === 'review')) {
-    plans.update([planId], (drafts) => {
-      const draft = drafts[0]
-      if (draft) draft.mode = record.mode as PlanRow['mode']
-    })
+  const plan = plans.get(planId)
+  if (kind === 'mode' && plan && (record.mode === 'watch' || record.mode === 'comment' || record.mode === 'review')) {
+    return () =>
+      plans.update([planId], (drafts) => {
+        const draft = drafts[0]
+        if (draft) draft.mode = record.mode as PlanRow['mode']
+      })
   }
-  if (kind === 'interaction' && plans.get(planId) && typeof record.id === 'string') {
-    plans.update([planId], (drafts) => {
-      const draft = drafts[0]
-      if (draft) draft.responses = { ...draft.responses, [record.id as string]: record }
-    })
+  if (kind === 'interaction' && plan && typeof record.id === 'string') {
+    return () =>
+      plans.update([planId], (drafts) => {
+        const draft = drafts[0]
+        if (draft) draft.responses = { ...draft.responses, [record.id as string]: record }
+      })
   }
+  const decision = record.decision
+  if (kind === 'review' && plan && (decision === 'approve' || decision === 'deny' || decision === 'iterate')) {
+    return () =>
+      plans.update([planId], (drafts) => {
+        const draft = drafts[0]
+        if (!draft) return
+        draft.review = { decision, ...(typeof record.note === 'string' && record.note ? { note: record.note } : {}) }
+        // Approve and deny return the plan to watch, as the host does.
+        if (decision !== 'iterate') draft.mode = 'watch'
+      })
+  }
+  const commentId = kind === 'address' ? addressedCommentId(path) : ''
+  const stored = commentId ? comments.get(commentId) : undefined
+  if (stored && stored.planId === planId) {
+    return () =>
+      comments.update([commentId], (drafts) => {
+        const draft = drafts[0]
+        if (draft) draft.comment = { ...draft.comment, addressedAt: Date.now(), addressingAt: null }
+      })
+  }
+  return null
+}
+
+/** The comment id in `.../api/comments/<id>/address`. */
+function addressedCommentId(path: string): string {
+  const match = path.match(/\/api\/comments\/([^/?#]+)\/address(?:[?#]|$)/)
+  if (!match?.[1]) return ''
+  try {
+    return decodeURIComponent(match[1])
+  } catch {
+    return ''
+  }
+}
+
+/** A refusal the host will repeat on every attempt. A timeout or a rate limit is worth trying again. */
+export function refusedForGood(status: number): boolean {
+  return status >= 400 && status < 500 && status !== 408 && status !== 429
 }
 
 function optimisticBody(kind: UserMutationKind, body: unknown, idempotencyKey: string): unknown {
