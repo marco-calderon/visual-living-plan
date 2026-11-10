@@ -1,12 +1,12 @@
 # Logo proposals
 
-Five candidate marks to replace the tetrahedron. None of them is in use yet.
+Five candidate marks to replace the tetrahedron. **Cycle (`4-cycle.svg`) was chosen** and is the logo from 2.19.0. Its source is now `scripts/pwa-icons/logo.svg`. `current.svg` is the tetrahedron it replaced.
 
 ![Today's mark and the five proposals](preview.png)
 
 | File | Name | Idea |
 |---|---|---|
-| `current.svg` | Tetrahedron (today) | The current mark, rebuilt as SVG from `public/favicon.png` |
+| `current.svg` | Tetrahedron (before 2.19.0) | The previous mark, rebuilt as SVG from the old `public/favicon.png` |
 | `1-fork-join.svg` | Fork & join | The workflow splits into parallel work and meets again |
 | `2-sprout.svg` | Sprout | A stem that grows new steps while the plan runs |
 | `3-steps.svg` | Steps | Done phases climb as filled nodes; the open ring is the step in progress |
