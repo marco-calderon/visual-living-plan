@@ -752,6 +752,14 @@ html.js .plan-card[data-closed] {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* This bar has a fixed height, so a second row of tools would spill out of it. The title gives way
+   instead and the tools stay on one row. (The hosted plan page takes only the shared toolbar's
+   controls, hostToolbarControlsCss, not the dashboards' bar, which keeps its title at full width.) */
+.titlebar > .brand { flex: 0 1 auto; }
+.titlebar > .chrome-tools {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+}
 
 .lede {
   max-width: 38rem;
@@ -1365,7 +1373,7 @@ html.js .plan-card[data-closed] {
 }
 .tab-panel[hidden] { display: none !important; }
 /* Edit sits with the plan's views in the toolbar (src/planEditButton.ts). It matches the versions menu
-   beside it, and pressed, while editing, it fills like Comment. client/planMdx.tsx sets the state. */
+   beside it, and pressed, while editing, it fills like Comment. The plan app sets the state. */
 .plan-edit-btn {
   position: relative;
   display: inline-flex;
@@ -2171,18 +2179,15 @@ html[data-desktop] .desktop-mode {
 }
 .desktop-mode a,
 .desktop-mode span {
-  display: inline-flex;
-  align-items: center;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
   height: 28px;
-  padding: 0 12px;
   border-radius: 9999px;
   color: var(--muted, var(--steel));
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1;
   text-decoration: none;
-  white-space: nowrap;
 }
+.desktop-mode svg { display: block; width: 16px; height: 16px; }
 .desktop-mode [aria-current="true"] { background: var(--primary); color: var(--on-primary); }
 .desktop-mode a:hover { color: var(--ink); }
 .desktop-mode a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

@@ -120,6 +120,7 @@
 .plan-menu-item[data-highlighted] { background: var(--accent-soft); }
 .plan-menu-item[data-disabled] { color: var(--muted); cursor: not-allowed; }
 .plan-menu-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.plan-menu-group-label { padding: var(--space-xs) var(--space-sm) var(--space-xxs); color: var(--muted); font-size: 12px; font-weight: 600; line-height: 1.4; }
 .plan-menu-meta { color: var(--muted); font-weight: 500; font-size: 12px; }
 .plan-menu-label { display: inline-flex; align-items: center; gap: var(--space-xs, 8px); }
 .plan-menu-label svg { display: block; width: 16px; height: 16px; flex: none; }
@@ -161,18 +162,15 @@ html[data-desktop] .desktop-mode {
 }
 .desktop-mode a,
 .desktop-mode span {
-  display: inline-flex;
-  align-items: center;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
   height: 28px;
-  padding: 0 12px;
   border-radius: 9999px;
   color: var(--muted, var(--steel));
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1;
   text-decoration: none;
-  white-space: nowrap;
 }
+.desktop-mode svg { display: block; width: 16px; height: 16px; }
 .desktop-mode [aria-current="true"] { background: var(--primary); color: var(--on-primary); }
 .desktop-mode a:hover { color: var(--ink); }
 .desktop-mode a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

@@ -95,10 +95,12 @@ test('a kept draft reads Resume draft, and a phone keeps it as a pencil with a d
   })
   expect(size).toEqual({ width: 36, height: 36 })
   expect(await edit.evaluate((node) => getComputedStyle(node, '::after').content)).not.toBe('none')
-  // Every control still fits on the bar. The offline note is left out: it shows only without a network.
+  // Every control still fits on the bar. The offline note shows only without a network, so it is
+  // taken out of the row first: a browser with no route out would otherwise count it.
   const right = await page.evaluate(() =>
     Math.max(
-      ...[...document.querySelectorAll('.titlebar .chrome-tools > :not(.offline-state)')]
+      ...[...document.querySelectorAll<HTMLElement>('.titlebar .chrome-tools > *')]
+        .map((node) => (node.classList.contains('offline-state') ? (node.style.display = 'none', node) : node))
         .filter((node) => getComputedStyle(node).display !== 'none')
         .map((node) => node.getBoundingClientRect().right),
     ),

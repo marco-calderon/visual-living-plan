@@ -118,13 +118,14 @@ function mountAccountMenu() {
   const host = document.querySelector('[data-account-menu]')
   if (!(host instanceof HTMLElement) || host.dataset.accountMenuMounted === 'true') return
   const label = host.getAttribute('data-label') || 'Account'
+  const planHost = host.getAttribute('data-host') === 'local' ? 'local' : 'cloud'
   host.dataset.accountMenuMounted = 'true'
   const slot = document.createElement('div')
   slot.className = 'account-menu'
   host.replaceWith(slot)
   createRoot(slot).render(
     <QueryProvider>
-      <AccountMenu label={label} />
+      <AccountMenu label={label} host={planHost} />
     </QueryProvider>,
   )
 }

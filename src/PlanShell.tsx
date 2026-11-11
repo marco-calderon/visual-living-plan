@@ -179,7 +179,8 @@ export function PlanShell({
         </div>
         <div className="chrome-tools">
           <p className="offline-state" data-offline-state="" hidden />
-          <DesktopModeSwitch host={host} />
+          {/* With an account menu, the menu carries the Local and Cloud switch. */}
+          {accountLabel ? null : <DesktopModeSwitch host={host} />}
           <div className="tabs" role="tablist" aria-label="Living Plan views">
             <button
               type="button"
@@ -236,7 +237,7 @@ export function PlanShell({
             </div>
           ) : null}
           {accountLabel ? (
-            <div className="account-menu" data-account-menu="" data-label={accountLabel}>
+            <div className="account-menu" data-account-menu="" data-label={accountLabel} data-host={host}>
               <Button type="button" variant="secondary" className="titlebar-user" aria-label="Account menu" aria-haspopup="menu" aria-expanded="false">
                 <span className="titlebar-user-label">{accountLabel}</span>
                 <span className="titlebar-user-initials" aria-hidden="true">

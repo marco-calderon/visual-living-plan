@@ -1,24 +1,51 @@
 # Changelog — 2026-11-11
 
+## 2.25.0
+
+**Bump:** minor
+
+### Summary
+
+Edit moves from above the plan into the toolbar, where it stays in reach anywhere in a long plan, and a hosted plan starts right below the toolbar instead of under an empty band.
+
+### Bugs fixed
+
+- A hosted plan page, in the browser or the Mac app's Cloud mode, left a toolbar-high empty band above the plan: the content started 136px down instead of 76px and sat below the contents list. The page took the dashboard's toolbar, which sits in the page flow, on top of the plan column's own room for a fixed toolbar. Plan pages now keep their own fixed toolbar and take only the dashboard's buttons and menus.
+- Closing the editor less than a second after typing lost those last keystrokes from the draft, and the button read Edit instead of Resume draft. The draft is now saved before the editor closes.
+
+### Improvements
+
+- Edit is in the toolbar, after the Plan and Workflow tabs and before the versions menu, on local plans and on hosted plans you own. It stays on screen while you scroll, and the E key opens it too, as C turns on comments. It no longer takes a row above the plan.
+- The editor opens at the section you were reading, the one the contents list marks, instead of at the top, and holds it there while diagrams and code above it finish drawing.
+- While editing, Edit shows pressed, and pressing it again closes the editor. From Workflow or Settings it shows the plan first.
+- On a phone the toolbar keeps every control as an icon: a pencil for Edit (with a dot when a draft is kept), a history icon for the live plan's versions menu, and the account's initials. A saved version keeps "Version N" in the toolbar. The bar fits a 360px screen.
+
+### Notes
+
+No plan format changes. `SHELL_CACHE_VERSION` moves to 2.25.0. ADR 0033 records where Edit lives.
+
 ## 2.24.3
+
+**PR:** [#186](https://github.com/marco-calderon/visual-living-plan/pull/186)
 
 **Bump:** patch
 
 ### Summary
 
-A hosted plan, in the browser or the Mac app's Cloud mode, starts right below the toolbar again, level with the contents beside it.
+The hosted plan page keeps its toolbar on one row at normal window widths, and the Mac app's Local and Cloud switch moves into the account menu.
 
 ### Bugs fixed
 
-- A hosted plan page left a toolbar-high empty band above the plan, so the content started 136px down instead of 76px and sat below the contents list. The page took the dashboard's toolbar, which sits in the page flow, on top of the plan column's own room for a fixed toolbar. Plan pages now keep their own fixed toolbar and take only the dashboard's buttons and menus.
+- On a hosted plan, a long title kept its full width, so the controls on the right wrapped and spilled out of the fixed-height toolbar: the Local and Cloud switch rose above it and the account menu dropped below it. The title now shortens with an ellipsis and the controls stay on one row.
 
 ### Improvements
 
-- On a phone, a long hosted plan title now shortens with an ellipsis, so the Plan and Workflow tabs and the versions menu fit in the toolbar instead of being pushed past the edge of the screen.
+- In the Mac app, the Local and Cloud switch is now at the top of the account menu on hosted pages, under an Environment heading: Local and Cloud with a laptop and a cloud icon, and a check on the current one. A browser does not show those items.
+- Pages with no account menu (local plans, the local dashboard, sign-in, and a hosted plan while signed out) keep the switch in the toolbar, as a laptop and a cloud icon instead of the words, styled like the Plan and Workflow view buttons. Each side keeps its name as a tooltip and for screen readers.
 
 ### Notes
 
-Local plans and the dashboard, account, and settings pages are unchanged. `SHELL_CACHE_VERSION` moves to 2.24.3.
+`SHELL_CACHE_VERSION` moves to 2.24.3. No registry restart needed.
 
 ## 2.24.2
 
