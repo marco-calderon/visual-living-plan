@@ -3,7 +3,7 @@ export const SETTINGS_SECTIONS = [
     id: 'general',
     group: 'Preferences',
     label: 'General',
-    keywords: 'appearance accent color theme page width code wrap pierre diff syntax',
+    keywords: 'appearance accent color theme page width code wrap pierre diff syntax desktop app setup skills command line cli',
   },
   {
     id: 'account',

@@ -4,7 +4,7 @@
  * this before `tauri dev` and `tauri build`.
  *
  *   src-tauri/service/    The plan service: src/cli.ts bundled into one dist/cli.js, and the files it
- *                         reads beside itself (client build, icons, styles, package.json, changelogs).
+ *                         reads beside itself (client build, icons, styles, package.json, changelogs, the skill).
  *   src-tauri/binaries/   The Bun runtime that runs it, as living-plan-bun-<target triple>. Tauri
  *                         installs it beside the app binary as living-plan-bun, a name that does not
  *                         shadow a `bun` on the PATH.
@@ -33,6 +33,8 @@ export const SERVICE_ASSETS: ReadonlyArray<readonly [string, string]> = [
   ['dist/planPage.css', 'dist/planPage.css'],
   ['dist/shellWorker.js', 'dist/shellWorker.js'],
   ['docs/changelogs', 'docs/changelogs'],
+  // `live-plan skills install` copies this into agent harnesses (`src/agentSkills.ts`).
+  ['skills/live-plan', 'skills/live-plan'],
   // `src/elkRuntime.node.ts` evaluates elk's worker from disk, so the bundle cannot inline it.
   ['node_modules/elkjs/package.json', 'node_modules/elkjs/package.json'],
   ['node_modules/elkjs/LICENSE.md', 'node_modules/elkjs/LICENSE.md'],

@@ -1,5 +1,35 @@
 # Changelog — 2026-11-11
 
+## 2.24.0
+
+**PR:** [#184](https://github.com/marco-calderon/visual-living-plan/pull/184)
+
+**Bump:** minor
+
+### Summary
+
+The Mac app now opens your hosted plans as well as the ones on your computer, and walks you through a short setup the first time: where plans run, the look, the `live-plan` command, and the skill for your agents. Its toolbar is the window's title bar.
+
+### New features
+
+- A setup screen on the first launch of the Mac app, one step at a time: where plans run (this computer or a cloud host), the color mode, accent, and syntax theme, the command line tool, and agent skills. It opens again from Settings on any page and from Plans, then Setup, in the menu bar.
+- The Mac app opens a hosted Living Plan. Choose Cloud in setup and enter the host, or sign in with `live-plan account login` and the app uses that host. Local and Cloud in the toolbar switch between the two, and the app reopens on the side you left.
+- `live-plan skills install` copies the live-plan skill into Claude Code, Codex, Cursor, Gemini CLI, OpenCode, and `~/.agents`. With no `--harness` it uses every agent found on the machine. `live-plan skills list` shows where it is installed. Setup and Settings have a button for each.
+- `live-plan desktop install-cli`, and the Install button in setup, put `live-plan` on your PATH running the copy inside the app, so the app needs no Bun or npm for agents either. A `live-plan` installed another way is left alone.
+- `serve --cloud` opens the hosted plan in the Mac app when the app knows that host, through `living-plan://cloud/plans/<id>`, before trying the installed web app and then a tab.
+- A Plans menu in the Mac app's menu bar: Plans on This Computer, Cloud Plans, and Setup.
+
+### Improvements
+
+- On macOS the page toolbar is the window's title bar. The window buttons sit in it, and dragging it moves the window. In a browser the toolbar is unchanged.
+- A plan with no `live-plan.config.json` beside it starts from the machine-wide theme file, which is where setup saves the accent and syntax theme.
+- When the cloud host does not answer, the app says so and offers the plans on this computer. Local plans work offline as before.
+- Signing in to a hosted Living Plan with GitHub stays in the app window.
+
+### Notes
+
+Google refuses sign-in from an embedded window, so in the app use email or GitHub. Cloud mode needs a connection; the installed web app still works offline. The macOS title bar and menu were compiled and unit-tested on Linux and still need a look on a Mac. No plan format changes. `SHELL_CACHE_VERSION` moves to 2.24.0. ADR 0038 records the design.
+
 ## 2.23.0
 
 **PR:** [#183](https://github.com/marco-calderon/visual-living-plan/pull/183)

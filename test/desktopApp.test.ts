@@ -7,6 +7,7 @@ function deps(overrides: Partial<DesktopOpenDeps> & { exit?: number | null } = {
   const value: DesktopOpenDeps = {
     platform: 'darwin',
     env: {},
+    cloudUrl: async () => null,
     run: async (command, args) => {
       calls.push([command, args])
       return overrides.exit === undefined ? 0 : overrides.exit
@@ -65,4 +66,25 @@ test('other platforms, a disabled app, and pages without a link never try the ap
   const { value, calls } = deps()
   assert.equal(await openInDesktopApp('https://plan.example.com/plans/abc', value), false)
   assert.deepEqual(calls, [])
+})
+
+test('a page on the hosted app the desktop app knows has a cloud link', () => {
+  const cloud = 'https://plans.example.com'
+  assert.equal(desktopLinkFor('https://plans.example.com/plans/abc', cloud), 'living-plan://cloud/plans/abc')
+  assert.equal(desktopLinkFor('https://plans.example.com/dashboard', cloud), 'living-plan://cloud/dashboard')
+  // Another host, another path, and a local page are not cloud pages.
+  assert.equal(desktopLinkFor('https://other.example.com/plans/abc', cloud), null)
+  assert.equal(desktopLinkFor('http://plans.example.com/plans/abc', cloud), null)
+  assert.equal(desktopLinkFor('https://plans.example.com/plans/abc/versions/2', cloud), null)
+  assert.equal(desktopLinkFor('http://127.0.0.1:9477/plans/abc/', cloud), 'living-plan://plans/abc')
+  assert.equal(desktopLinkFor('https://plans.example.com/plans/abc', 'not a url'), null)
+})
+
+test('a hosted plan opens in the app when the app is set up with that host', async () => {
+  const { value, calls } = deps({ cloudUrl: async () => 'https://plans.example.com' })
+  assert.equal(await openInDesktopApp('https://plans.example.com/plans/abc', value), true)
+  assert.deepEqual(calls, [['open', ['living-plan://cloud/plans/abc']]])
+  const other = deps({ cloudUrl: async () => 'https://plans.example.com' })
+  assert.equal(await openInDesktopApp('https://elsewhere.example.com/plans/abc', other.value), false)
+  assert.deepEqual(other.calls, [])
 })

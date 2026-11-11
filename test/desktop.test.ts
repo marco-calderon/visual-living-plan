@@ -67,6 +67,24 @@ test('the signed app keeps the entitlements Bun needs for its JIT', () => {
   }
 })
 
+test('the app page may move the window, and remote pages get nothing from the config', () => {
+  const capability = JSON.parse(readFileSync(join(root, 'src-tauri/capabilities/default.json'), 'utf8'))
+  assert.deepEqual(capability.permissions, ['core:default', 'core:window:allow-start-dragging'])
+  assert.equal(capability.remote, undefined, 'service and hosted pages get their one permission at run time')
+  // The app page loads only its own files, so setup cannot be scripted from elsewhere.
+  assert.match(tauriConfig.app.security.csp, /script-src 'self'/)
+  for (const file of ['index.html', 'splash.js', 'splash.css', 'setup.css', 'bridge.js']) {
+    assert.equal(existsSync(join(root, 'desktop', file)), true, file)
+  }
+})
+
+test('the bridge has the two values the app fills in', () => {
+  const bridge = readFileSync(join(root, 'desktop/bridge.js'), 'utf8')
+  assert.equal(bridge.split('__PLATFORM__').length, 2)
+  assert.equal(bridge.split('__CHROME__').length, 2)
+  assert.match(bridge, /data-tauri-drag-region/)
+})
+
 test('the host triple comes from rustc -vV', () => {
   const output = 'rustc 1.97.0 (2d8144b78 2026-07-07)\nbinary: rustc\nhost: aarch64-apple-darwin\nrelease: 1.97.0\n'
   assert.equal(parseHostTriple(output), 'aarch64-apple-darwin')

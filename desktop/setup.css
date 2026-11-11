@@ -1,0 +1,418 @@
+/* The setup screen of the desktop app. It runs once, and again from Settings or the Plans menu. */
+.setup {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  padding: 0 32px 32px;
+}
+
+/* One step at a time, in the middle of the window. `margin: auto` centers it and still lets a
+   short window scroll from the top. */
+.onboard {
+  width: min(640px, 100%);
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* Every step gets the same room, so the buttons and dots below do not move between steps. */
+.steps {
+  min-height: 520px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  animation: step-in 220ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.step:focus {
+  outline: none;
+}
+
+@keyframes step-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .step {
+    animation: none;
+  }
+}
+
+.step .mark {
+  width: 56px;
+  height: 56px;
+  margin-bottom: 12px;
+}
+
+.step h1 {
+  font-size: 24px;
+}
+
+.step h2 {
+  margin: 20px 0 8px;
+  color: var(--secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.copy {
+  max-width: 520px;
+  margin: 8px 0 0;
+  color: var(--secondary);
+  font-size: 14px;
+}
+
+.step > .choices,
+.step > .field,
+.step > .themes,
+.step > .rows,
+.step > .row,
+.step > .detail {
+  width: 100%;
+  text-align: left;
+}
+
+.onboard-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+#back[hidden] {
+  display: none;
+}
+
+.dots {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dots li {
+  display: flex;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--hairline-strong);
+  cursor: pointer;
+  transition:
+    width 260ms cubic-bezier(0.23, 1, 0.32, 1),
+    background-color 200ms ease;
+}
+
+.dot:hover {
+  background: var(--hairline-strong-hover);
+}
+
+.dot[data-done='true'] {
+  background: var(--secondary);
+}
+
+.dot[aria-current='step'] {
+  width: 28px;
+  background: var(--ink);
+}
+
+.dot:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot {
+    transition: none;
+  }
+}
+
+/* Local or Cloud. */
+.choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 12px;
+  background: var(--canvas);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.choice:hover {
+  border-color: var(--hairline-strong-hover);
+}
+
+.choice[aria-checked='true'] {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 1px var(--focus);
+}
+
+.choice-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.choice-copy {
+  color: var(--secondary);
+  font-size: 13px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.field-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.field input {
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 8px;
+  background: var(--canvas);
+  color: var(--ink);
+  font: 14px 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.choice:focus-visible,
+.field input:focus-visible,
+.segment:focus-visible,
+.swatch:focus-visible,
+.theme:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Color mode. */
+.segments {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 9999px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+}
+
+.segment {
+  height: 28px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--secondary);
+  font: 500 14px/1 inherit;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.segment[aria-checked='true'] {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+/* Accent. */
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.swatch {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid var(--canvas);
+  border-radius: 50%;
+  background: var(--swatch);
+  cursor: pointer;
+}
+
+.swatch[aria-checked='true'] {
+  box-shadow: 0 0 0 2px var(--ink);
+}
+
+/* Syntax theme: a light and a dark sample side by side. */
+.themes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
+.theme {
+  flex: 0 0 calc((100% - 24px) / 3);
+  min-width: 180px;
+}
+
+.theme {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 12px;
+  background: var(--canvas);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.theme:hover {
+  border-color: var(--hairline-strong-hover);
+}
+
+.theme[aria-checked='true'] {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 1px var(--focus);
+}
+
+.theme-samples {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+}
+
+.theme-sample {
+  padding: 6px 8px;
+  background: var(--sample-bg);
+  color: var(--sample-fg);
+  font: 11px/1.5 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.theme-sample .keyword {
+  color: var(--sample-keyword);
+}
+
+.theme-sample .string {
+  color: var(--sample-string);
+}
+
+.theme-sample .comment {
+  color: var(--sample-comment);
+}
+
+.theme-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Command line tool and agent skills. */
+.rows {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--canvas);
+}
+
+.rows > li + li {
+  border-top: 1px solid var(--hairline);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.rows .row {
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.row-end {
+  justify-content: flex-end;
+}
+
+.row-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.row-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.row-detail {
+  margin: 0;
+  color: var(--secondary);
+  font: 12px/1.5 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.row-detail:empty {
+  display: none;
+}
+
+.row-state {
+  flex: 0 0 auto;
+  color: var(--secondary);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.row-state[data-state='done'] {
+  color: var(--success-text);
+  font-weight: 600;
+}
+
+.setup .detail {
+  margin-top: 12px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.error {
+  margin: 8px 0 0;
+  color: var(--error-text);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.error:empty {
+  display: none;
+}

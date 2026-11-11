@@ -30,6 +30,7 @@ import { buildPlanToc, renderPlanTocHtml } from './planToc'
 import { planToExpectedGraph } from './workflow'
 import { versionSectionHtml, type ChangelogRelease } from './changelog'
 import { appearanceSettingsHtml } from './appearanceSettings'
+import { desktopModeSwitchHtml } from './hostToolbar'
 
 const planPageStyles = readFileSync(new URL('./planPage.css', import.meta.url), 'utf8')
 
@@ -1512,6 +1513,7 @@ export function renderPlanPage(options: {
     </div>
     <div class="chrome-tools">
       <p class="offline-state" data-offline-state hidden></p>
+      ${desktopModeSwitchHtml('local')}
       <div class="tabs" role="tablist" aria-label="Living Plan views">
         ${tabButton('plan', 'Plan', true)}
         ${tabButton('workflow', 'Workflow', false)}
@@ -1552,6 +1554,16 @@ export function renderPlanPage(options: {
           wrapNote: `Saved to <code>${savedTo}</code> as <code>theme.wrapCode</code>.`,
           diffsNote: `Saved to <code>${savedTo}</code> as <code>theme.diffsTheme</code>.`,
         })}
+        <section class="block settings-section" data-section>
+          <h3>Agent skills</h3>
+          <p class="settings-copy">The live-plan skill teaches an agent to write and serve plans. <code>live-plan skills install</code> copies it into Claude Code, Codex, Cursor, Gemini CLI, and OpenCode.</p>
+          <p class="settings-actions desktop-only"><a class="plan-btn" href="living-plan://setup/skills">Install skills</a></p>
+        </section>
+        <section class="block settings-section desktop-only" data-section>
+          <h3>Desktop app</h3>
+          <p class="settings-copy">Setup holds the choices from the first launch: local or cloud, the color mode, the accent and syntax theme, and the command line tool.</p>
+          <p class="settings-actions"><a class="plan-btn" href="living-plan://setup">Open setup</a> <a class="plan-btn" href="living-plan://setup/cli">Install the command line tool</a></p>
+        </section>
         ${versionSectionHtml(options.appVersion, options.changelog)}
       </main>
     </section>

@@ -60,7 +60,18 @@ The name is not on the registry until it is published. From a checkout, `npm pub
 
 Living Plan also runs as a Mac app, built with [Tauri](https://tauri.app) in `src-tauri/`. It opens the dashboard in its own window, and plans open from there. It needs no Bun, npm, or CLI install: the app ships the CLI and the Bun runtime, and starts the plan service when none is running. When agents already started one, the app uses it, whatever its version. The service keeps running after the app quits, as it does after `live-plan dashboard`. Pages on the service stay in the app, a plan opened from the **Plans** menu gets its own window, and other links open in your browser. It runs on macOS 13 or later, on Apple silicon and Intel. Linux and Windows builds come later.
 
-When the app is installed, a plan an agent serves opens in it. `serve` and `review` hand the plan to the app with a `living-plan://plans/<id>` link, and `live-plan dashboard` uses `living-plan://dashboard`. The app focuses the window that already shows the plan, or opens one. Without the app, the plan opens in the Living Plan web app when you installed it from Chrome, Edge, Brave, or Chromium, and in a new browser tab otherwise. `LIVE_PLAN_DESKTOP=0` skips the Mac app, and `LIVE_PLAN_OPEN=browser` always uses a tab. A hosted plan (`--cloud`) never opens in the Mac app.
+When the app is installed, a plan an agent serves opens in it. `serve` and `review` hand the plan to the app with a `living-plan://plans/<id>` link, and `live-plan dashboard` uses `living-plan://dashboard`. The app focuses the window that already shows the plan, or opens one. Without the app, the plan opens in the Living Plan web app when you installed it from Chrome, Edge, Brave, or Chromium, and in a new browser tab otherwise. `LIVE_PLAN_DESKTOP=0` skips the Mac app, and `LIVE_PLAN_OPEN=browser` always uses a tab. A hosted plan (`--cloud`) opens in the Mac app too, once the app knows that host.
+
+The first launch shows a short setup, one step at a time:
+
+| Step | What you choose |
+|---|---|
+| Plans | This computer, or a cloud host you enter. The app opens there each time, and **Local** and **Cloud** in the toolbar switch between the two |
+| Look | Color mode (system, light, dark), accent color, and syntax theme. They are also in Settings |
+| Command line | Install `live-plan` on your PATH, running the copy inside the app. No Bun or npm needed |
+| Agent skills | Install the live-plan skill into Claude Code, Codex, Cursor, Gemini CLI, OpenCode, or `~/.agents` |
+
+Setup opens again from Settings on any page, and from **Plans**, then **Setup**, in the menu bar. The same installs work from a terminal: `live-plan skills install` copies the skill into every agent found on the machine (`--harness <id>` names one, `skills list` shows where it is), and `live-plan desktop install-cli` writes the launcher. On macOS the page toolbar is the window's title bar. Cloud mode needs a connection, and when the host does not answer the app offers the plans on this computer. In the app, sign in to a hosted Living Plan with email or GitHub; Google refuses sign-in from an embedded window.
 
 The `.dmg` for each release is attached to the GitHub release by `.github/workflows/desktop.yml`. The app is signed ad hoc, not notarized, so the first launch asks you to allow it in System Settings, Privacy & Security. To build it on a Mac from a checkout you need Rust:
 
@@ -70,7 +81,7 @@ bun run desktop          # a development window
 bun run desktop:build    # Living Plan.app and a .dmg under src-tauri/target/release/bundle/
 ```
 
-Both run `bun run desktop:stage` first, which builds the package, bundles the CLI into `src-tauri/service/`, and copies this machine's Bun to `src-tauri/binaries/`. `bun run desktop:icons` redraws the app icon. Agents still use `npx --yes visual-living-plan`. How the app is put together: [ADR 0036](docs/architecture/decisions/0036-desktop-app.md), and how plans reach it: [ADR 0037](docs/architecture/decisions/0037-plans-open-in-the-desktop-app.md).
+Both run `bun run desktop:stage` first, which builds the package, bundles the CLI into `src-tauri/service/`, and copies this machine's Bun to `src-tauri/binaries/`. `bun run desktop:icons` redraws the app icon. Agents still use `npx --yes visual-living-plan`. How the app is put together: [ADR 0036](docs/architecture/decisions/0036-desktop-app.md), how plans reach it: [ADR 0037](docs/architecture/decisions/0037-plans-open-in-the-desktop-app.md), and setup, hosted plans, and the title bar: [ADR 0038](docs/architecture/decisions/0038-desktop-setup-and-cloud.md).
 
 ### Review mode
 

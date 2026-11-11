@@ -103,6 +103,8 @@ Usage (a plan command takes the plan file, or --url <plan-url>):
   live-plan registry [--port N] [--host HOST]
   live-plan lan on|off|status
   live-plan account login --url https://host [--headless | --token <token>]
+  live-plan skills list|install [--harness <id>]... [--all] [--json]
+  live-plan desktop state|configure --json '{...}'|install-cli
   live-plan --version
 
 Shortcuts, kept for agents and scripts that use them:
@@ -140,14 +142,16 @@ Other commands:
   tui         The registry in the terminal: running plans, and the day, week, and month dashboard. Starts the plan service when it is not already running. Quitting leaves that service up. Active plans are listed first. Click a control, or use Tab, arrows, p, d, and the number keys.
   registry    Run the plan service in the foreground. serve and review start it on their own.
   lan         Publish this machine's plan service on the local network. Off until \`lan on\`.
+  skills      Copy the live-plan skill into agent harnesses: claude-code, codex, cursor, gemini, opencode, agents. \`skills install\` with no --harness uses every harness found on this machine. \`skills list\` shows where it is installed.
+  desktop     What the desktop app's setup screen runs. \`state\` prints its config as one JSON line. \`configure --json\` changes it: mode (local or cloud), cloudUrl, colorMode, accent, diffsTheme. \`install-cli\` puts live-plan on the PATH from the app.
 
 A plan file names the plan for every plan command: its hosted URL when this machine served it with --cloud, otherwise its URL on this machine's service. --url <plan-url> still works, and is needed for a plan served from another machine.
 Every plan includes a \`workflow\` block. That block is the execution path the Workflow tab draws.
-Per-plan accent color is saved in live-plan.config.json beside the plan (override with --config).
+Per-plan accent color is saved in live-plan.config.json beside the plan (override with --config). A plan with no file beside it starts from the machine-wide one.
 Without --plan or --config, theme get/set uses ~/.config/living-plan/live-plan.config.json.
 Service state and diagnostic logs live under ~/.config/living-plan (LIVE_PLAN_HOME / LIVE_PLAN_LOG_HOME override).
 --no-open skips launching a browser.
-Pages open in the Living Plan Mac app when it is installed and the page is a plan or the dashboard on this machine's service (living-plan://plans/<id>). Otherwise they open in the installed Living Plan web app (Chrome, Edge, Brave, or Chromium) for that host, and in a browser tab when there is none. LIVE_PLAN_DESKTOP=0 skips the Mac app. LIVE_PLAN_OPEN=browser always uses a tab.
+Pages open in the Living Plan Mac app when it is installed and the page is a plan or the dashboard on this machine's service (living-plan://plans/<id>) or on the hosted app it is set up with (living-plan://cloud/plans/<id>). Otherwise they open in the installed Living Plan web app (Chrome, Edge, Brave, or Chromium) for that host, and in a browser tab when there is none. LIVE_PLAN_DESKTOP=0 skips the Mac app. LIVE_PLAN_OPEN=browser always uses a tab.
 serve and review open a plan page only the first time on this machine. Resuming the same plan leaves the open tab alone. --open opens it again.
 --version prints the package version and exits. -v is the short flag.
 --detach is accepted and does nothing: serve returns by default.
@@ -1720,6 +1724,20 @@ async function main(): Promise<number> {
       console.error(error instanceof Error ? error.message : error)
       return 1
     }
+  }
+
+  if (command === 'skills') {
+    const { cmdSkills } = await import('./desktopCommand')
+    return cmdSkills(args.slice(1))
+  }
+
+  if (command === 'desktop') {
+    const { cmdDesktop } = await import('./desktopCommand')
+    const entry = fileURLToPath(import.meta.url)
+    return cmdDesktop(args.slice(1), {
+      version: await readPackageVersion(entry),
+      target: { runtime: process.execPath, entry },
+    })
   }
 
   if (command === 'cloud-watch') {

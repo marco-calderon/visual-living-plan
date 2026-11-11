@@ -12,8 +12,9 @@ pub enum Destination {
     Blocked,
 }
 
-/// `service` is the plan service's origin once the app has connected to it.
-pub fn destination(url: &Url, service: Option<&Url>) -> Destination {
+/// `hosts` are the origins whose pages the app shows: the plan service once the app has connected
+/// to it, and the hosted app once setup or `account login` named one.
+pub fn destination(url: &Url, hosts: &[Url]) -> Destination {
     match url.scheme() {
         // The splash page on macOS and Linux, and blank frames.
         "tauri" | "about" => return Destination::App,
@@ -25,9 +26,23 @@ pub fn destination(url: &Url, service: Option<&Url>) -> Destination {
     if url.host_str() == Some("tauri.localhost") {
         return Destination::App;
     }
-    match service {
-        Some(service) if url.origin() == service.origin() => Destination::App,
-        _ => Destination::System,
+    if hosts.iter().any(|host| url.origin() == host.origin()) {
+        Destination::App
+    } else {
+        Destination::System
+    }
+}
+
+/// Whether a link starts a sign-in with a provider the hosted app offers (GitHub, Google). The
+/// window that follows it stays in the app until it is back on the hosted app.
+pub fn starts_sign_in(url: &Url) -> bool {
+    if url.scheme() != "https" {
+        return false;
+    }
+    match url.host_str() {
+        Some("github.com") => url.path().starts_with("/login/oauth/"),
+        Some("accounts.google.com") => url.path().starts_with("/o/oauth2/"),
+        _ => false,
     }
 }
 
@@ -43,13 +58,16 @@ mod tests {
     fn plan_service_pages_stay_in_the_app() {
         let service = url("http://127.0.0.1:9477");
         assert_eq!(
-            destination(&url("http://127.0.0.1:9477/dashboard"), Some(&service)),
+            destination(
+                &url("http://127.0.0.1:9477/dashboard"),
+                std::slice::from_ref(&service)
+            ),
             Destination::App
         );
         assert_eq!(
             destination(
                 &url("http://127.0.0.1:9477/plans/abc/#step-2"),
-                Some(&service)
+                std::slice::from_ref(&service)
             ),
             Destination::App
         );
@@ -58,11 +76,11 @@ mod tests {
     #[test]
     fn the_splash_page_stays_in_the_app() {
         assert_eq!(
-            destination(&url("tauri://localhost/index.html"), None),
+            destination(&url("tauri://localhost/index.html"), &[]),
             Destination::App
         );
         assert_eq!(
-            destination(&url("http://tauri.localhost/index.html"), None),
+            destination(&url("http://tauri.localhost/index.html"), &[]),
             Destination::App
         );
     }
@@ -71,23 +89,35 @@ mod tests {
     fn other_sites_and_ports_open_in_the_browser() {
         let service = url("http://127.0.0.1:9477");
         assert_eq!(
-            destination(&url("https://github.com/"), Some(&service)),
+            destination(&url("https://github.com/"), std::slice::from_ref(&service)),
             Destination::System
         );
         assert_eq!(
-            destination(&url("http://127.0.0.1:3000/"), Some(&service)),
+            destination(
+                &url("http://127.0.0.1:3000/"),
+                std::slice::from_ref(&service)
+            ),
             Destination::System
         );
         assert_eq!(
-            destination(&url("http://localhost:9477/dashboard"), Some(&service)),
+            destination(
+                &url("http://localhost:9477/dashboard"),
+                std::slice::from_ref(&service)
+            ),
             Destination::System
         );
         assert_eq!(
-            destination(&url("http://living-plan.local:9477/"), Some(&service)),
+            destination(
+                &url("http://living-plan.local:9477/"),
+                std::slice::from_ref(&service)
+            ),
             Destination::System
         );
         assert_eq!(
-            destination(&url("mailto:someone@example.com"), Some(&service)),
+            destination(
+                &url("mailto:someone@example.com"),
+                std::slice::from_ref(&service)
+            ),
             Destination::System
         );
     }
@@ -95,9 +125,51 @@ mod tests {
     #[test]
     fn the_service_is_not_trusted_before_the_app_connects() {
         assert_eq!(
-            destination(&url("http://127.0.0.1:9477/dashboard"), None),
+            destination(&url("http://127.0.0.1:9477/dashboard"), &[]),
             Destination::System
         );
+    }
+
+    #[test]
+    fn hosted_pages_stay_in_the_app_once_the_host_is_known() {
+        let hosts = [
+            url("http://127.0.0.1:9477"),
+            url("https://plans.example.com"),
+        ];
+        assert_eq!(
+            destination(&url("https://plans.example.com/plans/abc"), &hosts),
+            Destination::App
+        );
+        assert_eq!(
+            destination(&url("http://127.0.0.1:9477/dashboard"), &hosts),
+            Destination::App
+        );
+        // Sign-in with a provider leaves the host and comes back.
+        assert_eq!(
+            destination(&url("https://github.com/login/oauth/authorize"), &hosts),
+            Destination::System
+        );
+        assert_eq!(
+            destination(&url("http://plans.example.com/plans/abc"), &hosts),
+            Destination::System
+        );
+    }
+
+    #[test]
+    fn knows_where_a_provider_sign_in_starts() {
+        assert!(starts_sign_in(&url(
+            "https://github.com/login/oauth/authorize?client_id=abc"
+        )));
+        assert!(starts_sign_in(&url(
+            "https://accounts.google.com/o/oauth2/v2/auth?client_id=abc"
+        )));
+        assert!(!starts_sign_in(&url("https://github.com/marco-calderon")));
+        assert!(!starts_sign_in(&url(
+            "http://github.com/login/oauth/authorize"
+        )));
+        assert!(!starts_sign_in(&url(
+            "https://github.com.example.com/login/oauth/authorize"
+        )));
     }
 
     #[test]
@@ -110,7 +182,7 @@ mod tests {
             "data:text/html,hi",
         ] {
             assert_eq!(
-                destination(&url(raw), Some(&service)),
+                destination(&url(raw), std::slice::from_ref(&service)),
                 Destination::Blocked,
                 "{raw}"
             );

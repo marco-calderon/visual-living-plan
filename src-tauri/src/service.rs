@@ -22,12 +22,11 @@ const RUNTIME: &str = if cfg!(windows) {
 };
 
 /// The CLI waits about 15 seconds for a new service. This only stops a wedged process.
+/// It also bounds the setup commands, which finish in well under a second.
 const START_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[derive(Debug)]
 pub struct Service {
-    /// The dashboard page the window opens.
-    pub dashboard: Url,
     /// The service's origin. Its pages open in the app; other sites open in the browser.
     pub origin: Url,
     /// The version of the service that answered, which may not be this app's.
@@ -52,10 +51,10 @@ pub fn parse_dashboard_output(stdout: &str) -> Result<Service, String> {
     let parsed: DashboardLine = serde_json::from_str(line).map_err(|error| {
         format!("The plan service printed an address the app cannot read: {error}")
     })?;
-    let dashboard = web_url(&parsed.url)?;
+    // The dashboard address is not used, but an answer that carries a bad one is not trusted.
+    web_url(&parsed.url)?;
     let origin = web_url(&parsed.service)?;
     Ok(Service {
-        dashboard,
         origin,
         version: parsed.version,
     })
@@ -73,6 +72,17 @@ fn web_url(raw: &str) -> Result<Url, String> {
 }
 
 pub fn start(app: &AppHandle) -> Result<Service, String> {
+    let stdout = run_cli(
+        app,
+        &["dashboard", "--json", "--any-version"],
+        "The plan service did not start",
+    )?;
+    parse_dashboard_output(&stdout)
+}
+
+/// Run the CLI shipped in the app and return what it printed. `failure` opens the error message
+/// when the command exits non-zero, followed by the end of what it wrote to stderr.
+pub fn run_cli(app: &AppHandle, args: &[&str], failure: &str) -> Result<String, String> {
     let runtime = runtime_path()?;
     let entry = app
         .path()
@@ -91,7 +101,7 @@ pub fn start(app: &AppHandle) -> Result<Service, String> {
     let mut command = Command::new(&runtime);
     command
         .arg(&entry)
-        .args(["dashboard", "--json", "--any-version"])
+        .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -102,17 +112,47 @@ pub fn start(app: &AppHandle) -> Result<Service, String> {
     hide_console(&mut command);
 
     let output = run_with_timeout(command, START_TIMEOUT)?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let detail = last_lines(&stderr, 6);
         return Err(if detail.is_empty() {
-            format!("The plan service did not start ({}).", output.status)
+            format!("{failure} ({}).", output.status)
         } else {
-            format!("The plan service did not start.\n{detail}")
+            format!("{failure}.\n{detail}")
         });
     }
-    parse_dashboard_output(&stdout)
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// The last line of CLI output that is a JSON object, as `desktop state` and its siblings print.
+pub fn last_json_line(stdout: &str) -> Result<serde_json::Value, String> {
+    let line = stdout
+        .lines()
+        .rev()
+        .map(str::trim)
+        .find(|line| line.starts_with('{') || line.starts_with('['))
+        .ok_or_else(|| "The bundled CLI printed no answer.".to_string())?;
+    serde_json::from_str(line)
+        .map_err(|error| format!("The bundled CLI printed an answer the app cannot read: {error}"))
+}
+
+/// Whether a host answers on its port. Cloud mode checks this before it loads the hosted app, so
+/// a machine with no network gets a message and a way back to its own plans, not a blank window.
+pub fn reachable(url: &Url, timeout: Duration) -> bool {
+    use std::net::{TcpStream, ToSocketAddrs};
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+    let Some(port) = url.port_or_known_default() else {
+        return false;
+    };
+    let Ok(addresses) = (host.trim_matches(|c| c == '[' || c == ']'), port).to_socket_addrs()
+    else {
+        return false;
+    };
+    addresses
+        .take(4)
+        .any(|address| TcpStream::connect_timeout(&address, timeout).is_ok())
 }
 
 fn runtime_path() -> Result<PathBuf, String> {
@@ -199,10 +239,6 @@ mod tests {
     fn reads_the_last_json_line() {
         let stdout = "Migrated ~/.living-plan\n{\"url\":\"http://127.0.0.1:9477/dashboard\",\"service\":\"http://127.0.0.1:9477\",\"version\":\"2.22.0\"}\n";
         let service = parse_dashboard_output(stdout).unwrap();
-        assert_eq!(
-            service.dashboard.as_str(),
-            "http://127.0.0.1:9477/dashboard"
-        );
         assert_eq!(service.origin.as_str(), "http://127.0.0.1:9477/");
         assert_eq!(service.version, "2.22.0");
     }
@@ -219,6 +255,20 @@ mod tests {
     fn refuses_an_address_that_is_not_http() {
         let stdout = "{\"url\":\"file:///etc/passwd\",\"service\":\"http://127.0.0.1:9477\",\"version\":\"2.22.0\"}";
         assert!(parse_dashboard_output(stdout).is_err());
+    }
+
+    #[test]
+    fn reads_the_answer_after_other_output() {
+        let value = last_json_line("Migrated ~/.living-plan\n{\"version\":\"2.24.0\"}\n").unwrap();
+        assert_eq!(value["version"], "2.24.0");
+        assert!(last_json_line("nothing here\n").is_err());
+        assert!(last_json_line("{broken").is_err());
+    }
+
+    #[test]
+    fn a_host_that_does_not_resolve_is_not_reachable() {
+        let url = Url::parse("https://host.invalid").unwrap();
+        assert!(!reachable(&url, Duration::from_millis(200)));
     }
 
     #[test]

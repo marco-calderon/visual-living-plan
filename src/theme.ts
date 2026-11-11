@@ -182,14 +182,24 @@ export function parseThemeConfig(raw: unknown): ThemeConfig {
   }
 }
 
-export async function loadThemeConfig(path: string): Promise<ThemeConfig> {
+/**
+ * Read a theme file. When it does not exist, read `fallbackPath` instead, which is how a plan with
+ * no file beside it starts from the machine-wide theme. Defaults when neither exists.
+ */
+export async function loadThemeConfig(path: string, fallbackPath?: string): Promise<ThemeConfig> {
   try {
     const text = await readFile(resolve(path), 'utf8')
     return parseThemeConfig(JSON.parse(text) as unknown)
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code
-    if (code === 'ENOENT') return defaultThemeConfig()
-    throw error
+    if (code !== 'ENOENT') throw error
+  }
+  if (!fallbackPath || resolve(fallbackPath) === resolve(path)) return defaultThemeConfig()
+  try {
+    return parseThemeConfig(JSON.parse(await readFile(resolve(fallbackPath), 'utf8')) as unknown)
+  } catch {
+    // The fallback is a convenience. A missing or broken one never stops a plan from opening.
+    return defaultThemeConfig()
   }
 }
 

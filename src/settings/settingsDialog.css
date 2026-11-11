@@ -1322,3 +1322,8 @@
     text-align: left;
   }
 }
+
+/* Rows for the desktop app. Its bridge sets data-desktop on the root. */
+.settings-dialog .settings-group.desktop-only { display: none; }
+html[data-desktop] .settings-dialog .settings-group.desktop-only { display: grid; }
+.settings-dialog .settings-group.desktop-only a { text-decoration: none; }

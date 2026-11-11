@@ -1,5 +1,6 @@
 import { useLayoutEffect } from 'react'
 import { Button } from '../client/ui/button.tsx'
+import { DesktopModeSwitch } from './DesktopModeSwitch.tsx'
 import './hostToolbar.css'
 
 type HostWindow = Window & { __LIVE_PLAN_THEME_URL__?: string }
@@ -26,6 +27,7 @@ export function HostBar({ title, label, logoHref = '/dashboard', themeUrl }: Hos
       <h1 className="brand">{title}</h1>
       <div className="chrome-tools">
         <p className="offline-state" data-offline-state="" hidden />
+        <DesktopModeSwitch host="cloud" />
         <div className="account-menu" data-account-menu="" data-label={label}>
           <Button type="button" variant="secondary" className="titlebar-user" aria-haspopup="menu" aria-expanded="false">
             {label}

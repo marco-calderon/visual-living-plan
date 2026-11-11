@@ -1,6 +1,6 @@
 # ADR 0037: A plan opens in the desktop app through `living-plan://`
 
-- Status: Accepted
+- Status: Accepted. [ADR 0038](0038-desktop-setup-and-cloud.md) adds links to hosted pages, and links a page in an app window follows to reach the app.
 - Date: 2026-11-11
 
 ## Context

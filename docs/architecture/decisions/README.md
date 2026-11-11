@@ -39,7 +39,8 @@ Decisions are numbered in the order they were made. Superseded decisions stay he
 | [0033](0033-page-editor.md) | 2026-11-07 | Accepted | A person edits a local or hosted plan on the page as a draft on their device, and Publish makes a new version; the agent hears an `edit` event |
 | [0034](0034-listeners-reconnect-across-modes.md) | 2026-11-11 | Accepted | Waiting commands reconnect after drops and restarts; one `events --follow` prints every mode change; entering review keeps an unread verdict |
 | [0035](0035-six-plan-commands.md) | 2026-11-11 | Accepted | Six commands drive a plan, named by its file; `serve` returns; `reply` answers and closes a comment; after approval the run follows the file |
-| [0036](0036-desktop-app.md) | 2026-11-11 | Accepted; plans open in it by 0037 | The desktop app is a Tauri window on the local plan service; it ships the bundled CLI and Bun, and uses a running service of any version |
-| [0037](0037-plans-open-in-the-desktop-app.md) | 2026-11-11 | Accepted | A plan opens in the desktop app through `living-plan://plans/<id>` when it is installed; otherwise the browser, where the installed web app claims the link |
+| [0036](0036-desktop-app.md) | 2026-11-11 | Accepted; plans open in it by 0037; setup, hosted plans, and the title bar by 0038 | The desktop app is a Tauri window on the local plan service; it ships the bundled CLI and Bun, and uses a running service of any version |
+| [0037](0037-plans-open-in-the-desktop-app.md) | 2026-11-11 | Accepted; hosted pages and in-window links added by 0038 | A plan opens in the desktop app through `living-plan://plans/<id>` when it is installed; otherwise the browser, where the installed web app claims the link |
+| [0038](0038-desktop-setup-and-cloud.md) | 2026-11-11 | Accepted | The desktop app has a setup screen, opens local or hosted plans, installs the CLI and the agent skill, and uses the page toolbar as its title bar on macOS; pages reach it through `living-plan://` links, not an API |
 
-Add the next decision as `0038-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.
+Add the next decision as `0039-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.

@@ -1,4 +1,5 @@
-/* Splash page of the desktop app. Tokens from DESIGN.md: the documentation family, light and dark. */
+/* The desktop app's own page: the splash while it connects, and the setup screen (setup.css).
+   Tokens from DESIGN.md: the documentation family, light and dark. */
 :root {
   color-scheme: light dark;
   --canvas: #ffffff;
@@ -9,8 +10,11 @@
   --primary: #171717;
   --primary-hover: #242424;
   --on-primary: #ffffff;
+  --hairline-strong: #d4d4d8;
+  --hairline-strong-hover: #a1a1aa;
   --error-text: #c9322a;
   --error-bg: #fff4f0;
+  --success-text: #0a7a38;
   --focus: #0094fc;
 }
 
@@ -24,8 +28,11 @@
     --primary: #ffffff;
     --primary-hover: #ededed;
     --on-primary: #171717;
+    --hairline-strong: #4a4a4a;
+    --hairline-strong-hover: #666666;
     --error-text: #ff8a7a;
     --error-bg: #2a1a17;
+    --success-text: #4ade80;
   }
 }
 
@@ -43,19 +50,37 @@ body {
   background: var(--canvas);
   color: var(--ink);
   font: 400 16px/1.5 'DM Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  display: grid;
-  place-items: center;
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* On macOS the window buttons sit over this strip, and dragging it moves the window. */
+.titlebar {
+  flex: 0 0 52px;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 .splash {
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 12px;
   max-width: 560px;
   width: 100%;
+  margin: 0 auto;
+  padding: 16px 16px 68px;
   text-align: center;
+}
+
+[data-state='setup'] .splash {
+  display: none;
 }
 
 .mark {
@@ -162,4 +187,61 @@ code {
 .button-primary:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
+.button-secondary {
+  height: 36px;
+  padding: 0 16px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.button-secondary:hover {
+  border-color: var(--hairline-strong-hover);
+}
+
+.button-secondary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.button-primary:disabled,
+.button-secondary:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.button-primary,
+.button-secondary {
+  transition:
+    transform 160ms cubic-bezier(0.23, 1, 0.32, 1),
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+
+.button-primary:active,
+.button-secondary:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button-primary:active,
+  .button-secondary:active {
+    transform: none;
+  }
 }
