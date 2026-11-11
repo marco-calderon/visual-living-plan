@@ -3,6 +3,11 @@
  *
  * With the shell worker at `/sw.js`, this makes both installable from the
  * browser's own install prompt on a secure origin (HTTPS or loopback).
+ *
+ * Once installed, the app claims links into its scope: a plan the CLI opens in
+ * the browser, when the desktop app is not installed, opens in its own app
+ * window instead of a tab (`handle_links`, `launch_handler`). A browser without
+ * link capturing, or with it turned off, opens a new tab as before.
  */
 
 import { manifestIcons, pwaIconHead, type ManifestIcon } from './pwaIcons'
@@ -26,6 +31,10 @@ export type WebManifest = {
   background_color: string
   theme_color: string
   icons: ManifestIcon[]
+  /** Open in-scope links in the installed app (Chromium link capturing). */
+  handle_links: 'preferred'
+  /** Each launch, such as a plan the CLI opened, gets its own app window. */
+  launch_handler: { client_mode: Array<'navigate-new' | 'navigate-existing' | 'focus-existing' | 'auto'> }
 }
 
 export function webManifest(): WebManifest {
@@ -40,6 +49,8 @@ export function webManifest(): WebManifest {
     background_color: THEME_COLOR_LIGHT,
     theme_color: THEME_COLOR_LIGHT,
     icons: manifestIcons,
+    handle_links: 'preferred',
+    launch_handler: { client_mode: ['navigate-new', 'auto'] },
   }
 }
 

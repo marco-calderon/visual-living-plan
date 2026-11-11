@@ -52,11 +52,25 @@ live-plan --help
 live-plan check "$(npm root -g)/visual-living-plan/examples/rate-limit.plan.md"
 ```
 
-`check` prints the workflow block. That block is required: it is the execution path. `serve` and `review` draw it on the Workflow tab before a run starts. The page opens in a browser the first time a plan is served. Serving or reviewing the same plan again leaves the open tab alone. Pass `--no-open` when a browser should not launch, or `--open` to open it again. When Living Plan is installed as an app in Chrome, Edge, Brave, or Chromium, the page opens in that app window instead of a tab. Set `LIVE_PLAN_OPEN=browser` to always use a tab.
+`check` prints the workflow block. That block is required: it is the execution path. `serve` and `review` draw it on the Workflow tab before a run starts. The page opens in a browser the first time a plan is served. Serving or reviewing the same plan again leaves the open tab alone. Pass `--no-open` when a browser should not launch, or `--open` to open it again. On a Mac with the Living Plan app installed, a plan on this machine opens in that app (see Desktop app below). Otherwise, when Living Plan is installed as an app in Chrome, Edge, Brave, or Chromium, the page opens in that app window instead of a tab. Set `LIVE_PLAN_OPEN=browser` to always use a tab.
 
 The name is not on the registry until it is published. From a checkout, `npm publish --access public` packs the built CLI and uploads it. A GitHub release runs the same publish through `.github/workflows/publish.yml`, after a trusted publisher for `visual-living-plan` is configured on npm.
 
-`check` prints the workflow block. That block is required: it is the execution path. `serve` and `review` draw it on the Workflow tab before a run starts. The page opens in a browser the first time a plan is served. Serving or reviewing the same plan again leaves the open tab alone. Pass `--no-open` when a browser should not launch, or `--open` to open it again. When Living Plan is installed as an app in Chrome, Edge, Brave, or Chromium, the page opens in that app window instead of a tab. Set `LIVE_PLAN_OPEN=browser` to always use a tab.
+### Desktop app
+
+Living Plan also runs as a Mac app, built with [Tauri](https://tauri.app) in `src-tauri/`. It opens the dashboard in its own window, and plans open from there. It needs no Bun, npm, or CLI install: the app ships the CLI and the Bun runtime, and starts the plan service when none is running. When agents already started one, the app uses it, whatever its version. The service keeps running after the app quits, as it does after `live-plan dashboard`. Pages on the service stay in the app, a plan opened from the **Plans** menu gets its own window, and other links open in your browser. It runs on macOS 13 or later, on Apple silicon and Intel. Linux and Windows builds come later.
+
+When the app is installed, a plan an agent serves opens in it. `serve` and `review` hand the plan to the app with a `living-plan://plans/<id>` link, and `live-plan dashboard` uses `living-plan://dashboard`. The app focuses the window that already shows the plan, or opens one. Without the app, the plan opens in the Living Plan web app when you installed it from Chrome, Edge, Brave, or Chromium, and in a new browser tab otherwise. `LIVE_PLAN_DESKTOP=0` skips the Mac app, and `LIVE_PLAN_OPEN=browser` always uses a tab. A hosted plan (`--cloud`) never opens in the Mac app.
+
+The `.dmg` for each release is attached to the GitHub release by `.github/workflows/desktop.yml`. The app is signed ad hoc, not notarized, so the first launch asks you to allow it in System Settings, Privacy & Security. To build it on a Mac from a checkout you need Rust:
+
+```bash
+bun install
+bun run desktop          # a development window
+bun run desktop:build    # Living Plan.app and a .dmg under src-tauri/target/release/bundle/
+```
+
+Both run `bun run desktop:stage` first, which builds the package, bundles the CLI into `src-tauri/service/`, and copies this machine's Bun to `src-tauri/binaries/`. `bun run desktop:icons` redraws the app icon. Agents still use `npx --yes visual-living-plan`. How the app is put together: [ADR 0036](docs/architecture/decisions/0036-desktop-app.md), and how plans reach it: [ADR 0037](docs/architecture/decisions/0037-plans-open-in-the-desktop-app.md).
 
 ### Review mode
 

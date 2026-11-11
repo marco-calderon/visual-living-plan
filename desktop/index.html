@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Living Plan</title>
+    <link rel="stylesheet" href="splash.css" />
+    <script type="module" src="splash.js"></script>
+  </head>
+  <body>
+    <main class="splash" data-state="starting" aria-live="polite">
+      <svg class="mark" viewBox="0 0 1024 1024" aria-hidden="true">
+        <g transform="translate(0 18)">
+          <g fill="none" stroke="currentColor" stroke-width="36" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M512.0 182.0 A330 330 0 0 1 841.8 523.5" />
+            <path d="M797.8 677.0 A330 330 0 0 1 337.1 791.9" />
+            <path d="M226.2 677.0 A330 330 0 0 1 357.1 220.6" />
+          </g>
+          <g fill="currentColor">
+            <circle cx="512.0" cy="182.0" r="55" />
+            <circle cx="797.8" cy="677.0" r="55" />
+            <circle cx="226.2" cy="677.0" r="55" />
+          </g>
+        </g>
+      </svg>
+      <h1>Living Plan</h1>
+      <p class="status" id="status">Starting the plan service…</p>
+      <section class="failure" aria-labelledby="status">
+        <pre class="detail" id="detail"></pre>
+        <p class="hint">The service log is <code>~/.config/living-plan/registry.log</code>.</p>
+        <button type="button" class="button-primary" id="retry">Try again</button>
+      </section>
+    </main>
+  </body>
+</html>

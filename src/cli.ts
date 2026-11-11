@@ -98,7 +98,7 @@ Usage (a plan command takes the plan file, or --url <plan-url>):
   live-plan dump <file.plan.md>
   live-plan processes
   live-plan logs [--level error|warn|log] [--url <plan-url>] [--day YYYY-MM-DD] [--limit N]
-  live-plan dashboard
+  live-plan dashboard [--no-open] [--json] [--any-version]
   live-plan tui [--period day|week|month] [--registry-port N] [--registry-host HOST]
   live-plan registry [--port N] [--host HOST]
   live-plan lan on|off|status
@@ -136,7 +136,7 @@ Other commands:
   theme       Read or write the accent color in live-plan.config.json (or via a running server).
   processes   List plans hosted by the service. \`ps\` is the same command.
   logs        Print the development log saved under ~/.config/living-plan/logs. Not shown on the page. --day reads one registry day (today when omitted). --url reads one plan.
-  dashboard   Open the control dashboard (running and executed plans, by day, week, or month).
+  dashboard   Open the control dashboard (running and executed plans, by day, week, or month). --json prints {"url","service","version"} on one line and opens nothing. --any-version uses a running service of another version instead of restarting it; the desktop app passes both.
   tui         The registry in the terminal: running plans, and the day, week, and month dashboard. Starts the plan service when it is not already running. Quitting leaves that service up. Active plans are listed first. Click a control, or use Tab, arrows, p, d, and the number keys.
   registry    Run the plan service in the foreground. serve and review start it on their own.
   lan         Publish this machine's plan service on the local network. Off until \`lan on\`.
@@ -147,7 +147,7 @@ Per-plan accent color is saved in live-plan.config.json beside the plan (overrid
 Without --plan or --config, theme get/set uses ~/.config/living-plan/live-plan.config.json.
 Service state and diagnostic logs live under ~/.config/living-plan (LIVE_PLAN_HOME / LIVE_PLAN_LOG_HOME override).
 --no-open skips launching a browser.
-Pages open in the installed Living Plan app (Chrome, Edge, Brave, or Chromium) when it is installed from that host, and in a browser tab otherwise. LIVE_PLAN_OPEN=browser always uses a tab.
+Pages open in the Living Plan Mac app when it is installed and the page is a plan or the dashboard on this machine's service (living-plan://plans/<id>). Otherwise they open in the installed Living Plan web app (Chrome, Edge, Brave, or Chromium) for that host, and in a browser tab when there is none. LIVE_PLAN_DESKTOP=0 skips the Mac app. LIVE_PLAN_OPEN=browser always uses a tab.
 serve and review open a plan page only the first time on this machine. Resuming the same plan leaves the open tab alone. --open opens it again.
 --version prints the package version and exits. -v is the short flag.
 --detach is accepted and does nothing: serve returns by default.
@@ -202,10 +202,10 @@ function hasFlag(args: string[], name: string): boolean {
   return args.includes(name)
 }
 
-/** Open the installed Living Plan app at `url` when there is one, else a browser tab. */
+/** Open `url` in the Living Plan Mac app or the installed web app when there is one, else a browser tab. */
 async function openBrowser(url: string): Promise<void> {
   if (hasFlag(process.argv.slice(2), '--no-open')) return
-  openUrl(url)
+  await openUrl(url)
 }
 
 /**
@@ -583,7 +583,7 @@ async function cmdDump(file: string): Promise<number> {
   return 0
 }
 
-async function openRegistry(args: string[]): Promise<RegistryLock | null> {
+async function openRegistry(args: string[], options?: { anyVersion?: boolean }): Promise<RegistryLock | null> {
   if (hasFlag(args, '--no-registry')) return null
   const portFlag = getFlag(args, '--registry-port') ?? getFlag(args, '--port')
   const port = portFlag ? Number(portFlag) : undefined
@@ -593,6 +593,7 @@ async function openRegistry(args: string[]): Promise<RegistryLock | null> {
       entryFile: fileURLToPath(import.meta.url),
       port: port !== undefined && Number.isFinite(port) && port > 0 ? port : undefined,
       host,
+      anyVersion: options?.anyVersion,
     })
   } catch (error) {
     console.error(`Registry unavailable: ${error instanceof Error ? error.message : error}`)
@@ -1405,14 +1406,21 @@ async function cmdLogs(args: string[]): Promise<number> {
 }
 
 async function cmdDashboard(args: string[]): Promise<number> {
-  const registry = await openRegistry(args)
+  const registry = await openRegistry(args, { anyVersion: hasFlag(args, '--any-version') })
   if (!registry) {
     console.error('Registry unavailable.')
     return 1
   }
+  if (hasFlag(args, '--json')) {
+    // One line for a program such as the desktop app. Both URLs are the address this machine dials.
+    const service = registryBindUrl(registry)
+    console.log(JSON.stringify({ url: new URL('/dashboard', service).href, service, version: registry.version }))
+    return 0
+  }
   const url = new URL('/dashboard', registry.url).href
   console.log(`Plan dashboard: ${url}`)
-  await openBrowser(url)
+  // Open the address this machine dials: a LAN name would need the LAN secret, and the apps know the loopback one.
+  await openBrowser(new URL('/dashboard', registryBindUrl(registry)).href)
   return 0
 }
 

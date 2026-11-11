@@ -1,0 +1,88 @@
+name: Desktop
+
+# Builds the Living Plan desktop app (src-tauri) for macOS, Apple silicon and Intel.
+# Runs on pull requests that touch the app, by hand, and on a published release, where the
+# .dmg files are attached to that release. Builds are signed ad hoc, not notarized. See ADR 0036.
+on:
+  pull_request:
+    paths:
+      - src-tauri/**
+      - desktop/**
+      - scripts/build-desktop.ts
+      - scripts/desktop-icon/**
+      - .github/workflows/desktop.yml
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Desktop (macOS ${{ matrix.arch }})
+    # An Apple silicon runner. The Intel build is cross-compiled there.
+    runs-on: macos-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            target: aarch64-apple-darwin
+            bun-package: bun-darwin-aarch64
+          - arch: x64
+            target: x86_64-apple-darwin
+            bun-package: bun-darwin-x64
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.target }}
+
+      - run: bun install --frozen-lockfile
+
+      # The Bun the app ships, for the target's architecture, at the version this repo pins.
+      - name: Bun for ${{ matrix.target }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/bun" && cd "$RUNNER_TEMP/bun"
+          npm pack "@oven/${{ matrix.bun-package }}@$(bun --version)" --silent
+          tar xzf ./*.tgz
+          echo "LIVE_PLAN_DESKTOP_BUN=$RUNNER_TEMP/bun/package/bin/bun" >> "$GITHUB_ENV"
+
+      # Stages the bundled service and Bun (bun run desktop:stage), then builds the .app and .dmg.
+      - name: Build the app
+        run: bun run desktop:build -- --target ${{ matrix.target }}
+
+      - name: Rust tests
+        if: matrix.arch == 'arm64'
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: living-plan-macos-${{ matrix.arch }}
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Attach the .dmg to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg --clobber

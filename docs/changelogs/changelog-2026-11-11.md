@@ -1,5 +1,32 @@
 # Changelog — 2026-11-11
 
+## 2.23.0
+
+**PR:** [#183](https://github.com/marco-calderon/visual-living-plan/pull/183)
+
+**Bump:** minor
+
+### Summary
+
+Living Plan is now a Mac app. It opens the dashboard and your plans in their own windows, starts the plan service by itself, and needs no Bun, npm, or CLI install. When it is installed, a plan an agent serves opens in it; without it, the plan opens in the installed web app, as in 2.22.0, or a new tab.
+
+### New features
+
+- A Mac app built with Tauri (`src-tauri/`), for macOS 13 or later on Apple silicon and Intel. It ships the CLI and the Bun runtime, starts the plan service when none is running, and opens the dashboard. Plans open in the same window, and a plan opened from the Plans menu gets its own window. Other links open in your browser.
+- `serve`, `review`, `dashboard`, and the terminal dashboard open a local plan or the dashboard in the Mac app when it is installed, through `living-plan://plans/<id>` and `living-plan://dashboard`, before trying the installed web app and then a tab. The app focuses the window that already shows that plan, or opens one. `LIVE_PLAN_DESKTOP=0` skips the Mac app, and `LIVE_PLAN_OPEN=browser` still always uses a tab.
+- The app uses a plan service that agents already started, whatever its version, and leaves it running when it quits.
+- A Mac app icon on Apple's icon grid. `bun run desktop:icons` redraws it.
+- `bun run desktop` opens a development window, and `bun run desktop:build` writes the `.app` and a `.dmg`. The Desktop workflow builds both architectures and attaches the `.dmg` files to each GitHub release.
+- `live-plan dashboard --json` prints the dashboard and service address as one JSON line and opens nothing. `--any-version` uses a running service of another version instead of restarting it.
+
+### Improvements
+
+- The web manifest asks browsers with link capturing to open in-scope links in the installed web app's own window (`handle_links`, `launch_handler`), for links the CLI does not launch itself.
+
+### Notes
+
+The app is signed ad hoc, not notarized, so the first launch asks you to allow it in System Settings, Privacy & Security. Linux and Windows builds come later. A hosted plan (`--cloud`) still opens in the browser. Agents keep using `npx --yes visual-living-plan`. No plan format changes. `SHELL_CACHE_VERSION` moves to 2.23.0.
+
 ## 2.21.0
 
 **PR:** [#181](https://github.com/marco-calderon/visual-living-plan/pull/181)

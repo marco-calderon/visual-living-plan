@@ -3,11 +3,13 @@ import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { delimiter, join } from 'node:path'
+import { openInDesktopApp } from './desktopApp'
 import { WEB_MANIFEST_ID } from './webManifest'
 
 /**
- * Open a page in the installed Living Plan app when this machine has one for
- * the page's origin, and in a browser tab otherwise.
+ * Open a page in the Living Plan Mac app when it can show it (`src/desktopApp.ts`),
+ * else in the installed Living Plan web app when this machine has one for the
+ * page's origin, and in a browser tab otherwise.
  *
  * Chromium browsers (Chrome, Edge, Brave, Chromium) keep each installed web app
  * under `<profile>/Web Applications/Manifest Resources/<app id>`. The app id is
@@ -32,9 +34,14 @@ type ChromiumBrowser = { name: string; userData: string; binaries: string[] }
 
 const currentTarget = (): OpenTarget => ({ platform: process.platform, env: process.env, home: homedir() })
 
-/** Open `url`, preferring the installed app. */
-export function openUrl(url: string, target: OpenTarget = currentTarget()): void {
-  const app = target.env.LIVE_PLAN_OPEN === 'browser' ? null : findInstalledApp(url, target)
+/** Open `url`, preferring the Mac app, then the installed web app. */
+export async function openUrl(url: string, target: OpenTarget = currentTarget()): Promise<void> {
+  if (target.env.LIVE_PLAN_OPEN === 'browser') {
+    openInBrowser(url, target.platform)
+    return
+  }
+  if (await openInDesktopApp(url, { platform: target.platform, env: target.env })) return
+  const app = findInstalledApp(url, target)
   if (app && launch(app.binary, appLaunchArgs(app, url))) return
   openInBrowser(url, target.platform)
 }

@@ -312,27 +312,35 @@ export async function ensureRegistry(options: {
   home?: string
   port?: number
   host?: string
+  /**
+   * Use a running service whatever its version, and start this one only when none is running.
+   * For a client that only opens pages, such as the desktop app, which must not restart a
+   * service that agents on this machine started with another version.
+   */
+  anyVersion?: boolean
 }): Promise<RegistryLock> {
   const home = options.home ?? defaultRegistryHome()
   const host = chooseBindHost(options.host, await readLanEnabled(home))
   const port = options.port ?? DEFAULT_REGISTRY_PORT
   const version = await readPackageVersion(options.entryFile)
+  const usable = (lock: RegistryLock | null): lock is RegistryLock =>
+    lock !== null && (options.anyVersion === true || lock.version === version)
   await mkdir(home, { recursive: true, mode: 0o700 })
 
   const already = await runningRegistry(home)
-  if (already?.version === version) return already
+  if (usable(already)) return already
   if (already) await stopRegistry(home)
 
   const age = await startingLockAge(home)
   if (age !== null && age < STARTING_STALE_MS) {
     const waited = await waitForRunning(home, STARTING_STALE_MS)
-    if (waited?.version === version) return waited
+    if (usable(waited)) return waited
     if (waited) await stopRegistry(home)
   }
 
   await rm(registryStartingPath(home), { force: true })
   const stillThere = await runningRegistry(home)
-  if (stillThere?.version === version) return stillThere
+  if (usable(stillThere)) return stillThere
   if (stillThere) await stopRegistry(home)
   await retireUnhealthyRegistry(home)
 

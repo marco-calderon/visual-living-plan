@@ -117,6 +117,7 @@ Skip when the change is a single obvious step, the user asked for plain prose, o
 The person opens the plan page once. After that, the tab they have follows the file, the mode, and the workflow on its own. Stopping and resuming an agent must not open a second tab.
 
 - `serve` and `review` open a plan page only the first time this machine sees that plan URL. They record it in `~/.config/living-plan/opened-pages.json`. A later `serve` or `review` of the same plan prints `Page already opened before. Not opening it again` and leaves the browser alone.
+- On a Mac with the Living Plan app installed, a local plan opens in that app instead of the browser. Tell the person to look there.
 - When you resume work on a plan you served earlier, in this session or a previous one, pass `--no-open` to `serve` and `review`. Give the person the printed URL in case their tab was closed.
 - Do not reopen the page to show a change. Edit the file, run `mode`, or push the workflow. The open tab follows.
 - Pass `--open` only when the person asks you to open the page again.

@@ -447,6 +447,21 @@ test('ensureRegistry reuses a service advertised on a slow public name', async (
   }
 })
 
+test('ensureRegistry with anyVersion keeps a running service of another version', async () => {
+  const home = await tempHome()
+  const registry = await startRegistryServer({ home, port: 0, version: '0.0.1-other', token: 'other-version-token' })
+  try {
+    const reused = await ensureRegistry({ entryFile, home, anyVersion: true })
+    assert.equal(reused.pid, process.pid)
+    assert.equal(reused.version, '0.0.1-other')
+    assert.equal(reused.token, 'other-version-token')
+    assert.equal(await registryHealthy(registryBindUrl(reused)), true)
+  } finally {
+    await registry.close()
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
 test('ensureRegistry starts one shared server and reuses it', async () => {
   const home = await tempHome()
   let pid = 0
