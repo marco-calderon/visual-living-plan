@@ -79,7 +79,10 @@ The `.dmg` for each release is attached to the GitHub release by `.github/workfl
 bun install
 bun run desktop          # a development window
 bun run desktop:build    # Living Plan.app and a .dmg under src-tauri/target/release/bundle/
+bun run desktop:install  # build the .app for this Mac and install it into /Applications
 ```
+
+`desktop:install` quits a running Living Plan, replaces `/Applications/Living Plan.app`, checks its signature, registers it for `living-plan://` links, and opens it. `--dmg` also builds the disk image, `--no-launch` skips opening it, `--skip-build` installs the last build, and `--dest DIR` installs somewhere else.
 
 Both run `bun run desktop:stage` first, which builds the package, bundles the CLI into `src-tauri/service/`, and copies this machine's Bun to `src-tauri/binaries/`. `bun run desktop:icons` redraws the app icon. Agents still use `npx --yes visual-living-plan`. How the app is put together: [ADR 0036](docs/architecture/decisions/0036-desktop-app.md), how plans reach it: [ADR 0037](docs/architecture/decisions/0037-plans-open-in-the-desktop-app.md), and setup, hosted plans, and the title bar: [ADR 0038](docs/architecture/decisions/0038-desktop-setup-and-cloud.md).
 

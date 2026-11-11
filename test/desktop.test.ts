@@ -14,6 +14,7 @@ import {
   servicePackageJson,
   sidecarFileName,
 } from '../scripts/build-desktop.ts'
+import { builtAppPath, parseInstallArgs, tauriBuildArgs } from '../scripts/install-desktop.ts'
 import { DESKTOP_SCHEME } from '../src/desktopApp.ts'
 
 const root = resolve(import.meta.dir, '..')
@@ -44,6 +45,30 @@ test('the app ships the staged service and takes its version from package.json',
   assert.equal(tauriConfig.version, '../package.json')
   assert.equal(tauriConfig.build.beforeBuildCommand, 'bun run desktop:stage')
   assert.equal(pkg.scripts['desktop:stage'], 'bun scripts/build-desktop.ts')
+})
+
+test('desktop:install builds the .app for this machine and installs it into /Applications', () => {
+  assert.equal(pkg.scripts['desktop:install'], 'bun scripts/install-desktop.ts')
+  assert.deepEqual(tauriBuildArgs('aarch64-apple-darwin', false), ['--target', 'aarch64-apple-darwin', '--bundles', 'app'])
+  assert.deepEqual(tauriBuildArgs('x86_64-apple-darwin', true), ['--target', 'x86_64-apple-darwin', '--bundles', 'app,dmg'])
+  assert.equal(
+    builtAppPath('aarch64-apple-darwin'),
+    join(root, 'src-tauri/target/aarch64-apple-darwin/release/bundle/macos', `${tauriConfig.productName}.app`),
+  )
+  assert.deepEqual(parseInstallArgs([], {}), { dmg: false, launch: true, build: true, dest: '/Applications' })
+  assert.deepEqual(parseInstallArgs(['--dmg', '--no-launch', '--skip-build', '--dest', '/tmp/apps'], {}), {
+    dmg: true,
+    launch: false,
+    build: false,
+    dest: '/tmp/apps',
+  })
+  assert.equal(parseInstallArgs([], { LIVE_PLAN_DESKTOP_DEST: '/tmp/env-apps' }).dest, '/tmp/env-apps')
+})
+
+test('release builds leave proc macros unstripped, so macOS can load them', () => {
+  const cargo = readFileSync(join(root, 'src-tauri/Cargo.toml'), 'utf8')
+  assert.match(cargo, /\[profile\.release\]\n(?:[^\[]*\n)?strip = true/)
+  assert.match(cargo, /\[profile\.release\.build-override\]\nstrip = false/)
 })
 
 test('the app registers the scheme the CLI opens, and ships for macOS', () => {

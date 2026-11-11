@@ -1,5 +1,25 @@
 # Changelog — 2026-11-11
 
+## 2.24.2
+
+**Bump:** patch
+
+### Summary
+
+Building the Mac app from a checkout works on newer macOS, and one command builds and installs it.
+
+### Bugs fixed
+
+- `bun run desktop:build` failed on newer macOS with `can't find crate` for every proc macro. The release profile stripped the proc-macro libraries too, and macOS refused to load them (`mis-aligned LINKEDIT string pool`). Build-time code is no longer stripped. The app binary still is.
+
+### New features
+
+- `bun run desktop:install` builds the `.app` for this Mac and installs it: it quits a running Living Plan, replaces `/Applications/Living Plan.app`, checks the signature, registers the app for `living-plan://` links, and opens it. `--dmg`, `--no-launch`, `--skip-build`, and `--dest DIR` change that.
+
+### Notes
+
+For people building from a checkout only. The released `.dmg` and the CLI are unchanged. `SHELL_CACHE_VERSION` moves to 2.24.2.
+
 ## 2.24.1
 
 **PR:** [#185](https://github.com/marco-calderon/visual-living-plan/pull/185)

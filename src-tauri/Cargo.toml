@@ -36,3 +36,8 @@ lto = true
 opt-level = "s"
 panic = "abort"
 strip = true
+
+# Proc macros and build scripts stay unstripped: newer macOS refuses to load a stripped proc-macro
+# dylib ("mis-aligned LINKEDIT string pool"), which fails the build. The app binary is still stripped.
+[profile.release.build-override]
+strip = false
