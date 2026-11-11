@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { createIdleExecutionState } from '../src/execution.ts'
-import { hostToolbarCss } from '../src/hostToolbar.ts'
+import { hostToolbarBarCss, hostToolbarControlsCss, hostToolbarCss } from '../src/hostToolbar.ts'
 import { parsePlan } from '../src/parse.ts'
 import { renderPlanPage } from '../src/render.ts'
 import { defaultThemeConfig, themePayload } from '../src/theme.ts'
@@ -253,6 +253,26 @@ test('the host title bar uses the dark hairline', () => {
   const dark = styles.split('@media (prefers-color-scheme: dark)')[1] ?? ''
   assert.match(dark, /--hairline:\s*#2c2c2c/)
   assert.doesNotMatch(dark, /--line:\s*#e4e4e7/)
+})
+
+test('a hosted plan page keeps its fixed bar, so the column starts right below it', () => {
+  // The sticky bar is in the page flow. On a plan page, whose column already pads for a fixed bar,
+  // it left the bar's height again as empty space above the plan.
+  for (const rule of [/\.titlebar\s*\{/, /position:\s*sticky/, /\.brand\s*\{/, /\.chrome-tools\s*\{/]) {
+    assert.doesNotMatch(hostToolbarControlsCss, rule)
+  }
+  assert.match(hostToolbarBarCss, /\.titlebar\s*\{[^}]*position:\s*sticky;/)
+  assert.equal(hostToolbarCss, hostToolbarBarCss + hostToolbarControlsCss)
+  assert.match(hostToolbarControlsCss, /\.titlebar-user\s*\{/)
+  assert.match(hostToolbarControlsCss, /\.plan-menu-popup\s*\{/)
+  assert.match(hostToolbarControlsCss, /html\[data-desktop\] \.desktop-mode\s*\{/)
+
+  const shell = readFileSync(new URL('../src/PlanShell.tsx', import.meta.url), 'utf8')
+  assert.match(shell, /<style>\{hostToolbarControlsCss\}<\/style>/)
+  assert.doesNotMatch(shell, /\{hostToolbarCss\}/)
+  const planCss = readFileSync(new URL('../src/planPage.css', import.meta.url), 'utf8')
+  assert.match(planCss, /\.titlebar\s*\{\s*position:\s*fixed;/)
+  assert.match(planCss, /\.shell\s*\{[^}]*padding-top:\s*calc\(var\(--titlebar-offset\) \+ var\(--space-md\)\);/)
 })
 
 test('menu entries keep the icon and text on one centered line', () => {

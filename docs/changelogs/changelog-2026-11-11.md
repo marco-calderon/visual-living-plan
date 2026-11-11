@@ -1,5 +1,25 @@
 # Changelog — 2026-11-11
 
+## 2.24.3
+
+**Bump:** patch
+
+### Summary
+
+A hosted plan, in the browser or the Mac app's Cloud mode, starts right below the toolbar again, level with the contents beside it.
+
+### Bugs fixed
+
+- A hosted plan page left a toolbar-high empty band above the plan, so the content started 136px down instead of 76px and sat below the contents list. The page took the dashboard's toolbar, which sits in the page flow, on top of the plan column's own room for a fixed toolbar. Plan pages now keep their own fixed toolbar and take only the dashboard's buttons and menus.
+
+### Improvements
+
+- On a phone, a long hosted plan title now shortens with an ellipsis, so the Plan and Workflow tabs and the versions menu fit in the toolbar instead of being pushed past the edge of the screen.
+
+### Notes
+
+Local plans and the dashboard, account, and settings pages are unchanged. `SHELL_CACHE_VERSION` moves to 2.24.3.
+
 ## 2.24.2
 
 **Bump:** patch

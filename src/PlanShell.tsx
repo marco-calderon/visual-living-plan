@@ -2,7 +2,7 @@ import { Bot, BotOff, ChevronDown, FileText, Workflow } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '../client/ui/button.tsx'
 import { DesktopModeSwitch } from './DesktopModeSwitch.tsx'
-import { hostToolbarCss } from './hostToolbar.ts'
+import { hostToolbarControlsCss } from './hostToolbar.ts'
 import { planSourceFlags } from './planMdx/source.ts'
 import { buildPlanToc, renderPlanTocHtml } from './planToc.ts'
 import { bindPlanChrome } from './bindPlanChrome.ts'
@@ -130,7 +130,8 @@ export function PlanShell({
   return (
     <>
       <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
-      <style>{hostToolbarCss}</style>
+      {/* The bar's own layout is planPage.css: fixed, with the column starting below it. */}
+      <style>{hostToolbarControlsCss}</style>
       <header className="titlebar">
         <a className="logo-btn" href="/dashboard" aria-label="Dashboard" title="Dashboard">
           <img className="titlebar-logo" src="/favicon.png" alt="" width={29} height={29} />
