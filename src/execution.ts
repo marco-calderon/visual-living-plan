@@ -50,7 +50,14 @@ export type ExecutionState = {
    * so the Workflow tab can render the plan's own diagram.
    */
   planned?: ExecutionGraph
+  /**
+   * Whether the run follows the plan file (`runFollow.ts`). `armed` after the person approves: a step
+   * that moves past pending starts the run. `off` after an explicit `execution stop`.
+   */
+  follow?: RunFollow
 }
+
+export type RunFollow = 'armed' | 'off'
 
 export function createIdleExecutionState(): ExecutionState {
   return {
@@ -98,12 +105,15 @@ export function applyExecutionChange(
 ): ExecutionState {
   const previous = current ?? createIdleExecutionState()
   const active = action === 'start' ? true : action === 'stop' ? false : Boolean(previous.active)
+  // An explicit stop is the agent's call. The plan file does not start the run again after it.
+  const follow = action === 'stop' ? 'off' : previous.follow
   return {
     active,
     step: patch.step ?? previous.step ?? (action === 'start' ? 'Executing' : undefined),
     detail: patch.detail ?? previous.detail,
     graph: patch.graph ?? previous.graph,
     scene: patch.scene ?? previous.scene,
+    ...(follow ? { follow } : {}),
   }
 }
 

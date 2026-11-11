@@ -1,9 +1,10 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
+import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { access } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { createIdleExecutionState, type ExecutionState } from './execution'
 import { readGitSnapshot } from './gitStatus'
 import { openPlanSession, type PlanSession, type PlanSessionSnapshot } from './planSession'
+import { planIdForPath } from './planId'
 import { measurePlan } from './planProgress'
 import type { GitSnapshot, PlanMode, PlanRecord, ProcessRecord, ReviewOutcome } from './processRecord'
 import { runningPlan } from './processRecord'
@@ -35,10 +36,6 @@ export type PlanHost = {
   getSession(id: string): PlanSession | undefined
   authorize(request: Request, session: PlanSession): boolean
   close(): Promise<void>
-}
-
-function planIdForPath(planPath: string): string {
-  return createHash('sha256').update(resolve(planPath)).digest('hex').slice(0, 24)
 }
 
 function tokenEquals(expected: string, actual: string): boolean {

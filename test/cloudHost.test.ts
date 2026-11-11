@@ -579,7 +579,8 @@ test('serve --cloud uploads with the account and plan bearers and does not start
   )
   const plan = join(home, 'demo.plan.md')
   await writeFile(plan, '# Demo\n')
-  const child = spawn(process.execPath, [entry, 'serve', plan, '--cloud', '--no-open'], {
+  // --listen keeps serve attached, so the queued interaction prints here.
+  const child = spawn(process.execPath, [entry, 'serve', plan, '--cloud', '--no-open', '--listen'], {
     env: { ...process.env, LIVE_PLAN_HOME: home, HOME: home },
   })
   let stdout = ''
@@ -611,7 +612,8 @@ test('serve --cloud without a session does not start the registry', async () => 
   const home = await mkdtemp(join(tmpdir(), 'living-plan-cloud-'))
   const plan = join(home, 'demo.plan.md')
   await writeFile(plan, '# Demo\n')
-  const child = spawn(process.execPath, [entry, 'serve', plan, '--cloud', '--no-open'], {
+  // --listen keeps serve attached, so the queued interaction prints here.
+  const child = spawn(process.execPath, [entry, 'serve', plan, '--cloud', '--no-open', '--listen'], {
     env: { ...process.env, LIVE_PLAN_HOME: home, HOME: home },
   })
   let stderr = ''

@@ -12,7 +12,7 @@ Authoring rules for agents who *use* the tool live in [docs/agent-guidelines.md]
 
 ## How a plan is hosted
 
-One service per machine, default `127.0.0.1:9477`, hosts every plan. `serve` registers the file and subscribes to that plan's agent stream. On loopback it prints `http://127.0.0.1:9477/plans/<id>/`. It prints undelivered submissions and exits. The page and the service stay up after it exits. `--detach` registers and returns. `events` is the client to start again for the next submission. `wait` blocks on one id. A client of another plan does not see the event. The service is a detached process and keeps running when a CLI client disconnects. `--host` other than loopback is the address a cloud agent shares. `live-plan lan on` is a separate opt-in that publishes the same service on the local network ([ADR 0019](architecture/decisions/0019-lan-publishing.md)). Agents keep the loopback URL. The LAN URL is printed only by `lan on` and `lan status`.
+One service per machine, default `127.0.0.1:9477`, hosts every plan. `serve` registers the file, prints its URL, and returns. On loopback it prints `http://127.0.0.1:9477/plans/<id>/`. The page and the service stay up. `events` is the one listener, started again for each batch of submissions; `serve --listen` does the same once. Every plan command names the plan by its file, or by `--url`. `wait` blocks on one id. A client of another plan does not see the event. The service is a detached process and keeps running when a CLI client disconnects. `--host` other than loopback is the address a cloud agent shares. `live-plan lan on` is a separate opt-in that publishes the same service on the local network ([ADR 0019](architecture/decisions/0019-lan-publishing.md)). Agents keep the loopback URL. The LAN URL is printed only by `lan on` and `lan status`.
 
 `--no-registry` is the exception: one private server for one plan. Keep that path working.
 
@@ -58,6 +58,7 @@ Home directory for the service is `~/.config/living-plan` (`$XDG_CONFIG_HOME/liv
 - Restart the service when the package version in the lock file does not match the CLI.
 - Commands that wait on the agent stream reconnect after a drop or a service restart, and stop only on a refusal, their timeout, or a stream that never connected. Do not add a waiting command that reads `readAgentEvents` directly; go through `followAgentEvents` in `src/agentStream.ts`.
 - Entering review clears the last verdict only after an agent has acked its `review` row.
+- The agent-facing commands are `check`, `serve`, `events`, `mode`, `reply`, and `close` ([ADR 0035](architecture/decisions/0035-six-plan-commands.md)). Keep `review`, `watch`, `wait`, `addressing`, and `address` working as shortcuts. After an approval the run follows the plan file; an explicit `execution stop` turns that off until the next approval.
 - The service process stays running after `serve`, `events`, `wait`, `review`, `dashboard`, and `tui` exit.
 - A `workflow` block is required in a plan. `check` fails without it.
 - While execution is active, plan forms and review return HTTP 409.

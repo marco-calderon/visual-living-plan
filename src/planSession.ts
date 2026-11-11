@@ -40,6 +40,7 @@ import {
 import { planToExpectedGraph, withPlannedWorkflow } from './workflow'
 import { planNotReadyReason } from './planReady'
 import { INVALID_ITERATION, readIteration, UNREAD_VERDICT } from './reviewRound'
+import { approvesRun, nextRunState } from './runFollow'
 import type { PlanMode } from './processRecord'
 import type {
   CommentReply,
@@ -613,11 +614,24 @@ export async function openPlanSession(options: {
       graph: next.graph,
       scene: next.scene,
       updatedAt: Date.now(),
+      ...(next.follow ? { follow: next.follow } : {}),
     }
     const view = executionView()
     broadcast('execution', { ...view, revision })
     persist()
     return view
+  }
+
+  /**
+   * Start or end the run the way the plan file says (`runFollow.ts`): after an approval a step moving
+   * past pending starts it, and every step done or one failed ends it. Returns true when the run changed;
+   * the change was then broadcast.
+   */
+  function settleRun(): boolean {
+    const change = nextRunState(executionView())
+    if (!change) return false
+    setExecution({ ...execution, active: change.active, step: execution.step ?? (change.active ? 'Executing' : undefined) })
+    return true
   }
 
   let heldReason: string | undefined
@@ -665,7 +679,8 @@ export async function openPlanSession(options: {
       }).catch(() => undefined)
     }
     broadcast('reload', { at: Date.now(), changed: diffs.filter((diff) => diff.status !== 'unchanged').length })
-    broadcast('execution', { ...executionView(), revision })
+    // A phase marked active, done, or failed can start or end the run.
+    if (!settleRun()) broadcast('execution', { ...executionView(), revision })
     persist()
   }
 
@@ -706,8 +721,10 @@ export async function openPlanSession(options: {
     }
     pushEvent('interaction', response)
     broadcast('interaction', response)
+    // An approve gate answered yes lets the plan file start the run.
+    if (approvesRun({ response })) execution = { ...execution, follow: 'armed' }
     // An answered step is done on the workflow too.
-    broadcast('execution', { ...executionView(), revision })
+    if (!settleRun()) broadcast('execution', { ...executionView(), revision })
     persist()
   }
 
@@ -745,6 +762,11 @@ export async function openPlanSession(options: {
     } else {
       mode = 'watch'
       broadcast('mode', { mode, iteration, review: reviewResult })
+    }
+    // From here the run follows the plan file: the first phase marked active starts it.
+    if (approvesRun({ decision })) {
+      execution = { ...execution, follow: 'armed' }
+      settleRun()
     }
     persist()
   }
@@ -896,22 +918,28 @@ export async function openPlanSession(options: {
   function updateExecution(body: unknown): unknown {
     touch()
     const payload = jsonBody(body, true) as Partial<ExecutionState>
-    const view = setExecution({
+    const stopping = execution.active && !payload.active
+    const follow = stopping ? 'off' : execution.follow
+    setExecution({
       active: Boolean(payload.active),
       step: payload.step ? String(payload.step) : undefined,
       detail: payload.detail ? String(payload.detail) : undefined,
       graph: payload.graph,
       scene:
         payload.scene && typeof payload.scene === 'object' ? (payload.scene as Record<string, unknown>) : undefined,
+      ...(follow ? { follow } : {}),
     })
-    return { ok: true, execution: view }
+    settleRun()
+    return { ok: true, execution: executionView() }
   }
 
   function changeExecution(action: ExecutionAction, body: unknown): unknown {
     touch()
     const patch = readExecutionPatch(jsonBody(body, false))
-    const view = setExecution(applyExecutionChange(execution, action, patch))
-    return { ok: true, execution: view }
+    setExecution(applyExecutionChange(execution, action, patch))
+    // A pushed graph with every step done ends the run.
+    settleRun()
+    return { ok: true, execution: executionView() }
   }
 
   function startExecution(body: unknown): unknown {
@@ -1079,6 +1107,17 @@ export async function openPlanSession(options: {
     return result
   }
 
+  /**
+   * An agent's listener printed this comment. The page shows it in progress (Addressing, or Working on a
+   * minibar message) without a separate `addressing` call. `reply` or `address` answers it.
+   */
+  function markReceived(commentId: unknown, at: number): void {
+    const comment = comments.find((entry) => entry.id === commentId)
+    if (!comment || comment.addressedAt || comment.addressingAt) return
+    comment.addressingAt = at
+    broadcast('comment', { ...comment, replies: comment.replies?.map((reply) => ({ ...reply })) })
+  }
+
   function markAddressing(commentId: string, request?: Request): unknown {
     touch()
     const gate = guarded('addressing', {}, request, true)
@@ -1106,7 +1145,10 @@ export async function openPlanSession(options: {
     const delivered: string[] = []
     for (const event of eventLog) {
       if (!wanted.has(event.id)) continue
-      if (event.deliveredAt == null) event.deliveredAt = now
+      if (event.deliveredAt == null) {
+        event.deliveredAt = now
+        if (event.event === 'comment') markReceived((event.data as { id?: unknown } | null)?.id, now)
+      }
       delivered.push(event.id)
     }
     persist()

@@ -622,7 +622,8 @@ test('spawned registry keeps running after CLI clients disconnect', { timeout: 3
     }
     assert.equal(listed.processes.length > 0, true)
 
-    const attached = spawnCli(['serve', plan, '--no-open', '--registry-port', String(port)], true)
+    // --listen keeps serve attached as a client, the way serve behaved before it returned by default.
+    const attached = spawnCli(['serve', plan, '--listen', '--no-open', '--registry-port', String(port)], true)
     const attachedOutput = collectOutput(attached)
     await waitForOutput(attachedOutput, /Listening for submissions/, 8_000)
     assert.ok(attached.pid)

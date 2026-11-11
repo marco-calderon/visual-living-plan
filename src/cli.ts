@@ -66,6 +66,7 @@ import { cloudCredential, normalizeBase, planRecordForUrl, readCloudFile, writeC
 import { CLI_TOKEN_PATH } from './cliToken'
 import { choosePlanOpen, rememberPageOpened } from './openedPages'
 import { readIteration } from './reviewRound'
+import { resolvePlanUrl } from './planTarget'
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -81,25 +82,18 @@ if (process.env.LIVE_PLAN_DAEMON === '1' && process.platform !== 'win32') {
 function printHelp(): void {
   console.log(`live-plan — agent-authored plans humans can interact with
 
-Usage:
-  live-plan serve <file.plan.md> [--port N] [--host HOST] [--config file] [--no-open|--open] [--detach]
-  live-plan review <file.plan.md> [--port N] [--iteration N] [--timeout 30m] [--config file] [--no-open|--open]
-  live-plan wait <id> --url <plan-url> [--token TOKEN] [--timeout 30m]
-  live-plan events --url <plan-url> [--token TOKEN] [--follow]
-  live-plan watch --url <plan-url> [--token TOKEN]
-  live-plan close --url <plan-url> [--token TOKEN]
-  live-plan mode <watch|comment|review> --url <plan-url> [--iteration N]
-  live-plan reply <comment-id> --url <plan-url> --text "..."
-  live-plan addressing <comment-id> --url <plan-url>
-  live-plan search --query TERMS [--query TERMS] [--version live|all] [--any] [--fuzzy] [--json] [--cloud]
-  live-plan search --url <plan-url> --query TERMS [--query TERMS] [--version live|N|all] [--any] [--fuzzy] [--json] [--token TOKEN]
-  live-plan address <comment-id> --url <plan-url> [--outcome implemented|errored|issues]
-  live-plan execution start --url <plan-url> [--step TEXT] [--detail TEXT] [--graph file.json]
-  live-plan execution push --url <plan-url> [--step TEXT] [--detail TEXT] [--graph file.json] [--scene file.json]
-  live-plan execution stop --url <plan-url>
-  live-plan theme get [--url <plan-url>] [--config file] [--plan file.plan.md]
-  live-plan theme set --accent #hex [--url <plan-url>] [--config file] [--plan file.plan.md]
+Usage (a plan command takes the plan file, or --url <plan-url>):
   live-plan check <file.plan.md>
+  live-plan serve <file.plan.md> [--cloud] [--port N] [--host HOST] [--config file] [--no-open|--open] [--listen]
+  live-plan events <file.plan.md> [--follow] [--token TOKEN]
+  live-plan mode <watch|comment|review> <file.plan.md> [--iteration N]
+  live-plan reply <comment-id> <file.plan.md> --text "..." [--outcome implemented|errored|issues] [--keep-open]
+  live-plan close <file.plan.md>
+
+  live-plan execution start|push|stop <file.plan.md> [--step TEXT] [--detail TEXT] [--graph file.json] [--scene file.json]
+  live-plan search --query TERMS [--query TERMS] [--version live|all] [--any] [--fuzzy] [--json] [--cloud]
+  live-plan search <file.plan.md> --query TERMS [--query TERMS] [--version live|N|all] [--any] [--fuzzy] [--json] [--token TOKEN]
+  live-plan theme get|set [--accent #hex] [--url <plan-url>] [--config file] [--plan file.plan.md]
   live-plan dump <file.plan.md>
   live-plan processes
   live-plan logs [--level error|warn|log] [--url <plan-url>] [--day YYYY-MM-DD] [--limit N]
@@ -107,26 +101,38 @@ Usage:
   live-plan tui [--period day|week|month] [--registry-port N] [--registry-host HOST]
   live-plan registry [--port N] [--host HOST]
   live-plan lan on|off|status
+  live-plan account login --url https://host [--headless | --token <token>]
   live-plan --version
+
+Shortcuts, kept for agents and scripts that use them:
+  live-plan review <file.plan.md> [--cloud] [--iteration N] [--timeout 30m] [--out file]
+  live-plan watch <file.plan.md>
+  live-plan wait <id> <file.plan.md> [--timeout 30m]
+  live-plan addressing <comment-id> <file.plan.md>
+  live-plan address <comment-id> <file.plan.md> [--outcome implemented|errored|issues]
 
 Requires Bun (https://bun.sh). Invoke with \`bunx visual-living-plan <command>\` when the \`live-plan\` command is not installed. \`living-plan\` is the same binary.
 
-Modes:
-  serve       Register the plan on the machine service and print submissions for that plan.
-  review      Same page, plus Approve / Deny / Iterate. Blocks until a decision. Exits 0 approve, 1 deny, 2 iterate, 3 timeout, 4 the stream was refused or never connected.
+Plan commands:
+  check       Print plan summary. Exits 1 when the required workflow block is missing.
+  serve       Register the plan (on this machine, or the signed-in host with --cloud), print its URL, and return. The page stays up. --listen also waits for the next submissions, as events does.
+  events      The one listener. Print undelivered submissions as JSON lines, ack them, then exit; start it again after it exits. --follow stays running instead, and also prints a mode line on every mode change, so one process serves the whole plan.
+  mode        Switch the open session between watch, comment, and review. The open tab follows. --iteration N sets the review round. A verdict then arrives on events as a review line. Review is refused while the person's last verdict has not reached an agent.
+  reply       Answer a comment and mark it answered. The page already shows the comment in progress once events printed it. --outcome errored or issues records the result. --keep-open leaves it open.
+  close       Drop a plan from the service.
+  execution   Optional. After an approval the run follows the plan file: a phase marked active starts it, every step done or one failed ends it. start, push, and stop are for a plan without a review, a custom graph, or ending a run by hand.
+
+Shortcuts:
+  review      serve, mode review, and wait for the verdict in one command. Exits 0 approve, 1 deny, 2 iterate, 3 timeout, 4 the stream was refused or never connected.
+  watch       mode watch, then events --follow.
   wait        Block until one interaction id is answered. Exits 3 on timeout, 4 when the stream was refused or never connected.
-  events      Print undelivered submissions as JSON, then exit. Start it again to see if more are pending. --follow stays running and prints each submission as it arrives, plus a mode line on every mode change, without changing the page mode. One --follow can serve the whole plan while mode switches it between watch, comment, and review.
-  watch       Switch to watch mode and stay running while the plan executes. Prints submissions and mode changes without exiting.
-  close       Drop a plan from the machine service.
-  mode        Switch the open session between watch, comment, and review. The open tab follows. --iteration N sets the review round. Review is refused while the person's last verdict has not reached an agent.
-  reply       Answer one plan comment. The page shows the text on that comment's minibar or part thread.
-  addressing  Mark one comment as being reviewed. The page shows Addressing or Working.
-  address     Mark one comment answered. The page shows Addressed, or the outcome on a minibar message.
-  search      Find terms across every plan on this machine's service, or every plan on the hosted account with --cloud. --url searches one plan instead. Live text only unless --version all (or --version N with --url). Every term must be in one block unless --any. Without --url the plan title counts toward every block. --fuzzy also matches word starts and small typos. Exits 0 with hits, 2 with none.
-  execution   Start/push/stop the live workflow canvas (locks plan forms while active).
+  addressing  Mark one comment in progress by hand.
+  address     Mark one comment answered without a reply.
+
+Other commands:
+  search      Find terms across every plan on this machine's service, or every plan on the hosted account with --cloud. A plan file or --url searches one plan instead. Live text only unless --version all (or --version N for one plan). Every term must be in one block unless --any. Across plans the plan title counts toward every block. --fuzzy also matches word starts and small typos. Exits 0 with hits, 2 with none.
   account     Sign in to the hosted service. \`account login --url https://host\`. On a machine with no browser, \`--headless\` prints a page that shows a token, then \`--token <token>\` saves it.
   theme       Read or write the accent color in live-plan.config.json (or via a running server).
-  check       Print plan summary. Exits 1 when the required workflow block is missing.
   processes   List plans hosted by the service. \`ps\` is the same command.
   logs        Print the development log saved under ~/.config/living-plan/logs. Not shown on the page. --day reads one registry day (today when omitted). --url reads one plan.
   dashboard   Open the control dashboard (running and executed plans, by day, week, or month).
@@ -134,6 +140,7 @@ Modes:
   registry    Run the plan service in the foreground. serve and review start it on their own.
   lan         Publish this machine's plan service on the local network. Off until \`lan on\`.
 
+A plan file names the plan for every plan command: its hosted URL when this machine served it with --cloud, otherwise its URL on this machine's service. --url <plan-url> still works, and is needed for a plan served from another machine.
 Every plan includes a \`workflow\` block. That block is the execution path the Workflow tab draws.
 Per-plan accent color is saved in live-plan.config.json beside the plan (override with --config).
 Without --plan or --config, theme get/set uses ~/.config/living-plan/live-plan.config.json.
@@ -141,10 +148,9 @@ Service state and diagnostic logs live under ~/.config/living-plan (LIVE_PLAN_HO
 --no-open skips launching a browser.
 serve and review open a plan page only the first time on this machine. Resuming the same plan leaves the open tab alone. --open opens it again.
 --version prints the package version and exits. -v is the short flag.
---detach registers the plan and returns. Without it, serve prints the next undelivered submissions and exits. The page stays up on the service.
-events does the same on a URL you already have. A submission that arrived while it was stopped is printed immediately, then the process exits. Start events again after every comment, denial, or approval so a pending event is not left on the server.
-watch switches that session to watch mode and stays running. Use it after an approval, while execution is in progress. Stop it when execution is finished.
-serve, events, watch, wait, and review reconnect by themselves after a dropped stream, a service restart, or a network change. Submissions sent meanwhile wait on the server and print after the reconnect. A local service that crashed is started again. They stop only on a refusal a retry cannot fix, their own --timeout, or when they never connected.
+--detach is accepted and does nothing: serve returns by default.
+events prints a submission that arrived while it was stopped immediately, then exits. Start it again after every comment, denial, or approval so a pending event is not left on the server.
+serve --listen, events, watch, wait, and review reconnect by themselves after a dropped stream, a service restart, or a network change. Submissions sent meanwhile wait on the server and print after the reconnect. A local service that crashed is started again. They stop only on a refusal a retry cannot fix, their own --timeout, or when they never connected.
 The machine service keeps running after serve, events, wait, review, dashboard, and tui exit.
 --no-registry serves this plan in its own process instead of the machine service.
 --port sets that private process port. With the service, --port is used only when the service is not already running.
@@ -615,7 +621,8 @@ async function cmdCloudServe(file: string, args: string[], mode: 'watch' | 'revi
     console.log(`Plan file: ${resolve(file)}`)
     console.log('Hosted plan. The local registry was not started.')
     await openPlanPage(record.url)
-    if (mode === 'watch' && hasFlag(args, '--detach')) {
+    // `serve` registers and returns. `--listen` also waits for the next submissions, as `events` does.
+    if (mode === 'watch' && !hasFlag(args, '--listen')) {
       const pid = spawnCloudWatch(fileURLToPath(import.meta.url), record)
       const stored = await readCloudFile()
       const current = stored.plans[record.id]
@@ -623,7 +630,7 @@ async function cmdCloudServe(file: string, args: string[], mode: 'watch' | 'revi
         stored.plans[record.id] = { ...current, watchPid: pid }
         await writeCloudFile(stored)
       }
-      console.log(`Events: live-plan events --url ${record.url}`)
+      printListenHint(file)
       return 0
     }
     const stop = await syncCloudUrl(record.url)
@@ -650,6 +657,12 @@ async function cmdCloudServe(file: string, args: string[], mode: 'watch' | 'revi
   }
 }
 
+/** What to run next. The plan file names the plan for every later command. */
+function printListenHint(file: string): void {
+  const quoted = /\s/.test(file) ? JSON.stringify(file) : file
+  console.log(`Listen: live-plan events ${quoted}   (--follow keeps it running)`)
+}
+
 async function cmdServe(file: string, args: string[]): Promise<number> {
   if (hasFlag(args, '--cloud')) return cmdCloudServe(file, args, 'watch')
   await ensureClientBuild()
@@ -668,8 +681,9 @@ async function cmdServe(file: string, args: string[]): Promise<number> {
     console.log(`Service: ${registry.url}`)
     console.log('Tabs: Plan (status/forms), Workflow (expected plan, then live React Flow canvas), and Settings (accent, page width).')
     await openPlanPage(hosted.url)
-    if (hasFlag(args, '--detach')) {
-      console.log(`Events: live-plan events --url ${hosted.url}`)
+    // `serve` registers and returns. `--listen` also waits for the next submissions, as `events` does.
+    if (!hasFlag(args, '--listen')) {
+      printListenHint(file)
       return 0
     }
     return followPlan(rewriteToBindUrl(registry, hosted.url), hosted.token, args)
@@ -908,11 +922,8 @@ async function cmdReview(file: string, args: string[]): Promise<number> {
 }
 
 async function cmdWait(id: string, args: string[]): Promise<number> {
-  const published = getFlag(args, '--url')
-  if (!published) {
-    console.error('live-plan wait requires --url <plan-url>')
-    return 1
-  }
+  const published = await planUrlArg(args, 'Usage: live-plan wait <id> <plan-file|--url plan-url> [--timeout 30m]')
+  if (!published) return 1
   const url = await localServiceUrl(published)
   const timeoutMs = parseTimeout(getFlag(args, '--timeout'), 4 * 60 * 60 * 1000)
   const bearer: StreamToken = { current: await resolveAgentToken(args, url) }
@@ -972,11 +983,8 @@ async function cmdWait(id: string, args: string[]): Promise<number> {
 }
 
 async function cmdEvents(args: string[]): Promise<number> {
-  const published = getFlag(args, '--url')
-  if (!published) {
-    console.error('live-plan events requires --url <plan-url>')
-    return 1
-  }
+  const published = await planUrlArg(args, 'Usage: live-plan events <plan-file|--url plan-url> [--follow]')
+  if (!published) return 1
   const url = await localServiceUrl(published)
   const token = await resolveAgentToken(args, url)
   const follow = args.includes('--follow')
@@ -994,11 +1002,8 @@ async function cmdEvents(args: string[]): Promise<number> {
 }
 
 async function cmdWatch(args: string[]): Promise<number> {
-  const published = getFlag(args, '--url')
-  if (!published) {
-    console.error('live-plan watch requires --url <plan-url>')
-    return 1
-  }
+  const published = await planUrlArg(args, 'Usage: live-plan watch <plan-file|--url plan-url>')
+  if (!published) return 1
   const url = await localServiceUrl(published)
   const token = await resolveAgentToken(args, url)
   const headers = {
@@ -1032,14 +1037,11 @@ function readIterationFlag(args: string[]): number | undefined | 'invalid' {
 async function cmdMode(args: string[]): Promise<number> {
   const mode = args[0]
   if (mode !== 'watch' && mode !== 'comment' && mode !== 'review') {
-    console.error('Usage: live-plan mode <watch|comment|review> --url <plan-url> [--iteration N]')
+    console.error('Usage: live-plan mode <watch|comment|review> <plan-file|--url plan-url> [--iteration N]')
     return 1
   }
-  const published = getFlag(args, '--url')
-  if (!published) {
-    console.error('live-plan mode requires --url <plan-url>')
-    return 1
-  }
+  const published = await planUrlArg(args, 'Usage: live-plan mode <watch|comment|review> <plan-file|--url plan-url> [--iteration N]')
+  if (!published) return 1
   const iteration = readIterationFlag(args)
   if (iteration === 'invalid') {
     console.error('--iteration takes a whole number of 1 or more')
@@ -1063,7 +1065,19 @@ async function cmdMode(args: string[]): Promise<number> {
   return 0
 }
 
-async function postPlan(published: string, apiPath: string, body?: unknown): Promise<number> {
+/** The plan URL from `--url`, or from the plan file. Prints `usage` when the command was given neither. */
+async function planUrlArg(args: string[], usage: string): Promise<string | null> {
+  try {
+    const url = await resolvePlanUrl(args)
+    if (!url) console.error(usage)
+    return url
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error)
+    return null
+  }
+}
+
+async function postPlan(published: string, apiPath: string, body?: unknown, options: { quiet?: boolean } = {}): Promise<number> {
   const url = await localServiceUrl(published)
   const headers: Record<string, string> = {
     ...(body === undefined ? {} : { 'content-type': 'application/json' }),
@@ -1078,7 +1092,8 @@ async function postPlan(published: string, apiPath: string, body?: unknown): Pro
     console.error(await response.text())
     return 1
   }
-  console.log(JSON.stringify(await response.json(), null, 2))
+  const payload = await response.json()
+  if (!options.quiet) console.log(JSON.stringify(payload, null, 2))
   return 0
 }
 
@@ -1088,33 +1103,16 @@ function commentIdFrom(args: string[]): string | undefined {
   return commentId
 }
 
+/**
+ * Answer a comment in one command: write the reply and mark it answered. The page already shows the
+ * comment in progress once a listener printed it. `--keep-open` writes the reply and leaves it open.
+ */
 async function cmdReply(args: string[]): Promise<number> {
+  const usage = 'Usage: live-plan reply <comment-id> <plan-file|--url plan-url> --text "..." [--outcome implemented|errored|issues] [--keep-open]'
   const commentId = commentIdFrom(args)
-  const published = getFlag(args, '--url')
   const text = getFlag(args, '--text')
-  if (!commentId || !published || text == null) {
-    console.error('Usage: live-plan reply <comment-id> --url <plan-url> --text "..."')
-    return 1
-  }
-  return postPlan(published, `/api/comments/${encodeURIComponent(commentId)}/reply`, { text })
-}
-
-async function cmdAddressing(args: string[]): Promise<number> {
-  const commentId = commentIdFrom(args)
-  const published = getFlag(args, '--url')
-  if (!commentId || !published) {
-    console.error('Usage: live-plan addressing <comment-id> --url <plan-url>')
-    return 1
-  }
-  return postPlan(published, `/api/comments/${encodeURIComponent(commentId)}/addressing`)
-}
-
-async function cmdAddress(args: string[]): Promise<number> {
-  const usage = 'Usage: live-plan address <comment-id> --url <plan-url> [--outcome implemented|errored|issues]'
-  const commentId = commentIdFrom(args)
-  const published = getFlag(args, '--url')
   const outcome = getFlag(args, '--outcome')
-  if (!commentId || !published) {
+  if (!commentId || text == null) {
     console.error(usage)
     return 1
   }
@@ -1122,6 +1120,47 @@ async function cmdAddress(args: string[]): Promise<number> {
     console.error(usage)
     return 1
   }
+  if (hasFlag(args, '--outcome') && hasFlag(args, '--keep-open')) {
+    console.error('--outcome closes the comment. Leave it out with --keep-open.')
+    return 1
+  }
+  const published = await planUrlArg(args, usage)
+  if (!published) return 1
+  const path = `/api/comments/${encodeURIComponent(commentId)}`
+  if (hasFlag(args, '--keep-open')) return postPlan(published, `${path}/reply`, { text })
+  const replied = await postPlan(published, `${path}/reply`, { text }, { quiet: true })
+  if (replied !== 0) return replied
+  return postPlan(published, `${path}/address`, outcome ? { outcome } : undefined)
+}
+
+/** Optional: mark a comment in progress before a listener printed it. */
+async function cmdAddressing(args: string[]): Promise<number> {
+  const usage = 'Usage: live-plan addressing <comment-id> <plan-file|--url plan-url>'
+  const commentId = commentIdFrom(args)
+  if (!commentId) {
+    console.error(usage)
+    return 1
+  }
+  const published = await planUrlArg(args, usage)
+  if (!published) return 1
+  return postPlan(published, `/api/comments/${encodeURIComponent(commentId)}/addressing`)
+}
+
+/** Mark a comment answered without a reply. `reply` does this too. */
+async function cmdAddress(args: string[]): Promise<number> {
+  const usage = 'Usage: live-plan address <comment-id> <plan-file|--url plan-url> [--outcome implemented|errored|issues]'
+  const commentId = commentIdFrom(args)
+  const outcome = getFlag(args, '--outcome')
+  if (!commentId) {
+    console.error(usage)
+    return 1
+  }
+  if (hasFlag(args, '--outcome') && outcome !== 'implemented' && outcome !== 'errored' && outcome !== 'issues') {
+    console.error(usage)
+    return 1
+  }
+  const published = await planUrlArg(args, usage)
+  if (!published) return 1
   return postPlan(
     published,
     `/api/comments/${encodeURIComponent(commentId)}/address`,
@@ -1132,9 +1171,15 @@ async function cmdAddress(args: string[]): Promise<number> {
 async function cmdSearch(args: string[]): Promise<number> {
   const usage = [
     'Usage: live-plan search --query TERMS [--query TERMS] [--version live|all] [--any] [--fuzzy] [--json] [--cloud]',
-    '       live-plan search --url <plan-url> --query TERMS [--version live|N|all] [--any] [--fuzzy] [--json] [--token TOKEN]',
+    '       live-plan search <plan-file|--url plan-url> --query TERMS [--version live|N|all] [--any] [--fuzzy] [--json] [--token TOKEN]',
   ].join('\n')
-  const published = getFlag(args, '--url')
+  let published: string | null
+  try {
+    published = await resolvePlanUrl(args)
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error)
+    return 1
+  }
   const queries = getFlags(args, '--query', '-q').filter((value) => value.trim())
   const version = getFlag(args, '--version')
   if (queries.length === 0 || (hasFlag(args, '--version') && !version) || (hasFlag(args, '--url') && !published)) {
@@ -1218,11 +1263,8 @@ async function searchAllPlans(args: string[], params: URLSearchParams): Promise<
 }
 
 async function cmdClose(args: string[]): Promise<number> {
-  const url = getFlag(args, '--url')
-  if (!url) {
-    console.error('live-plan close requires --url <plan-url>')
-    return 1
-  }
+  const url = await planUrlArg(args, 'Usage: live-plan close <plan-file|--url plan-url>')
+  if (!url) return 1
   const stored = await readCloudFile()
   const hosted = planRecordForUrl(stored, url)
   if (hosted || cloudCredential(stored, url)) {
@@ -1270,11 +1312,8 @@ async function buildExecutionPatch(args: string[]): Promise<ExecutionPatch> {
 async function cmdExecution(args: string[]): Promise<number> {
   const action = args[0]
   const rest = args.slice(1)
-  const published = getFlag(rest, '--url')
-  if (!published) {
-    console.error('live-plan execution requires --url <server-url>')
-    return 1
-  }
+  const published = await planUrlArg(rest, 'Usage: live-plan execution start|push|stop <plan-file|--url plan-url> [--step TEXT] [--detail TEXT] [--graph file.json]')
+  if (!published) return 1
   const url = await localServiceUrl(published)
 
   if (action === 'start' || action === 'push' || action === 'stop') {

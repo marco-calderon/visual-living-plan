@@ -1,5 +1,7 @@
 import type { AgentPresence } from '../agentPresence'
-import { applyExecutionChange, readExecutionPatch, type ExecutionAction, type ExecutionState } from '../execution'
+import { applyExecutionChange, readExecutionPatch, type ExecutionAction, type ExecutionState, type RunFollow } from '../execution'
+import { approvesRun, nextRunState } from '../runFollow'
+import type { InteractionResponse } from '../types'
 import type { PlanProgress } from '../planProgress'
 import { INVALID_ITERATION, readIteration, UNREAD_VERDICT } from '../reviewRound'
 import {
@@ -352,6 +354,8 @@ export function submitInteraction(sql: PlanSql, interactionId: string, body: unk
   const responses = jsonMeta<Record<string, unknown>>(sql, 'responses', {})
   responses[interactionId] = body
   setMeta(sql, 'responses', JSON.stringify(responses))
+  // An approve gate answered yes lets the plan file start the run.
+  if (approvesRun({ response: body as InteractionResponse })) armRun(sql)
   const record = pushEvent(sql, 'interaction', body)
   touchPlan(sql)
   return { outbound: [{ event: 'notice', data: record }], body: { ok: true, response: body } }
@@ -405,6 +409,8 @@ export function submitReview(sql: PlanSql, body: unknown): { outbound: Outbound[
   }
   setMeta(sql, 'review', JSON.stringify(review))
   if (payload.decision === 'approve' || payload.decision === 'deny') setMeta(sql, 'mode', 'watch')
+  // From here the run follows the plan file: the first phase marked active starts it.
+  if (approvesRun({ decision: payload.decision })) armRun(sql)
   const record = pushEvent(sql, 'review', review)
   touchPlan(sql)
   return {
@@ -437,8 +443,11 @@ export function updateMode(sql: PlanSql, body: unknown): { outbound: Outbound[];
 
 export function putExecution(sql: PlanSql, body: unknown): { outbound: Outbound[]; body: unknown } {
   requireOpen(sql)
-  const previous = jsonMeta<{ active?: boolean }>(sql, 'execution', { active: false })
-  const next = (body ?? { active: false }) as { active?: boolean }
+  const previous = jsonMeta<{ active?: boolean; follow?: RunFollow }>(sql, 'execution', { active: false })
+  const given = (body ?? { active: false }) as { active?: boolean; follow?: RunFollow }
+  // A body that leaves `follow` out keeps it, except that stopping a live run is the agent's call.
+  const follow = 'follow' in given ? given.follow : previous.active && !given.active ? 'off' : previous.follow
+  const next = { ...given, ...(follow ? { follow } : {}) }
   setMeta(sql, 'execution', JSON.stringify(next))
   const revision = Boolean(previous.active) !== Boolean(next.active) ? bumpRevision(sql) : Number(meta(sql, 'revision') ?? '0')
   touchPlan(sql)
@@ -449,6 +458,25 @@ export function putExecution(sql: PlanSql, body: unknown): { outbound: Outbound[
 export function changeExecution(sql: PlanSql, action: ExecutionAction, body: unknown): { outbound: Outbound[]; body: unknown } {
   const current = { active: false, ...(planView(sql).execution as Partial<ExecutionState> | null) } as ExecutionState
   return putExecution(sql, applyExecutionChange(current, action, readExecutionPatch(body)))
+}
+
+/** An approval arms the run to follow the plan file (`runFollow.ts`). */
+function armRun(sql: PlanSql): void {
+  const execution = jsonMeta<Record<string, unknown>>(sql, 'execution', { active: false })
+  setMeta(sql, 'execution', JSON.stringify({ ...execution, follow: 'armed' }))
+}
+
+/**
+ * Start or end the run the way the plan file says: after an approval a step moving past pending
+ * starts it, and every step done or one failed ends it. Returns true when the run changed.
+ */
+export async function settleRun(sql: PlanSql): Promise<boolean> {
+  if (planView(sql).closed) return false
+  const change = nextRunState(await executionView(sql))
+  if (!change) return false
+  const stored = { active: false, ...(jsonMeta<Partial<ExecutionState> | null>(sql, 'execution', null) ?? {}) }
+  putExecution(sql, { ...stored, active: change.active, step: stored.step ?? (change.active ? 'Executing' : undefined) })
+  return true
 }
 
 export function executionActive(view: Pick<PlanView, 'execution'>): boolean {
@@ -586,16 +614,38 @@ function writeMutations(sql: PlanSql, records: IdempotencyRecord[]): void {
   setMeta(sql, 'idempotency', JSON.stringify(records))
 }
 
-export function ackEvents(sql: PlanSql, ids: string[]): { delivered: string[] } {
+/**
+ * Mark rows delivered. A comment the agent just received is shown in progress on the page, as the
+ * local session does, so the agent does not have to call `addressing` first.
+ */
+export function ackEvents(sql: PlanSql, ids: string[]): { delivered: string[]; outbound: Outbound[] } {
   const delivered: string[] = []
+  const received: string[] = []
   const now = Date.now()
   for (const id of ids) {
-    const row = sql.exec(`SELECT id, delivered_at FROM events WHERE id = ?`, id).toArray()[0]
+    const row = sql.exec(`SELECT id, event, data, delivered_at FROM events WHERE id = ?`, id).toArray()[0]
     if (!row || row.delivered_at != null) continue
     sql.exec(`UPDATE events SET delivered_at = ? WHERE id = ?`, now, id)
     delivered.push(id)
+    if (row.event !== 'comment') continue
+    try {
+      const commentId = (JSON.parse(String(row.data ?? 'null')) as { id?: unknown } | null)?.id
+      if (typeof commentId === 'string') received.push(commentId)
+    } catch {
+      // A row with unreadable data has no comment to mark.
+    }
   }
-  return { delivered }
+  const outbound: Outbound[] = []
+  if (received.length > 0) {
+    const comments = jsonMeta<Array<Record<string, unknown>>>(sql, 'comments', [])
+    for (const comment of comments) {
+      if (!received.includes(String(comment.id)) || comment.addressedAt || comment.addressingAt) continue
+      comment.addressingAt = now
+      outbound.push({ event: 'comment', data: comment })
+    }
+    if (outbound.length > 0) setMeta(sql, 'comments', JSON.stringify(comments))
+  }
+  return { delivered, outbound }
 }
 
 export function closePlan(sql: PlanSql): void {

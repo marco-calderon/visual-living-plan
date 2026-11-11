@@ -1,6 +1,6 @@
 # ADR 0012: The CLI exits after it prints undelivered submissions
 
-- Status: Accepted
+- Status: Accepted. `serve` registers and returns by default since [ADR 0035](0035-six-plan-commands.md); `serve --listen` is what prints and exits now.
 - Date: 2026-10-17
 
 ## Context

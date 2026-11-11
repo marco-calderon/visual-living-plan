@@ -1,5 +1,36 @@
 # Changelog — 2026-11-11
 
+## 2.22.0
+
+**PR:** link once known
+
+**Bump:** minor
+
+### Summary
+
+An agent now drives a plan with six commands, `check`, `serve`, `events`, `mode`, `reply`, and `close`, and names the plan by its file instead of copying a URL. A comment takes one command to answer, and after an approval the run starts and ends from the phase statuses in the plan file.
+
+### Improvements
+
+- `serve` registers the plan, prints its URL, and returns. `--listen` keeps the old behavior of waiting for the next submissions. `--detach` is still accepted.
+- `reply` answers a comment and marks it answered in one command. `--outcome errored` or `issues` records the result, and `--keep-open` replies without closing it.
+- A comment shows in progress on the page as soon as the agent's `events` prints it, so `addressing` is no longer needed.
+- `review`, `watch`, `wait`, `addressing`, and `address` keep working and are listed as shortcuts in the help and the skill.
+- The live-plan skill and the agent guidelines teach the six-command loop.
+
+### New features
+
+- Every plan command takes the plan file in place of `--url`, for example `live-plan events work.plan.md` or `live-plan reply cmt_1 work.plan.md --text "Done"`. A plan served with `--cloud` is found from the `cloudId` in the file. `--url` still works.
+- After an approve verdict, or an approve gate answered yes, marking a phase `active` starts the run (Executing). Every workflow step done ends it (Completed), and a failed step ends it (Stopped). A phase set back to `active` starts it again, and `execution stop` turns this off until the next approval.
+
+### Bugs fixed
+
+- A run left on after every workflow step was done, because `execution stop` was forgotten, kept the page on Executing. It now ends by itself.
+
+### Notes
+
+The one behavior change for existing scripts is `serve` without `--detach`: it now returns after registering. Its submissions stay queued and print on the next `events`, or pass `--listen`. `SHELL_CACHE_VERSION` moves to 2.22.0.
+
 ## 2.21.0
 
 **PR:** link once known
