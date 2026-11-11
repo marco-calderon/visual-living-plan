@@ -4,6 +4,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLinkIt
 import { forgetCachedDocuments } from '../offline/forgetDocuments.ts'
 import { startOfflineEngine } from '../offline/engine.ts'
 import { openSettings } from '../../src/settings/settingsSections.ts'
+import { accountInitials } from '../../src/accountInitials.ts'
 
 async function signOut(): Promise<void> {
   const engine = await startOfflineEngine()
@@ -30,7 +31,11 @@ export function AccountMenu({ label }: { label: string }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="plan-btn plan-btn-secondary titlebar-user" aria-label="Account menu">
-        {label}
+        <span className="titlebar-user-label">{label}</span>
+        {/* Phones show these in place of the name (src/planPage.css). */}
+        <span className="titlebar-user-initials" aria-hidden="true">
+          {accountInitials(label)}
+        </span>
         <ChevronDown size={16} aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent>

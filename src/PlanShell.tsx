@@ -1,7 +1,9 @@
-import { Bot, BotOff, ChevronDown, FileText, Workflow } from 'lucide-react'
+import { Bot, BotOff, ChevronDown, FileText, History, PencilLine, Workflow } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '../client/ui/button.tsx'
 import { DesktopModeSwitch } from './DesktopModeSwitch.tsx'
+import { accountInitials } from './accountInitials.ts'
+import { PLAN_EDIT_DRAFT_LABEL, PLAN_EDIT_KEY, PLAN_EDIT_LABEL } from './planEditButton.ts'
 import { hostToolbarControlsCss } from './hostToolbar.ts'
 import { planSourceFlags } from './planMdx/source.ts'
 import { buildPlanToc, renderPlanTocHtml } from './planToc.ts'
@@ -63,6 +65,8 @@ export function PlanShell({
   const cloudPlanId = host === 'cloud' && basePath.startsWith('/plans/') ? (basePath.slice('/plans/'.length).split('/')[0] ?? '') : ''
   const tocHtml = renderPlanTocHtml(buildPlanToc(source))
   const versionsLabel = version ? `Version ${version}` : 'Live'
+  // The same rule as client/planMdx.tsx: a local plan or one this account owns, never a saved version.
+  const canEdit = !version && (host === 'local' || owner)
 
   useEffect(() => {
     const onTab = (event: Event) => {
@@ -200,6 +204,14 @@ export function PlanShell({
               <Workflow size={16} aria-hidden="true" />
             </button>
           </div>
+          {/* Read · Edit · History. client/planMdx.tsx shows and wires it once the plan renders. */}
+          {canEdit ? (
+            <button type="button" className="plan-edit-btn" data-plan-edit="" aria-keyshortcuts={PLAN_EDIT_KEY}>
+              <PencilLine size={16} aria-hidden="true" />
+              <span className="plan-edit-label">{PLAN_EDIT_LABEL}</span>
+              <span className="plan-edit-draft">{PLAN_EDIT_DRAFT_LABEL}</span>
+            </button>
+          ) : null}
           {cloudPlanId ? (
             <div
               className="plan-versions-menu"
@@ -209,16 +221,27 @@ export function PlanShell({
               data-label={versionsLabel}
               data-version={version ? String(version) : undefined}
             >
-              <button type="button" className="titlebar-action" aria-label="Plan versions" aria-haspopup="menu" aria-expanded="false">
-                {versionsLabel}
+              <button
+                type="button"
+                className="titlebar-action"
+                aria-label="Plan versions"
+                aria-haspopup="menu"
+                aria-expanded="false"
+                data-versions-live={version ? undefined : 'true'}
+              >
+                <History size={16} className="titlebar-action-icon" aria-hidden="true" />
+                <span className="titlebar-action-label">{versionsLabel}</span>
                 <ChevronDown size={14} aria-hidden="true" />
               </button>
             </div>
           ) : null}
           {accountLabel ? (
             <div className="account-menu" data-account-menu="" data-label={accountLabel}>
-              <Button type="button" variant="secondary" className="titlebar-user" aria-haspopup="menu" aria-expanded="false">
-                {accountLabel}
+              <Button type="button" variant="secondary" className="titlebar-user" aria-label="Account menu" aria-haspopup="menu" aria-expanded="false">
+                <span className="titlebar-user-label">{accountLabel}</span>
+                <span className="titlebar-user-initials" aria-hidden="true">
+                  {accountInitials(accountLabel)}
+                </span>
               </Button>
             </div>
           ) : (

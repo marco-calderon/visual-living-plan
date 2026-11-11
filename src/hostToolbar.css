@@ -78,6 +78,8 @@
   cursor: pointer;
 }
 .account-menu { display: flex; }
+/* Initials stand in for the account name only where a plan toolbar is narrow (src/planPage.css). */
+.titlebar-user-initials { display: none; }
 .plan-menu-positioner { z-index: 30; }
 .plan-menu-popup {
   box-sizing: border-box;

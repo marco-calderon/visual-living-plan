@@ -186,9 +186,8 @@ export function PlanVersionsMenu({ planId, label, triggerClassName, liveHref, pr
           <TooltipContent>{label}</TooltipContent>
         </Tooltip>
       ) : (
-        <DropdownMenuTrigger className={triggerClassName} aria-label="Plan versions">
-          {label}
-          <ChevronDown size={14} aria-hidden="true" />
+        <DropdownMenuTrigger className={triggerClassName} aria-label="Plan versions" data-versions-live={current == null ? 'true' : undefined}>
+          <VersionsLabel label={label} />
         </DropdownMenuTrigger>
       )}
       <DropdownMenuContent>
@@ -210,9 +209,8 @@ export function PlanVersionsMenuMount(props: PlanVersionsMenuProps) {
   if (!mounted) {
     if (!props.iconOnly) {
       return (
-        <span className={props.triggerClassName} aria-hidden="true">
-          {props.label}
-          <ChevronDown size={14} aria-hidden="true" />
+        <span className={props.triggerClassName} aria-hidden="true" data-versions-live={props.current == null ? 'true' : undefined}>
+          <VersionsLabel label={props.label} />
         </span>
       )
     }
@@ -224,6 +222,17 @@ export function PlanVersionsMenuMount(props: PlanVersionsMenuProps) {
     )
   }
   return <PlanVersionsMenu {...props} />
+}
+
+/** Label and chevron, with the history icon that phones show in their place on the live plan (src/planPage.css). */
+function VersionsLabel({ label }: { label: string }) {
+  return (
+    <>
+      <History size={16} className="titlebar-action-icon" aria-hidden="true" />
+      <span className="titlebar-action-label">{label}</span>
+      <ChevronDown size={14} aria-hidden="true" />
+    </>
+  )
 }
 
 function VersionsIconTrigger({ label, className, menu = false }: { label: string; className?: string; menu?: boolean }) {
