@@ -1243,6 +1243,8 @@ test('addressing, reply, and address move a comment from reviewing to answered',
       hosted.url,
       '--text',
       'Yes. Staging defaults the flag on.',
+      // The step-by-step path: reply alone, then address. Without it reply also answers the comment.
+      '--keep-open',
     ])
     assert.equal(reply.status, 0, reply.stderr)
     const replyBody = JSON.parse(reply.stdout) as {

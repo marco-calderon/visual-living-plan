@@ -115,7 +115,7 @@ export async function verifyCloudToken(
 export async function registerCloudPlan(
   baseUrl: string,
   accountToken: string,
-  body: { cloudId?: string; mode: string; title: string; markdown: string },
+  body: { cloudId?: string; mode: string; iteration?: number; title: string; markdown: string },
 ): Promise<CloudRegistration> {
   const base = normalizeBase(baseUrl)
   const response = await fetch(new URL('/api/plans', base), {
