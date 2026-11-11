@@ -38,7 +38,7 @@ An agent now drives a plan with six commands, `check`, `serve`, `events`, `mode`
 - Every plan command takes the plan file in place of `--url`, for example `live-plan events work.plan.md` or `live-plan reply cmt_1 work.plan.md --text "Done"`. A plan served with `--cloud` is found from the `cloudId` in the file. `--url` still works.
 - `events --follow` and `watch` print `{"event":"mode","data":{"mode":"review","iteration":2}}` whenever the session moves to another mode or review round.
 - `mode --iteration N` sets the review round, locally and on a hosted plan, so `mode review` plus `events` replaces the blocking `review`.
-- After an approve verdict, or an approve gate answered yes, marking a phase `active` starts the run (Executing). Every workflow step done ends it (Completed), and a failed step ends it (Stopped). A phase set back to `active` starts it again, and `execution stop` turns this off until the next approval.
+- After an approve verdict, or an approve gate answered yes, the agent's next edit that marks a phase `active` starts the run (Executing). The approval alone starts nothing, so the person can keep answering and commenting until then. Every workflow step done ends it (Completed), and a failed step ends it (Stopped). A phase set back to `active` starts it again, and `execution stop` turns this off until the next approval.
 
 ### Notes
 

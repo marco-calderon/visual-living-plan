@@ -308,7 +308,7 @@ One connection per page, in `client/planEvents.ts`, carries every event to one h
 
 `execution start`, `push`, and `stop` post to `/api/execution/start`, `/push`, and `/stop`. The host merges the fields sent into the stored run with `applyExecutionChange` (`src/execution.ts`): `start` turns the run on, `push` keeps it as it is, `stop` turns it off and keeps the last step and graph.
 
-After an approve verdict, or an approve gate answered yes, the run's `follow` is `armed` and the run follows the plan file (`src/runFollow.ts`). A workflow step moving past pending starts it. Every step done or one failed ends it, whatever started it, and it stays armed. An explicit `stop` sets `follow` to `off` until the next approval. The local session settles the run after a file reload, an answer, a verdict, and each execution change; the Durable Object does the same after an upload, a page edit, an answer, a verdict, and each execution route ([ADR 0035](decisions/0035-six-plan-commands.md)).
+After an approve verdict, or an approve gate answered yes, the run's `follow` is `armed` and the run follows the plan file (`src/runFollow.ts`). An edit of the plan file that leaves a workflow step past pending starts it; the approval, an answer, or a push alone does not. Every step done or one failed ends it, whatever started it, and it stays armed. An explicit `stop` sets `follow` to `off` until the next approval. The local session settles the run after a file reload, an answer, a verdict, and each execution change; the Durable Object does the same after an upload, a page edit, an answer, a verdict, and each execution route ([ADR 0035](decisions/0035-six-plan-commands.md)).
 
 ## Dashboard
 

@@ -354,7 +354,7 @@ export function submitInteraction(sql: PlanSql, interactionId: string, body: unk
   const responses = jsonMeta<Record<string, unknown>>(sql, 'responses', {})
   responses[interactionId] = body
   setMeta(sql, 'responses', JSON.stringify(responses))
-  // An approve gate answered yes lets the plan file start the run.
+  // An approve gate answered yes lets the agent's next upload of the plan file start the run.
   if (approvesRun({ response: body as InteractionResponse })) armRun(sql)
   const record = pushEvent(sql, 'interaction', body)
   touchPlan(sql)
@@ -409,7 +409,7 @@ export function submitReview(sql: PlanSql, body: unknown): { outbound: Outbound[
   }
   setMeta(sql, 'review', JSON.stringify(review))
   if (payload.decision === 'approve' || payload.decision === 'deny') setMeta(sql, 'mode', 'watch')
-  // From here the run follows the plan file: the first phase marked active starts it.
+  // From here the run follows the plan file: the agent's next upload with a phase past pending starts it.
   if (approvesRun({ decision: payload.decision })) armRun(sql)
   const record = pushEvent(sql, 'review', review)
   touchPlan(sql)
@@ -467,12 +467,13 @@ function armRun(sql: PlanSql): void {
 }
 
 /**
- * Start or end the run the way the plan file says: after an approval a step moving past pending
- * starts it, and every step done or one failed ends it. Returns true when the run changed.
+ * Start or end the run the way the plan file says (`runFollow.ts`). Every step done or one failed
+ * ends it. Only a new plan source (`mayStart`) can start it, after an approval. Returns true when the
+ * run changed.
  */
-export async function settleRun(sql: PlanSql): Promise<boolean> {
+export async function settleRun(sql: PlanSql, mayStart = false): Promise<boolean> {
   if (planView(sql).closed) return false
-  const change = nextRunState(await executionView(sql))
+  const change = nextRunState(await executionView(sql), { mayStart })
   if (!change) return false
   const stored = { active: false, ...(jsonMeta<Partial<ExecutionState> | null>(sql, 'execution', null) ?? {}) }
   putExecution(sql, { ...stored, active: change.active, step: stored.step ?? (change.active ? 'Executing' : undefined) })

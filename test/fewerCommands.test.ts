@@ -202,7 +202,10 @@ test('after approval the local run starts and ends with the phases in the file',
       body: JSON.stringify({ decision: 'approve' }),
     })
     assert.equal(approved.status, 200)
-    // A phase was already active, so the approval starts the run at once.
+    // The approval alone starts nothing, even with a phase already active. The agent's next edit does.
+    await delay(300)
+    assert.equal(await runActive(hosted.url), false)
+    await writeFile(planPath, smallPlan('active', 'active'))
     await waitUntil(() => runActive(hosted.url))
 
     await writeFile(planPath, smallPlan('done', 'done'))
@@ -224,14 +227,44 @@ test('after approval the local run starts and ends with the phases in the file',
   }
 })
 
+test('approving a gate starts no run, so the page can still comment', { timeout: 30_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'live-plan-gate-'))
+  const registry = await startRegistryServer({ home, port: 0, token: 'test-token-value' })
+  try {
+    // The sample plan already has a phase marked active while it asks for approval.
+    const hosted = await registerHostedPlan(registry.url, registry.token, {
+      planPath: resolve('examples/rate-limit.plan.md'),
+      mode: 'watch',
+      cwd: process.cwd(),
+    })
+    // The page sends its writes with an idempotency key, and those are refused while a run is on.
+    const post = (path: string, body: unknown, key: string) =>
+      fetch(new URL(path, hosted.url), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'idempotency-key': key },
+        body: JSON.stringify(body),
+      })
+    const gate = await post('api/interactions/proceed-implement', { kind: 'approve', id: 'proceed-implement', approved: true }, 'gate-1')
+    assert.equal(gate.status, 200)
+    assert.equal(await runActive(hosted.url), false)
+    const comment = await post('api/comments', { partId: 'callout:redis-dependency/label', kind: 'label', text: 'Call out the fail-open choice' }, 'comment-1')
+    assert.equal(comment.status, 200, await comment.clone().text())
+  } finally {
+    await registry.close()
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
 test('a forgotten execution stop ends the run once every step is done', () => {
   const planned = { nodes: [{ id: 'a', label: 'A', status: 'done' as const }] }
   assert.deepEqual(nextRunState({ active: true, planned }), { active: false })
   assert.equal(nextRunState({ active: false, planned }), null)
   const started = { nodes: [{ id: 'a', label: 'A', status: 'active' as const }, { id: 'b', label: 'B' }] }
   assert.equal(nextRunState({ active: false, planned: started }), null)
-  assert.deepEqual(nextRunState({ active: false, planned: started, follow: 'armed' }), { active: true })
-  assert.equal(nextRunState({ active: false, planned: started, follow: 'off' }), null)
+  // Only a new plan source may start it.
+  assert.equal(nextRunState({ active: false, planned: started, follow: 'armed' }), null)
+  assert.deepEqual(nextRunState({ active: false, planned: started, follow: 'armed' }, { mayStart: true }), { active: true })
+  assert.equal(nextRunState({ active: false, planned: started, follow: 'off' }, { mayStart: true }), null)
 })
 
 test('a hosted plan follows its file after approval, and marks delivered comments in progress', async () => {
@@ -241,21 +274,24 @@ test('a hosted plan follows its file after approval, and marks delivered comment
   const upload = (source: string) => putSource(sql, { markdown: source, revision: planView(sql).revision })
 
   upload(smallPlan('active', 'pending'))
-  assert.equal(await settleRun(sql), false)
+  assert.equal(await settleRun(sql, true), false)
   submitReview(sql, { decision: 'approve' })
-  assert.equal(await settleRun(sql), true)
+  // The approval arms the run but starts nothing. The next upload does.
+  assert.equal(await settleRun(sql), false)
+  upload(smallPlan('active', 'active'))
+  assert.equal(await settleRun(sql, true), true)
   assert.equal(active(), true)
 
   upload(smallPlan('done', 'failed'))
-  assert.equal(await settleRun(sql), true)
+  assert.equal(await settleRun(sql, true), true)
   assert.equal(active(), false)
   upload(smallPlan('done', 'active'))
-  assert.equal(await settleRun(sql), true)
+  assert.equal(await settleRun(sql, true), true)
   assert.equal(active(), true)
 
   changeExecution(sql, 'stop', {})
   upload(smallPlan('active', 'pending'))
-  assert.equal(await settleRun(sql), false)
+  assert.equal(await settleRun(sql, true), false)
   assert.equal(active(), false)
 
   const posted = submitComment(sql, { partId: 'phase:build/paragraph:1', kind: 'paragraph', text: 'Rename it.' })

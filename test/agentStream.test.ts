@@ -78,12 +78,15 @@ async function runCli(home: string, args: string[]): Promise<{ status: number | 
   return { status, stdout, stderr: running.output().slice(stdout.length) }
 }
 
-/** Wait until the served page reports an agent stream, so a listener has its first hello. */
+/**
+ * Wait until the served page reports an agent stream, so a listener has its first hello. Read the
+ * `<body>` attribute: the page's CSS also has `body[data-agent="connected"]` in it.
+ */
 async function waitForAgent(url: string, timeoutMs = 8_000): Promise<void> {
   const started = Date.now()
   while (Date.now() - started < timeoutMs) {
     const page = await (await fetch(url)).text()
-    if (page.includes('data-agent="connected"')) return
+    if (/<body[^>]*\sdata-agent="connected"/.test(page)) return
     await delay(50)
   }
   throw new Error('No agent stream connected')

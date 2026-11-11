@@ -623,12 +623,12 @@ export async function openPlanSession(options: {
   }
 
   /**
-   * Start or end the run the way the plan file says (`runFollow.ts`): after an approval a step moving
-   * past pending starts it, and every step done or one failed ends it. Returns true when the run changed;
-   * the change was then broadcast.
+   * Start or end the run the way the plan file says (`runFollow.ts`). Every step done or one failed
+   * ends it. Only a new plan source (`mayStart`) can start it, after an approval. Returns true when the
+   * run changed; the change was then broadcast.
    */
-  function settleRun(): boolean {
-    const change = nextRunState(executionView())
+  function settleRun(mayStart = false): boolean {
+    const change = nextRunState(executionView(), { mayStart })
     if (!change) return false
     setExecution({ ...execution, active: change.active, step: execution.step ?? (change.active ? 'Executing' : undefined) })
     return true
@@ -680,7 +680,7 @@ export async function openPlanSession(options: {
     }
     broadcast('reload', { at: Date.now(), changed: diffs.filter((diff) => diff.status !== 'unchanged').length })
     // A phase marked active, done, or failed can start or end the run.
-    if (!settleRun()) broadcast('execution', { ...executionView(), revision })
+    if (!settleRun(true)) broadcast('execution', { ...executionView(), revision })
     persist()
   }
 
@@ -721,7 +721,7 @@ export async function openPlanSession(options: {
     }
     pushEvent('interaction', response)
     broadcast('interaction', response)
-    // An approve gate answered yes lets the plan file start the run.
+    // An approve gate answered yes lets the agent's next edit of the plan file start the run.
     if (approvesRun({ response })) execution = { ...execution, follow: 'armed' }
     // An answered step is done on the workflow too.
     if (!settleRun()) broadcast('execution', { ...executionView(), revision })
@@ -763,11 +763,8 @@ export async function openPlanSession(options: {
       mode = 'watch'
       broadcast('mode', { mode, iteration, review: reviewResult })
     }
-    // From here the run follows the plan file: the first phase marked active starts it.
-    if (approvesRun({ decision })) {
-      execution = { ...execution, follow: 'armed' }
-      settleRun()
-    }
+    // From here the run follows the plan file: the agent's next edit with a phase past pending starts it.
+    if (approvesRun({ decision })) execution = { ...execution, follow: 'armed' }
     persist()
   }
 
