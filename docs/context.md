@@ -56,6 +56,8 @@ Home directory for the service is `~/.config/living-plan` (`$XDG_CONFIG_HOME/liv
 - The agent stream on the service requires a bearer token. Browser submission routes stay open on loopback. Every request from a loopback peer must name this machine in `Host` (a loopback name, `living-plan.local`, or the `--host` value), so a DNS-rebound page is refused. A write that carries an `Origin` must come from the same host, so another website cannot submit through the browser. The CLI sends no `Origin`. Both checks are `src/requestGuard.ts` and return 403. With LAN publishing on, a non-loopback peer needs the LAN secret before a plan page or plan API succeeds.
 - A plan session is closed on `live-plan close`, and when it has no open browser or agent stream and `lastSeenAt` is 6 hours old. Approve and deny return that session to watch and leave it open. Iterate leaves it open in review.
 - Restart the service when the package version in the lock file does not match the CLI.
+- Commands that wait on the agent stream reconnect after a drop or a service restart, and stop only on a refusal, their timeout, or a stream that never connected. Do not add a waiting command that reads `readAgentEvents` directly; go through `followAgentEvents` in `src/agentStream.ts`.
+- Entering review clears the last verdict only after an agent has acked its `review` row.
 - The service process stays running after `serve`, `events`, `wait`, `review`, `dashboard`, and `tui` exit.
 - A `workflow` block is required in a plan. `check` fails without it.
 - While execution is active, plan forms and review return HTTP 409.

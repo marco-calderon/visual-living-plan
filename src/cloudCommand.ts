@@ -47,6 +47,8 @@ export async function signInWithToken(
 export async function prepareCloudPlan(options: {
   planPath: string
   mode: 'watch' | 'review'
+  /** The review round. The host keeps its own when this is left out. */
+  iteration?: number
   home?: string
 }): Promise<CloudPlanRecord> {
   const account = await requireCloudAccount(options.home)
@@ -62,6 +64,7 @@ export async function prepareCloudPlan(options: {
   const registered = await registerCloudPlan(account.baseUrl, account.token, {
     cloudId: existingId,
     mode: options.mode,
+    ...(options.iteration === undefined ? {} : { iteration: options.iteration }),
     title,
     markdown,
   })

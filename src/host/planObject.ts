@@ -232,10 +232,12 @@ export class PlanObject extends DurableObject {
         return text(500, error instanceof Error ? error.message : 'Unknown error')
       })
       .post('/internal/init', async ({ request }) => {
-        const body = (await request.json()) as { token: string; title: string; mode: string; tier: string; source: string }
+        const body = (await request.json()) as { token: string; title: string; mode: string; tier: string; source: string; iteration?: number }
         const result = initPlan(sql, body)
+        // A tab already open on the plan follows a new review round.
+        this.publish(result.outbound)
         await this.armAlarm()
-        return Response.json(result)
+        return Response.json({ revision: result.revision })
       })
       // Called by the Worker after a write, to keep the dashboard row current. /internal/ is not reachable from outside.
       .get('/internal/progress', async () => Response.json({ progress: planHosted(sql) ? await planProgress(sql) : null }))

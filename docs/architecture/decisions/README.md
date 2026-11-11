@@ -14,9 +14,9 @@ Decisions are numbered in the order they were made. Superseded decisions stay he
 | [0008](0008-dashboard-window-query.md) | 2026-10-12 | Accepted | Dashboard period filters run inside the finished-run query |
 | [0009](0009-plan-part-comments.md) | 2026-10-13 | Accepted | Comments on plan parts use the same agent event stream |
 | [0010](0010-local-hostname.md) | 2026-10-15 | Superseded by 0016 | Loopback plans are published as living-plan.local |
-| [0011](0011-live-session-mode.md) | 2026-10-15 | Accepted | Session mode is live on the open tab, and review leaves the plan open |
+| [0011](0011-live-session-mode.md) | 2026-10-15 | Accepted; review re-entry updated by 0034 | Session mode is live on the open tab, and review leaves the plan open |
 | [0012](0012-submission-delivery.md) | 2026-10-17 | Accepted | Submissions are stored with `delivered_at` and the CLI exits after printing them |
-| [0013](0013-iterate-keeps-review.md) | 2026-10-18 | Accepted | Iterate leaves the session in review and comments record an outcome |
+| [0013](0013-iterate-keeps-review.md) | 2026-10-18 | Accepted; review re-entry updated by 0034 | Iterate leaves the session in review and comments record an outcome |
 | [0014](0014-comment-replies.md) | 2026-10-19 | Accepted | An agent reply is stored on the comment and shown on its thread |
 | [0015](0015-service-logs.md) | 2026-10-22 | Accepted | Diagnostic logs are files under the config home, by day and by plan |
 | [0016](0016-loopback-address.md) | 2026-10-22 | Accepted | Loopback plans are published as 127.0.0.1 |
@@ -37,5 +37,6 @@ Decisions are numbered in the order they were made. Superseded decisions stay he
 | [0031](0031-agent-slots.md) | 2026-11-07 | Accepted | The tier caps plans with an agent listening, not open plans; the Worker checks it when an agent connects |
 | [0032](0032-storage-limit.md) | 2026-11-07 | Accepted | Each account has a storage limit for saved versions; deleting a plan from the dashboard frees its storage |
 | [0033](0033-page-editor.md) | 2026-11-07 | Accepted | A person edits a local or hosted plan on the page as a draft on their device, and Publish makes a new version; the agent hears an `edit` event |
+| [0034](0034-listeners-reconnect-across-modes.md) | 2026-11-11 | Accepted | Waiting commands reconnect after drops and restarts; one `events --follow` prints every mode change; entering review keeps an unread verdict |
 
-Add the next decision as `0034-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.
+Add the next decision as `0035-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.

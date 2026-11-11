@@ -39,6 +39,7 @@ import {
 } from './theme'
 import { planToExpectedGraph, withPlannedWorkflow } from './workflow'
 import { planNotReadyReason } from './planReady'
+import { INVALID_ITERATION, readIteration, UNREAD_VERDICT } from './reviewRound'
 import type { PlanMode } from './processRecord'
 import type {
   CommentReply,
@@ -128,6 +129,11 @@ export type PlanSession = {
   touch: () => void
   snapshot: () => PlanSessionSnapshot
   setMode: (mode: PlanMode, iteration?: number) => void
+  /**
+   * Start a review round. A verdict no agent has received yet is kept instead, so a `review` started
+   * again after a drop prints it. Returns false when the verdict was kept and the mode left alone.
+   */
+  enterReview: (iteration?: number) => boolean
   updateMode: (body: unknown, request?: Request) => unknown
   offlineSnapshot: () => PlanSnapshot
   page: () => Response
@@ -944,6 +950,7 @@ export async function openPlanSession(options: {
       agentClients,
       {
         mode,
+        iteration,
         pendingInteractionIds: pendingInteractionIds(),
         responses,
         review: reviewResult ?? null,
@@ -1131,15 +1138,30 @@ export async function openPlanSession(options: {
     persist()
   }
 
+  /** The person sent a verdict and no agent has acked its `review` row yet. */
+  function verdictUnread(): boolean {
+    if (!reviewResult?.decision) return false
+    return eventLog.some((event) => event.event === 'review' && event.deliveredAt == null)
+  }
+
+  function enterReview(nextIteration?: number): boolean {
+    if (verdictUnread()) return false
+    setMode('review', nextIteration)
+    return true
+  }
+
   function updateMode(body: unknown, request?: Request): unknown {
     touch()
     const gate = guarded('mode', body, request, false)
     if (gate.replay) return gate.replay
-    const payload = jsonBody(gate.body, true) as { mode?: unknown }
+    const payload = jsonBody(gate.body, true) as { mode?: unknown; iteration?: unknown }
     const next = payload.mode
     if (next !== 'watch' && next !== 'comment' && next !== 'review') throw new HttpError(400, 'Invalid mode')
-    setMode(next)
-    const result = { ok: true, mode }
+    const nextIteration = readIteration(payload.iteration)
+    if (nextIteration === 'invalid') throw new HttpError(400, INVALID_ITERATION)
+    if (next === 'review' && verdictUnread()) throw new HttpError(409, UNREAD_VERDICT)
+    setMode(next, nextIteration)
+    const result = { ok: true, mode, iteration }
     note(gate.key, gate.body, result)
     return result
   }
@@ -1213,6 +1235,7 @@ export async function openPlanSession(options: {
     touch,
     snapshot,
     setMode,
+    enterReview,
     updateMode,
     offlineSnapshot,
     page,

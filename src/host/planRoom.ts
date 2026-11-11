@@ -1,6 +1,7 @@
 import type { AgentPresence } from '../agentPresence'
 import { applyExecutionChange, readExecutionPatch, type ExecutionAction, type ExecutionState } from '../execution'
 import type { PlanProgress } from '../planProgress'
+import { INVALID_ITERATION, readIteration, UNREAD_VERDICT } from '../reviewRound'
 import {
   inspectMutation,
   readBaseRevision,
@@ -91,22 +92,27 @@ function requireOpen(sql: PlanSql): void {
 
 export function initPlan(
   sql: PlanSql,
-  input: { token: string; title: string; mode: string; tier: string; source: string },
-): { revision: number } {
+  input: { token: string; title: string; mode: string; tier: string; source: string; iteration?: number },
+): { revision: number; outbound: Outbound[] } {
   migratePlan(sql)
   const existing = meta(sql, 'token')
   if (existing) {
     if (!secretEquals(existing, input.token)) throw new PlanRoomError(409, 'This plan is already hosted.')
     setMeta(sql, 'closed', '0')
     setMeta(sql, 'title', input.title)
-    setMeta(sql, 'mode', input.mode)
+    const before = `${meta(sql, 'mode') ?? 'watch'}:${planIteration(sql)}`
+    // `review --cloud` starts a new round: the last verdict is cleared, unless the agent never received it.
+    if (input.mode === 'review') enterReview(sql, input.iteration)
+    else setMeta(sql, 'mode', input.mode)
     setMeta(sql, 'tier', normalizeTier(input.tier))
     setMeta(sql, 'last_seen', String(Date.now()))
-    return { revision: Number(meta(sql, 'revision') ?? '0') }
+    const after = `${meta(sql, 'mode') ?? 'watch'}:${planIteration(sql)}`
+    return { revision: Number(meta(sql, 'revision') ?? '0'), outbound: after === before ? [] : [modeOutbound(sql)] }
   }
   setMeta(sql, 'token', input.token)
   setMeta(sql, 'title', input.title)
   setMeta(sql, 'mode', input.mode)
+  setMeta(sql, 'iteration', String(input.iteration ?? 1))
   setMeta(sql, 'tier', normalizeTier(input.tier))
   setMeta(sql, 'source', input.source)
   setMeta(sql, 'revision', '0')
@@ -116,7 +122,34 @@ export function initPlan(
   setMeta(sql, 'execution', JSON.stringify({ active: false }))
   setMeta(sql, 'closed', '0')
   setMeta(sql, 'last_seen', String(Date.now()))
-  return { revision: 0 }
+  return { revision: 0, outbound: [] }
+}
+
+/** The review round. A plan hosted before rounds were stored is on round 1. */
+export function planIteration(sql: PlanSql): number {
+  const stored = Number(meta(sql, 'iteration') ?? '1')
+  return Number.isInteger(stored) && stored >= 1 ? stored : 1
+}
+
+/** The person sent a verdict and no agent has acked its `review` row yet. */
+export function verdictUnread(sql: PlanSql): boolean {
+  const review = jsonMeta<{ decision?: string } | null>(sql, 'review', null)
+  if (!review?.decision) return false
+  return sql.exec(`SELECT id FROM events WHERE event = 'review' AND delivered_at IS NULL LIMIT 1`).toArray().length > 0
+}
+
+/** Start a review round and clear the last verdict, unless it is still unread. Returns false when it kept it. */
+function enterReview(sql: PlanSql, iteration?: number): boolean {
+  if (verdictUnread(sql)) return false
+  setMeta(sql, 'mode', 'review')
+  setMeta(sql, 'review', 'null')
+  if (iteration !== undefined) setMeta(sql, 'iteration', String(iteration))
+  return true
+}
+
+function modeOutbound(sql: PlanSql): Outbound {
+  const view = planView(sql)
+  return { event: 'mode', data: { mode: view.mode, iteration: planIteration(sql), review: view.review } }
 }
 
 export function planToken(sql: PlanSql): string {
@@ -368,7 +401,7 @@ export function submitReview(sql: PlanSql, body: unknown): { outbound: Outbound[
     note: payload.note,
     comments: [],
     responses: Object.values(jsonMeta<Record<string, unknown>>(sql, 'responses', {})),
-    iteration: 1,
+    iteration: planIteration(sql),
   }
   setMeta(sql, 'review', JSON.stringify(review))
   if (payload.decision === 'approve' || payload.decision === 'deny') setMeta(sql, 'mode', 'watch')
@@ -378,6 +411,8 @@ export function submitReview(sql: PlanSql, body: unknown): { outbound: Outbound[
     outbound: [
       { event: 'notice', data: record },
       { event: 'review', data: review },
+      // Approve and deny move the plan to watch. A listener that stays running prints that move.
+      modeOutbound(sql),
     ],
     body: { ok: true, review },
   }
@@ -385,13 +420,19 @@ export function submitReview(sql: PlanSql, body: unknown): { outbound: Outbound[
 
 export function updateMode(sql: PlanSql, body: unknown): { outbound: Outbound[]; body: unknown } {
   requireOpen(sql)
-  const mode = (body as { mode?: unknown } | null)?.mode
+  const payload = (body ?? {}) as { mode?: unknown; iteration?: unknown }
+  const mode = payload.mode
   if (mode !== 'watch' && mode !== 'comment' && mode !== 'review') throw new PlanRoomError(400, 'Invalid mode')
-  setMeta(sql, 'mode', mode)
-  if (mode === 'review') setMeta(sql, 'review', 'null')
+  const iteration = readIteration(payload.iteration)
+  if (iteration === 'invalid') throw new PlanRoomError(400, INVALID_ITERATION)
+  if (mode === 'review') {
+    if (!enterReview(sql, iteration)) throw new PlanRoomError(409, UNREAD_VERDICT)
+  } else {
+    setMeta(sql, 'mode', mode)
+    if (iteration !== undefined) setMeta(sql, 'iteration', String(iteration))
+  }
   touchPlan(sql)
-  const view = planView(sql)
-  return { outbound: [{ event: 'mode', data: { mode, review: view.review } }], body: { ok: true, mode } }
+  return { outbound: [modeOutbound(sql)], body: { ok: true, mode, iteration: planIteration(sql) } }
 }
 
 export function putExecution(sql: PlanSql, body: unknown): { outbound: Outbound[]; body: unknown } {
@@ -622,6 +663,7 @@ export function agentHello(sql: PlanSql): Outbound {
     event: 'hello',
     data: {
       mode: view.mode,
+      iteration: planIteration(sql),
       responses: view.responses,
       review: view.review,
       comments: view.comments,

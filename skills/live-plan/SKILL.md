@@ -31,7 +31,7 @@ live-plan <command> [args]
 
 Do not call this repo's `npm run` scripts from a consuming project. Those are for developing Live Plan itself.
 
-`serve` registers the plan. Pass `--cloud` to host it on the signed-in cloud service (preferred, see Host). Without `--cloud` it goes to the local service on this machine. Without `--detach` it prints undelivered submissions and exits. The page and the service stay up after it exits. Pass `--detach` to register and return. `events` prints the next undelivered submissions and exits. Each time it exits because of a comment, a denial, an approval, or any other event, start it again so a submission that arrived while it was closed is not left pending. `watch` is the client you keep running after an approval, while the plan is executing. `wait` and `review` block until the human responds or `--timeout` fires.
+`serve` registers the plan. Pass `--cloud` to host it on the signed-in cloud service (preferred, see Host). Without `--cloud` it goes to the local service on this machine. Without `--detach` it prints undelivered submissions and exits. The page and the service stay up after it exits. Pass `--detach` to register and return. `events` prints the next undelivered submissions and exits. Each time it exits because of a comment, a denial, an approval, or any other event, start it again so a submission that arrived while it was closed is not left pending. `watch` is the client you keep running after an approval, while the plan is executing. `wait` and `review` block until the human responds or `--timeout` fires. An agent that sees a running process's output line by line can instead keep one `events --follow` for the whole plan and switch modes with `mode` (see One listener for the whole plan). Every one of these commands reconnects by itself when the connection drops or the service restarts (see Connection drops).
 
 ## Host
 
@@ -127,10 +127,10 @@ The person opens the plan page once. After that, the tab they have follows the f
 1. Write the plan: title, short summary, phases, a `<workflow>` component, then only the interactions you need now. The workflow component is required. It is the execution path. The page follows [DESIGN.md](../../DESIGN.md). Schemas are in [primitives.md](primitives.md).
 2. Validate: `bunx visual-living-plan check path/to/work.plan.md`.
 3. `serve --cloud --detach` the file so you get the URL back, or `review --cloud` when you need a verdict on the whole plan. If the user is not signed in, follow the sign-in journey under Host first. Drop `--cloud` for the local session. The page opens in the browser only the first time this machine serves that plan. See Resuming below.
-4. Start `events --url <printed-url>` in the background. It prints one JSON object per line and exits. Each line is `{ "event", "id", "seq", "data" }`. `event` is `comment`, `interaction`, `review`, or `edit`. An `edit` means a person changed the plan in the page editor and published it: read the plan file again before your next write. On a hosted plan, `events` writes their version into your plan file first, and an upload that missed it is refused until then. An approve/deny gate is an `interaction` with `approved`. A review verdict is `approve`, `deny`, or `iterate`. If submissions are already waiting on the server, this command prints them and exits immediately. If your agent can react to each line while a process runs, `events --url <printed-url> --follow` stays connected instead and prints each submission the moment it arrives, without changing the page mode. Nothing waits between reconnects then.
+4. Start `events --url <printed-url>` in the background. It prints one JSON object per line and exits. Each line is `{ "event", "id", "seq", "data" }`. `event` is `comment`, `interaction`, `review`, or `edit`. An `edit` means a person changed the plan in the page editor and published it: read the plan file again before your next write. On a hosted plan, `events` writes their version into your plan file first, and an upload that missed it is refused until then. An approve/deny gate is an `interaction` with `approved`. A review verdict is `approve`, `deny`, or `iterate`. If submissions are already waiting on the server, this command prints them and exits immediately. If your agent can react to each line while a process runs, use one `events --url <printed-url> --follow` for the whole plan instead, as described in One listener for the whole plan. It stays connected, prints each submission the moment it arrives, and does not change the page mode.
 5. When `events` exits because of a comment, a denial, an approval, or any other event, read the JSON and handle it. Then start `events` again before you do anything else. That reconnect is how you see a comment or other event that arrived while the previous process was closed. If the new process prints JSON and exits, more was pending: handle it and start `events` again. Repeat until `events` stays running, which means the server has nothing left to deliver. A comment has `id`, `partId`, `kind`, `excerpt`, and `text` on `data`. Answer every comment with the three commands below before you continue. The page does not show a reviewing state, an answered state, or your reply until you do. `reply` alone does not change the status.
-6. On review **deny**, stop the work. Reconnect `events` once anyway so a comment that arrived with the denial is not left pending. On **iterate**, edit the same file, bump `--iteration`, run `review` again, and keep reconnecting `events` whenever it exits. Review exits `0` approve, `1` deny, `2` iterate, `3` timeout. Use `wait <id> --url <printed-url>` only when you cannot continue without that one answer.
-7. On review **approve**, or an approve gate with `approved: true`, stop the waiting `events` process and open the execution client. Run `watch --url <printed-url>` in the background and leave it running. It switches the page to watch mode, which is the status view for execution. It stays up while you work. It prints a later comment or event without exiting.
+6. On review **deny**, stop the work. Reconnect `events` once anyway so a comment that arrived with the denial is not left pending. On **iterate**, edit the same file, bump `--iteration`, run `review` again, and keep reconnecting `events` whenever it exits. Review exits `0` approve, `1` deny, `2` iterate, `3` timeout, `4` the plan stream was refused or never connected. A verdict the person sent while no `review` was running is kept: the next `review` prints it at once instead of asking again. Use `wait <id> --url <printed-url>` only when you cannot continue without that one answer.
+7. On review **approve**, or an approve gate with `approved: true`, stop the waiting `events` process and open the execution client. With one `events --follow` listener, keep it instead: it already prints the move to watch, and it prints later submissions the same way `watch` does. Run `watch --url <printed-url>` in the background and leave it running. It switches the page to watch mode, which is the status view for execution. It stays up while you work. It prints a later comment or event without exiting.
 8. While `watch` is running, update the plan in place as the work progresses. Mark phase `status` and checklist `done`. Run `execution start`, then `execution push` whenever the workflow graph changes, then `execution stop` when the run is finished. The open page follows the file and those workflow updates in place, shows Executing from `start` to `stop`, and catches up by itself after a dropped connection. After `stop` it reads the workflow step statuses: Completed when every step is done, Stopped when a step failed, and Paused when work is left. So mark each phase `done` or `failed` before you stop. `push` does not turn a stopped run back on. Run `execution stop` when the work ends, also when it fails, or the page keeps showing Executing. Forms and review return HTTP 409 while execution is active. An edit that leaves the file empty or not compiling (an unclosed tag, for example) is not sent to the page: the page keeps the last good version, and `serve --cloud` prints `Plan not uploaded yet: <reason>`. Run `check <file>` to see the reason, then fix the file. If `watch` prints a submission, handle it and leave `watch` running. A comment uses the same three commands as step 5.
 9. After execution is finished and `execution stop` has run, stop the `watch` process. Closing it is safe then. Read any JSON it printed. If a person still needs to answer something, start `events` again and follow step 5.
 
@@ -156,6 +156,47 @@ bunx visual-living-plan search --query "ratelimit retyr" --fuzzy   # word starts
 
 Replace the bunx prefix with `live-plan` when the command is installed.
 
+## One listener for the whole plan
+
+Use this when your agent sees a running process's output line by line, for example a background task whose new lines it reads while it works. If your agent only sees a command's output after it exits, keep the `events` loop above. Both read the same queue on the server, so you can switch between them at any point.
+
+```bash
+bunx visual-living-plan serve path/to/work.plan.md --cloud --detach
+bunx visual-living-plan events --url <printed-plan-url> --follow   # start once, keep it running
+```
+
+- It prints the same JSON lines as `events`, acks each one as it prints it, and does not exit on its own.
+- It also prints a line each time the session moves to another mode, for example `{"event":"mode","data":{"mode":"review","iteration":2}}`. A `mode` line has no `id` and needs no answer.
+- Change the mode with short commands while it runs. Nothing restarts:
+
+| To | Run | The listener prints |
+|---|---|---|
+| Ask for a verdict | `mode review --url <url> --iteration N` | a `mode` line, then a `review` line with `decision` when the person answers |
+| Handle approve or deny | nothing | the `review` line, then a `mode` line for `watch` |
+| Handle iterate | edit the file, answer the comments, then `mode review --url <url> --iteration N+1` | the `review` line with `decision` `iterate`, later the new round's `mode` line |
+| Open comments without a review | `mode comment --url <url>` | a `mode` line |
+| Run the work | `execution start`, `push`, `stop` | comments and other submissions as they arrive |
+
+- With one listener, ask for a verdict with `mode review`, not the `review` command, so the verdict arrives on the listener.
+- `mode review` exits `1` while the person's last verdict has not reached any agent. Read the listener's output (or run `events`), handle that verdict, then switch again.
+- Stop the listener when the plan is finished, and before or after you `close` the plan.
+
+## Connection drops
+
+Every command that waits on the plan (`serve` without `--detach`, `events`, `events --follow`, `watch`, `wait`, and `review`) reconnects by itself when the connection drops, the plan service restarts, or the network changes. It prints `Lost the plan stream (...)` on stderr, retries with a growing wait of up to 30 seconds, and prints `Reconnected to the plan stream.` when it is back. Submissions sent meanwhile wait on the server and print after the reconnect. Do not restart the command for this. On this machine, a plan service that crashed is started again by the command that was waiting on it.
+
+A command stops only when a retry cannot help:
+
+| Command | Exit | Meaning |
+|---|---|---|
+| `events`, `events --follow`, `watch` | `1` | Refused: a wrong token, or a plan the service does not have. The message says which. |
+| `events --follow`, `watch` | `0` | The plan was closed on this machine's service while it ran. |
+| `wait`, `review` | `3` | Its `--timeout` ran out. |
+| `wait`, `review` | `4` | Refused, or never connected. The message says why. |
+| `mode review` | `1` | A verdict from the person has not reached any agent yet. Read it with `events` first. |
+
+A command that never connects gives up after about ten seconds, so a wrong URL still fails fast. stdout stays JSON lines; the reconnect notes are on stderr.
+
 ## Answering a comment
 
 Run these three commands, in order, on the comment `id` from the event. Use the printed plan URL. They update the session. They do not print on `events` and they do not make `events` exit. A comment is allowed while execution is live.
@@ -173,11 +214,11 @@ Do this as soon as you read the comment, before a long edit, so the page shows r
 | `check <file>` | Parse check before showing the plan. Prints title, block types, interaction ids, and workflow nodes. Exits 1 when the workflow block is missing. |
 | `dump <file>` | Full parsed plan as JSON. |
 | `serve <file>` | Register the plan and print its URL. Pass `--cloud` (preferred) to host it on the signed-in service. Without it the plan goes to the local service (see Host). Without `--detach`, print undelivered submissions as JSON and exit. `--detach` returns after the URL. The page reloads when the file changes and stays up after this command exits. |
-| `review <file>` | Same page plus Approve / Deny / Iterate. `--cloud` (preferred) uses the signed-in host. Without it the plan stays local. Blocks until a decision, then leaves the plan open. Approve and deny return the session to watch. Iterate leaves it in review. |
-| `wait <id> --url <url>` | Block on the event stream until that interaction is answered. Prints the response JSON. |
-| `events --url <url>` | Print undelivered interactions, review verdicts, and comments as JSON, then exit. Pending rows already on the server are printed immediately. Start it again every time it exits. |
-| `watch --url <url>` | After an approval, switch the page to watch mode and stay running for the whole execution. Prints later submissions without exiting. Stop it when execution is finished. |
-| `mode <watch\|comment\|review> --url <url>` | Switch the open session and return. The tab follows: comment arms the part selector, review shows the verdict bar, watch is the status page. A comment stays in comment mode until the next `mode` command. `watch` above is the client that stays up. |
+| `review <file>` | Same page plus Approve / Deny / Iterate. `--cloud` (preferred) uses the signed-in host. Without it the plan stays local. Blocks until a decision, then leaves the plan open. Approve and deny return the session to watch. Iterate leaves it in review. Exits `0` approve, `1` deny, `2` iterate, `3` timeout, `4` refused or never connected. A verdict nobody received yet is printed at once. |
+| `wait <id> --url <url>` | Block on the event stream until that interaction is answered. Prints the response JSON. Exits `3` on timeout, `4` when refused or never connected. |
+| `events --url <url>` | Print undelivered interactions, review verdicts, and comments as JSON, then exit. Pending rows already on the server are printed immediately. Start it again every time it exits. `--follow` stays running instead and also prints a `mode` line on every mode change. |
+| `watch --url <url>` | After an approval, switch the page to watch mode and stay running for the whole execution. Prints later submissions and mode changes without exiting. Stop it when execution is finished. |
+| `mode <watch\|comment\|review> --url <url>` | Switch the open session and return. The tab follows: comment arms the part selector, review shows the verdict bar, watch is the status page. A comment stays in comment mode until the next `mode` command. `--iteration N` sets the review round. `mode review` exits `1` while the last verdict has not reached an agent. `watch` above is the client that stays up. |
 | `addressing <comment-id> --url <url>` | Mark that comment reviewing. Sets `addressingAt`. A part comment shows Addressing. A minibar message shows Working. |
 | `reply <comment-id> --url <url> --text "..."` | Write the reply text. A minibar message shows it on the tray. A part comment shows it on that part. Does not change reviewing or answered. Saved with the session. |
 | `address <comment-id> --url <url>` | Mark that comment answered. Sets `addressedAt` and clears `addressingAt`. `--outcome` is `implemented` (default), `errored`, or `issues`. A part comment says Addressed. A minibar message shows Implemented, Errored, or Had issues. |
@@ -286,7 +327,8 @@ Settings has Wrap text in code. Off, which is the start, long lines in a source 
 
 - One plan file per task. Edit it in place.
 - Add an interaction only if you will `wait` on it or the human must answer it inside `review`.
-- When `events` exits on a comment, denial, approval, or other event, start `events` again and read any JSON it prints before you continue.
+- When `events` exits on a comment, denial, approval, or other event, start `events` again and read any JSON it prints before you continue. With one `events --follow` listener, keep that one running instead.
+- Do not restart a listener that printed `Lost the plan stream`. It reconnects by itself, and nothing sent meanwhile is lost.
 - On every comment, run `addressing`, then `reply`, then `address`. The page stays without a reviewing state, an answered state, and a reply until those commands run.
 - After an approval, keep `watch` running while you update the plan and push workflow graphs. Stop `watch` only after execution is finished.
 - `execution stop` before `wait` or before expecting a review decision.

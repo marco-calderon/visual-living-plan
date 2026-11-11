@@ -216,7 +216,9 @@ export async function createPlanHost(options: {
     await access(planPath)
     const existing = [...sessions.values()].find((session) => session.planPath === planPath)
     if (existing) {
-      if (input.mode !== 'watch') existing.setMode(input.mode, input.iteration)
+      // `serve` leaves comment and review alone. `review` starts a round unless a verdict is still unread.
+      if (input.mode === 'review') existing.enterReview(input.iteration)
+      else if (input.mode !== 'watch') existing.setMode(input.mode, input.iteration)
       existing.touch()
       // Serving a plan again brings it back to the dashboard.
       options.store.restore(existing.id)

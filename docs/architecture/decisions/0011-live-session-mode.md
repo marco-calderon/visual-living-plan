@@ -1,6 +1,6 @@
 # ADR 0011: Session mode is live on the open tab
 
-- Status: Accepted. The bullet that returns every review decision to watch is superseded for iterate by [ADR 0013](0013-iterate-keeps-review.md). Approve and deny still return the session to watch.
+- Status: Accepted. The bullet that returns every review decision to watch is superseded for iterate by [ADR 0013](0013-iterate-keeps-review.md). Approve and deny still return the session to watch. Clearing the previous decision on entering review is updated by [ADR 0034](0034-listeners-reconnect-across-modes.md): a decision no agent has received is kept.
 - Date: 2026-10-15
 
 ## Context
