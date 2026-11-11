@@ -97,7 +97,7 @@ Usage (a plan command takes the plan file, or --url <plan-url>):
   live-plan dump <file.plan.md>
   live-plan processes
   live-plan logs [--level error|warn|log] [--url <plan-url>] [--day YYYY-MM-DD] [--limit N]
-  live-plan dashboard
+  live-plan dashboard [--no-open] [--json] [--any-version]
   live-plan tui [--period day|week|month] [--registry-port N] [--registry-host HOST]
   live-plan registry [--port N] [--host HOST]
   live-plan lan on|off|status
@@ -135,7 +135,7 @@ Other commands:
   theme       Read or write the accent color in live-plan.config.json (or via a running server).
   processes   List plans hosted by the service. \`ps\` is the same command.
   logs        Print the development log saved under ~/.config/living-plan/logs. Not shown on the page. --day reads one registry day (today when omitted). --url reads one plan.
-  dashboard   Open the control dashboard (running and executed plans, by day, week, or month).
+  dashboard   Open the control dashboard (running and executed plans, by day, week, or month). --json prints {"url","service","version"} on one line and opens nothing. --any-version uses a running service of another version instead of restarting it; the desktop app passes both.
   tui         The registry in the terminal: running plans, and the day, week, and month dashboard. Starts the plan service when it is not already running. Quitting leaves that service up. Active plans are listed first. Click a control, or use Tab, arrows, p, d, and the number keys.
   registry    Run the plan service in the foreground. serve and review start it on their own.
   lan         Publish this machine's plan service on the local network. Off until \`lan on\`.
@@ -587,7 +587,7 @@ async function cmdDump(file: string): Promise<number> {
   return 0
 }
 
-async function openRegistry(args: string[]): Promise<RegistryLock | null> {
+async function openRegistry(args: string[], options?: { anyVersion?: boolean }): Promise<RegistryLock | null> {
   if (hasFlag(args, '--no-registry')) return null
   const portFlag = getFlag(args, '--registry-port') ?? getFlag(args, '--port')
   const port = portFlag ? Number(portFlag) : undefined
@@ -597,6 +597,7 @@ async function openRegistry(args: string[]): Promise<RegistryLock | null> {
       entryFile: fileURLToPath(import.meta.url),
       port: port !== undefined && Number.isFinite(port) && port > 0 ? port : undefined,
       host,
+      anyVersion: options?.anyVersion,
     })
   } catch (error) {
     console.error(`Registry unavailable: ${error instanceof Error ? error.message : error}`)
@@ -1409,10 +1410,16 @@ async function cmdLogs(args: string[]): Promise<number> {
 }
 
 async function cmdDashboard(args: string[]): Promise<number> {
-  const registry = await openRegistry(args)
+  const registry = await openRegistry(args, { anyVersion: hasFlag(args, '--any-version') })
   if (!registry) {
     console.error('Registry unavailable.')
     return 1
+  }
+  if (hasFlag(args, '--json')) {
+    // One line for a program such as the desktop app. Both URLs are the address this machine dials.
+    const service = registryBindUrl(registry)
+    console.log(JSON.stringify({ url: new URL('/dashboard', service).href, service, version: registry.version }))
+    return 0
   }
   const url = new URL('/dashboard', registry.url).href
   console.log(`Plan dashboard: ${url}`)

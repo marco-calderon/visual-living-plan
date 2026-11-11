@@ -1,5 +1,26 @@
 # Changelog — 2026-11-11
 
+## 2.22.0
+
+**PR:** to be linked
+
+**Bump:** minor
+
+### Summary
+
+Living Plan is now a desktop app for macOS, Linux, and Windows. It opens the dashboard and your plans in their own window, starts the plan service by itself, and needs no Bun, npm, or CLI install.
+
+### New features
+
+- A desktop app built with Tauri (`src-tauri/`). It ships the CLI and the Bun runtime, starts the plan service when none is running, and opens the dashboard. Plans open in the same window, and a plan opened from the Plans menu gets its own window. Other links open in your browser.
+- The app uses a plan service that agents already started, whatever its version, and leaves it running when it quits.
+- `bun run desktop` opens a development window, and `bun run desktop:build` writes `.deb`, `.rpm`, `.app`, `.dmg`, and Windows installers. The Desktop workflow builds them on macOS, Linux, and Windows and attaches them to each GitHub release.
+- `live-plan dashboard --json` prints the dashboard and service address as one JSON line and opens nothing. `--any-version` uses a running service of another version instead of restarting it.
+
+### Notes
+
+The installers are not signed yet, so macOS and Windows warn on first launch. The app window takes its title from the page, remembers its size and position, and saves downloads to the Downloads folder. Agents keep using `npx --yes visual-living-plan`; `serve` still opens the default browser. No plan format changes. `SHELL_CACHE_VERSION` moves to 2.22.0.
+
 ## 2.21.0
 
 **PR:** [#181](https://github.com/marco-calderon/visual-living-plan/pull/181)

@@ -186,6 +186,30 @@ sequenceDiagram
 
 `/local` is the third surface: `PlanShell` around the rate-limit sample, `host="local"`, no base path, no account, and no Durable Object. It still compiles in the browser.
 
+## The desktop app
+
+`src-tauri/` is a Tauri 2 app that opens the local service in native windows ([ADR 0036](decisions/0036-desktop-app.md)). It is a client of the service, like the CLI, not a third host.
+
+```mermaid
+sequenceDiagram
+  participant Window as App window
+  participant Rust as src-tauri
+  participant CLI as Bundled CLI
+  participant Bun as Bun service
+  Window->>Rust: invoke connect (desktop/index.html)
+  Rust->>CLI: living-plan-bun service/dist/cli.js dashboard --json --any-version
+  CLI->>Bun: health, or start it detached
+  CLI-->>Rust: {"url","service","version"}
+  Rust-->>Window: dashboard URL
+  Window->>Bun: GET /dashboard, then plan pages
+```
+
+`--any-version` returns a healthy service of any version, so the app never restarts one an agent's CLI started. The window only loads pages that service renders, so they match it. When no service is running, the app's copy starts it, detached, and it keeps running after the app quits.
+
+`bun run desktop:stage` (`scripts/build-desktop.ts`) prepares what the app ships. It bundles `src/cli.ts` into one `service/dist/cli.js` with `bun build` and copies the files the service reads beside its module at the same relative paths: `dist/client`, `dist/icons`, `planPage.css`, `shellWorker.js`, `package.json`, `docs/changelogs`, and elk's worker. The Bun binary becomes the sidecar `living-plan-bun`. Tauri installs it beside the app binary and ships `service/` as a resource.
+
+`src-tauri/src/links.rs` decides where a link goes. A page on the service's origin stays in the window, and `target="_blank"` to it opens another app window. Other `http`, `https`, and `mailto` links go to the default browser or mail app, and other schemes are dropped. The opener plugin's own link script is off: it sends `_blank` clicks over IPC, and service pages, a remote origin with no capability, get no Tauri API. The window title follows the page, a second launch focuses the open window, the main window's size and position are restored, and a download goes to the Downloads folder.
+
 ## How the pieces talk
 
 A single Bun process listens on `127.0.0.1:9477`. `serve` and `review` start it when it is not already running, then register a plan. That process is detached into its own session. It keeps running after `serve`, `review`, `events`, `watch`, `wait`, `dashboard`, and `tui` exit, and after the terminal that started them closes. `serve` registers the plan, prints its URL, and returns; `serve --listen` also prints undelivered submissions and exits ([ADR 0035](decisions/0035-six-plan-commands.md)). The page stays up. Every plan command names the plan by its file or by `--url` (`src/planTarget.ts`). `review` waits for the decision and leaves the plan open. Approve and deny set that session back to watch. Iterate leaves it in review, hides the verdict bar, and marks comments that are not yet addressed as in progress ([ADR 0013](decisions/0013-iterate-keeps-review.md)). `live-plan mode` moves the same session between watch, comment, and review, and the open tab follows.
@@ -354,6 +378,7 @@ A row overlaps the selected window when it started before the end of the window 
 | `vite.config.ts`, `wrangler.jsonc` | The Start app and its Worker bindings. `vite.client.config.ts` is the `/client/` bundle the Bun service serves |
 | `src/dashboard.ts`, `src/dashboardPage.ts`, `src/tui/` | Period summary, the dashboard page, and the terminal view of the same read |
 | `src/planArchive.ts` | Copy a plan file into the registry home and serve that copy |
+| `src-tauri/`, `desktop/`, `scripts/build-desktop.ts` | The desktop app: its windows and link routing, the splash page that connects, and the staging of the bundled CLI and Bun |
 | `src/planSearch.ts`, `src/host/hostedSearch.ts`, `src/host/accountSearch.ts` | Search a plan block by block, or every plan a dashboard lists: query terms, the live source, and saved versions when asked. One module for both hosts. `hostedSearch` is the Durable Object route, `accountSearch` the hosted dashboard's |
 | `src/dashboardSearchView.ts`, `src/routes/DashboardSearch.tsx` | Dashboard search row and results. The local page script and the hosted React page share the styles and the text helpers |
 | `src/parse.ts`, `src/planMdx/outline.ts` | Parse MDX plan components for the session model (interactions, workflow, progress). `{% tags %}` and YAML entry fences are rejected ([ADR 0021](decisions/0021-mdx-plan-entries.md)) |
@@ -367,4 +392,4 @@ The service writes each open session into `plans` in `~/.config/living-plan/regi
 
 `live-plan close`, the idle timeout, and `DELETE /api/plans/<id>` clear that session's token and its `plan_events` rows. A row that is only a session is deleted. A live process row stays until it is pruned. Stopping the service process does not. The next start restores the sessions whose plan files are still on disk. Finished runs stay in `plan_runs` and are not reopened. Live private servers are `plans` rows with a pid in `meta`. A database that still has the older `processes` table, wide columns, or `plan_sessions` is folded into this shape on open. The copied markdown stays at `~/.config/living-plan/plans/<id>.plan.md`.
 
-When the installed package version differs from the version in the lock file, the CLI stops the running service and starts the current one.
+When the installed package version differs from the version in the lock file, the CLI stops the running service and starts the current one. The desktop app does not: it passes `--any-version` and uses the service that is running.

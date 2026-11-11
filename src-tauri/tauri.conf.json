@@ -1,0 +1,41 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Living Plan",
+  "mainBinaryName": "living-plan-desktop",
+  "version": "../package.json",
+  "identifier": "io.github.marcocalderon.livingplan",
+  "build": {
+    "frontendDist": "../desktop",
+    "beforeDevCommand": "bun run desktop:stage",
+    "beforeBuildCommand": "bun run desktop:stage"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["deb", "rpm", "app", "dmg", "nsis", "msi"],
+    "category": "DeveloperTool",
+    "shortDescription": "Agent-authored living plans on your desktop",
+    "longDescription": "Living Plan opens the plans your coding agents write in their own window: status, choices, forms, approvals, and reviews, served by the plan service on this machine.",
+    "homepage": "https://github.com/marco-calderon/visual-living-plan",
+    "license": "MIT",
+    "icon": [
+      "icons/32x32.png",
+      "icons/64x64.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "externalBin": ["binaries/living-plan-bun"],
+    "resources": {
+      "service/": "service/"
+    }
+  }
+}

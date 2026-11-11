@@ -56,6 +56,20 @@ live-plan check "$(npm root -g)/visual-living-plan/examples/rate-limit.plan.md"
 
 The name is not on the registry until it is published. From a checkout, `npm publish --access public` packs the built CLI and uploads it. A GitHub release runs the same publish through `.github/workflows/publish.yml`, after a trusted publisher for `visual-living-plan` is configured on npm.
 
+### Desktop app
+
+Living Plan also runs as a desktop app for macOS, Linux, and Windows, built with [Tauri](https://tauri.app) in `src-tauri/`. It opens the dashboard in its own window, and plans open from there. It needs no Bun, npm, or CLI install: the app ships the CLI and the Bun runtime, and starts the plan service when none is running. When agents already started one, the app uses it, whatever its version. The service keeps running after the app quits, as it does after `live-plan dashboard`. Pages on the service stay in the app, a plan opened from the **Plans** menu gets its own window, and other links open in your browser.
+
+Installers for each release are attached to the GitHub release by `.github/workflows/desktop.yml`. They are not signed yet, so macOS and Windows warn on first launch. To build one from a checkout you need Rust, and on Linux the [Tauri system packages](https://v2.tauri.app/start/prerequisites/#linux):
+
+```bash
+bun install
+bun run desktop          # a development window
+bun run desktop:build    # installers under src-tauri/target/release/bundle/
+```
+
+Both run `bun run desktop:stage` first, which builds the package, bundles the CLI into `src-tauri/service/`, and copies this machine's Bun to `src-tauri/binaries/`. Agents still use `npx --yes visual-living-plan`. How the app is put together: [ADR 0036](docs/architecture/decisions/0036-desktop-app.md).
+
 `check` prints the workflow block. That block is required: it is the execution path. `serve` and `review` draw it on the Workflow tab before a run starts. The page opens in a browser the first time a plan is served. Serving or reviewing the same plan again leaves the open tab alone. Pass `--no-open` when a browser should not launch, or `--open` to open it again.
 
 ### Review mode
