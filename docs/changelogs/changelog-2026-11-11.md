@@ -1,5 +1,28 @@
 # Changelog — 2026-11-11
 
+## 2.24.3
+
+**PR:** [#186](https://github.com/marco-calderon/visual-living-plan/pull/186)
+
+**Bump:** patch
+
+### Summary
+
+The hosted plan page keeps its toolbar on one row at normal window widths, and the Mac app's Local and Cloud switch moves into the account menu.
+
+### Bugs fixed
+
+- On a hosted plan, a long title kept its full width, so the controls on the right wrapped and spilled out of the fixed-height toolbar: the Local and Cloud switch rose above it and the account menu dropped below it. The title now shortens with an ellipsis and the controls stay on one row.
+
+### Improvements
+
+- In the Mac app, the Local and Cloud switch is now at the top of the account menu on hosted pages, under an Environment heading: Local and Cloud with a laptop and a cloud icon, and a check on the current one. A browser does not show those items.
+- Pages with no account menu (local plans, the local dashboard, sign-in, and a hosted plan while signed out) keep the switch in the toolbar, as a laptop and a cloud icon instead of the words, styled like the Plan and Workflow view buttons. Each side keeps its name as a tooltip and for screen readers.
+
+### Notes
+
+`SHELL_CACHE_VERSION` moves to 2.24.3. No registry restart needed.
+
 ## 2.24.2
 
 **Bump:** patch

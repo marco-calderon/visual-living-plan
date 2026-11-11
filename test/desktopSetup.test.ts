@@ -17,6 +17,11 @@ import {
 } from '../src/desktopConfig.ts'
 import { pendingDesktopAppearance } from '../src/desktopBridge.ts'
 import { desktopModeSwitchHtml } from '../src/hostToolbar.ts'
+import { DesktopModeSwitch } from '../src/DesktopModeSwitch.tsx'
+import { HostBar } from '../src/HostBar.tsx'
+import { PlanShell, type PlanShellProps } from '../src/PlanShell.tsx'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { loadThemeConfig } from '../src/theme.ts'
 
 const root = resolve(import.meta.dir, '..')
@@ -208,12 +213,40 @@ test('a plan with no theme file beside it starts from the machine-wide one', asy
 
 test('the toolbar switch links to the other side only', () => {
   const local = desktopModeSwitchHtml('local')
-  assert.match(local, /<span aria-current="true">Local<\/span>/)
-  assert.match(local, /<a href="living-plan:\/\/switch\/cloud">Cloud<\/a>/)
+  assert.match(local, /<span aria-current="true" aria-label="Local" title="Local"><svg /)
+  assert.match(local, /<a href="living-plan:\/\/switch\/cloud" aria-label="Cloud" title="Cloud"><svg /)
   assert.doesNotMatch(local, /switch\/local/)
   const cloud = desktopModeSwitchHtml('cloud')
-  assert.match(cloud, /<a href="living-plan:\/\/switch\/local">Local<\/a>/)
-  assert.match(cloud, /<span aria-current="true">Cloud<\/span>/)
+  assert.match(cloud, /<a href="living-plan:\/\/switch\/local" aria-label="Local" title="Local"><svg /)
+  assert.match(cloud, /<span aria-current="true" aria-label="Cloud" title="Cloud"><svg /)
+})
+
+test('the React toolbar switch draws the same markup as the HTML one', () => {
+  for (const host of ['local', 'cloud'] as const) {
+    assert.equal(renderToStaticMarkup(createElement(DesktopModeSwitch, { host })), desktopModeSwitchHtml(host))
+  }
+})
+
+test('the account menu carries the switch, so a toolbar with one leaves it out', () => {
+  const plan: PlanShellProps = {
+    title: 'A plan',
+    source: '# A plan\n',
+    mode: 'watch',
+    host: 'cloud',
+    pageWidth: 'default',
+    accent: 'blue',
+    diffsTheme: 'soft',
+    wrapCode: false,
+    basePath: '/plans/abc',
+  }
+  const signedIn = renderToStaticMarkup(createElement(PlanShell, { ...plan, accountLabel: 'me' }))
+  assert.doesNotMatch(signedIn, /class="desktop-mode"/)
+  assert.match(signedIn, /data-account-menu="" data-label="me" data-host="cloud"/)
+  const signedOut = renderToStaticMarkup(createElement(PlanShell, plan))
+  assert.match(signedOut, /class="desktop-mode"/)
+  const bar = renderToStaticMarkup(createElement(HostBar, { title: 'Account', label: 'me' }))
+  assert.doesNotMatch(bar, /class="desktop-mode"/)
+  assert.match(bar, /data-host="cloud"/)
 })
 
 test('a hosted page saves the setup look once per choice', () => {

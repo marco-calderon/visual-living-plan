@@ -1,6 +1,5 @@
 import { useLayoutEffect } from 'react'
 import { Button } from '../client/ui/button.tsx'
-import { DesktopModeSwitch } from './DesktopModeSwitch.tsx'
 import './hostToolbar.css'
 
 type HostWindow = Window & { __LIVE_PLAN_THEME_URL__?: string }
@@ -12,7 +11,7 @@ type HostBarProps = {
   themeUrl?: string
 }
 
-/** Title bar for account pages. The profile control is the account menu. */
+/** Title bar for account pages. The profile control is the account menu, which also carries the desktop app's Local and Cloud switch. */
 export function HostBar({ title, label, logoHref = '/dashboard', themeUrl }: HostBarProps) {
   useLayoutEffect(() => {
     if (themeUrl) (window as HostWindow).__LIVE_PLAN_THEME_URL__ = themeUrl
@@ -27,8 +26,7 @@ export function HostBar({ title, label, logoHref = '/dashboard', themeUrl }: Hos
       <h1 className="brand">{title}</h1>
       <div className="chrome-tools">
         <p className="offline-state" data-offline-state="" hidden />
-        <DesktopModeSwitch host="cloud" />
-        <div className="account-menu" data-account-menu="" data-label={label}>
+        <div className="account-menu" data-account-menu="" data-label={label} data-host="cloud">
           <Button type="button" variant="secondary" className="titlebar-user" aria-haspopup="menu" aria-expanded="false">
             {label}
           </Button>
