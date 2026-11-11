@@ -70,6 +70,7 @@ Home directory for the service is `~/.config/living-plan` (`$XDG_CONFIG_HOME/liv
 - A page in a desktop app window gets no Tauri API and none of the app's commands. It reaches the app only by following `living-plan://switch/<mode>` and `living-plan://setup` links, which count only from inside an app window. A remote origin's one capability is moving the window. Do not add a remote capability for an app command: plan pages run code an agent wrote.
 - The desktop app keeps no settings logic in Rust. A new setting goes into `src/desktopConfig.ts` and `live-plan desktop`, and the app page calls it through a command that runs the bundled CLI.
 - Every page toolbar is a `header` with the class `titlebar`. The desktop app pads and drags that element on macOS, so a new page keeps the class.
+- A plan page's toolbar is fixed (`src/planPage.css`) and its column pads for it. The hosted plan page (`src/PlanShell.tsx`) takes only `hostToolbarControlsCss`; the dashboards' sticky bar (`hostToolbarBarCss`) would leave its height again as empty space above the plan.
 - The bundled service in the desktop app reads its files at the same paths relative to `dist/cli.js` as the npm package does. A new file the service reads at runtime goes into `SERVICE_ASSETS` in `scripts/build-desktop.ts`. A dependency must still bundle with `bun build`.
 - A `workflow` block is required in a plan. `check` fails without it.
 - While execution is active, plan forms and review return HTTP 409.

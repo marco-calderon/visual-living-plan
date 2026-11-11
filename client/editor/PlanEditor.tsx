@@ -254,6 +254,13 @@ export function PlanEditor({ planId, base, draft, outdated, publish, onClose }: 
     }
   }
 
+  // Save the last keystrokes while the editor can still read them. Its unmount is too late: the
+  // editor's ref is gone by then, so a draft typed in the last second would be lost.
+  function onCloseEditor() {
+    saver.flush()
+    onClose()
+  }
+
   function onDiscard() {
     if (!confirmDiscard) {
       setConfirmDiscard(true)
@@ -289,7 +296,7 @@ export function PlanEditor({ planId, base, draft, outdated, publish, onClose }: 
               {confirmDiscard ? 'Discard changes?' : 'Discard'}
             </Button>
           ) : null}
-          <Button variant="secondary" onClick={onClose} disabled={publishing} data-plan-editor-close="">
+          <Button variant="secondary" onClick={onCloseEditor} disabled={publishing} data-plan-editor-close="">
             Close
           </Button>
           <Button

@@ -68,7 +68,12 @@ export function accountMenuHtml(label: string): string {
   return `<div class="account-menu" data-account-menu data-label="${safe}"><button type="button" class="titlebar-user" aria-haspopup="menu" aria-expanded="false">${safe}</button></div>`
 }
 
-export const hostToolbarCss = `
+/**
+ * The bar itself: sticky in the page flow, with the logo, the title, and the tools row. Dashboard,
+ * account, and settings pages lay out with it. A plan page does not: planPage.css fixes its bar
+ * above a column that starts below it, and these rules would put the bar in the flow a second time.
+ */
+export const hostToolbarBarCss = `
 .titlebar {
   position: sticky;
   top: 0;
@@ -93,9 +98,7 @@ export const hostToolbarCss = `
   background: transparent;
   text-decoration: none;
 }
-.logo-btn:focus-visible,
-.titlebar-action:focus-visible,
-.titlebar-user:focus-visible {
+.logo-btn:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -123,6 +126,22 @@ export const hostToolbarCss = `
   flex-wrap: wrap;
   margin-left: auto;
 }
+.offline-state {
+  margin: 0;
+  color: var(--muted, #71717a);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.offline-state[hidden] { display: none; }
+`
+
+/** Buttons, menus, and the Local and Cloud switch inside a host toolbar, on any page that has one. */
+export const hostToolbarControlsCss = `
+.titlebar-action:focus-visible,
+.titlebar-user:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 .titlebar-action,
 .titlebar-user {
   display: inline-flex;
@@ -141,6 +160,8 @@ export const hostToolbarCss = `
   cursor: pointer;
 }
 .account-menu { display: flex; }
+/* Initials stand in for the account name only where a plan toolbar is narrow (src/planPage.css). */
+.titlebar-user-initials { display: none; }
 .plan-menu-positioner { z-index: 30; }
 .plan-menu-popup {
   box-sizing: border-box;
@@ -209,13 +230,6 @@ export const hostToolbarCss = `
   .plan-menu-popup[data-starting-style],
   .plan-menu-popup[data-ending-style] { transform: none; }
 }
-.offline-state {
-  margin: 0;
-  color: var(--muted, #71717a);
-  font-size: 0.8rem;
-  white-space: nowrap;
-}
-.offline-state[hidden] { display: none; }
 /* Local and Cloud, shown only inside the desktop app, which sets data-desktop on the root. */
 .desktop-mode { display: none; }
 html[data-desktop] .desktop-mode {
@@ -245,3 +259,6 @@ html[data-desktop] .desktop-mode {
 .desktop-only { display: none; }
 html[data-desktop] .desktop-only { display: revert; }
 `
+
+/** The whole host toolbar, for pages that lay out with the sticky bar. */
+export const hostToolbarCss = hostToolbarBarCss + hostToolbarControlsCss

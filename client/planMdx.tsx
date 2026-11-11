@@ -26,9 +26,8 @@ import { stampPlanParts } from './stampPlanParts.ts'
 import { markChangedBlocks, readBlockSignatures, restoreScrollAnchor, scrollAnchor, type BlockSignatures, type ScrollAnchor } from './liveUpdate.ts'
 import { viewingPlanVersion } from './versionView.ts'
 import { sendPlanMutation, sharedQueryClient } from './queryClient.tsx'
-import { Button } from './ui/button.tsx'
 import { readDraft, type PlanDraft } from './editor/draftStore.ts'
-import { PencilLine } from 'lucide-react'
+import { bindPlanEditButton, markPlanEditButtons, scrollEditorToHeading, type EditAnchor } from './planEditButton.ts'
 
 type PlanWindow = Window & {
   __LIVE_PLAN_BASE__?: string
@@ -633,6 +632,42 @@ function PlanMdxApp() {
     })
   }, [boot.snapshots, boot.headSnapshotId])
 
+  // The toolbar's Edit button and the E key (src/planEditButton.ts). Editing needs a rendered plan.
+  const editable = canEdit && content !== null
+  const editState = useRef({ editable, editing: false, source: boot.source })
+  editState.current = { editable, editing: editing !== null, source: boot.source }
+  const editAnchor = useRef<EditAnchor | null>(null)
+
+  useEffect(() => {
+    markPlanEditButtons({ canEdit, ready: content !== null || error !== null, editable, editing: editing !== null, hasDraft })
+  }, [canEdit, content, editable, editing, error, hasDraft])
+
+  useEffect(
+    () =>
+      bindPlanEditButton({
+        state: () => editState.current,
+        open: (anchor) => {
+          const draft = readDraft(planId)
+          editAnchor.current = anchor
+          setEditing({ base: draft?.base ?? editState.current.source, draft })
+        },
+      }),
+    [planId],
+  )
+
+  // The editor saves its last keystrokes as it unmounts, after Close. Read the draft once it has.
+  useEffect(() => {
+    if (editing === null) setHasDraft(readDraft(planId) !== null)
+  }, [editing, planId])
+
+  // Open the editor where the reader was, not at the top of a long plan.
+  useEffect(() => {
+    if (editing === null) return
+    const anchor = editAnchor.current
+    editAnchor.current = null
+    return scrollEditorToHeading(anchor)
+  }, [editing])
+
   useEffect(() => {
     const list = document.getElementById('plan-toc-list')
     if (!list) return
@@ -663,10 +698,7 @@ function PlanMdxApp() {
             base={editing.base}
             draft={editing.draft}
             outdated={boot.source !== editing.base}
-            onClose={() => {
-              setEditing(null)
-              setHasDraft(readDraft(planId) !== null)
-            }}
+            onClose={() => setEditing(null)}
             publish={async (next) => {
               const result = await saveEditedSource(editing.base, next)
               if (result.ok && result.payload) {
@@ -682,23 +714,6 @@ function PlanMdxApp() {
             }}
           />
         </Suspense>
-      ) : null}
-      {content && editing === null && canEdit ? (
-        <div className="plan-edit-toggle">
-          <Button
-            variant="secondary"
-            data-plan-edit=""
-            data-plan-has-draft={hasDraft ? 'true' : undefined}
-            title={hasDraft ? 'Continue the unpublished edit saved on this device' : 'Edit this plan'}
-            onClick={() => {
-              const draft = readDraft(planId)
-              setEditing({ base: draft?.base ?? boot.source, draft })
-            }}
-          >
-            <PencilLine size={16} aria-hidden="true" />
-            {hasDraft ? 'Resume draft' : 'Edit'}
-          </Button>
-        </div>
       ) : null}
       {content ? (
         <article className="plan-document plan-ui" data-plan-rendered="" hidden={editing !== null}>

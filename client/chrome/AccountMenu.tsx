@@ -13,6 +13,7 @@ import {
 import { forgetCachedDocuments } from '../offline/forgetDocuments.ts'
 import { startOfflineEngine } from '../offline/engine.ts'
 import { openSettings } from '../../src/settings/settingsSections.ts'
+import { accountInitials } from '../../src/accountInitials.ts'
 import { DesktopModeIcon } from '../../src/DesktopModeSwitch.tsx'
 import { DESKTOP_MODE_SIDES, type PlanHost } from '../../src/hostToolbar.ts'
 
@@ -82,7 +83,11 @@ export function AccountMenu({ label, host = 'cloud' }: { label: string; host?: P
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="plan-btn plan-btn-secondary titlebar-user" aria-label="Account menu">
-        {label}
+        <span className="titlebar-user-label">{label}</span>
+        {/* Phones show these in place of the name (src/planPage.css). */}
+        <span className="titlebar-user-initials" aria-hidden="true">
+          {accountInitials(label)}
+        </span>
         <ChevronDown size={16} aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent>

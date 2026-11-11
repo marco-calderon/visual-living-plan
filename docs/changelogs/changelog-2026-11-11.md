@@ -1,5 +1,31 @@
 # Changelog — 2026-11-11
 
+## 2.25.0
+
+**PR:** [#187](https://github.com/marco-calderon/visual-living-plan/pull/187)
+
+**Bump:** minor
+
+### Summary
+
+Edit moves from above the plan into the toolbar, where it stays in reach anywhere in a long plan, and a hosted plan starts right below the toolbar instead of under an empty band.
+
+### Bugs fixed
+
+- A hosted plan page, in the browser or the Mac app's Cloud mode, left a toolbar-high empty band above the plan: the content started 136px down instead of 76px and sat below the contents list. The page took the dashboard's toolbar, which sits in the page flow, on top of the plan column's own room for a fixed toolbar. Plan pages now keep their own fixed toolbar and take only the dashboard's buttons and menus.
+- Closing the editor less than a second after typing lost those last keystrokes from the draft, and the button read Edit instead of Resume draft. The draft is now saved before the editor closes.
+
+### Improvements
+
+- Edit is in the toolbar, after the Plan and Workflow tabs and before the versions menu, on local plans and on hosted plans you own. It stays on screen while you scroll, and the E key opens it too, as C turns on comments. It no longer takes a row above the plan.
+- The editor opens at the section you were reading, the one the contents list marks, instead of at the top, and holds it there while diagrams and code above it finish drawing.
+- While editing, Edit shows pressed, and pressing it again closes the editor. From Workflow or Settings it shows the plan first.
+- On a phone the toolbar keeps every control as an icon: a pencil for Edit (with a dot when a draft is kept), a history icon for the live plan's versions menu, and the account's initials. A saved version keeps "Version N" in the toolbar. The bar fits a 360px screen.
+
+### Notes
+
+No plan format changes. `SHELL_CACHE_VERSION` moves to 2.25.0. ADR 0033 records where Edit lives.
+
 ## 2.24.3
 
 **PR:** [#186](https://github.com/marco-calderon/visual-living-plan/pull/186)
