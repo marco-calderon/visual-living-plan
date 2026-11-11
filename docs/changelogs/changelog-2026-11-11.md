@@ -1,6 +1,6 @@
 # Changelog — 2026-11-11
 
-## 2.22.0
+## 2.23.0
 
 **PR:** to be linked
 
@@ -8,12 +8,12 @@
 
 ### Summary
 
-Living Plan is now a Mac app. It opens the dashboard and your plans in their own windows, starts the plan service by itself, and needs no Bun, npm, or CLI install. When it is installed, a plan an agent serves opens in it; without it, the plan opens in the installed web app or a new tab.
+Living Plan is now a Mac app. It opens the dashboard and your plans in their own windows, starts the plan service by itself, and needs no Bun, npm, or CLI install. When it is installed, a plan an agent serves opens in it; without it, the plan opens in the installed web app, as in 2.22.0, or a new tab.
 
 ### New features
 
 - A Mac app built with Tauri (`src-tauri/`), for macOS 13 or later on Apple silicon and Intel. It ships the CLI and the Bun runtime, starts the plan service when none is running, and opens the dashboard. Plans open in the same window, and a plan opened from the Plans menu gets its own window. Other links open in your browser.
-- `serve`, `review`, and `dashboard` open a local plan or the dashboard in the Mac app when it is installed, through `living-plan://plans/<id>` and `living-plan://dashboard`. The app focuses the window that already shows that plan, or opens one. `LIVE_PLAN_DESKTOP=0` keeps them in the browser.
+- `serve`, `review`, `dashboard`, and the terminal dashboard open a local plan or the dashboard in the Mac app when it is installed, through `living-plan://plans/<id>` and `living-plan://dashboard`, before trying the installed web app and then a tab. The app focuses the window that already shows that plan, or opens one. `LIVE_PLAN_DESKTOP=0` skips the Mac app, and `LIVE_PLAN_OPEN=browser` still always uses a tab.
 - The app uses a plan service that agents already started, whatever its version, and leaves it running when it quits.
 - A Mac app icon on Apple's icon grid. `bun run desktop:icons` redraws it.
 - `bun run desktop` opens a development window, and `bun run desktop:build` writes the `.app` and a `.dmg`. The Desktop workflow builds both architectures and attaches the `.dmg` files to each GitHub release.
@@ -21,11 +21,11 @@ Living Plan is now a Mac app. It opens the dashboard and your plans in their own
 
 ### Improvements
 
-- The installed web app claims plan links: in Chrome or Edge with link capturing, a plan the CLI opens in the browser opens in the web app's own window instead of a tab.
+- The web manifest asks browsers with link capturing to open in-scope links in the installed web app's own window (`handle_links`, `launch_handler`), for links the CLI does not launch itself.
 
 ### Notes
 
-The app is signed ad hoc, not notarized, so the first launch asks you to allow it in System Settings, Privacy & Security. Linux and Windows builds come later. A hosted plan (`--cloud`) still opens in the browser. Agents keep using `npx --yes visual-living-plan`. No plan format changes. `SHELL_CACHE_VERSION` moves to 2.22.0.
+The app is signed ad hoc, not notarized, so the first launch asks you to allow it in System Settings, Privacy & Security. Linux and Windows builds come later. A hosted plan (`--cloud`) still opens in the browser. Agents keep using `npx --yes visual-living-plan`. No plan format changes. `SHELL_CACHE_VERSION` moves to 2.23.0.
 
 ## 2.21.0
 
@@ -70,3 +70,23 @@ An agent now drives a plan with six commands, `check`, `serve`, `events`, `mode`
 ### Notes
 
 The one behavior change for existing scripts is `serve` without `--detach`: it now returns after registering. Its submissions stay queued and print on the next `events`, or pass `--listen`. No plan format changes. The plan service restarts once when this version first connects, as with every version change, and attached listeners now reconnect through it. `SHELL_CACHE_VERSION` moves to 2.21.0.
+
+## 2.22.0
+
+**PR:** [#182](https://github.com/marco-calderon/visual-living-plan/pull/182)
+
+**Bump:** minor
+
+### Summary
+
+When Living Plan is installed as an app, `serve`, `review`, `dashboard`, and the terminal dashboard open pages in that app window. Without an install they open a browser tab, as before.
+
+### New features
+
+- The CLI finds a Living Plan app installed in Chrome, Edge, Brave, or Chromium for the page's host, and opens the plan or dashboard there. It checks every browser profile and prefers `Default`.
+- The terminal dashboard's Open control does the same.
+- `LIVE_PLAN_OPEN=browser` always opens a browser tab.
+
+### Notes
+
+`account login` still opens a browser tab, because sign-in returns to a loopback callback. Firefox and Safari web apps are not detected, so those open a tab. `--no-open` and `--open` work as before. No registry restart needed beyond the usual version check. The shell cache name is 2.22.0.

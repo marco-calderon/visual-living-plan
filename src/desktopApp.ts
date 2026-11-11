@@ -7,8 +7,8 @@
  *   living-plan://dashboard    the dashboard
  *
  * Only pages on the local service have a link, because the app is a window on that service. A
- * hosted plan, a private `--no-registry` server, and a LAN or `--host` address open in the browser.
- * The app ships for macOS only for now, so other platforms always use the browser.
+ * hosted plan, a private `--no-registry` server, and a LAN or `--host` address go to the web app or
+ * the browser. The app ships for macOS only for now, so other platforms skip it.
  *
  * [ADR 0037]: ../docs/architecture/decisions/0037-plans-open-in-the-desktop-app.md
  */
@@ -45,7 +45,7 @@ export type DesktopOpenDeps = {
   platform: NodeJS.Platform
   env: NodeJS.ProcessEnv
   /** Run a command with no output and resolve its exit code, or null when it could not run. */
-  run: (command: string, args: string[]) => Promise<number | null>
+  run?: (command: string, args: string[]) => Promise<number | null>
 }
 
 function runQuietly(command: string, args: string[], timeoutMs = 10_000): Promise<number | null> {
@@ -76,12 +76,12 @@ const defaultDeps: DesktopOpenDeps = { platform: process.platform, env: process.
 
 /**
  * Open the page in the desktop app. Resolves false when the page has no app link, the app is
- * turned off, or it is not installed, so the caller opens the browser instead.
+ * turned off, or it is not installed, so `openUrl` tries the web app and then a browser tab.
  */
 export async function openInDesktopApp(pageUrl: string, deps: DesktopOpenDeps = defaultDeps): Promise<boolean> {
   const link = desktopLinkFor(pageUrl)
   if (!link || desktopAppDisabled(deps.env)) return false
   if (deps.platform !== 'darwin') return false
   // `open` exits non-zero, without a dialog, when no installed app claims the scheme.
-  return (await deps.run('open', [link])) === 0
+  return (await (deps.run ?? runQuietly)('open', [link])) === 0
 }

@@ -35,6 +35,7 @@ The service and the private server are Elysia apps. Route handlers live in `src/
 | `src/agentEvents.ts` | Client-side SSE reader. Use `planApiUrl` so `/plans/<id>/` URLs resolve correctly |
 | `src/parse.ts`, `src/planMdx/`, `client/planMdx.tsx`, `client/entries/`, `client/mdx/` | Plan file in. The page compiles it as MDX and renders the React plan |
 | `src/planSearch.ts`, `src/searchMatch.ts` | Search one plan block by block (`GET /api/search` on the local session and on the plan's Durable Object), or every plan a dashboard lists by title and text (`GET /api/dashboard/search` locally, `GET /api/account/search` on the host). Live by default; saved versions only when `version` asks. Exact unless `fuzzy=on`, which the dashboards send |
+| `src/openUrl.ts` | Opens a page from the CLI or the terminal dashboard: in the Living Plan Mac app when it can show it, then in the installed Living Plan web app (Chrome, Edge, Brave, Chromium) when that origin has one, else a browser tab |
 | `src/dashboardLoading.ts` | Skeletons, the spinner, and the dimmed state both dashboards show while plans or search results load |
 | `src/workflow.ts`, `src/execution.ts` | Expected workflow and the live execution overlay |
 | `client/` | React Flow canvas. It reads `window.__LIVE_PLAN_BASE__` and calls `/api/...` under that prefix |
@@ -44,7 +45,7 @@ The service and the private server are Elysia apps. Route handlers live in `src/
 | `test/` | Bun test runner via `bun test ./test` |
 | `examples/rate-limit.plan.md` | The fixture plan used by service tests |
 | `src-tauri/`, `desktop/`, `scripts/build-desktop.ts`, `scripts/desktop-icon/` | The Mac app ([ADR 0036](architecture/decisions/0036-desktop-app.md)). A Tauri window whose splash page (`desktop/`) calls `connect`, which runs the bundled CLI's `dashboard --json --any-version` and loads the dashboard, or the plan a `living-plan://` link asked for. `desktop:stage` bundles `src/cli.ts` into `src-tauri/service/` with the files it reads beside itself, and copies Bun to `src-tauri/binaries/`. `desktop:icons` draws the icon |
-| `src/desktopApp.ts` | `serve`, `review`, and `dashboard` hand a local plan or the dashboard to the Mac app as `living-plan://plans/<id>` or `living-plan://dashboard` when it is installed, and fall back to the browser ([ADR 0037](architecture/decisions/0037-plans-open-in-the-desktop-app.md)) |
+| `src/desktopApp.ts` | Hands a local plan or the dashboard to the Mac app as `living-plan://plans/<id>` or `living-plan://dashboard` when it is installed. `openUrl` asks it first ([ADR 0037](architecture/decisions/0037-plans-open-in-the-desktop-app.md)) |
 
 Home directory for the service is `~/.config/living-plan` (`$XDG_CONFIG_HOME/living-plan` when set), or `LIVE_PLAN_HOME` when set. The lock file is `registry.json`. The database is `registry.sqlite`. Development logs are under `logs/` in that home, or `LIVE_PLAN_LOG_HOME` when set. Older `~/.visual-living-plan` and `~/.living-plan` trees are migrated when idle ([ADR 0017](architecture/decisions/0017-xdg-config-home.md)).
 

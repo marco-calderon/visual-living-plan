@@ -65,7 +65,7 @@ import {
 import { cloudCredential, normalizeBase, planRecordForUrl, readCloudFile, writeCloudFile } from './cloudStore'
 import { CLI_TOKEN_PATH } from './cliToken'
 import { choosePlanOpen, rememberPageOpened } from './openedPages'
-import { openInDesktopApp } from './desktopApp'
+import { openInBrowser, openUrl } from './openUrl'
 import { readIteration } from './reviewRound'
 import { resolvePlanUrl } from './planTarget'
 
@@ -147,8 +147,8 @@ Per-plan accent color is saved in live-plan.config.json beside the plan (overrid
 Without --plan or --config, theme get/set uses ~/.config/living-plan/live-plan.config.json.
 Service state and diagnostic logs live under ~/.config/living-plan (LIVE_PLAN_HOME / LIVE_PLAN_LOG_HOME override).
 --no-open skips launching a browser.
+Pages open in the Living Plan Mac app when it is installed and the page is a plan or the dashboard on this machine's service (living-plan://plans/<id>). Otherwise they open in the installed Living Plan web app (Chrome, Edge, Brave, or Chromium) for that host, and in a browser tab when there is none. LIVE_PLAN_DESKTOP=0 skips the Mac app. LIVE_PLAN_OPEN=browser always uses a tab.
 serve and review open a plan page only the first time on this machine. Resuming the same plan leaves the open tab alone. --open opens it again.
-On macOS, a plan or the dashboard on this machine's service opens in the Living Plan desktop app when it is installed (living-plan://plans/<id>), and in the browser otherwise. LIVE_PLAN_DESKTOP=0 always uses the browser.
 --version prints the package version and exits. -v is the short flag.
 --detach is accepted and does nothing: serve returns by default.
 events prints a submission that arrived while it was stopped immediately, then exits. Start it again after every comment, denial, or approval so a pending event is not left on the server.
@@ -202,16 +202,10 @@ function hasFlag(args: string[], name: string): boolean {
   return args.includes(name)
 }
 
+/** Open `url` in the Living Plan Mac app or the installed web app when there is one, else a browser tab. */
 async function openBrowser(url: string): Promise<void> {
   if (hasFlag(process.argv.slice(2), '--no-open')) return
-  const platform = process.platform
-  const command = platform === 'darwin' ? 'open' : platform === 'win32' ? 'cmd' : 'xdg-open'
-  const commandArgs = platform === 'win32' ? ['/c', 'start', '', url] : [url]
-  const child = spawn(command, commandArgs, { stdio: 'ignore', detached: true })
-  child.on('error', () => {
-    // A missing opener must not take down the server.
-  })
-  child.unref()
+  await openUrl(url)
 }
 
 /**
@@ -228,8 +222,7 @@ async function openPlanPage(url: string): Promise<void> {
     if (!hasFlag(argv, '--no-open')) console.log('Page already opened before. Not opening it again (pass --open to reopen).')
     return
   }
-  // The desktop app when it is installed, otherwise the browser, where an installed web app can take it.
-  if (!(await openInDesktopApp(url))) await openBrowser(url)
+  await openBrowser(url)
   await rememberPageOpened(url).catch(() => undefined)
 }
 
@@ -1426,8 +1419,8 @@ async function cmdDashboard(args: string[]): Promise<number> {
   }
   const url = new URL('/dashboard', registry.url).href
   console.log(`Plan dashboard: ${url}`)
-  if (hasFlag(args, '--no-open')) return 0
-  if (!(await openInDesktopApp(new URL('/dashboard', registryBindUrl(registry)).href))) await openBrowser(url)
+  // Open the address this machine dials: a LAN name would need the LAN secret, and the apps know the loopback one.
+  await openBrowser(new URL('/dashboard', registryBindUrl(registry)).href)
   return 0
 }
 
@@ -1717,7 +1710,8 @@ async function main(): Promise<number> {
         // Print the link too, so a person can open it when no browser launches.
         console.log(`Sign in, or choose Sign up instead to create an account:\n${url}`)
         console.log('No browser on this machine? Run live-plan account login --headless instead.')
-        await openBrowser(url)
+        // Sign-in hands off to a loopback callback, so it stays in a browser tab.
+        if (!hasFlag(process.argv.slice(2), '--no-open')) openInBrowser(url)
       })
       const account = await requireCloudAccount()
       console.log(`Signed in to ${account.baseUrl}`)
