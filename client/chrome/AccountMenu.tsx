@@ -3,6 +3,8 @@ import { Check, ChevronDown } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuGroupLabel,
   DropdownMenuItem,
   DropdownMenuLinkItem,
   DropdownMenuSeparator,
@@ -40,7 +42,8 @@ function inDesktopApp(): boolean {
 }
 
 /**
- * The Local and Cloud switch, inside the desktop app only. The current side is shown checked; the other
+ * The Local and Cloud switch, inside the desktop app only, under a heading that says what it picks. The
+ * current side is shown checked; the other
  * is a `living-plan://switch/<mode>` link, which the app follows ([ADR 0038]).
  *
  * [ADR 0038]: ../../docs/architecture/decisions/0038-desktop-setup-and-cloud.md
@@ -48,24 +51,27 @@ function inDesktopApp(): boolean {
 function DesktopModeItems({ host }: { host: PlanHost }) {
   return (
     <>
-      {DESKTOP_MODE_SIDES.map((side) => {
-        const label = (
-          <span className="plan-menu-label">
-            <DesktopModeIcon side={side} />
-            {side.label}
-          </span>
-        )
-        return side.mode === host ? (
-          <DropdownMenuItem key={side.mode} aria-current="true">
-            {label}
-            <Check size={16} aria-label="Current" />
-          </DropdownMenuItem>
-        ) : (
-          <DropdownMenuLinkItem key={side.mode} href={`living-plan://switch/${side.mode}`}>
-            {label}
-          </DropdownMenuLinkItem>
-        )
-      })}
+      <DropdownMenuGroup>
+        <DropdownMenuGroupLabel>Environment</DropdownMenuGroupLabel>
+        {DESKTOP_MODE_SIDES.map((side) => {
+          const label = (
+            <span className="plan-menu-label">
+              <DesktopModeIcon side={side} />
+              {side.label}
+            </span>
+          )
+          return side.mode === host ? (
+            <DropdownMenuItem key={side.mode} aria-current="true">
+              {label}
+              <Check size={16} aria-label="Current" />
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuLinkItem key={side.mode} href={`living-plan://switch/${side.mode}`}>
+              {label}
+            </DropdownMenuLinkItem>
+          )
+        })}
+      </DropdownMenuGroup>
       <DropdownMenuSeparator />
     </>
   )

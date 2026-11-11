@@ -29,7 +29,7 @@ export function DesktopModeIcon({ side }: { side: DesktopModeSide }) {
  */
 export function DesktopModeSwitch({ host }: { host: PlanHost }) {
   return (
-    <nav className="desktop-mode" aria-label="Where plans run">
+    <nav className="desktop-mode" aria-label="Environment">
       {DESKTOP_MODE_SIDES.map((side) =>
         side.mode === host ? (
           <span key={side.mode} aria-current="true" aria-label={side.label} title={side.label}>

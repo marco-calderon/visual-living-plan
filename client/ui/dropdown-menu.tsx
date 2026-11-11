@@ -83,3 +83,17 @@ export function DropdownMenuSeparator({ className, ...props }: MenuPrimitive.Sep
     />
   )
 }
+
+export function DropdownMenuGroup(props: MenuPrimitive.Group.Props) {
+  return <MenuPrimitive.Group data-slot="dropdown-menu-group" {...props} />
+}
+
+export function DropdownMenuGroupLabel({ className, ...props }: MenuPrimitive.GroupLabel.Props) {
+  return (
+    <MenuPrimitive.GroupLabel
+      data-slot="dropdown-menu-group-label"
+      className={className ? `plan-menu-group-label ${className}` : 'plan-menu-group-label'}
+      {...props}
+    />
+  )
+}

@@ -45,7 +45,7 @@ export function desktopModeSwitchHtml(host: PlanHost): string {
       ? `<span aria-current="true" aria-label="${label}" title="${label}">${icon}</span>`
       : `<a href="living-plan://switch/${mode}" aria-label="${label}" title="${label}">${icon}</a>`
   }
-  return `<nav class="desktop-mode" aria-label="Where plans run">${DESKTOP_MODE_SIDES.map(side).join('')}</nav>`
+  return `<nav class="desktop-mode" aria-label="Environment">${DESKTOP_MODE_SIDES.map(side).join('')}</nav>`
 }
 
 /** Title bar shared by the cloud dashboard and settings pages, and by the local dashboard. */
@@ -181,6 +181,7 @@ export const hostToolbarCss = `
 .plan-menu-item[data-highlighted] { background: var(--accent-soft); }
 .plan-menu-item[data-disabled] { color: var(--muted); cursor: not-allowed; }
 .plan-menu-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.plan-menu-group-label { padding: var(--space-xs) var(--space-sm) var(--space-xxs); color: var(--muted); font-size: 12px; font-weight: 600; line-height: 1.4; }
 .plan-menu-meta { color: var(--muted); font-weight: 500; font-size: 12px; }
 .plan-menu-label { display: inline-flex; align-items: center; gap: var(--space-xs, 8px); }
 .plan-menu-label svg { display: block; width: 16px; height: 16px; flex: none; }
