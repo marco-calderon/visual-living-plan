@@ -1,5 +1,19 @@
 # Changelog — 2026-11-11
 
+## 2.24.1
+
+**PR:** not opened yet
+
+**Bump:** patch
+
+### Summary
+
+The Mac app's window buttons line up with the logo and title in the toolbar.
+
+### Bugs fixed
+
+- The close, minimize, and zoom buttons sat near the top of the window, above the middle of the toolbar. The app now centers them in the toolbar and keeps them there after a page loads, the window resizes, or its title changes.
+
 ## 2.24.0
 
 **PR:** [#184](https://github.com/marco-calderon/visual-living-plan/pull/184)

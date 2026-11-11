@@ -479,6 +479,97 @@ fn offer_appearance(app: &AppHandle, window: &WebviewWindow, url: &Url) {
     ));
 }
 
+/// Put the window buttons level with the middle of the page's toolbar.
+fn center_window_buttons(window: &WebviewWindow) {
+    #[cfg(target_os = "macos")]
+    window_buttons::center(window, None);
+    #[cfg(not(target_os = "macos"))]
+    let _ = window;
+}
+
+/// Name the window. On macOS a new title moves the window buttons, so they are placed again.
+fn set_window_title(window: &WebviewWindow, title: &str) {
+    #[cfg(target_os = "macos")]
+    window_buttons::center(window, Some(title.to_string()));
+    #[cfg(not(target_os = "macos"))]
+    let _ = window.set_title(title);
+}
+
+/// The window buttons of an overlay title bar. AppKit puts them back at the top of the window
+/// whenever it lays the title bar out, so the app places them itself after each such change.
+#[cfg(target_os = "macos")]
+mod window_buttons {
+    use objc2_app_kit::{NSView, NSWindow, NSWindowButton, NSWindowStyleMask};
+    use objc2_foundation::{NSPoint, NSString};
+    use tauri::WebviewWindow;
+
+    /// The height of the page's toolbar, `--titlebar-offset`.
+    const TOOLBAR_HEIGHT: f64 = 60.0;
+    /// From the window's left edge to the close button.
+    const LEFT: f64 = 18.0;
+
+    /// Centers the buttons in the toolbar, after setting `title` when one is given.
+    pub fn center(window: &WebviewWindow, title: Option<String>) {
+        let target = window.clone();
+        let _ = window.run_on_main_thread(move || {
+            let Ok(pointer) = target.ns_window() else {
+                return;
+            };
+            // SAFETY: this runs on the main thread, and `target` keeps its NSWindow alive.
+            let ns_window: &NSWindow = unsafe { &*pointer.cast() };
+            if let Some(title) = title {
+                ns_window.setTitle(&NSString::from_str(&title));
+            }
+            place(ns_window);
+        });
+    }
+
+    #[allow(unused_unsafe)]
+    fn place(window: &NSWindow) {
+        // Full screen hides the buttons and keeps them in a window of its own.
+        if window.styleMask().contains(NSWindowStyleMask::FullScreen) {
+            return;
+        }
+        let (Some(close), Some(minimize), Some(zoom)) = (
+            window.standardWindowButton(NSWindowButton::CloseButton),
+            window.standardWindowButton(NSWindowButton::MiniaturizeButton),
+            window.standardWindowButton(NSWindowButton::ZoomButton),
+        ) else {
+            return;
+        };
+        // SAFETY: main thread, and every view here belongs to the live `window`.
+        unsafe {
+            let Some(bar) = close.superview() else { return };
+            let Some(container) = bar.superview() else {
+                return;
+            };
+            // Finish any pending layout first, so it cannot move the buttons back afterwards.
+            window.layoutIfNeeded();
+
+            // Make the title bar as tall as the toolbar, from the top of the window.
+            let window_height = window.frame().size.height;
+            let mut frame = NSView::frame(&container);
+            frame.size.height = TOOLBAR_HEIGHT;
+            frame.origin.y = window_height - TOOLBAR_HEIGHT;
+            container.setFrame(frame);
+
+            // The toolbar's middle, in the coordinates of the view that holds the buttons.
+            let middle = bar.convertPoint_fromView(
+                NSPoint::new(0.0, window_height - TOOLBAR_HEIGHT / 2.0),
+                None,
+            );
+            let step = NSView::frame(&minimize).origin.x - NSView::frame(&close).origin.x;
+            for (index, button) in [close, minimize, zoom].iter().enumerate() {
+                let height = NSView::frame(button).size.height;
+                button.setFrameOrigin(NSPoint::new(
+                    LEFT + step * index as f64,
+                    middle.y - height / 2.0,
+                ));
+            }
+        }
+    }
+}
+
 fn app_window(app: &AppHandle, label: &str, url: WebviewUrl) -> tauri::Result<WebviewWindow> {
     let on_navigation = (app.clone(), label.to_string());
     let on_new_window = app.clone();
@@ -516,12 +607,13 @@ fn app_window(app: &AppHandle, label: &str, url: WebviewUrl) -> tauri::Result<We
         .on_page_load(move |window, payload| {
             if payload.event() == PageLoadEvent::Finished {
                 mark_fullscreen(&window);
+                center_window_buttons(&window);
                 offer_appearance(&on_page_load, &window, payload.url());
             }
         })
         .on_document_title_changed(|window, title| {
             let title = title.trim();
-            let _ = window.set_title(if title.is_empty() { APP_TITLE } else { title });
+            set_window_title(&window, if title.is_empty() { APP_TITLE } else { title });
         })
         .on_download(|_webview, event| {
             // The webview picks a free name in Downloads. Show the file once it is there.
@@ -536,21 +628,31 @@ fn app_window(app: &AppHandle, label: &str, url: WebviewUrl) -> tauri::Result<We
             true
         });
 
-    // The page's toolbar is the title bar: the window buttons sit over its left end, level with
-    // the 60px toolbar's middle. The title still names the window in Mission Control and menus.
+    // The page's toolbar is the title bar: the window buttons sit over its left end. The title
+    // still names the window in Mission Control and menus. `center_window_buttons` places the
+    // buttons, because AppKit undoes the builder's `traffic_light_position` on its next layout.
     #[cfg(target_os = "macos")]
     let builder = builder
         .title_bar_style(tauri::TitleBarStyle::Overlay)
-        .hidden_title(true)
-        .traffic_light_position(tauri::LogicalPosition::new(18.0, 24.0));
+        .hidden_title(true);
 
     let window = builder.build()?;
+    center_window_buttons(&window);
     let (events_app, events_label) = (app.clone(), label.to_string());
     window.on_window_event(move |event| {
-        if matches!(event, WindowEvent::Resized(_)) {
-            if let Some(window) = events_app.get_webview_window(&events_label) {
+        let Some(window) = events_app.get_webview_window(&events_label) else {
+            return;
+        };
+        match event {
+            WindowEvent::Resized(_) => {
                 mark_fullscreen(&window);
+                center_window_buttons(&window);
             }
+            // AppKit lays the title bar out again on each of these.
+            WindowEvent::Focused(_)
+            | WindowEvent::ThemeChanged(_)
+            | WindowEvent::ScaleFactorChanged { .. } => center_window_buttons(&window),
+            _ => {}
         }
     });
     Ok(window)
