@@ -9,6 +9,9 @@ import { manifestIcons, pwaIconHead, type ManifestIcon } from './pwaIcons'
 
 export const WEB_MANIFEST_PATH = '/manifest.webmanifest'
 
+/** Stable app identity. The CLI derives the installed app's id from it (`src/openUrl.ts`). */
+export const WEB_MANIFEST_ID = '/'
+
 export const THEME_COLOR_LIGHT = '#ffffff'
 export const THEME_COLOR_DARK = '#171717'
 
@@ -27,7 +30,7 @@ export type WebManifest = {
 
 export function webManifest(): WebManifest {
   return {
-    id: '/',
+    id: WEB_MANIFEST_ID,
     name: 'Living Plan',
     short_name: 'Living Plan',
     description: 'Agent-authored living plans you can follow, answer, and review.',

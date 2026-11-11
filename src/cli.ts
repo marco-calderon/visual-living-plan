@@ -65,6 +65,7 @@ import {
 import { cloudCredential, normalizeBase, planRecordForUrl, readCloudFile, writeCloudFile } from './cloudStore'
 import { CLI_TOKEN_PATH } from './cliToken'
 import { choosePlanOpen, rememberPageOpened } from './openedPages'
+import { openInBrowser, openUrl } from './openUrl'
 import { readIteration } from './reviewRound'
 import { resolvePlanUrl } from './planTarget'
 
@@ -146,6 +147,7 @@ Per-plan accent color is saved in live-plan.config.json beside the plan (overrid
 Without --plan or --config, theme get/set uses ~/.config/living-plan/live-plan.config.json.
 Service state and diagnostic logs live under ~/.config/living-plan (LIVE_PLAN_HOME / LIVE_PLAN_LOG_HOME override).
 --no-open skips launching a browser.
+Pages open in the installed Living Plan app (Chrome, Edge, Brave, or Chromium) when it is installed from that host, and in a browser tab otherwise. LIVE_PLAN_OPEN=browser always uses a tab.
 serve and review open a plan page only the first time on this machine. Resuming the same plan leaves the open tab alone. --open opens it again.
 --version prints the package version and exits. -v is the short flag.
 --detach is accepted and does nothing: serve returns by default.
@@ -200,16 +202,10 @@ function hasFlag(args: string[], name: string): boolean {
   return args.includes(name)
 }
 
+/** Open the installed Living Plan app at `url` when there is one, else a browser tab. */
 async function openBrowser(url: string): Promise<void> {
   if (hasFlag(process.argv.slice(2), '--no-open')) return
-  const platform = process.platform
-  const command = platform === 'darwin' ? 'open' : platform === 'win32' ? 'cmd' : 'xdg-open'
-  const commandArgs = platform === 'win32' ? ['/c', 'start', '', url] : [url]
-  const child = spawn(command, commandArgs, { stdio: 'ignore', detached: true })
-  child.on('error', () => {
-    // A missing opener must not take down the server.
-  })
-  child.unref()
+  openUrl(url)
 }
 
 /**
@@ -1706,7 +1702,8 @@ async function main(): Promise<number> {
         // Print the link too, so a person can open it when no browser launches.
         console.log(`Sign in, or choose Sign up instead to create an account:\n${url}`)
         console.log('No browser on this machine? Run live-plan account login --headless instead.')
-        await openBrowser(url)
+        // Sign-in hands off to a loopback callback, so it stays in a browser tab.
+        if (!hasFlag(process.argv.slice(2), '--no-open')) openInBrowser(url)
       })
       const account = await requireCloudAccount()
       console.log(`Signed in to ${account.baseUrl}`)

@@ -43,3 +43,23 @@ An agent now drives a plan with six commands, `check`, `serve`, `events`, `mode`
 ### Notes
 
 The one behavior change for existing scripts is `serve` without `--detach`: it now returns after registering. Its submissions stay queued and print on the next `events`, or pass `--listen`. No plan format changes. The plan service restarts once when this version first connects, as with every version change, and attached listeners now reconnect through it. `SHELL_CACHE_VERSION` moves to 2.21.0.
+
+## 2.22.0
+
+**PR:** [#182](https://github.com/marco-calderon/visual-living-plan/pull/182)
+
+**Bump:** minor
+
+### Summary
+
+When Living Plan is installed as an app, `serve`, `review`, `dashboard`, and the terminal dashboard open pages in that app window. Without an install they open a browser tab, as before.
+
+### New features
+
+- The CLI finds a Living Plan app installed in Chrome, Edge, Brave, or Chromium for the page's host, and opens the plan or dashboard there. It checks every browser profile and prefers `Default`.
+- The terminal dashboard's Open control does the same.
+- `LIVE_PLAN_OPEN=browser` always opens a browser tab.
+
+### Notes
+
+`account login` still opens a browser tab, because sign-in returns to a loopback callback. Firefox and Safari web apps are not detected, so those open a tab. `--no-open` and `--open` work as before. No registry restart needed beyond the usual version check. The shell cache name is 2.22.0.
