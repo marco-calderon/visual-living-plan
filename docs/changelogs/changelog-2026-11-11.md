@@ -1,5 +1,21 @@
 # Changelog — 2026-11-11
 
+## 2.24.3
+
+**Bump:** patch
+
+### Summary
+
+The hosted plan page keeps its toolbar on one row at normal window widths, in the Mac app and in a browser.
+
+### Bugs fixed
+
+- On a hosted plan, a long title kept its full width, so the controls on the right wrapped and spilled out of the fixed-height toolbar: the Local and Cloud switch rose above it and the account menu dropped below it. The title now shortens with an ellipsis and the controls stay on one row.
+
+### Notes
+
+`SHELL_CACHE_VERSION` moves to 2.24.3. No registry restart needed.
+
 ## 2.24.2
 
 **Bump:** patch

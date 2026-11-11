@@ -747,6 +747,14 @@ html.js .plan-card[data-closed] {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* The hosted plan page also carries the shared toolbar styles (hostToolbarCss), which come later and
+   keep the title at full width while the tools wrap. This bar has a fixed height, so a second row
+   spills out of it. The title gives way instead and the tools stay on one row. */
+.titlebar > .brand { flex: 0 1 auto; }
+.titlebar > .chrome-tools {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+}
 
 .lede {
   max-width: 38rem;

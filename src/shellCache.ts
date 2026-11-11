@@ -19,9 +19,9 @@
 export const SHELL_CACHE_PREFIX = 'visual-living-plan-shell-'
 
 /** Keep both equal to package.json `version`. test/shellCache.test.ts checks them. */
-export const SHELL_CACHE_VERSION = '2.24.2'
+export const SHELL_CACHE_VERSION = '2.24.3'
 
-export const SHELL_CACHE_NAME = 'visual-living-plan-shell-2.24.2'
+export const SHELL_CACHE_NAME = 'visual-living-plan-shell-2.24.3'
 
 /** One document cache per device. The worker cannot see which account is signed in. */
 export const DOCUMENT_CACHE_MARKER = 'device'
