@@ -65,6 +65,7 @@ import {
 import { cloudCredential, normalizeBase, planRecordForUrl, readCloudFile, writeCloudFile } from './cloudStore'
 import { CLI_TOKEN_PATH } from './cliToken'
 import { choosePlanOpen, rememberPageOpened } from './openedPages'
+import { openInDesktopApp } from './desktopApp'
 import { readIteration } from './reviewRound'
 import { resolvePlanUrl } from './planTarget'
 
@@ -147,6 +148,7 @@ Without --plan or --config, theme get/set uses ~/.config/living-plan/live-plan.c
 Service state and diagnostic logs live under ~/.config/living-plan (LIVE_PLAN_HOME / LIVE_PLAN_LOG_HOME override).
 --no-open skips launching a browser.
 serve and review open a plan page only the first time on this machine. Resuming the same plan leaves the open tab alone. --open opens it again.
+On macOS, a plan or the dashboard on this machine's service opens in the Living Plan desktop app when it is installed (living-plan://plans/<id>), and in the browser otherwise. LIVE_PLAN_DESKTOP=0 always uses the browser.
 --version prints the package version and exits. -v is the short flag.
 --detach is accepted and does nothing: serve returns by default.
 events prints a submission that arrived while it was stopped immediately, then exits. Start it again after every comment, denial, or approval so a pending event is not left on the server.
@@ -226,7 +228,8 @@ async function openPlanPage(url: string): Promise<void> {
     if (!hasFlag(argv, '--no-open')) console.log('Page already opened before. Not opening it again (pass --open to reopen).')
     return
   }
-  await openBrowser(url)
+  // The desktop app when it is installed, otherwise the browser, where an installed web app can take it.
+  if (!(await openInDesktopApp(url))) await openBrowser(url)
   await rememberPageOpened(url).catch(() => undefined)
 }
 
@@ -1423,7 +1426,8 @@ async function cmdDashboard(args: string[]): Promise<number> {
   }
   const url = new URL('/dashboard', registry.url).href
   console.log(`Plan dashboard: ${url}`)
-  await openBrowser(url)
+  if (hasFlag(args, '--no-open')) return 0
+  if (!(await openInDesktopApp(new URL('/dashboard', registryBindUrl(registry)).href))) await openBrowser(url)
   return 0
 }
 

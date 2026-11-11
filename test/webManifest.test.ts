@@ -22,6 +22,9 @@ test('the manifest has what browsers need to offer install', async () => {
   assert.equal(manifest.id, '/')
   assert.equal(manifest.start_url, '/dashboard')
   assert.equal(manifest.scope, '/')
+  // A plan link opened from the CLI lands in the installed app, in a window of its own.
+  assert.equal(manifest.handle_links, 'preferred')
+  assert.deepEqual(manifest.launch_handler, { client_mode: ['navigate-new', 'auto'] })
   for (const purpose of ['any', 'maskable'] as const) {
     const sizes = manifest.icons.filter((entry) => entry.purpose === purpose).map((entry) => entry.sizes)
     assert.ok(sizes.includes('192x192'), `a 192px ${purpose} icon is listed`)

@@ -14,6 +14,7 @@ import {
   servicePackageJson,
   sidecarFileName,
 } from '../scripts/build-desktop.ts'
+import { DESKTOP_SCHEME } from '../src/desktopApp.ts'
 
 const root = resolve(import.meta.dir, '..')
 const tauriConfig = JSON.parse(readFileSync(join(root, 'src-tauri/tauri.conf.json'), 'utf8'))
@@ -43,6 +44,27 @@ test('the app ships the staged service and takes its version from package.json',
   assert.equal(tauriConfig.version, '../package.json')
   assert.equal(tauriConfig.build.beforeBuildCommand, 'bun run desktop:stage')
   assert.equal(pkg.scripts['desktop:stage'], 'bun scripts/build-desktop.ts')
+})
+
+test('the app registers the scheme the CLI opens, and ships for macOS', () => {
+  assert.deepEqual(tauriConfig.plugins['deep-link'].desktop.schemes, [DESKTOP_SCHEME])
+  assert.deepEqual(tauriConfig.bundle.targets, ['app', 'dmg'])
+  // The bundled Bun's own minimum.
+  assert.equal(tauriConfig.bundle.macOS.minimumSystemVersion, '13.0')
+})
+
+test('the signed app keeps the entitlements Bun needs for its JIT', () => {
+  assert.equal(tauriConfig.bundle.macOS.entitlements, './Entitlements.plist')
+  const entitlements = readFileSync(join(root, 'src-tauri/Entitlements.plist'), 'utf8')
+  for (const key of [
+    'com.apple.security.cs.allow-jit',
+    'com.apple.security.cs.allow-unsigned-executable-memory',
+    'com.apple.security.cs.disable-executable-page-protection',
+    'com.apple.security.cs.allow-dyld-environment-variables',
+    'com.apple.security.cs.disable-library-validation',
+  ]) {
+    assert.match(entitlements, new RegExp(`<key>${key.replaceAll('.', '\\.')}</key>\\s*<true/>`), key)
+  }
 })
 
 test('the host triple comes from rustc -vV', () => {

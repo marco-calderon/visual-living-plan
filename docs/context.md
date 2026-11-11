@@ -43,7 +43,8 @@ The service and the private server are Elysia apps. Route handlers live in `src/
 | `src/routes/`, `src/entry.ts`, `src/client.tsx` | The web application on that Worker. TanStack Start. `src/client.tsx` is the browser entry, registers the shell cache, and on a secure origin keeps a device copy of the open plan, the account, and the dashboard. The browser still compiles the plan MDX |
 | `test/` | Bun test runner via `bun test ./test` |
 | `examples/rate-limit.plan.md` | The fixture plan used by service tests |
-| `src-tauri/`, `desktop/`, `scripts/build-desktop.ts` | The desktop app ([ADR 0036](architecture/decisions/0036-desktop-app.md)). A Tauri window whose splash page (`desktop/`) calls `connect`, which runs the bundled CLI's `dashboard --json --any-version` and loads the dashboard. `desktop:stage` bundles `src/cli.ts` into `src-tauri/service/` with the files it reads beside itself, and copies Bun to `src-tauri/binaries/` |
+| `src-tauri/`, `desktop/`, `scripts/build-desktop.ts`, `scripts/desktop-icon/` | The Mac app ([ADR 0036](architecture/decisions/0036-desktop-app.md)). A Tauri window whose splash page (`desktop/`) calls `connect`, which runs the bundled CLI's `dashboard --json --any-version` and loads the dashboard, or the plan a `living-plan://` link asked for. `desktop:stage` bundles `src/cli.ts` into `src-tauri/service/` with the files it reads beside itself, and copies Bun to `src-tauri/binaries/`. `desktop:icons` draws the icon |
+| `src/desktopApp.ts` | `serve`, `review`, and `dashboard` hand a local plan or the dashboard to the Mac app as `living-plan://plans/<id>` or `living-plan://dashboard` when it is installed, and fall back to the browser ([ADR 0037](architecture/decisions/0037-plans-open-in-the-desktop-app.md)) |
 
 Home directory for the service is `~/.config/living-plan` (`$XDG_CONFIG_HOME/living-plan` when set), or `LIVE_PLAN_HOME` when set. The lock file is `registry.json`. The database is `registry.sqlite`. Development logs are under `logs/` in that home, or `LIVE_PLAN_LOG_HOME` when set. Older `~/.visual-living-plan` and `~/.living-plan` trees are migrated when idle ([ADR 0017](architecture/decisions/0017-xdg-config-home.md)).
 
@@ -62,6 +63,7 @@ Home directory for the service is `~/.config/living-plan` (`$XDG_CONFIG_HOME/liv
 - The agent-facing commands are `check`, `serve`, `events`, `mode`, `reply`, and `close` ([ADR 0035](architecture/decisions/0035-six-plan-commands.md)). Keep `review`, `watch`, `wait`, `addressing`, and `address` working as shortcuts. After an approval the run follows the plan file; an explicit `execution stop` turns that off until the next approval.
 - The service process stays running after `serve`, `events`, `wait`, `review`, `dashboard`, and `tui` exit, and after the desktop app quits.
 - The desktop app uses a running service of any version (`dashboard --any-version`) and never restarts one. It starts its own copy only when none is running.
+- A `living-plan://` link names a page by plan id, never by URL, so a link from a website can only open a page on the service the app is connected to.
 - The bundled service in the desktop app reads its files at the same paths relative to `dist/cli.js` as the npm package does. A new file the service reads at runtime goes into `SERVICE_ASSETS` in `scripts/build-desktop.ts`. A dependency must still bundle with `bun build`.
 - A `workflow` block is required in a plan. `check` fails without it.
 - While execution is active, plan forms and review return HTTP 409.
@@ -79,7 +81,7 @@ bun run typecheck
 bun run test:e2e
 ```
 
-The desktop app (`src-tauri/`) also needs Rust, and on Linux the Tauri system packages. `bun run desktop` opens a development window and `bun run desktop:build` writes installers. Its Rust tests are `cargo test --manifest-path src-tauri/Cargo.toml`, after `bun run desktop:stage` has put the staged service and Bun in place.
+The desktop app (`src-tauri/`) also needs Rust. It ships for macOS: `bun run desktop:build` on a Mac writes the `.app` and a `.dmg`. `bun run desktop` opens a development window on any platform with the Tauri prerequisites, but `living-plan://` links reach only a bundled app. Its Rust tests are `cargo test --manifest-path src-tauri/Cargo.toml`, after `bun run desktop:stage` has put the staged service and Bun in place.
 
 `bun test ./test` is the same as `bun run test`. Service behavior is covered in `test/planService.test.ts`. The older registry catalog is covered in `test/registry.test.ts`. A few unit tests open headless Chromium through Playwright, so they fail until the browser is installed.
 
@@ -94,7 +96,7 @@ The desktop app (`src-tauri/`) also needs Rust, and on Linux the Tauri system pa
 | `Unit tests` | `bun run typecheck`, then `bun run test` |
 | `E2E tests` | `bun run test:e2e`. Traces of failed tests are uploaded as the `playwright-results` artifact |
 
-`publish.yml` calls the same workflow, so a release is published to npm only when both checks pass. `desktop.yml` builds the desktop app on macOS, Linux, and Windows for pull requests that touch it, by hand, and for a published release, where it attaches the installers to the release. To block a merge on a failure, a repository admin requires the `Unit tests` and `E2E tests` checks on `main` in Settings → Rules → Rulesets (or Settings → Branches).
+`publish.yml` calls the same workflow, so a release is published to npm only when both checks pass. `desktop.yml` builds the Mac app for Apple silicon and Intel for pull requests that touch it, by hand, and for a published release, where it attaches the `.dmg` files to the release. To block a merge on a failure, a repository admin requires the `Unit tests` and `E2E tests` checks on `main` in Settings → Rules → Rulesets (or Settings → Branches).
 
 When a change alters how plans are hosted, how agents are notified, or what survives a restart, add an architecture decision under [docs/architecture/decisions](architecture/decisions/README.md) and update [docs/architecture/README.md](architecture/README.md) if the current picture changed. Update [docs/agent-guidelines.md](agent-guidelines.md) and [skills/live-plan/SKILL.md](../skills/live-plan/SKILL.md) when the CLI contract changes. Leave [skills/live-plan/primitives.md](../skills/live-plan/primitives.md) alone unless the plan vocabulary changed.
 

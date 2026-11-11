@@ -33,7 +33,7 @@
     "desktop": "tauri dev",
     "desktop:build": "tauri build",
     "desktop:stage": "bun scripts/build-desktop.ts",
-    "desktop:icons": "tauri icon src/favicon.png --output src-tauri/icons && rm -rf src-tauri/icons/android src-tauri/icons/ios src-tauri/icons/Square*.png src-tauri/icons/StoreLogo.png",
+    "desktop:icons": "bun scripts/desktop-icon/generate.ts",
     "build:client": "vite build --config vite.client.config.ts",
     "build:shell-worker": "bun build src/shellWorker.ts --outfile=src/shellWorker.js --target=browser --format=esm --banner '// Generated from src/shellWorker.ts. Do not edit.'",
     "dev": "vite dev --host 127.0.0.1 --port 3000",

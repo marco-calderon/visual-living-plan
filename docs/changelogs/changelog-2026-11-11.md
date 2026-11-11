@@ -8,18 +8,24 @@
 
 ### Summary
 
-Living Plan is now a desktop app for macOS, Linux, and Windows. It opens the dashboard and your plans in their own window, starts the plan service by itself, and needs no Bun, npm, or CLI install.
+Living Plan is now a Mac app. It opens the dashboard and your plans in their own windows, starts the plan service by itself, and needs no Bun, npm, or CLI install. When it is installed, a plan an agent serves opens in it; without it, the plan opens in the installed web app or a new tab.
 
 ### New features
 
-- A desktop app built with Tauri (`src-tauri/`). It ships the CLI and the Bun runtime, starts the plan service when none is running, and opens the dashboard. Plans open in the same window, and a plan opened from the Plans menu gets its own window. Other links open in your browser.
+- A Mac app built with Tauri (`src-tauri/`), for macOS 13 or later on Apple silicon and Intel. It ships the CLI and the Bun runtime, starts the plan service when none is running, and opens the dashboard. Plans open in the same window, and a plan opened from the Plans menu gets its own window. Other links open in your browser.
+- `serve`, `review`, and `dashboard` open a local plan or the dashboard in the Mac app when it is installed, through `living-plan://plans/<id>` and `living-plan://dashboard`. The app focuses the window that already shows that plan, or opens one. `LIVE_PLAN_DESKTOP=0` keeps them in the browser.
 - The app uses a plan service that agents already started, whatever its version, and leaves it running when it quits.
-- `bun run desktop` opens a development window, and `bun run desktop:build` writes `.deb`, `.rpm`, `.app`, `.dmg`, and Windows installers. The Desktop workflow builds them on macOS, Linux, and Windows and attaches them to each GitHub release.
+- A Mac app icon on Apple's icon grid. `bun run desktop:icons` redraws it.
+- `bun run desktop` opens a development window, and `bun run desktop:build` writes the `.app` and a `.dmg`. The Desktop workflow builds both architectures and attaches the `.dmg` files to each GitHub release.
 - `live-plan dashboard --json` prints the dashboard and service address as one JSON line and opens nothing. `--any-version` uses a running service of another version instead of restarting it.
+
+### Improvements
+
+- The installed web app claims plan links: in Chrome or Edge with link capturing, a plan the CLI opens in the browser opens in the web app's own window instead of a tab.
 
 ### Notes
 
-The installers are not signed yet, so macOS and Windows warn on first launch. The app window takes its title from the page, remembers its size and position, and saves downloads to the Downloads folder. Agents keep using `npx --yes visual-living-plan`; `serve` still opens the default browser. No plan format changes. `SHELL_CACHE_VERSION` moves to 2.22.0.
+The app is signed ad hoc, not notarized, so the first launch asks you to allow it in System Settings, Privacy & Security. Linux and Windows builds come later. A hosted plan (`--cloud`) still opens in the browser. Agents keep using `npx --yes visual-living-plan`. No plan format changes. `SHELL_CACHE_VERSION` moves to 2.22.0.
 
 ## 2.21.0
 
