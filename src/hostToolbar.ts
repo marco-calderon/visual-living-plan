@@ -33,7 +33,7 @@ export const DESKTOP_MODE_SIDES: readonly DesktopModeSide[] = [
 ]
 
 /**
- * The Local and Cloud switch in a toolbar. Styles hide it in a browser. Inside the desktop app the
+ * The Local and Cloud switch in a toolbar with no account menu. Styles hide it in a browser. Inside the desktop app the
  * other side is a `living-plan://switch/<mode>` link, which the app follows ([ADR 0038]).
  *
  * [ADR 0038]: ../docs/architecture/decisions/0038-desktop-setup-and-cloud.md

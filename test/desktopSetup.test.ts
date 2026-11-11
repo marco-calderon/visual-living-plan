@@ -18,6 +18,8 @@ import {
 import { pendingDesktopAppearance } from '../src/desktopBridge.ts'
 import { desktopModeSwitchHtml } from '../src/hostToolbar.ts'
 import { DesktopModeSwitch } from '../src/DesktopModeSwitch.tsx'
+import { HostBar } from '../src/HostBar.tsx'
+import { PlanShell, type PlanShellProps } from '../src/PlanShell.tsx'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { loadThemeConfig } from '../src/theme.ts'
@@ -223,6 +225,28 @@ test('the React toolbar switch draws the same markup as the HTML one', () => {
   for (const host of ['local', 'cloud'] as const) {
     assert.equal(renderToStaticMarkup(createElement(DesktopModeSwitch, { host })), desktopModeSwitchHtml(host))
   }
+})
+
+test('the account menu carries the switch, so a toolbar with one leaves it out', () => {
+  const plan: PlanShellProps = {
+    title: 'A plan',
+    source: '# A plan\n',
+    mode: 'watch',
+    host: 'cloud',
+    pageWidth: 'default',
+    accent: 'blue',
+    diffsTheme: 'soft',
+    wrapCode: false,
+    basePath: '/plans/abc',
+  }
+  const signedIn = renderToStaticMarkup(createElement(PlanShell, { ...plan, accountLabel: 'me' }))
+  assert.doesNotMatch(signedIn, /class="desktop-mode"/)
+  assert.match(signedIn, /data-account-menu="" data-label="me" data-host="cloud"/)
+  const signedOut = renderToStaticMarkup(createElement(PlanShell, plan))
+  assert.match(signedOut, /class="desktop-mode"/)
+  const bar = renderToStaticMarkup(createElement(HostBar, { title: 'Account', label: 'me' }))
+  assert.doesNotMatch(bar, /class="desktop-mode"/)
+  assert.match(bar, /data-host="cloud"/)
 })
 
 test('a hosted page saves the setup look once per choice', () => {
