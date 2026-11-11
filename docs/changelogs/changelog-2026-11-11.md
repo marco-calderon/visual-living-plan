@@ -2,7 +2,7 @@
 
 ## 2.21.0
 
-**PR:** to be added when the PR opens
+**PR:** [#182](https://github.com/marco-calderon/visual-living-plan/pull/182)
 
 **Bump:** minor
 
