@@ -39,6 +39,8 @@ import {
 } from './theme'
 import { planToExpectedGraph, withPlannedWorkflow } from './workflow'
 import { planNotReadyReason } from './planReady'
+import { INVALID_ITERATION, readIteration, UNREAD_VERDICT } from './reviewRound'
+import { approvesRun, nextRunState } from './runFollow'
 import type { PlanMode } from './processRecord'
 import type {
   CommentReply,
@@ -128,6 +130,11 @@ export type PlanSession = {
   touch: () => void
   snapshot: () => PlanSessionSnapshot
   setMode: (mode: PlanMode, iteration?: number) => void
+  /**
+   * Start a review round. A verdict no agent has received yet is kept instead, so a `review` started
+   * again after a drop prints it. Returns false when the verdict was kept and the mode left alone.
+   */
+  enterReview: (iteration?: number) => boolean
   updateMode: (body: unknown, request?: Request) => unknown
   offlineSnapshot: () => PlanSnapshot
   page: () => Response
@@ -607,11 +614,24 @@ export async function openPlanSession(options: {
       graph: next.graph,
       scene: next.scene,
       updatedAt: Date.now(),
+      ...(next.follow ? { follow: next.follow } : {}),
     }
     const view = executionView()
     broadcast('execution', { ...view, revision })
     persist()
     return view
+  }
+
+  /**
+   * Start or end the run the way the plan file says (`runFollow.ts`). Every step done or one failed
+   * ends it. Only a new plan source (`mayStart`) can start it, after an approval. Returns true when the
+   * run changed; the change was then broadcast.
+   */
+  function settleRun(mayStart = false): boolean {
+    const change = nextRunState(executionView(), { mayStart })
+    if (!change) return false
+    setExecution({ ...execution, active: change.active, step: execution.step ?? (change.active ? 'Executing' : undefined) })
+    return true
   }
 
   let heldReason: string | undefined
@@ -659,7 +679,8 @@ export async function openPlanSession(options: {
       }).catch(() => undefined)
     }
     broadcast('reload', { at: Date.now(), changed: diffs.filter((diff) => diff.status !== 'unchanged').length })
-    broadcast('execution', { ...executionView(), revision })
+    // A phase marked active, done, or failed can start or end the run.
+    if (!settleRun(true)) broadcast('execution', { ...executionView(), revision })
     persist()
   }
 
@@ -700,8 +721,10 @@ export async function openPlanSession(options: {
     }
     pushEvent('interaction', response)
     broadcast('interaction', response)
+    // An approve gate answered yes lets the agent's next edit of the plan file start the run.
+    if (approvesRun({ response })) execution = { ...execution, follow: 'armed' }
     // An answered step is done on the workflow too.
-    broadcast('execution', { ...executionView(), revision })
+    if (!settleRun()) broadcast('execution', { ...executionView(), revision })
     persist()
   }
 
@@ -740,6 +763,8 @@ export async function openPlanSession(options: {
       mode = 'watch'
       broadcast('mode', { mode, iteration, review: reviewResult })
     }
+    // From here the run follows the plan file: the agent's next edit with a phase past pending starts it.
+    if (approvesRun({ decision })) execution = { ...execution, follow: 'armed' }
     persist()
   }
 
@@ -890,22 +915,28 @@ export async function openPlanSession(options: {
   function updateExecution(body: unknown): unknown {
     touch()
     const payload = jsonBody(body, true) as Partial<ExecutionState>
-    const view = setExecution({
+    const stopping = execution.active && !payload.active
+    const follow = stopping ? 'off' : execution.follow
+    setExecution({
       active: Boolean(payload.active),
       step: payload.step ? String(payload.step) : undefined,
       detail: payload.detail ? String(payload.detail) : undefined,
       graph: payload.graph,
       scene:
         payload.scene && typeof payload.scene === 'object' ? (payload.scene as Record<string, unknown>) : undefined,
+      ...(follow ? { follow } : {}),
     })
-    return { ok: true, execution: view }
+    settleRun()
+    return { ok: true, execution: executionView() }
   }
 
   function changeExecution(action: ExecutionAction, body: unknown): unknown {
     touch()
     const patch = readExecutionPatch(jsonBody(body, false))
-    const view = setExecution(applyExecutionChange(execution, action, patch))
-    return { ok: true, execution: view }
+    setExecution(applyExecutionChange(execution, action, patch))
+    // A pushed graph with every step done ends the run.
+    settleRun()
+    return { ok: true, execution: executionView() }
   }
 
   function startExecution(body: unknown): unknown {
@@ -944,6 +975,7 @@ export async function openPlanSession(options: {
       agentClients,
       {
         mode,
+        iteration,
         pendingInteractionIds: pendingInteractionIds(),
         responses,
         review: reviewResult ?? null,
@@ -1072,6 +1104,17 @@ export async function openPlanSession(options: {
     return result
   }
 
+  /**
+   * An agent's listener printed this comment. The page shows it in progress (Addressing, or Working on a
+   * minibar message) without a separate `addressing` call. `reply` or `address` answers it.
+   */
+  function markReceived(commentId: unknown, at: number): void {
+    const comment = comments.find((entry) => entry.id === commentId)
+    if (!comment || comment.addressedAt || comment.addressingAt) return
+    comment.addressingAt = at
+    broadcast('comment', { ...comment, replies: comment.replies?.map((reply) => ({ ...reply })) })
+  }
+
   function markAddressing(commentId: string, request?: Request): unknown {
     touch()
     const gate = guarded('addressing', {}, request, true)
@@ -1099,7 +1142,10 @@ export async function openPlanSession(options: {
     const delivered: string[] = []
     for (const event of eventLog) {
       if (!wanted.has(event.id)) continue
-      if (event.deliveredAt == null) event.deliveredAt = now
+      if (event.deliveredAt == null) {
+        event.deliveredAt = now
+        if (event.event === 'comment') markReceived((event.data as { id?: unknown } | null)?.id, now)
+      }
       delivered.push(event.id)
     }
     persist()
@@ -1131,15 +1177,30 @@ export async function openPlanSession(options: {
     persist()
   }
 
+  /** The person sent a verdict and no agent has acked its `review` row yet. */
+  function verdictUnread(): boolean {
+    if (!reviewResult?.decision) return false
+    return eventLog.some((event) => event.event === 'review' && event.deliveredAt == null)
+  }
+
+  function enterReview(nextIteration?: number): boolean {
+    if (verdictUnread()) return false
+    setMode('review', nextIteration)
+    return true
+  }
+
   function updateMode(body: unknown, request?: Request): unknown {
     touch()
     const gate = guarded('mode', body, request, false)
     if (gate.replay) return gate.replay
-    const payload = jsonBody(gate.body, true) as { mode?: unknown }
+    const payload = jsonBody(gate.body, true) as { mode?: unknown; iteration?: unknown }
     const next = payload.mode
     if (next !== 'watch' && next !== 'comment' && next !== 'review') throw new HttpError(400, 'Invalid mode')
-    setMode(next)
-    const result = { ok: true, mode }
+    const nextIteration = readIteration(payload.iteration)
+    if (nextIteration === 'invalid') throw new HttpError(400, INVALID_ITERATION)
+    if (next === 'review' && verdictUnread()) throw new HttpError(409, UNREAD_VERDICT)
+    setMode(next, nextIteration)
+    const result = { ok: true, mode, iteration }
     note(gate.key, gate.body, result)
     return result
   }
@@ -1213,6 +1274,7 @@ export async function openPlanSession(options: {
     touch,
     snapshot,
     setMode,
+    enterReview,
     updateMode,
     offlineSnapshot,
     page,

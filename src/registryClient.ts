@@ -364,6 +364,34 @@ export async function ensureRegistry(options: {
   throw new Error(`Timed out starting the live-plan registry. See ${join(home, 'registry.log')}`)
 }
 
+/**
+ * Start the service again for a client whose stream it dropped, when it died without cleaning up.
+ *
+ * It acts only when the lock is still there and its process is gone, which is what a crash leaves.
+ * A service that stopped on purpose (`stopRegistry`, a version restart, a test) removes its lock, and
+ * one that is starting holds the starting lock: both are left alone. It never stops a running service,
+ * whatever its version, so two CLI versions do not take turns restarting it. The new process binds the
+ * same host and port the lock recorded. Returns true when a service is running again.
+ */
+export async function reviveRegistry(options: { entryFile: string; home?: string }): Promise<boolean> {
+  const home = options.home ?? defaultRegistryHome()
+  const lock = await readRegistryLock(home)
+  if (!lock || isPidAlive(lock.pid)) return false
+  const age = await startingLockAge(home)
+  if (age !== null && age < STARTING_STALE_MS) return false
+  await rm(registryStartingPath(home), { force: true })
+  if (!(await acquireStartingLock(home))) return false
+  try {
+    const current = await readRegistryLock(home)
+    if (!current || isPidAlive(current.pid)) return false
+    await rm(join(home, 'registry.json'), { force: true })
+    spawnDetachedRegistry(options.entryFile, lock.port, lock.host, home, process.env)
+    return (await waitForRunning(home, STARTING_STALE_MS)) !== null
+  } finally {
+    await rm(registryStartingPath(home), { force: true })
+  }
+}
+
 export type HostedPlan = {
   id: string
   url: string

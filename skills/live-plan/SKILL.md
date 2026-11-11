@@ -31,7 +31,7 @@ live-plan <command> [args]
 
 Do not call this repo's `npm run` scripts from a consuming project. Those are for developing Live Plan itself.
 
-`serve` registers the plan. Pass `--cloud` to host it on the signed-in cloud service (preferred, see Host). Without `--cloud` it goes to the local service on this machine. Without `--detach` it prints undelivered submissions and exits. The page and the service stay up after it exits. Pass `--detach` to register and return. `events` prints the next undelivered submissions and exits. Each time it exits because of a comment, a denial, an approval, or any other event, start it again so a submission that arrived while it was closed is not left pending. `watch` is the client you keep running after an approval, while the plan is executing. `wait` and `review` block until the human responds or `--timeout` fires.
+Six commands drive a plan: `check`, `serve`, `events`, `mode`, `reply`, and `close`. Each one names the plan by its file path, for example `events path/to/work.plan.md`. `serve` registers the plan, prints its URL, and returns. Pass `--cloud` to host it on the signed-in cloud service (preferred, see Host). `events` is the one listener: it prints what the person did on the page, and every verdict, answer, and comment arrives there. `mode` switches the page between watch, comment, and review. `reply` answers a comment. After an approval the run follows the plan file, so `execution` is optional. Every waiting command reconnects by itself when the connection drops or the service restarts (see Connection drops). `review`, `watch`, `wait`, `addressing`, and `address` still work as shortcuts.
 
 ## Host
 
@@ -39,14 +39,13 @@ Prefer the cloud host. Use the local session when the user asks for it, has no n
 
 | Host | Use it when | Command | Printed URL |
 |---|---|---|---|
-| Cloud (preferred) | By default. The https URL opens on any device, and a cloud agent can share it. | `serve --cloud`, `review --cloud` | `https://plan.logspace.qzz.io/plans/<id>/` |
-| Local | The user asks for it, is offline, or declines an account. | `serve`, `review` (no flag) | `http://127.0.0.1:9477/plans/<id>/` |
+| Cloud (preferred) | By default. The https URL opens on any device, and a cloud agent can share it. | `serve --cloud` | `https://plan.logspace.qzz.io/plans/<id>/` |
+| Local | The user asks for it, is offline, or declines an account. | `serve` (no flag) | `http://127.0.0.1:9477/plans/<id>/` |
 
-The CLI itself still defaults to local, so pass `--cloud` on every `serve` and `review` you want hosted.
+The CLI itself still defaults to local, so pass `--cloud` on every `serve` you want hosted.
 
 ```bash
-live-plan serve path/to/work.plan.md --cloud --detach
-live-plan review path/to/work.plan.md --cloud
+live-plan serve path/to/work.plan.md --cloud
 ```
 
 ### Signed in?
@@ -58,7 +57,7 @@ Run `serve --cloud` and read the result. Do not print `cloud.json`, because it h
 | An https plan URL | Signed in | Continue with the Loop |
 | `No hosted account. Run live-plan account login ...` | Never signed in on this machine | Sign-in journey below |
 | `Sign in required` | The saved session expired or was revoked | Sign-in journey below |
-| `This free account can have 1 plan with an agent listening at once. ...` | Every slot has an agent listening (`serve --cloud`, `events`, `watch`, `wait`, or `review`) | Stop the agent on another plan, or `close --url <that-plan-url>`, or ask whether to use the local session |
+| `This free account can have 1 plan with an agent listening at once. ...` | Every slot has an agent listening (`events`, or a shortcut such as `review`) | Stop the listener on another plan, or `close <that-plan-file>`, or ask whether to use the local session |
 | `This free account can store 50 MB of plan versions and has ...` | Storage limit reached | Ask the user to delete plans they no longer need from the hosted dashboard, then run `serve --cloud` again |
 
 ### Sign-in journey
@@ -97,11 +96,11 @@ The token is a session of its own. It lasts 30 days and stays valid when the use
 
 ### Cloud details
 
-`bunx visual-living-plan` is the same program when `live-plan` is not installed. `LIVE_PLAN_CLOUD_URL` supplies the host when `--url` is omitted. `serve --cloud` and `review --cloud` print an https URL, write `cloudId` into the plan frontmatter, and keep the plan bearer in `cloud.json`. They do not start the local registry, and they do not fall back to local. Do not combine `--cloud` with `--no-registry`. Use that https URL with `events`, `wait`, `watch`, `mode`, `execution`, `addressing`, `reply`, `address`, `search`, and `close`. `dashboard`, `tui`, `logs`, and `lan` stay on this machine. Each upload from `serve --cloud`, `review --cloud`, or the file watcher publishes that plan document on the host. The host keeps the latest 10 versions and drops the oldest when an 11th is published.
+`bunx visual-living-plan` is the same program when `live-plan` is not installed. `LIVE_PLAN_CLOUD_URL` supplies the host when `--url` is omitted. `serve --cloud` prints an https URL, writes `cloudId` into the plan frontmatter, keeps the plan bearer in `cloud.json`, and keeps uploading the file while you edit it. It does not start the local registry, and it does not fall back to local. Do not combine `--cloud` with `--no-registry`. Later commands find the hosted plan from the file: `events path/to/work.plan.md` reads the `cloudId` and the record in `cloud.json`. `--url <https-url>` works too, and is needed only for a plan served from another machine. `dashboard`, `tui`, `logs`, and `lan` stay on this machine. Each upload from `serve --cloud` or its file watcher publishes that plan document on the host. The host keeps the latest 10 versions and drops the oldest when an 11th is published.
 
 ### Local session
 
-Omit `--cloud`. `serve` and `review` register the plan on this machine's service. `--host` defaults to `127.0.0.1`, and the printed URL is `http://127.0.0.1:9477/plans/<id>/`. Nothing leaves the machine, and no account is needed.
+Omit `--cloud`. `serve` registers the plan on this machine's service. `--host` defaults to `127.0.0.1`, and the printed URL is `http://127.0.0.1:9477/plans/<id>/`. Nothing leaves the machine, and no account is needed.
 
 ## When to use
 
@@ -125,77 +124,131 @@ The person opens the plan page once. After that, the tab they have follows the f
 ## Loop
 
 1. Write the plan: title, short summary, phases, a `<workflow>` component, then only the interactions you need now. The workflow component is required. It is the execution path. The page follows [DESIGN.md](../../DESIGN.md). Schemas are in [primitives.md](primitives.md).
-2. Validate: `bunx visual-living-plan check path/to/work.plan.md`.
-3. `serve --cloud --detach` the file so you get the URL back, or `review --cloud` when you need a verdict on the whole plan. If the user is not signed in, follow the sign-in journey under Host first. Drop `--cloud` for the local session. The page opens in the browser only the first time this machine serves that plan. See Resuming below.
-4. Start `events --url <printed-url>` in the background. It prints one JSON object per line and exits. Each line is `{ "event", "id", "seq", "data" }`. `event` is `comment`, `interaction`, `review`, or `edit`. An `edit` means a person changed the plan in the page editor and published it: read the plan file again before your next write. On a hosted plan, `events` writes their version into your plan file first, and an upload that missed it is refused until then. An approve/deny gate is an `interaction` with `approved`. A review verdict is `approve`, `deny`, or `iterate`. If submissions are already waiting on the server, this command prints them and exits immediately. If your agent can react to each line while a process runs, `events --url <printed-url> --follow` stays connected instead and prints each submission the moment it arrives, without changing the page mode. Nothing waits between reconnects then.
-5. When `events` exits because of a comment, a denial, an approval, or any other event, read the JSON and handle it. Then start `events` again before you do anything else. That reconnect is how you see a comment or other event that arrived while the previous process was closed. If the new process prints JSON and exits, more was pending: handle it and start `events` again. Repeat until `events` stays running, which means the server has nothing left to deliver. A comment has `id`, `partId`, `kind`, `excerpt`, and `text` on `data`. Answer every comment with the three commands below before you continue. The page does not show a reviewing state, an answered state, or your reply until you do. `reply` alone does not change the status.
-6. On review **deny**, stop the work. Reconnect `events` once anyway so a comment that arrived with the denial is not left pending. On **iterate**, edit the same file, bump `--iteration`, run `review` again, and keep reconnecting `events` whenever it exits. Review exits `0` approve, `1` deny, `2` iterate, `3` timeout. Use `wait <id> --url <printed-url>` only when you cannot continue without that one answer.
-7. On review **approve**, or an approve gate with `approved: true`, stop the waiting `events` process and open the execution client. Run `watch --url <printed-url>` in the background and leave it running. It switches the page to watch mode, which is the status view for execution. It stays up while you work. It prints a later comment or event without exiting.
-8. While `watch` is running, update the plan in place as the work progresses. Mark phase `status` and checklist `done`. Run `execution start`, then `execution push` whenever the workflow graph changes, then `execution stop` when the run is finished. The open page follows the file and those workflow updates in place, shows Executing from `start` to `stop`, and catches up by itself after a dropped connection. After `stop` it reads the workflow step statuses: Completed when every step is done, Stopped when a step failed, and Paused when work is left. So mark each phase `done` or `failed` before you stop. `push` does not turn a stopped run back on. Run `execution stop` when the work ends, also when it fails, or the page keeps showing Executing. Forms and review return HTTP 409 while execution is active. An edit that leaves the file empty or not compiling (an unclosed tag, for example) is not sent to the page: the page keeps the last good version, and `serve --cloud` prints `Plan not uploaded yet: <reason>`. Run `check <file>` to see the reason, then fix the file. If `watch` prints a submission, handle it and leave `watch` running. A comment uses the same three commands as step 5.
-9. After execution is finished and `execution stop` has run, stop the `watch` process. Closing it is safe then. Read any JSON it printed. If a person still needs to answer something, start `events` again and follow step 5.
+2. Validate: `check path/to/work.plan.md`.
+3. Show it: `serve path/to/work.plan.md --cloud`. It prints the URL and returns. Give the person the URL. If the user is not signed in, follow the sign-in journey under Host first. Drop `--cloud` for the local session. The page opens in the browser only the first time this machine serves that plan. See Resuming above.
+4. Listen: start `events path/to/work.plan.md` in the background. It prints one JSON object per line, acks it, and exits. Start it again each time it exits, before you do anything else: that is how you see what arrived while it was closed. If it prints and exits again, more was pending. Handle it and start it again. Repeat until it stays running, which means nothing is left to deliver. If your agent reads a running process's output line by line, start `events path/to/work.plan.md --follow` once instead and keep it (see One listener for the whole plan).
+5. Handle each line. A line is `{ "event", "id", "seq", "data" }`:
+   - `comment`: `data` has `id`, `partId`, `kind`, `excerpt`, and `text`. The page already shows it in progress. Do the work, then `reply <comment-id> path/to/work.plan.md --text "..."`. That writes your answer and marks the comment answered (see Answering a comment).
+   - `interaction`: the answer to a choice, form, questions block, or approve gate. An approve gate has `approved` on `data`.
+   - `review`: the verdict on the whole plan, with `decision` `approve`, `deny`, or `iterate`. See step 6.
+   - `edit`: a person changed the plan in the page editor and published it. Read the plan file again before your next write. On a hosted plan, `events` writes their version into your file first, and an upload that missed it is refused until then.
+   - `mode` (only with `--follow`): the session moved to another mode. It has no `id` and needs no answer.
+6. Ask for a verdict with `mode review path/to/work.plan.md --iteration 1`, then keep listening. The page shows Approve, Deny, and Iterate, and the answer arrives as a `review` line.
+   - **approve**: go to step 7. The page is back in watch mode.
+   - **iterate**: edit the same file, reply to the comments that came with it, then `mode review path/to/work.plan.md --iteration 2`, and so on.
+   - **deny**: stop the work. Keep listening once more so a comment that came with the denial is not left pending.
+   - `mode review` exits `1` while the person's last verdict has not reached any agent yet. Run `events` to read it, handle it, then switch again.
+7. Do the work. After an approve verdict, or an approve gate answered yes, the run follows the plan file. Mark the phase you start `status="active"`: your edit makes the page show Executing. The approval alone starts nothing, so the person can still answer and comment until your first edit after it. Mark each phase `done` or `failed` as it finishes. When every workflow step is done the run ends and the page shows Completed. A failed step ends it and shows Stopped. Setting a phase back to `active` starts it again. Keep listening the whole time. While the run is on, the page refuses new answers, comments, and verdicts (HTTP 409); `reply` still works. An edit that leaves the file empty or not compiling (an unclosed tag, for example) is not sent to the page: the page keeps the last good version, and `serve --cloud` prints `Plan not uploaded yet: <reason>`. Run `check <file>` to see the reason, then fix the file.
+8. When the work is finished, stop the listener. Run `close path/to/work.plan.md` when the plan should leave the service.
+
+`execution start`, `push`, and `stop` are still there for what the file cannot say: `push --graph` draws a custom live diagram, `start` runs a plan that had no approval, and `stop` ends a run by hand. After a manual `stop`, the file does not start the run again until the next approval.
 
 ```bash
 bunx visual-living-plan account login --url https://plan.logspace.qzz.io
-bunx visual-living-plan serve path/to/work.plan.md --cloud --detach
-bunx visual-living-plan serve path/to/work.plan.md --detach   # local session
-bunx visual-living-plan events --url <printed-plan-url>
-bunx visual-living-plan watch --url <printed-plan-url>
-bunx visual-living-plan wait fail-mode --url <printed-plan-url> --timeout 30m
-bunx visual-living-plan review path/to/work.plan.md --cloud --iteration 1 --timeout 4h
-bunx visual-living-plan execution start --url <printed-plan-url> \
-  --step "Implement middleware" --graph path/to/graph.json
-bunx visual-living-plan execution stop --url <printed-plan-url>
-bunx visual-living-plan addressing <comment-id> --url <printed-plan-url>
-bunx visual-living-plan reply <comment-id> --url <printed-plan-url> --text "..."
-bunx visual-living-plan address <comment-id> --url <printed-plan-url>
-bunx visual-living-plan search --url <printed-plan-url> --query redis --query '"fail open"'
-bunx visual-living-plan search --url <printed-plan-url> --query limiter --version all
+bunx visual-living-plan check path/to/work.plan.md
+bunx visual-living-plan serve path/to/work.plan.md --cloud
+bunx visual-living-plan serve path/to/work.plan.md            # local session
+bunx visual-living-plan events path/to/work.plan.md           # start again after it exits
+bunx visual-living-plan events path/to/work.plan.md --follow  # or keep one running
+bunx visual-living-plan reply <comment-id> path/to/work.plan.md --text "..."
+bunx visual-living-plan mode review path/to/work.plan.md --iteration 1
+bunx visual-living-plan close path/to/work.plan.md
+bunx visual-living-plan search path/to/work.plan.md --query redis --query '"fail open"'
 bunx visual-living-plan search --query "rate limit" --cloud   # every plan on the account
-bunx visual-living-plan search --query "ratelimit retyr" --fuzzy   # word starts and small typos too
 ```
 
 Replace the bunx prefix with `live-plan` when the command is installed.
 
+## One listener for the whole plan
+
+Use this when your agent sees a running process's output line by line, for example a background task whose new lines it reads while it works. If your agent only sees a command's output after it exits, keep the `events` loop above. Both read the same queue on the server, so you can switch between them at any point.
+
+```bash
+bunx visual-living-plan serve path/to/work.plan.md --cloud
+bunx visual-living-plan events path/to/work.plan.md --follow   # start once, keep it running
+```
+
+- It prints the same JSON lines as `events`, acks each one as it prints it, and does not exit on its own.
+- It also prints a line each time the session moves to another mode, for example `{"event":"mode","data":{"mode":"review","iteration":2}}`.
+- Change the mode with short commands while it runs. Nothing restarts:
+
+| To | Run | The listener prints |
+|---|---|---|
+| Ask for a verdict | `mode review <file> --iteration N` | a `mode` line, then a `review` line with `decision` when the person answers |
+| Handle approve or deny | nothing | the `review` line, then a `mode` line for `watch` |
+| Handle iterate | edit the file, reply to the comments, then `mode review <file> --iteration N+1` | the `review` line with `decision` `iterate`, later the new round's `mode` line |
+| Open comments without a review | `mode comment <file>` | a `mode` line |
+| Do the work | mark phases `active`, `done`, or `failed` in the file | comments and other submissions as they arrive |
+
+- Stop the listener when the plan is finished.
+
+## Connection drops
+
+Every command that waits on the plan (`events`, `events --follow`, `serve --listen`, and the shortcuts `watch`, `wait`, and `review`) reconnects by itself when the connection drops, the plan service restarts, or the network changes. It prints `Lost the plan stream (...)` on stderr, retries with a growing wait of up to 30 seconds, and prints `Reconnected to the plan stream.` when it is back. Submissions sent meanwhile wait on the server and print after the reconnect. Do not restart the command for this. On this machine, a plan service that crashed is started again by the command that was waiting on it.
+
+A command stops only when a retry cannot help:
+
+| Command | Exit | Meaning |
+|---|---|---|
+| `events`, `events --follow` | `1` | Refused: a wrong token, or a plan the service does not have. The message says which. |
+| `events --follow` | `0` | The plan was closed on this machine's service while it ran. |
+| `mode review` | `1` | A verdict from the person has not reached any agent yet. Read it with `events` first. |
+| `wait`, `review` | `3` | Its `--timeout` ran out. |
+| `wait`, `review` | `4` | Refused, or never connected. The message says why. |
+
+A command that never connects gives up after about ten seconds, so a wrong path or URL still fails fast. stdout stays JSON lines; the reconnect notes are on stderr.
+
 ## Answering a comment
 
-Run these three commands, in order, on the comment `id` from the event. Use the printed plan URL. They update the session. They do not print on `events` and they do not make `events` exit. A comment is allowed while execution is live.
+`events` prints the comment, and the page shows it in progress right away: a part comment shows the Addressing spinner, and a minibar message (`kind` `message`, or `partId` `review:message`) shows Working. Answer it with one command:
 
-1. `addressing <id> --url <printed-url>`. Sets `addressingAt`. The page shows the comment as reviewing. A part comment shows the Addressing spinner, and the corner icon switches to that spinner. A minibar message (`kind` `message`, or `partId` `review:message`) shows Working on that row and on the Messages button. Skip this when `addressingAt` is already set. Iterate does that for comments that were still open.
-2. `reply <id> --url <printed-url> --text "..."`. Appends `replies[].text`. That text is the answer the person reads. A minibar message shows it on the tray, and the tray opens. Any other comment shows it in that part's comment thread, and the popover opens. Write the reply even when you also edit the plan.
-3. `address <id> --url <printed-url>`. Sets `addressedAt`, clears `addressingAt`, and stores `outcome`. The default outcome is `implemented`. Pass `--outcome errored` or `--outcome issues` when that is the result. The page shows the comment as answered. A part comment says Addressed and the corner icon clears. A minibar message shows Implemented, Errored, or Had issues.
+```bash
+bunx visual-living-plan reply <comment-id> path/to/work.plan.md --text "Renamed the step to Compile."
+```
 
-Do this as soon as you read the comment, before a long edit, so the page shows reviewing while you work. Then reply, then address when that comment is done.
+That writes your reply and marks the comment answered. A minibar message shows the reply on the tray and Implemented. A part comment shows it in its thread and says Addressed. Write the reply even when you also edit the plan. `reply` works while a run is on.
+
+- `--outcome errored` or `--outcome issues` records that the change failed or had problems. The default is `implemented`.
+- `--keep-open` writes the reply and leaves the comment open, for a question back to the person or an update on a long change. Reply again without it when you are done.
+- `addressing <comment-id> <file>` and `address <comment-id> <file>` still mark a comment in progress or answered on their own.
 
 ## Commands
 
 | Command | Use |
 |---|---|
 | `check <file>` | Parse check before showing the plan. Prints title, block types, interaction ids, and workflow nodes. Exits 1 when the workflow block is missing. |
-| `dump <file>` | Full parsed plan as JSON. |
-| `serve <file>` | Register the plan and print its URL. Pass `--cloud` (preferred) to host it on the signed-in service. Without it the plan goes to the local service (see Host). Without `--detach`, print undelivered submissions as JSON and exit. `--detach` returns after the URL. The page reloads when the file changes and stays up after this command exits. |
-| `review <file>` | Same page plus Approve / Deny / Iterate. `--cloud` (preferred) uses the signed-in host. Without it the plan stays local. Blocks until a decision, then leaves the plan open. Approve and deny return the session to watch. Iterate leaves it in review. |
-| `wait <id> --url <url>` | Block on the event stream until that interaction is answered. Prints the response JSON. |
-| `events --url <url>` | Print undelivered interactions, review verdicts, and comments as JSON, then exit. Pending rows already on the server are printed immediately. Start it again every time it exits. |
-| `watch --url <url>` | After an approval, switch the page to watch mode and stay running for the whole execution. Prints later submissions without exiting. Stop it when execution is finished. |
-| `mode <watch\|comment\|review> --url <url>` | Switch the open session and return. The tab follows: comment arms the part selector, review shows the verdict bar, watch is the status page. A comment stays in comment mode until the next `mode` command. `watch` above is the client that stays up. |
-| `addressing <comment-id> --url <url>` | Mark that comment reviewing. Sets `addressingAt`. A part comment shows Addressing. A minibar message shows Working. |
-| `reply <comment-id> --url <url> --text "..."` | Write the reply text. A minibar message shows it on the tray. A part comment shows it on that part. Does not change reviewing or answered. Saved with the session. |
-| `address <comment-id> --url <url>` | Mark that comment answered. Sets `addressedAt` and clears `addressingAt`. `--outcome` is `implemented` (default), `errored`, or `issues`. A part comment says Addressed. A minibar message shows Implemented, Errored, or Had issues. |
-| `close --url <url>` | Drop the plan from the service. |
+| `serve <file>` | Register the plan, print its URL, and return. Pass `--cloud` (preferred) to host it on the signed-in service and keep uploading the file. Without it the plan goes to the local service (see Host). The page reloads when the file changes and stays up. `--listen` also waits for the next submissions, as `events` does. |
+| `events <file>` | Print undelivered interactions, review verdicts, comments, and page edits as JSON lines, ack them, then exit. Pending rows are printed immediately. Start it again every time it exits. `--follow` stays running instead and also prints a `mode` line on every mode change. |
+| `mode <watch\|comment\|review> <file>` | Switch the open session and return. The tab follows: comment arms the part selector, review shows the verdict bar, watch is the status page. `--iteration N` sets the review round. `mode review` exits `1` while the last verdict has not reached an agent. |
+| `reply <comment-id> <file> --text "..."` | Answer a comment and mark it answered. `--outcome implemented` (default), `errored`, or `issues`. `--keep-open` leaves it open. |
+| `close <file>` | Drop the plan from the service. |
+| `execution start\|push\|stop <file>` | Optional after an approval, when the run follows the file. `push --graph` draws a custom live diagram. `start` runs a plan without an approval. `stop` ends a run by hand. A flag you leave out keeps its current value. |
 | `search --query TERMS` | Find terms across every plan on this machine's service, the same search as the dashboard. `--cloud` searches every plan on the signed-in account instead. Prints each plan with its link, then its hits. Terms in a plan's title count toward each of its blocks, and a title that holds every term lists the plan on its own. `--version all` adds saved versions; `--any`, `--fuzzy`, and `--json` work as below. Exits `0` with hits, `2` with none. |
-| `search --url <url> --query TERMS` | Find terms in one plan, block by block. Prints the block id, type, file line, and a snippet for each hit. Repeat `--query` for more terms; `"quotes"` keep a phrase. Every term must be in one block unless `--any`. `--version N` searches one saved version and `--version all` the live plan plus every saved one. `--fuzzy` also matches word starts, one or two typos, and words run together. Matching is exact without it. `--json` prints the response. Exits `0` with hits, `2` with none. Use it when you resume a plan, or to check an earlier decision before you change it. |
-| `execution start\|push\|stop --url <url>` | Turn the live workflow overlay on, update it, or turn it off. A flag you leave out keeps its current value. Same on a local and a `--cloud` URL. |
+| `search <file> --query TERMS` | Find terms in one plan, block by block. Prints the block id, type, file line, and a snippet for each hit. Repeat `--query` for more terms; `"quotes"` keep a phrase. Every term must be in one block unless `--any`. `--version N` searches one saved version and `--version all` the live plan plus every saved one. `--fuzzy` also matches word starts, one or two typos, and words run together. Matching is exact without it. `--json` prints the response. Exits `0` with hits, `2` with none. Use it when you resume a plan, or to check an earlier decision before you change it. |
+| `dump <file>` | Full parsed plan as JSON. |
 | `processes` | List plans hosted by the service (directory, git status, site URL). |
 | `logs` | Print the development log saved under `~/.config/living-plan/logs`. The page does not show it. `--level error`, `warn`, or `log`. `--day YYYY-MM-DD` reads one registry day. `--url` reads that plan. |
 | `dashboard` | Open the registry dashboard for running and executed plans. Its search field searches plan titles and text across every listed plan as you type, with fuzzy matching, live text by default. |
 | `lan on\|off\|status` | Opt in to LAN publishing. Off until `lan on`. Prints a LAN URL for other devices on the network. Agents keep the loopback URL from `serve`. |
 | `tui` | The registry in the terminal. Starts the plan service if it is down, and leaves it running on quit. `p` lists running plans. `d` is the dashboard (`--period day`, `week`, or `month`). Active plans are listed first. |
-| `account login --url https://plan.logspace.qzz.io` | Sign in or sign up before `serve --cloud` or `review --cloud`. Opens the browser sign-in page, which links to sign-up. Stores the session in `~/.config/living-plan/cloud.json`. `LIVE_PLAN_CLOUD_URL` supplies the host when `--url` is omitted. `--headless` prints the `/cli-token` page link and exits. `--token <token>` (or `--token -` for stdin) saves the token that page shows. |
+| `account login --url https://plan.logspace.qzz.io` | Sign in or sign up before `serve --cloud`. Opens the browser sign-in page, which links to sign-up. Stores the session in `~/.config/living-plan/cloud.json`. `LIVE_PLAN_CLOUD_URL` supplies the host when `--url` is omitted. `--headless` prints the `/cli-token` page link and exits. `--token <token>` (or `--token -` for stdin) saves the token that page shows. |
 | `theme get\|set` | Read or change the accent color. Use `--url` while serving, or `--plan` / `--config` to edit that plan's `live-plan.config.json`. Without those flags, uses `~/.config/living-plan/live-plan.config.json`. |
 
-`--timeout` defaults to 4 hours. Always pass a unit (`30s`, `45m`, `4h`). A bare number is milliseconds. `--port 0` picks a free port. `--host` defaults to `127.0.0.1`. On loopback, the printed URL is `http://127.0.0.1:9477/plans/<id>/`. When a cloud agent must share the URL, use `--cloud`. For the local session, set `--host` to a reachable address instead. `lan on` publishes the service to other devices on the same network and prints a different LAN URL. Do not replace the `serve` URL with that LAN URL, and do not resolve `living-plan.local` from the agent. `--no-open` never opens a browser. Use it on a resume, or for a headless run. `--open` reopens a page that was already opened once. `--detach` on `serve` registers and returns. Omit it to print undelivered submissions and exit. Start `events` again each time that process exits. After an approval, `watch` is the process that stays up until execution is finished. `--graph` is the portable execution payload; `--scene` is optional and adapter-specific. Per-plan accent color lives in `live-plan.config.json` beside the plan (`theme.accent`). Machine-wide theme (no `--plan`) lives under `~/.config/living-plan/`. Humans can also pick the accent on the Settings tab.
+Shortcuts, for agents and scripts that already use them:
 
-Pass `--cloud` for the preferred cloud host described under Host. Without that flag, `serve` and `review` stay on this machine.
+| Shortcut | Same as |
+|---|---|
+| `review <file>` | `serve`, `mode review`, and a blocking wait for the verdict. Exits `0` approve, `1` deny, `2` iterate, `3` timeout, `4` refused or never connected. `--iteration N`, `--timeout`, `--out file`. |
+| `watch <file>` | `mode watch`, then `events --follow`. |
+| `wait <id> <file>` | Block until that one interaction is answered and print it. Exits `3` on timeout, `4` when refused or never connected. |
+| `addressing <comment-id> <file>` | Mark a comment in progress by hand. |
+| `address <comment-id> <file>` | Mark a comment answered without a reply. `--outcome` as on `reply`. |
+
+Every plan command also takes `--url <plan-url>` in place of the file. Use it for a plan this machine did not serve.
+
+`--timeout` defaults to 4 hours. Always pass a unit (`30s`, `45m`, `4h`). A bare number is milliseconds. `--port 0` picks a free port. `--host` defaults to `127.0.0.1`. On loopback, the printed URL is `http://127.0.0.1:9477/plans/<id>/`. When a cloud agent must share the URL, use `--cloud`. For the local session, set `--host` to a reachable address instead. `lan on` publishes the service to other devices on the same network and prints a different LAN URL. Do not replace the `serve` URL with that LAN URL, and do not resolve `living-plan.local` from the agent. `--no-open` never opens a browser. Use it on a resume, or for a headless run. `--open` reopens a page that was already opened once. `serve` returns after registering; `--detach` is still accepted and does nothing. `--graph` is the portable execution payload; `--scene` is optional and adapter-specific. Per-plan accent color lives in `live-plan.config.json` beside the plan (`theme.accent`). Machine-wide theme (no `--plan`) lives under `~/.config/living-plan/`. Humans can also pick the accent on the Settings tab.
+
+Pass `--cloud` for the preferred cloud host described under Host. Without that flag, `serve` stays on this machine.
 
 ```bash
 bunx visual-living-plan theme set --accent #0369a1 --url <printed-plan-url>
@@ -285,11 +338,13 @@ Settings has Wrap text in code. Off, which is the start, long lines in a source 
 ## Rules
 
 - One plan file per task. Edit it in place.
-- Add an interaction only if you will `wait` on it or the human must answer it inside `review`.
-- When `events` exits on a comment, denial, approval, or other event, start `events` again and read any JSON it prints before you continue.
-- On every comment, run `addressing`, then `reply`, then `address`. The page stays without a reviewing state, an answered state, and a reply until those commands run.
-- After an approval, keep `watch` running while you update the plan and push workflow graphs. Stop `watch` only after execution is finished.
-- `execution stop` before `wait` or before expecting a review decision.
+- Name the plan by its file in every command. Use `--url` only for a plan this machine did not serve.
+- Add an interaction only if you need the answer before you continue, or the human must answer it inside a review.
+- When `events` exits, read the JSON it printed, handle it, and start `events` again before you continue. With one `events --follow` listener, keep that one running instead.
+- Do not restart a listener that printed `Lost the plan stream`. It reconnects by itself, and nothing sent meanwhile is lost.
+- Answer every comment with `reply`. The page shows your answer and marks it answered only after that command.
+- After an approval, mark phases `active`, `done`, or `failed` in the file as the work moves. The run starts and ends from those statuses.
+- Ask for a verdict only while no run is on. Finish or `execution stop` the run first.
 - Prefer `--cloud`. If the user has no account, walk them through the sign-in journey under Host before you fall back to the local session.
 - Let the CLI open the page the first time only. Do not pass `--open` on a resume, and pass `--no-open` when the person already has the page or cannot use a local browser.
 - Phase and callout bodies support headings, lists, pipe tables, fenced code, bold, italic, and inline code. The row under a table header is `| --- |`. `:---`, `---:`, and `:---:` align that column. A blank line ends the table. Cell text wraps between words to fit the column. Inline code stays on one line, and a word is never split, so a table with long code or many columns still scrolls sideways.

@@ -38,6 +38,7 @@ import {
   changeExecution,
   executionActive,
   liveExecution,
+  settleRun,
   markCommentAddressing,
   replyToComment,
   touchPlan,
@@ -232,10 +233,12 @@ export class PlanObject extends DurableObject {
         return text(500, error instanceof Error ? error.message : 'Unknown error')
       })
       .post('/internal/init', async ({ request }) => {
-        const body = (await request.json()) as { token: string; title: string; mode: string; tier: string; source: string }
+        const body = (await request.json()) as { token: string; title: string; mode: string; tier: string; source: string; iteration?: number }
         const result = initPlan(sql, body)
+        // A tab already open on the plan follows a new review round.
+        this.publish(result.outbound)
         await this.armAlarm()
-        return Response.json(result)
+        return Response.json({ revision: result.revision })
       })
       // Called by the Worker after a write, to keep the dashboard row current. /internal/ is not reachable from outside.
       .get('/internal/progress', async () => Response.json({ progress: planHosted(sql) ? await planProgress(sql) : null }))
@@ -266,6 +269,8 @@ export class PlanObject extends DurableObject {
           title: body.title,
         })
         // A phase marked done in the file moves its workflow step, and the page's status with it.
+        // After an approval it can also start or end the run.
+        await settleRun(sql, true)
         this.publish([...result.outbound, { event: 'execution', data: await liveExecution(sql) }])
         await this.armAlarm()
         return Response.json({ revision: result.revision })
@@ -279,6 +284,7 @@ export class PlanObject extends DurableObject {
           source: body.source,
           title: typeof body.title === 'string' ? body.title : undefined,
         })
+        await settleRun(sql, true)
         this.publish([...result.outbound, { event: 'execution', data: await liveExecution(sql) }])
         await this.armAlarm()
         return Response.json({ source: body.source, revision: result.revision })
@@ -288,13 +294,19 @@ export class PlanObject extends DurableObject {
       .post('/api/agent-events/ack', async ({ request }) => {
         if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'agent')) return text(401, 'Sign in required')
         const body = (await request.json()) as { ids?: string[] }
-        return Response.json({ ok: true, ...ackEvents(sql, body.ids ?? []) })
+        const { delivered, outbound } = ackEvents(sql, body.ids ?? [])
+        // A comment the agent received now shows in progress on open pages.
+        this.publish(outbound)
+        return Response.json({ ok: true, delivered })
       })
       .post('/api/interactions/:id', async ({ request, params }) => {
         if (!actorAllows(actorOf(request), authorizationOf(request), sql, 'submit')) return text(401, 'Sign in required')
         const response = await this.userWrite(request, sql, 'interaction', (body) => submitInteraction(sql, params.id, body))
-        // An answered step is done on the workflow too.
-        if (response.ok) this.publish([{ event: 'execution', data: await liveExecution(sql) }])
+        // An answered step is done on the workflow too, and can end the run.
+        if (response.ok) {
+          await settleRun(sql)
+          this.publish([{ event: 'execution', data: await liveExecution(sql) }])
+        }
         return response
       })
       .post('/api/comments', async ({ request }) => {
@@ -369,6 +381,8 @@ export class PlanObject extends DurableObject {
   /** Browsers get the run with the plan's workflow, the shape GET /api/execution returns. */
   private async publishExecution(result: { outbound: Outbound[]; body: unknown }): Promise<Response> {
     const sql = this.sql()
+    // A pushed graph with every step done ends the run.
+    await settleRun(sql)
     const view = await liveExecution(sql)
     this.publish([{ event: 'execution', data: view }, ...result.outbound.filter((item) => item.event !== 'execution')])
     await this.armAlarm()

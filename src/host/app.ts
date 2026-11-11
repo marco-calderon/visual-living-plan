@@ -12,6 +12,7 @@ import { LATEST_PLAN_VERSION_SQL, ensurePlanVersions, listPlanVersions, publishP
 import { formatBytes } from '../formatBytes'
 import { rehydrateRequest } from './rehydrateRequest'
 import { requestOrigin } from './requestOrigin'
+import { readIteration } from '../reviewRound'
 
 type PlanStub = {
   fetch(request: Request): Promise<Response>
@@ -321,10 +322,16 @@ async function cliToken(request: Request, env: HostEnv, auth: ReturnType<typeof 
   return Response.json({ token: minted.token, url: origin, expiresAt: minted.expiresAt })
 }
 
+/** The review round `review --cloud --iteration N` asked for. Anything that is not a whole number of 1 or more is dropped. */
+function roundOf(value: unknown): number | undefined {
+  const round = readIteration(value)
+  return round === 'invalid' ? undefined : round
+}
+
 async function registerPlan(request: Request, env: HostEnv, auth: ReturnType<typeof createAuth>, origin: string): Promise<Response> {
   const session = await readSession(auth, request, env.DB)
   if (!session || !allows('account', 'register')) return text(401, 'Sign in required')
-  const body = (await request.json().catch(() => null)) as { cloudId?: string; mode?: string; title?: string; markdown?: string } | null
+  const body = (await request.json().catch(() => null)) as { cloudId?: string; mode?: string; title?: string; markdown?: string; iteration?: unknown } | null
   if (!body) return text(400, 'Missing plan')
   const tier = normalizeTier(session.user.tier)
   const cloudId = body.cloudId && ID.test(body.cloudId) ? body.cloudId : crypto.randomUUID()
@@ -368,7 +375,7 @@ async function registerPlan(request: Request, env: HostEnv, auth: ReturnType<typ
     new Request('https://plan.internal/internal/init', {
       method: 'POST',
       headers: { 'x-living-plan-id': cloudId },
-      body: JSON.stringify({ token, title, mode, tier, source: body.markdown ?? '' }),
+      body: JSON.stringify({ token, title, mode, tier, source: body.markdown ?? '', iteration: roundOf(body.iteration) }),
     }),
   )
   if (!init.ok) return text(init.status, await init.text())

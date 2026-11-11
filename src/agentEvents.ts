@@ -118,7 +118,31 @@ async function hostedPlanUrl(planUrl: string): Promise<boolean> {
   return cloudCredential(await readCloudFile(), planUrl) !== null
 }
 
-/** Read hello and notice frames from the hosted plan socket. */
+/**
+ * The host refused the agent stream for a reason a retry does not change: a wrong token, a plan
+ * that is not there, or a full account. Reconnecting stops on this error.
+ */
+export class AgentStreamRefused extends Error {
+  readonly status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.name = 'AgentStreamRefused'
+    this.status = status
+  }
+}
+
+/** Statuses that come back the same on every try. A 5xx or a dropped connection is worth retrying. */
+export function refusalIsFinal(status: number): boolean {
+  return status === 400 || status === 401 || status === 402 || status === 403 || status === 404 || status === 410
+}
+
+/** The hosted object answers this frame itself, so the CLI can tell a live socket from a dead one. */
+const SOCKET_PING = 'ping'
+const SOCKET_PONG = 'pong'
+const SOCKET_PING_MS = 25_000
+
+/** Read hello and notice frames from the hosted plan socket. A `pong` is passed on as a `ping` event. */
 async function readAgentSocket(
   planUrl: string,
   token: string | undefined,
@@ -130,41 +154,74 @@ async function readAgentSocket(
   await new Promise<void>((resolveRead, reject) => {
     const headers = token ? { authorization: `Bearer ${token}` } : undefined
     const socket = new Socket(agentSocketUrl(planUrl), headers ? ({ headers } as unknown as string[]) : undefined)
-    const finish = (error?: Error) => {
+    let keepAlive: ReturnType<typeof setInterval> | undefined
+    let refused: Promise<Error> | null = null
+    let settled = false
+    // A failed upgrade fires `error` and then `close`. Wait for the reason before the read ends.
+    const settle = (error?: Error) => {
+      if (settled) return
+      settled = true
+      if (keepAlive) clearInterval(keepAlive)
       signal.removeEventListener('abort', onAbort)
       if (error) reject(error)
       else resolveRead()
     }
-    const onAbort = () => socket.close()
+    const onAbort = () => {
+      socket.close()
+      settle()
+    }
+    if (signal.aborted) {
+      onAbort()
+      return
+    }
     signal.addEventListener('abort', onAbort)
+    socket.addEventListener('open', () => {
+      keepAlive = setInterval(() => {
+        try {
+          socket.send(SOCKET_PING)
+        } catch {
+          // The close event ends the read.
+        }
+      }, SOCKET_PING_MS)
+    })
     socket.addEventListener('message', (message) => {
+      const raw = String(message.data)
+      if (raw === SOCKET_PONG) {
+        onEvent({ event: 'ping', data: null })
+        return
+      }
       try {
-        const parsed = JSON.parse(String(message.data)) as { event?: string; data?: unknown }
+        const parsed = JSON.parse(raw) as { event?: string; data?: unknown }
         if (parsed.event) onEvent({ event: parsed.event, data: parsed.data })
       } catch {
         // Ignore a frame that is not a plan event.
       }
     })
-    socket.addEventListener('close', () => finish())
     socket.addEventListener('error', () => {
-      void refusalReason(planUrl, token).then((reason) => finish(new Error(reason ?? 'Agent socket failed')))
+      refused ??= socketRefusal(planUrl, token)
+      void refused.then(settle)
+    })
+    socket.addEventListener('close', () => {
+      if (refused) void refused.then(settle)
+      else settle()
     })
   })
 }
 
 /**
  * A refused WebSocket upgrade hides the response body. Ask again over plain HTTP so a refusal the
- * host explains, such as the account's agent limit, reaches the person.
+ * host explains, such as the account's agent limit, reaches the person. Only the Worker answers that
+ * request the way it answers the upgrade, so only its 402 counts as final.
  */
-async function refusalReason(planUrl: string, token: string | undefined): Promise<string | null> {
+async function socketRefusal(planUrl: string, token: string | undefined): Promise<Error> {
   try {
     const response = await fetch(planApiUrl(planUrl, 'api/agent-events'), {
       headers: token ? { authorization: `Bearer ${token}` } : {},
     })
-    if (response.status !== 402) return null
-    return (await response.text()).trim() || null
+    if (response.status !== 402) return new Error('Agent socket failed')
+    return new AgentStreamRefused(402, (await response.text()).trim() || 'This account has no free agent slot.')
   } catch {
-    return null
+    return new Error('Agent socket failed')
   }
 }
 
@@ -184,8 +241,10 @@ export async function readAgentEvents(
   // Bun resets an idle fetch after five minutes. events and watch have to stay open until a person submits or the process is stopped.
   const response = await fetch(planApiUrl(planUrl, 'api/agent-events'), { headers, signal, timeout: false })
   if (!response.ok || !response.body) {
-    const text = await response.text()
-    throw new Error(text || `Agent event stream failed (${response.status})`)
+    const text = (await response.text()).trim()
+    const message = text || `Agent event stream failed (${response.status})`
+    if (refusalIsFinal(response.status)) throw new AgentStreamRefused(response.status, message)
+    throw new Error(message)
   }
 
   const reader = response.body.getReader()

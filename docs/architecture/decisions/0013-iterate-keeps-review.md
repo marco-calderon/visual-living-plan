@@ -1,6 +1,6 @@
 # ADR 0013: Iterate leaves the session in review
 
-- Status: Accepted
+- Status: Accepted. Entering review again keeps a verdict no agent has received ([ADR 0034](0034-listeners-reconnect-across-modes.md)). A comment an agent received is in progress without `addressing`, and `reply` also addresses it ([ADR 0035](0035-six-plan-commands.md)).
 - Date: 2026-10-18
 
 ## Context
