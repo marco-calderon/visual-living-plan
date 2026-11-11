@@ -52,11 +52,11 @@ live-plan --help
 live-plan check "$(npm root -g)/visual-living-plan/examples/rate-limit.plan.md"
 ```
 
-`check` prints the workflow block. That block is required: it is the execution path. `serve` and `review` draw it on the Workflow tab before a run starts. The page opens in a browser the first time a plan is served. Serving or reviewing the same plan again leaves the open tab alone. Pass `--no-open` when a browser should not launch, or `--open` to open it again.
+`check` prints the workflow block. That block is required: it is the execution path. `serve` and `review` draw it on the Workflow tab before a run starts. The page opens in a browser the first time a plan is served. Serving or reviewing the same plan again leaves the open tab alone. Pass `--no-open` when a browser should not launch, or `--open` to open it again. When Living Plan is installed as an app in Chrome, Edge, Brave, or Chromium, the page opens in that app window instead of a tab. Set `LIVE_PLAN_OPEN=browser` to always use a tab.
 
 The name is not on the registry until it is published. From a checkout, `npm publish --access public` packs the built CLI and uploads it. A GitHub release runs the same publish through `.github/workflows/publish.yml`, after a trusted publisher for `visual-living-plan` is configured on npm.
 
-`check` prints the workflow block. That block is required: it is the execution path. `serve` and `review` draw it on the Workflow tab before a run starts. The page opens in a browser the first time a plan is served. Serving or reviewing the same plan again leaves the open tab alone. Pass `--no-open` when a browser should not launch, or `--open` to open it again.
+`check` prints the workflow block. That block is required: it is the execution path. `serve` and `review` draw it on the Workflow tab before a run starts. The page opens in a browser the first time a plan is served. Serving or reviewing the same plan again leaves the open tab alone. Pass `--no-open` when a browser should not launch, or `--open` to open it again. When Living Plan is installed as an app in Chrome, Edge, Brave, or Chromium, the page opens in that app window instead of a tab. Set `LIVE_PLAN_OPEN=browser` to always use a tab.
 
 ### Review mode
 
