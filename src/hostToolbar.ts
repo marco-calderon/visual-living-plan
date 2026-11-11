@@ -17,6 +17,21 @@ export function historyBackScript(): string {
 
 export type PlanHost = 'local' | 'cloud'
 
+export type DesktopModeSide = { mode: PlanHost; label: string; paths: readonly string[] }
+
+/** The two sides of the Local and Cloud switch, drawn as Lucide's laptop and cloud icons. */
+export const DESKTOP_MODE_SIDES: readonly DesktopModeSide[] = [
+  {
+    mode: 'local',
+    label: 'Local',
+    paths: [
+      'M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z',
+      'M20.054 15.987H3.946',
+    ],
+  },
+  { mode: 'cloud', label: 'Cloud', paths: ['M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z'] },
+]
+
 /**
  * The Local and Cloud switch in a toolbar. Styles hide it in a browser. Inside the desktop app the
  * other side is a `living-plan://switch/<mode>` link, which the app follows ([ADR 0038]).
@@ -24,9 +39,13 @@ export type PlanHost = 'local' | 'cloud'
  * [ADR 0038]: ../docs/architecture/decisions/0038-desktop-setup-and-cloud.md
  */
 export function desktopModeSwitchHtml(host: PlanHost): string {
-  const side = (mode: PlanHost, label: string) =>
-    mode === host ? `<span aria-current="true">${label}</span>` : `<a href="living-plan://switch/${mode}">${label}</a>`
-  return `<nav class="desktop-mode" aria-label="Where plans run">${side('local', 'Local')}${side('cloud', 'Cloud')}</nav>`
+  const side = ({ mode, label, paths }: DesktopModeSide) => {
+    const icon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths.map((d) => `<path d="${d}"></path>`).join('')}</svg>`
+    return mode === host
+      ? `<span aria-current="true" aria-label="${label}" title="${label}">${icon}</span>`
+      : `<a href="living-plan://switch/${mode}" aria-label="${label}" title="${label}">${icon}</a>`
+  }
+  return `<nav class="desktop-mode" aria-label="Where plans run">${DESKTOP_MODE_SIDES.map(side).join('')}</nav>`
 }
 
 /** Title bar shared by the cloud dashboard and settings pages, and by the local dashboard. */
@@ -210,18 +229,15 @@ html[data-desktop] .desktop-mode {
 }
 .desktop-mode a,
 .desktop-mode span {
-  display: inline-flex;
-  align-items: center;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
   height: 28px;
-  padding: 0 12px;
   border-radius: 9999px;
   color: var(--muted, var(--steel));
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1;
   text-decoration: none;
-  white-space: nowrap;
 }
+.desktop-mode svg { display: block; width: 16px; height: 16px; }
 .desktop-mode [aria-current="true"] { background: var(--primary); color: var(--on-primary); }
 .desktop-mode a:hover { color: var(--ink); }
 .desktop-mode a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

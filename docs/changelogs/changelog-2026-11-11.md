@@ -6,11 +6,15 @@
 
 ### Summary
 
-The hosted plan page keeps its toolbar on one row at normal window widths, in the Mac app and in a browser.
+The hosted plan page keeps its toolbar on one row at normal window widths, and the Mac app's Local and Cloud switch is a pair of icons.
 
 ### Bugs fixed
 
 - On a hosted plan, a long title kept its full width, so the controls on the right wrapped and spilled out of the fixed-height toolbar: the Local and Cloud switch rose above it and the account menu dropped below it. The title now shortens with an ellipsis and the controls stay on one row.
+
+### Improvements
+
+- The Local and Cloud switch in the Mac app's toolbar shows a laptop and a cloud icon instead of the words, styled like the Plan and Workflow view buttons. Each side keeps its name as a tooltip and for screen readers. The narrower switch lets a hosted plan's toolbar fit down to the app's smallest window.
 
 ### Notes
 

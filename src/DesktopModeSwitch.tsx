@@ -1,9 +1,4 @@
-import type { PlanHost } from './hostToolbar'
-
-const SIDES: ReadonlyArray<{ mode: PlanHost; label: string }> = [
-  { mode: 'local', label: 'Local' },
-  { mode: 'cloud', label: 'Cloud' },
-]
+import { DESKTOP_MODE_SIDES, type PlanHost } from './hostToolbar'
 
 /**
  * The Local and Cloud switch in a toolbar. Same markup as `desktopModeSwitchHtml`: styles hide it in
@@ -12,17 +7,35 @@ const SIDES: ReadonlyArray<{ mode: PlanHost; label: string }> = [
 export function DesktopModeSwitch({ host }: { host: PlanHost }) {
   return (
     <nav className="desktop-mode" aria-label="Where plans run">
-      {SIDES.map((side) =>
-        side.mode === host ? (
-          <span key={side.mode} aria-current="true">
-            {side.label}
+      {DESKTOP_MODE_SIDES.map((side) => {
+        const icon = (
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            {side.paths.map((d) => (
+              <path key={d} d={d} />
+            ))}
+          </svg>
+        )
+        return side.mode === host ? (
+          <span key={side.mode} aria-current="true" aria-label={side.label} title={side.label}>
+            {icon}
           </span>
         ) : (
-          <a key={side.mode} href={`living-plan://switch/${side.mode}`}>
-            {side.label}
+          <a key={side.mode} href={`living-plan://switch/${side.mode}`} aria-label={side.label} title={side.label}>
+            {icon}
           </a>
-        ),
-      )}
+        )
+      })}
     </nav>
   )
 }
