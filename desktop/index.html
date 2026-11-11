@@ -5,10 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Living Plan</title>
     <link rel="stylesheet" href="splash.css" />
+    <link rel="stylesheet" href="setup.css" />
     <script type="module" src="splash.js"></script>
   </head>
-  <body>
-    <main class="splash" data-state="starting" aria-live="polite">
+  <body data-state="starting">
+    <!-- The window has no title bar on macOS. This strip moves it. -->
+    <header class="titlebar" data-tauri-drag-region="deep"></header>
+
+    <main class="splash" aria-live="polite">
       <svg class="mark" viewBox="0 0 1024 1024" aria-hidden="true">
         <g transform="translate(0 18)">
           <g fill="none" stroke="currentColor" stroke-width="36" stroke-linecap="round" stroke-linejoin="round">
@@ -24,12 +28,134 @@
         </g>
       </svg>
       <h1>Living Plan</h1>
-      <p class="status" id="status">Starting the plan service…</p>
+      <p class="status" id="status">Starting…</p>
       <section class="failure" aria-labelledby="status">
         <pre class="detail" id="detail"></pre>
-        <p class="hint">The service log is <code>~/.config/living-plan/registry.log</code>.</p>
-        <button type="button" class="button-primary" id="retry">Try again</button>
+        <p class="hint" id="log-hint">The service log is <code>~/.config/living-plan/registry.log</code>.</p>
+        <div class="actions">
+          <button type="button" class="button-primary" id="retry">Try again</button>
+          <button type="button" class="button-secondary" id="use-local" hidden>Open plans on this computer</button>
+          <button type="button" class="button-secondary" id="open-setup">Setup</button>
+        </div>
       </section>
+    </main>
+
+    <main class="setup" id="setup" hidden>
+      <div class="onboard">
+        <div class="steps">
+          <section class="step" id="section-mode" aria-labelledby="mode-title" tabindex="-1">
+            <svg class="mark" viewBox="0 0 1024 1024" aria-hidden="true">
+              <g transform="translate(0 18)">
+                <g fill="none" stroke="currentColor" stroke-width="36" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M512.0 182.0 A330 330 0 0 1 841.8 523.5" />
+                  <path d="M797.8 677.0 A330 330 0 0 1 337.1 791.9" />
+                  <path d="M226.2 677.0 A330 330 0 0 1 357.1 220.6" />
+                </g>
+                <g fill="currentColor">
+                  <circle cx="512.0" cy="182.0" r="55" />
+                  <circle cx="797.8" cy="677.0" r="55" />
+                  <circle cx="226.2" cy="677.0" r="55" />
+                </g>
+              </g>
+            </svg>
+            <h1 id="mode-title">Welcome to Living Plan</h1>
+            <p class="copy">
+              Choose where your plans run. Local and Cloud in the toolbar switch between the two at any time, and
+              everything here can be changed later in Settings.
+            </p>
+            <div class="choices" role="radiogroup" aria-label="Where your plans run">
+              <button type="button" class="choice" role="radio" data-mode="local" aria-checked="true">
+                <span class="choice-title">This computer</span>
+                <span class="choice-copy">Plans your agents serve on this machine. Works offline. No account.</span>
+              </button>
+              <button type="button" class="choice" role="radio" data-mode="cloud" aria-checked="false">
+                <span class="choice-title">Cloud</span>
+                <span class="choice-copy">
+                  Plans published to a hosted Living Plan with <code>serve --cloud</code>. You sign in on that host.
+                </span>
+              </button>
+            </div>
+            <label class="field" id="cloud-field" hidden>
+              <span class="field-label">Cloud host address</span>
+              <input
+                type="url"
+                id="cloud-url"
+                inputmode="url"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+                placeholder="https://plans.example.com"
+              />
+            </label>
+            <p class="error" id="mode-error" role="alert"></p>
+          </section>
+
+          <section class="step" id="section-look" aria-labelledby="look-title" tabindex="-1" hidden>
+            <h1 id="look-title">Choose your look</h1>
+            <p class="copy">These are also in Settings on every page, where there are more syntax themes.</p>
+
+            <h2 id="color-mode-title">Color mode</h2>
+            <div class="segments" role="radiogroup" aria-labelledby="color-mode-title" id="color-modes">
+              <button type="button" class="segment" role="radio" data-color-mode="system">System</button>
+              <button type="button" class="segment" role="radio" data-color-mode="light">Light</button>
+              <button type="button" class="segment" role="radio" data-color-mode="dark">Dark</button>
+            </div>
+
+            <h2 id="accent-title">Accent color</h2>
+            <div class="swatches" role="radiogroup" aria-labelledby="accent-title" id="accents"></div>
+
+            <h2 id="syntax-title">Syntax theme</h2>
+            <div class="themes" role="radiogroup" aria-labelledby="syntax-title" id="syntax-themes"></div>
+            <p class="error" id="look-error" role="alert"></p>
+          </section>
+
+          <section class="step" id="section-cli" aria-labelledby="cli-title" tabindex="-1" hidden>
+            <h1 id="cli-title">Install the command line tool</h1>
+            <p class="copy">
+              Agents drive plans with <code>live-plan</code>. The app carries its own copy. Installing it puts that
+              copy on your PATH, with no Bun or npm needed. You can skip this.
+            </p>
+            <div class="rows">
+              <div class="row">
+                <div class="row-copy">
+                  <p class="row-title" id="cli-status">Checking…</p>
+                  <p class="row-detail" id="cli-detail"></p>
+                </div>
+                <button type="button" class="button-secondary" id="cli-install">Install</button>
+              </div>
+            </div>
+            <pre class="detail" id="cli-hint" hidden></pre>
+            <p class="error" id="cli-error" role="alert"></p>
+          </section>
+
+          <section class="step" id="section-skills" aria-labelledby="skills-title" tabindex="-1" hidden>
+            <h1 id="skills-title">Teach your agents</h1>
+            <p class="copy">
+              The <code>live-plan</code> skill shows an agent how to write and serve plans. Install it into each agent
+              you use. This is also a button in Settings.
+            </p>
+            <ul class="rows" id="harnesses"></ul>
+            <div class="row row-end">
+              <button type="button" class="button-secondary" id="skills-all">Install for every agent found</button>
+            </div>
+            <p class="error" id="skills-error" role="alert"></p>
+          </section>
+        </div>
+
+        <footer class="onboard-foot">
+          <div class="actions">
+            <button type="button" class="button-secondary" id="back">Back</button>
+            <button type="button" class="button-primary" id="next">Continue</button>
+          </div>
+          <!-- One dot per step. The dot of the step on screen stretches into a pill. -->
+          <ol class="dots" id="dots" aria-label="Setup steps">
+            <li><button type="button" class="dot" data-step="mode" aria-label="Step 1 of 4: where plans run"></button></li>
+            <li><button type="button" class="dot" data-step="look" aria-label="Step 2 of 4: look"></button></li>
+            <li><button type="button" class="dot" data-step="cli" aria-label="Step 3 of 4: command line tool"></button></li>
+            <li><button type="button" class="dot" data-step="skills" aria-label="Step 4 of 4: agent skills"></button></li>
+          </ol>
+        </footer>
+      </div>
     </main>
   </body>
 </html>

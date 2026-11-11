@@ -20,7 +20,7 @@ import { collectSectionSources, parsePlan } from './parse'
 import { recordLog } from './serviceLog'
 import { AGENT_KEEPALIVE_MS, agentPresence, type AgentPresence } from './agentPresence'
 import { loadLatestChangelog, loadPackageVersion } from './changelog'
-import { defaultRegistryHome } from './configHome'
+import { defaultRegistryHome, globalThemeConfigPath } from './configHome'
 import { openPlanSnapshots, type PlanSnapshotStore } from './planSnapshots'
 import { SearchRequestError, searchParams, searchPlanDocuments, type SearchResponse } from './planSearch'
 import { registryDatabasePath } from './registryLock'
@@ -246,7 +246,7 @@ export async function openPlanSession(options: {
     index,
     status: 'unchanged',
   }))
-  let theme = await loadThemeConfig(themeConfigPath)
+  let theme = await loadThemeConfig(themeConfigPath, globalThemeConfigPath())
   let lastSeenAt = options.lastSeenAt ?? startedAt
   let closed = false
   let mdxStore: PlanSnapshotStore | null = null
@@ -568,7 +568,7 @@ export async function openPlanSession(options: {
   }
 
   async function reloadThemeFromDisk(): Promise<void> {
-    const next = await loadThemeConfig(themeConfigPath)
+    const next = await loadThemeConfig(themeConfigPath, globalThemeConfigPath())
     if (
       next.accent === theme.accent &&
       next.pageWidth === theme.pageWidth &&

@@ -188,7 +188,7 @@ sequenceDiagram
 
 ## The desktop app
 
-`src-tauri/` is a Tauri 2 app that opens the local service in native windows ([ADR 0036](decisions/0036-desktop-app.md)). It is a client of the service, like the CLI, not a third host. It ships for macOS 13 and later: a `.app` in a `.dmg`, signed ad hoc with Bun's entitlements (`src-tauri/Entitlements.plist`).
+`src-tauri/` is a Tauri 2 app that opens the local service, or the hosted app, in native windows ([ADR 0036](decisions/0036-desktop-app.md), [ADR 0038](decisions/0038-desktop-setup-and-cloud.md)). It is a client of those two hosts, like the CLI, not a third host. It ships for macOS 13 and later: a `.app` in a `.dmg`, signed ad hoc with Bun's entitlements (`src-tauri/Entitlements.plist`).
 
 ```mermaid
 sequenceDiagram
@@ -206,7 +206,7 @@ sequenceDiagram
 
 `--any-version` returns a healthy service of any version, so the app never restarts one an agent's CLI started. The window only loads pages that service renders, so they match it. When no service is running, the app's copy starts it, detached, and it keeps running after the app quits.
 
-`bun run desktop:stage` (`scripts/build-desktop.ts`) prepares what the app ships. It bundles `src/cli.ts` into one `service/dist/cli.js` with `bun build` and copies the files the service reads beside its module at the same relative paths: `dist/client`, `dist/icons`, `planPage.css`, `shellWorker.js`, `package.json`, `docs/changelogs`, and elk's worker. The Bun binary becomes the sidecar `living-plan-bun`. Tauri installs it beside the app binary and ships `service/` as a resource.
+`bun run desktop:stage` (`scripts/build-desktop.ts`) prepares what the app ships. It bundles `src/cli.ts` into one `service/dist/cli.js` with `bun build` and copies the files the service reads beside its module at the same relative paths: `dist/client`, `dist/icons`, `planPage.css`, `shellWorker.js`, `package.json`, `docs/changelogs`, `skills/live-plan`, and elk's worker. The Bun binary becomes the sidecar `living-plan-bun`. Tauri installs it beside the app binary and ships `service/` as a resource.
 
 The app registers the `living-plan` URL scheme ([ADR 0037](decisions/0037-plans-open-in-the-desktop-app.md)). When the CLI or the terminal dashboard opens a page on the local service, `openUrl` first asks `src/desktopApp.ts`, which turns it into `living-plan://plans/<id>` or `living-plan://dashboard` and, on macOS, runs `open` with it. `open` fails without a dialog when the app is not installed, and `openUrl` goes on to the installed web app, then a tab. In the app, `src-tauri/src/app_link.rs` reads the link. One that launched the app waits for `connect` and opens in the first window; a later one focuses the window that shows that page, or opens a new one. A link carries only an id, so it opens nothing but a page on the connected service. For a link the CLI does not launch, the manifest's `handle_links` and `launch_handler` let an installed web app take it into its own window.
 
@@ -220,7 +220,42 @@ flowchart LR
   Web -->|no| Tab["Default browser tab"]
 ```
 
-`src-tauri/src/links.rs` decides where a link goes. A page on the service's origin stays in the window, and `target="_blank"` to it opens another app window. Other `http`, `https`, and `mailto` links go to the default browser or mail app, and other schemes are dropped. The opener plugin's own link script is off: it sends `_blank` clicks over IPC, and service pages, a remote origin with no capability, get no Tauri API. The window title follows the page, a second launch focuses the open window, the main window's size and position are restored, and a download goes to the Downloads folder.
+### Setup, local or cloud, and the title bar
+
+The app's own page (`desktop/index.html`, `splash.js`, `setup.css`) is the setup screen on the first launch and the splash after that ([ADR 0038](decisions/0038-desktop-setup-and-cloud.md)). Setup is one centered step at a time, with a row of dots under the buttons: where plans run, the look, the command line tool, and agent skills. Rust holds no settings logic. Each of its commands runs the bundled CLI and returns its JSON:
+
+| App command | Bundled CLI | What it does |
+|---|---|---|
+| `desktop_state` | `desktop state` | Reads `desktop.json` and reports the cloud host, the launcher, the harnesses, and the accent and syntax choices |
+| `configure` | `desktop configure --json` | Saves `mode`, `cloudUrl`, `colorMode`, `accent`, `diffsTheme`, `setupDone` (`src/desktopConfig.ts`) |
+| `install_cli` | `desktop install-cli` | Writes a `live-plan` launcher for the app's Bun and `cli.js` into a folder on the PATH (`src/cliLauncher.ts`) |
+| `install_skills` | `skills install` | Copies `skills/live-plan` into agent harness folders (`src/agentSkills.ts`) |
+| `connect` | `dashboard --json --any-version` in local mode | Returns the page to load. In cloud mode it checks that the host answers first |
+
+```mermaid
+flowchart TD
+  Launch["App page loads"] --> State["desktop_state"]
+  State --> Done{"setupDone?"}
+  Done -->|no| Setup["Setup: plans, look, command line, skills"]
+  Setup --> Save["configure"]
+  Save --> Mode
+  Done -->|yes| Mode{"mode"}
+  Mode -->|local| Service["connect: find or start the plan service"]
+  Mode -->|cloud| Reach{"Host answers?"}
+  Reach -->|yes| Hosted["Hosted dashboard"]
+  Reach -->|no| Offer["Message, with a button for the plans on this computer"]
+  Service --> Local["Local dashboard"]
+```
+
+The cloud host is `desktop.json`'s `cloudUrl`, else the host in `cloud.json` that `account login` signed in to. `living-plan://cloud/plans/<id>` and `living-plan://cloud/dashboard` open pages on it, and `openUrl` uses them for a hosted page on that origin. A window shows pages of both hosts whatever the mode.
+
+A page in an app window gets no Tauri API. `desktop/bridge.js` runs before its scripts and sets `window.__LIVING_PLAN_DESKTOP__` and `data-desktop` on the root. The page reaches the app by following a link, which `navigate` in `src-tauri/src/lib.rs` sees and cancels: `living-plan://switch/local`, `living-plan://switch/cloud`, `living-plan://setup`, and `living-plan://setup/<section>`. Those are honored only from a page in an app window, not when the system hands them over. Every toolbar carries the Local and Cloud switch (`desktopModeSwitchHtml` in `src/hostToolbar.ts`, `src/DesktopModeSwitch.tsx`), and Settings carries the setup buttons. Styles show both only under `html[data-desktop]`.
+
+On macOS the window has the overlay title bar style, so the page's `.titlebar` is the title bar. The bridge pads it by 88px for the window buttons, gives the room back in full screen, and marks it as a drag region; a page with no toolbar gets a bare strip. When the app learns a host's origin it adds a capability for that origin with the two window permissions dragging needs, and no command of the app's own.
+
+The accent and syntax theme chosen in setup go to the machine-wide theme file, which a plan with no `live-plan.config.json` beside it now starts from. For the hosted app, the app hands the choice to a hosted page after it loads and `src/desktopBridge.ts` saves it to the signed-in account once. The color mode is the app's window theme. A sign-in with GitHub or Google keeps its window in the app until it is back on the host.
+
+`src-tauri/src/links.rs` decides where a link goes. A page on the service's origin, or the hosted app's, stays in the window, and `target="_blank"` to it opens another app window. Other `http`, `https`, and `mailto` links go to the default browser or mail app, and other schemes are dropped. The opener plugin's own link script is off: it sends `_blank` clicks over IPC, and service pages, a remote origin with no capability, get no Tauri API. The window title follows the page, a second launch focuses the open window, the main window's size and position are restored, and a download goes to the Downloads folder.
 
 ## How the pieces talk
 
@@ -391,7 +426,10 @@ A row overlaps the selected window when it started before the end of the window 
 | `src/dashboard.ts`, `src/dashboardPage.ts`, `src/tui/` | Period summary, the dashboard page, and the terminal view of the same read |
 | `src/planArchive.ts` | Copy a plan file into the registry home and serve that copy |
 | `src-tauri/`, `desktop/`, `scripts/build-desktop.ts`, `scripts/desktop-icon/` | The Mac app: its windows, link routing, and `living-plan://` links, the splash page that connects, the staging of the bundled CLI and Bun, and the icon |
-| `src/desktopApp.ts` | Hand a local plan or the dashboard to the Mac app as a `living-plan://` link, or report that the browser should open it |
+| `src/desktopApp.ts` | Hand a local or hosted plan or dashboard to the Mac app as a `living-plan://` link, or report that the browser should open it |
+| `src/desktopConfig.ts`, `src/desktopCommand.ts` | The desktop app's `desktop.json`, and the `desktop` and `skills` commands its setup screen runs |
+| `src/cliLauncher.ts`, `src/agentSkills.ts` | Put `live-plan` on the PATH from the app, and copy the live-plan skill into agent harnesses |
+| `src/desktopBridge.ts`, `src/DesktopModeSwitch.tsx` | What a page does inside the desktop app: save the setup look to the account, and the Local and Cloud switch |
 | `src/planSearch.ts`, `src/host/hostedSearch.ts`, `src/host/accountSearch.ts` | Search a plan block by block, or every plan a dashboard lists: query terms, the live source, and saved versions when asked. One module for both hosts. `hostedSearch` is the Durable Object route, `accountSearch` the hosted dashboard's |
 | `src/dashboardSearchView.ts`, `src/routes/DashboardSearch.tsx` | Dashboard search row and results. The local page script and the hosted React page share the styles and the text helpers |
 | `src/parse.ts`, `src/planMdx/outline.ts` | Parse MDX plan components for the session model (interactions, workflow, progress). `{% tags %}` and YAML entry fences are rejected ([ADR 0021](decisions/0021-mdx-plan-entries.md)) |

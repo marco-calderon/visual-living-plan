@@ -15,14 +15,29 @@ export function historyBackScript(): string {
   return `<script>document.querySelector('[data-history-back]')?.addEventListener('click', () => { history.back() })</script>`
 }
 
+export type PlanHost = 'local' | 'cloud'
+
+/**
+ * The Local and Cloud switch in a toolbar. Styles hide it in a browser. Inside the desktop app the
+ * other side is a `living-plan://switch/<mode>` link, which the app follows ([ADR 0038]).
+ *
+ * [ADR 0038]: ../docs/architecture/decisions/0038-desktop-setup-and-cloud.md
+ */
+export function desktopModeSwitchHtml(host: PlanHost): string {
+  const side = (mode: PlanHost, label: string) =>
+    mode === host ? `<span aria-current="true">${label}</span>` : `<a href="living-plan://switch/${mode}">${label}</a>`
+  return `<nav class="desktop-mode" aria-label="Where plans run">${side('local', 'Local')}${side('cloud', 'Cloud')}</nav>`
+}
+
 /** Title bar shared by the cloud dashboard and settings pages, and by the local dashboard. */
-export function renderHostToolbar(input: { title: string; logoHref: string; endHtml: string }): string {
+export function renderHostToolbar(input: { title: string; logoHref: string; endHtml: string; host?: PlanHost }): string {
   return `<header class="titlebar">
     <a class="logo-btn" href="${escapeHtml(input.logoHref)}" aria-label="Living Plan">
       <img class="titlebar-logo" src="/favicon.png" alt="" width="29" height="29" />
     </a>
     <h1 class="brand">${escapeHtml(input.title)}</h1>
     <div class="chrome-tools">
+      ${desktopModeSwitchHtml(input.host ?? 'local')}
       ${input.endHtml}
     </div>
   </header>`
@@ -181,4 +196,35 @@ export const hostToolbarCss = `
   white-space: nowrap;
 }
 .offline-state[hidden] { display: none; }
+/* Local and Cloud, shown only inside the desktop app, which sets data-desktop on the root. */
+.desktop-mode { display: none; }
+html[data-desktop] .desktop-mode {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--hairline);
+  border-radius: 9999px;
+  background: var(--canvas);
+}
+.desktop-mode a,
+.desktop-mode span {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  color: var(--muted, var(--steel));
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.desktop-mode [aria-current="true"] { background: var(--primary); color: var(--on-primary); }
+.desktop-mode a:hover { color: var(--ink); }
+.desktop-mode a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.desktop-only { display: none; }
+html[data-desktop] .desktop-only { display: revert; }
 `

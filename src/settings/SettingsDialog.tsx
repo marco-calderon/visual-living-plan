@@ -23,7 +23,7 @@ import {
 } from './settingsSections.ts'
 import './settingsDialog.css'
 
-const THEME_URL = '/api/account/settings'
+export const THEME_URL = '/api/account/settings'
 const SAVED = 'Saved on this host for your account.'
 
 const WIDTHS = [
@@ -94,7 +94,7 @@ async function saveHostedAppearance(partial: AppearancePartial): Promise<boolean
 }
 
 /** The dashboard and the owner's plans follow the account look. Someone else's plan keeps its own. */
-function pageFollowsAccount(): boolean {
+export function pageFollowsAccount(): boolean {
   const onPlan = Boolean(document.getElementById('plan-mdx-root'))
   return !onPlan || document.body.dataset.planOwner === 'true'
 }
@@ -343,6 +343,7 @@ function GeneralSection({ account }: { account: AccountPayload }) {
       {follows ? null : (
         <p className="settings-note">This plan belongs to another account and keeps its owner's look. Your changes apply to your own pages.</p>
       )}
+      <DesktopAppGroup />
       <section className="settings-group" aria-labelledby="settings-appearance">
         <h3 id="settings-appearance">Appearance</h3>
         <SettingsRow
@@ -433,6 +434,33 @@ function GeneralSection({ account }: { account: AccountPayload }) {
       </section>
       <p className="settings-meta">{SAVED}</p>
     </>
+  )
+}
+
+/** Shown only inside the desktop app. Each button is a link the app follows to its setup screen. */
+function DesktopAppGroup() {
+  return (
+    <section className="settings-group desktop-only" aria-labelledby="settings-desktop">
+      <h3 id="settings-desktop">Desktop app</h3>
+      <SettingsRow title="Setup" description="Local or cloud, the color mode, and the look you chose at first launch.">
+        <Button nativeButton={false} render={<a href="living-plan://setup" />}>
+          Open setup
+        </Button>
+      </SettingsRow>
+      <SettingsRow
+        title="Agent skills"
+        description="Install the live-plan skill into Claude Code, Codex, Cursor, Gemini CLI, and OpenCode."
+      >
+        <Button nativeButton={false} render={<a href="living-plan://setup/skills" />}>
+          Install skills
+        </Button>
+      </SettingsRow>
+      <SettingsRow title="Command line tool" description="Put live-plan on your PATH, running the copy inside the app.">
+        <Button nativeButton={false} render={<a href="living-plan://setup/cli" />}>
+          Install
+        </Button>
+      </SettingsRow>
+    </section>
   )
 }
 

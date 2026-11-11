@@ -43,7 +43,7 @@ ${dashboardDocumentCss()}
   </style>
 </head>
 <body>
-  ${renderHostToolbar({ title: 'Dashboard', logoHref: input.logoHref, endHtml: input.toolbarHtml })}
+  ${renderHostToolbar({ title: 'Dashboard', logoHref: input.logoHref, endHtml: input.toolbarHtml, host: options.host ?? 'local' })}
 ${dashboardMainHtml(input.lede)}
   <script>
 ${dashboardClientScript(input.apiPath)}

@@ -1,6 +1,7 @@
 import { Bot, BotOff, ChevronDown, FileText, Workflow } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '../client/ui/button.tsx'
+import { DesktopModeSwitch } from './DesktopModeSwitch.tsx'
 import { hostToolbarCss } from './hostToolbar.ts'
 import { planSourceFlags } from './planMdx/source.ts'
 import { buildPlanToc, renderPlanTocHtml } from './planToc.ts'
@@ -173,6 +174,7 @@ export function PlanShell({
         </div>
         <div className="chrome-tools">
           <p className="offline-state" data-offline-state="" hidden />
+          <DesktopModeSwitch host={host} />
           <div className="tabs" role="tablist" aria-label="Living Plan views">
             <button
               type="button"

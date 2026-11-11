@@ -1,6 +1,7 @@
 import { useNavigate, useRouter, useSearch } from '@tanstack/react-router'
 import { useEffect } from 'react'
-import { SettingsDialog } from './SettingsDialog.tsx'
+import { DESKTOP_APPEARANCE_EVENT, saveDesktopAppearance } from '../desktopBridge.ts'
+import { pageFollowsAccount, SettingsDialog, THEME_URL } from './SettingsDialog.tsx'
 import {
   OPEN_SETTINGS_EVENT,
   settingsSectionId,
@@ -44,6 +45,14 @@ export function SettingsLayer() {
       window.removeEventListener(OPEN_SETTINGS_EVENT, open)
     }
   }, [navigate])
+
+  // Inside the desktop app: save the look chosen in its setup to this account, once.
+  useEffect(() => {
+    const save = () => void saveDesktopAppearance(THEME_URL, pageFollowsAccount)
+    save()
+    window.addEventListener(DESKTOP_APPEARANCE_EVENT, save)
+    return () => window.removeEventListener(DESKTOP_APPEARANCE_EVENT, save)
+  }, [])
 
   function select(next: SettingsSectionId) {
     if (next === section) return
