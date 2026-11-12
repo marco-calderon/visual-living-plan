@@ -49,8 +49,22 @@ export function selectableFrom(start: Element | null): PlanPartElement | null {
   return null
 }
 
+/** Controls a person answers the plan with. A label counts: a click on it works its control, like a choice option card. */
+const CONTROL = 'button, input, textarea, select, label'
+
+/**
+ * A control inside a part does its own job, not a comment: Approve and Deny, a choice option, a
+ * form's Submit, a note box. Grabbing the click would swallow the answer, so the agent never hears
+ * it. The card around the control still takes a comment. A control stamped as a part itself is
+ * still grabbed.
+ */
+function insideControl(start: Element): boolean {
+  const control = start.closest(CONTROL)
+  return control != null && !stamped(control)
+}
+
 export function resolvePart(start: Element | null): PlanPartElement | null {
-  if (!start || start.closest('[data-plan-grab-ignore]')) return null
+  if (!start || start.closest('[data-plan-grab-ignore]') || insideControl(start)) return null
   const line = lineFrom(start)
   if (line) return line
   const part = selectableFrom(start)
