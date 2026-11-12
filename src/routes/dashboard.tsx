@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, isRedirect, redirect, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { planActivity, type DashboardPeriod, type DashboardSummary } from "../dashboard.ts";
 import {
   agentLine,
@@ -10,7 +10,6 @@ import {
   emptyPlansText,
   formatDuration,
   formatWhen,
-  periodIndex,
   safeHttpUrl,
   statusLabel,
   visiblePlans,
@@ -51,7 +50,8 @@ type DashboardBody = {
   plans: DashboardPlan[];
 };
 
-type Shift = "enter" | "forward" | "back" | "filter" | "quiet";
+/** enter: the first rows rise in. swap: the table's header and rows fade in place. quiet: polls repaint without motion. */
+type Shift = "enter" | "swap" | "quiet";
 
 const DASHBOARD_POLL_MS = 4000;
 
@@ -176,33 +176,53 @@ function DashboardPage() {
   // The rows on screen belong to the period before this one. Its own are on the way.
   const switching = dashboard.isPlaceholderData && !dashboard.isError;
 
-  // The shift plays when the new rows arrive, not while the old ones wait.
+  // The shift plays when the new rows arrive, not while the old ones wait. Each filter starts the
+  // window again, so a quick run of filters fades every set.
   useEffect(() => {
     if (!payload || shift === "quiet" || switching) return;
     const timer = window.setTimeout(() => setShift("quiet"), 240);
     return () => window.clearTimeout(timer);
-  }, [payload, shift, switching]);
+  }, [payload, shift, switching, filter]);
+
+  // Refresh fades the rows in the commit that brings them, before paint, rather than whenever the
+  // await resumes, which React may render apart from the new rows.
+  const swapOnRead = useRef(false);
+  useLayoutEffect(() => {
+    if (!swapOnRead.current) return;
+    swapOnRead.current = false;
+    setShift("swap");
+  }, [dashboard.dataUpdatedAt]);
 
   async function refresh() {
     if (refreshing) return;
-    setShift("filter");
     setRefreshing(true);
+    swapOnRead.current = true;
     try {
-      await dashboard.refetch();
+      const result = await dashboard.refetch();
+      if (!result.isSuccess) swapOnRead.current = false;
     } finally {
       setRefreshing(false);
     }
   }
 
+  // The period whose rows are on screen. The table swaps in the commit where the new period's rows
+  // show, from the cache at once or after the dimmed wait, so the click itself never animates the
+  // old rows, however late the router commits the new search.
+  const shownPeriod = useRef(period);
+  useLayoutEffect(() => {
+    if (switching || shownPeriod.current === period) return;
+    shownPeriod.current = period;
+    setShift("swap");
+  }, [period, switching]);
+
   function choosePeriod(next: DashboardPeriod) {
     if (next === period) return;
-    setShift(periodIndex(next) > periodIndex(period) ? "forward" : "back");
     void navigate({ to: "/dashboard", search: { period: next }, replace: true });
   }
 
   function chooseFilter(next: DashboardFilter) {
     if (next === filter) return;
-    setShift("filter");
+    setShift("swap");
     setFilter(next);
   }
 
@@ -213,7 +233,7 @@ function DashboardPage() {
       credentials: "include",
     }).catch(() => null);
     if (!response?.ok) return false;
-    setShift("filter");
+    setShift("swap");
     // Drop the row now. The next read confirms it.
     queryClient.setQueriesData<DashboardResult>({ queryKey: ["account-dashboard"] }, (current) =>
       current
@@ -289,8 +309,8 @@ function DashboardPage() {
             </section>
             <p className="lede">{LEDE}</p>
             <div className="dash-status-row">
-              {loading || switching ? <span className="dash-spinner" aria-hidden="true" /> : null}
               <p className="status">{status}</p>
+              {loading || switching ? <span className="dash-spinner" aria-hidden="true" /> : null}
             </div>
           </section>
           <section className="dash-section" aria-label="Plans">
@@ -317,7 +337,8 @@ function DashboardPage() {
             >
               <table>
                 <caption>Plans</caption>
-                <thead>
+                {/* Keyed by filter so each filter in a quick run fades its own rows in. */}
+                <thead key={`head-${filter}`}>
                   <tr>
                     <th scope="col">Plan</th>
                     <th scope="col">Status</th>
@@ -326,7 +347,7 @@ function DashboardPage() {
                     <th scope="col" />
                   </tr>
                 </thead>
-                <tbody>
+                <tbody key={`body-${filter}`}>
                   {loading ? (
                     <RowSkeletons />
                   ) : !payload ? (
