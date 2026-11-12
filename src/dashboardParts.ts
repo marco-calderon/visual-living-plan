@@ -361,7 +361,7 @@ export function dashboardMainHtml(lede: string): string {
       </div>
       <section class="stats" id="stats" aria-live="polite" aria-busy="true">${statSkeletonHtml()}</section>
       <p class="lede">${lede}</p>
-      <div class="dash-status-row"><span class="dash-spinner" id="status-spinner" aria-hidden="true"></span><p class="status" id="status">Loading plans…</p></div>
+      <div class="dash-status-row"><p class="status" id="status">Loading plans…</p><span class="dash-spinner" id="status-spinner" aria-hidden="true"></span></div>
     </section>
     <section class="dash-section" aria-label="Plans">
       <div class="section-bar">

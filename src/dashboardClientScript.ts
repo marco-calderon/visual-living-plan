@@ -25,6 +25,7 @@ export function dashboardClientScript(apiPath: string): string {
       const periodButtons = Array.from(document.querySelectorAll('[data-period]'));
       const filterButtons = Array.from(document.querySelectorAll('[data-filter]'));
       const tableWrap = document.querySelector('.table-wrap');
+      const headRow = document.querySelector('.table-wrap thead tr');
       const statusSpinner = document.getElementById('status-spinner');
       const refreshButton = document.getElementById('refresh');
       const refreshSpinner = document.getElementById('refresh-spinner');
@@ -383,7 +384,7 @@ export function dashboardClientScript(apiPath: string): string {
         return cell;
       }
 
-      function renderRow(record, animate) {
+      function renderRow(record) {
         const row = document.createElement('tr');
         row.append(planCell(record));
         const statusCell = document.createElement('td');
@@ -419,25 +420,6 @@ export function dashboardClientScript(apiPath: string): string {
       function motionOff() {
         return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       }
-
-      const easeOut = 'cubic-bezier(0.23, 1, 0.32, 1)';
-
-      // The out phase starts from the opacity on screen, so dimmed rows do not flash back first.
-      function slideFrames(kind, shift, phase, from) {
-        const start = typeof from === 'number' ? from : 1;
-        if (kind === 'filter') {
-          return phase === 'out'
-            ? [{ opacity: start }, { opacity: 0 }]
-            : [{ opacity: 0 }, { opacity: 1 }];
-        }
-        const outX = shift === 'back' ? '8px' : '-8px';
-        const inX = shift === 'back' ? '-8px' : '8px';
-        return phase === 'out'
-          ? [{ opacity: start, transform: 'translateX(0px)' }, { opacity: 0, transform: 'translateX(' + outX + ')' }]
-          : [{ opacity: 0, transform: 'translateX(' + inX + ')' }, { opacity: 1, transform: 'translateX(0px)' }];
-      }
-
-      let paintGeneration = 0;
 
       // A period switch keeps the last rows on screen, dimmed, until the new ones are painted.
       function setPending(on) {
@@ -476,7 +458,9 @@ export function dashboardClientScript(apiPath: string): string {
         rows.replaceChildren(row);
       }
 
-      function applyPaint(payload, reveal, meters) {
+      // reveal: the first rows rise in, staggered. fade: the new rows fade in place, all at once,
+      // while the caption, the counts, and the status line stay where they are.
+      function applyPaint(payload, reveal, fade) {
         latest = payload;
         painted = true;
         if (awaitingPaint) {
@@ -501,81 +485,42 @@ export function dashboardClientScript(apiPath: string): string {
           + started
           + ' started in this period'
           + (filter === 'all' ? '' : '. showing ' + shown.length);
+        // The columns resize to fit the new rows, so the header fades with them rather than jump.
+        if (fade) {
+          for (const animation of headRow.getAnimations()) animation.cancel();
+          headRow.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
+        }
         rows.replaceChildren();
         if (shown.length === 0) {
           const row = document.createElement('tr');
           const cell = text('td', 'empty', emptyPlansText(filter, period));
           cell.colSpan = 5;
-          if (reveal) row.classList.add('enter');
+          if (reveal || fade) row.classList.add('enter');
           row.append(cell);
           rows.append(row);
           return;
         }
         for (let index = 0; index < shown.length; index += 1) {
-          const row = renderRow(shown[index], meters);
-          if (reveal) {
-            row.classList.add('enter');
-            row.style.animationDelay = Math.min(index, 8) * 30 + 'ms';
-          }
+          const row = renderRow(shown[index]);
+          if (reveal || fade) row.classList.add('enter');
+          if (reveal) row.style.animationDelay = Math.min(index, 8) * 30 + 'ms';
           rows.append(row);
         }
       }
 
-      async function playSwap(kind, shift, update) {
-        const generation = paintGeneration;
-        const nodes = [status, document.querySelector('.table-wrap')];
-        if (kind === 'period') nodes.unshift(stats);
-        for (const node of nodes) {
-          node.getAnimations().forEach((animation) => animation.cancel());
-          node.style.animation = 'none';
-          node.style.opacity = '';
-        }
-        const starts = nodes.map((node) => Number(getComputedStyle(node).opacity) || 1);
-        const outgoing = nodes.map((node, index) => node.animate(slideFrames(kind, shift, 'out', starts[index]), {
-          duration: 160,
-          easing: easeOut,
-          fill: 'forwards',
-        }));
-        await Promise.all(outgoing.map((animation) => animation.finished));
-        if (generation !== paintGeneration) return;
-        for (const node of nodes) node.style.opacity = '0';
-        for (const animation of outgoing) animation.cancel();
-        update();
-        if (generation !== paintGeneration) return;
-        nodes.forEach((node) => {
-          const animation = node.animate(slideFrames(kind, shift, 'in'), {
-            duration: 180,
-            easing: easeOut,
-            fill: 'both',
-          });
-          node.style.opacity = '';
-          animation.finished.then(() => {
-            animation.cancel();
-          });
-        });
-      }
-
-      async function paint(payload) {
+      // Nothing slides and nothing fades out first: the new rows replace the old ones in the same
+      // frame and fade in there. A new period also brightens the counts and the table frame from
+      // their dimmed state as .dash-pending comes off (the transition is on the view itself).
+      function paint(payload) {
         if (openMenu) {
           pendingPaint = payload;
           latest = payload;
           return;
         }
-        const generation = ++paintGeneration;
         const kind = motion;
-        const shift = document.documentElement.dataset.shift === 'back' ? 'back' : 'forward';
         motion = 'quiet';
-        const reveal = kind === 'enter' && !motionOff();
-        const swap = (kind === 'period' || kind === 'filter') && !motionOff();
-        const update = () => {
-          if (generation !== paintGeneration) return;
-          applyPaint(payload, reveal, reveal || swap);
-        };
-        if (!swap) {
-          update();
-          return;
-        }
-        await playSwap(kind, shift, update);
+        const still = motionOff();
+        applyPaint(payload, kind === 'enter' && !still, (kind === 'filter' || kind === 'period') && !still);
       }
 
       function followInternalPage(event) {
@@ -636,7 +581,7 @@ export function dashboardClientScript(apiPath: string): string {
           stats.removeAttribute('aria-busy');
           if (!painted) tableWrap.removeAttribute('aria-busy');
           statusSpinner.hidden = !tableWrap.classList.contains('dash-pending');
-          await paint(payload);
+          paint(payload);
         } catch (error) {
           if (mine !== refreshToken) return;
           setPending(false);
@@ -651,17 +596,10 @@ export function dashboardClientScript(apiPath: string): string {
         }
       }
 
-      function periodIndex(value) {
-        if (value === 'week') return 1;
-        if (value === 'month') return 2;
-        return 0;
-      }
-
       for (const button of periodButtons) {
         button.addEventListener('click', () => {
           const nextPeriod = button.getAttribute('data-period') || 'day';
           if (nextPeriod === period) return;
-          document.documentElement.dataset.shift = periodIndex(nextPeriod) > periodIndex(period) ? 'forward' : 'back';
           period = nextPeriod;
           motion = 'period';
           const next = new URL(window.location.href);
@@ -674,7 +612,6 @@ export function dashboardClientScript(apiPath: string): string {
         button.addEventListener('click', () => {
           const nextFilter = button.getAttribute('data-filter') || 'all';
           if (nextFilter === filter) return;
-          delete document.documentElement.dataset.shift;
           filter = nextFilter;
           motion = 'filter';
           syncPressed();

@@ -297,16 +297,6 @@ body {
     to { opacity: 1; transform: none; }
   }
 
-  @keyframes dashboard-forward {
-    from { opacity: 0; transform: translateX(8px); }
-    to { opacity: 1; transform: none; }
-  }
-
-  @keyframes dashboard-back {
-    from { opacity: 0; transform: translateX(-8px); }
-    to { opacity: 1; transform: none; }
-  }
-
   @keyframes dashboard-fade {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -325,15 +315,10 @@ body {
     animation: dashboard-enter 200ms var(--ease-out) both;
   }
 
-  .dashboard-live[data-shift='forward'] {
-    animation: dashboard-forward 180ms var(--ease-out) both;
-  }
-
-  .dashboard-live[data-shift='back'] {
-    animation: dashboard-back 180ms var(--ease-out) both;
-  }
-
-  .dashboard-live[data-shift='filter'] {
-    animation: dashboard-fade 180ms var(--ease-out) both;
+  /* Only the table's header and rows fade. The tabs, the counts, and the status line stay put. The
+     header fades too because the columns resize to the new rows. Nothing slides. */
+  .dashboard-live[data-shift='swap'] thead tr,
+  .dashboard-live[data-shift='swap'] tbody tr {
+    animation: dashboard-fade 150ms var(--ease-out) both;
   }
 }

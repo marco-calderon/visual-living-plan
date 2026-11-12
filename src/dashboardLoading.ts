@@ -40,7 +40,10 @@ export function dashboardLoadingCss(): string {
     .search-skeleton .skel-label { height: 18px; width: 48px; border-radius: 999px; }
     .search-skeleton .skel-where { height: 10px; width: 30%; }
     .search-skeleton .skel-line { height: 12px; width: 86%; }
-    .dash-pending { opacity: 0.55; transition: opacity 150ms ease; }
+    /* The views that dim while a new period loads. The transition sits on the view, not on
+       .dash-pending, so the new numbers brighten in place when the class comes off. */
+    .stats, .table-wrap { transition: opacity 150ms ease; }
+    .dash-pending { opacity: 0.55; }
     .dash-spinner {
       display: inline-block;
       flex: none;
@@ -74,7 +77,7 @@ export function dashboardLoadingCss(): string {
     }
     @media (prefers-reduced-motion: reduce) {
       .dash-spinner, .dash-spin svg, svg.dash-spin { animation-duration: 1.6s; }
-      .dash-pending { transition: none; }
+      .stats, .table-wrap, .dash-pending { transition: none; }
     }
   `
 }
