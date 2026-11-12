@@ -87,12 +87,6 @@ export function safeHttpUrl(value: string | null | undefined): string {
   }
 }
 
-export function periodIndex(period: DashboardPeriod): number {
-  if (period === 'week') return 1
-  if (period === 'month') return 2
-  return 0
-}
-
 export function visiblePlans<T extends { status: string; agentConnected?: boolean | null }>(plans: T[], filter: DashboardFilter): T[] {
   if (filter === 'all') return plans
   return plans.filter((plan) => planActivity(plan) === filter)
