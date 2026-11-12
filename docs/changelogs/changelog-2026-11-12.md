@@ -2,7 +2,7 @@
 
 ## 2.25.1
 
-**PR:** not opened yet
+**PR:** [#189](https://github.com/marco-calderon/visual-living-plan/pull/189)
 
 **Bump:** patch
 
