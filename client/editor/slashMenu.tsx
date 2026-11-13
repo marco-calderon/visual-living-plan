@@ -50,6 +50,7 @@ import {
   Image as ImageIcon,
   Link as LinkIcon,
   Quote,
+  Table2,
   Type,
   Workflow,
   type LucideIcon,
@@ -58,6 +59,7 @@ import { Fragment, useCallback, useContext, useEffect, useMemo, useRef, useState
 import { createPortal } from 'react-dom'
 import { CardLabel, type CardIcon } from '../entries/CardLabel.tsx'
 import { focusFenceWhenReady } from './codeFence.tsx'
+import { newDataTable } from './dataTableMdast.ts'
 import { InsertPrompt, type InsertKind, type InsertValues } from './insertPrompt.tsx'
 
 /** The menu's sections, in the order it shows them. */
@@ -366,6 +368,15 @@ export const SLASH_CARDS: Card[] = [
     table: { rows: 3, columns: 3 },
   },
   {
+    key: 'data-table',
+    section: 'Data',
+    label: 'Data table',
+    hint: 'Columns that search, sort, and filter',
+    icon: glyph(Table2),
+    keywords: ['datatable', 'data', 'table', 'grid', 'rows', 'columns', 'sort', 'filter', 'search'],
+    build: newDataTable,
+  },
+  {
     key: 'bar-chart',
     section: 'Data',
     label: 'Bar chart',
@@ -576,6 +587,8 @@ class CardOption extends MenuOption {
 /** The menu's options for a query, in its order. */
 /** Blocks whose body is part of a data view: they take text, code, and their own rows, not other cards. */
 const DATA_PARENTS = new Set([
+  // A data table's cells: text, labels, and code, not cards.
+  'DataTable',
   'FileTree',
   'File',
   'Endpoint',

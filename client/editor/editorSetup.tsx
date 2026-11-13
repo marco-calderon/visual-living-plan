@@ -20,6 +20,7 @@ import { slashHintPlugin } from './slashHint.tsx'
 import { lockedCardsPlugin } from './lockedPlugin.tsx'
 import { codeFenceEditor } from './codeFence.tsx'
 import { blockHandlesPlugin } from './blockHandles.tsx'
+import { dataTableMarkdownPlugin } from './dataTableEditor.tsx'
 
 /** A table's add-row and add-column bars use the same + as the bar that adds a block. */
 export function iconFor(name: IconKey): ReactElement {
@@ -40,6 +41,8 @@ export function planEditorPlugins() {
     tablePlugin(),
     codeBlockPlugin({ codeBlockEditorDescriptors: [codeFenceEditor] }),
     jsxPlugin({ jsxComponentDescriptors: planJsxDescriptors }),
+    // After jsxPlugin: it replaces MDX's writer for a data table's tags.
+    dataTableMarkdownPlugin(),
     slashMenuPlugin(),
     slashHintPlugin(),
     lockedCardsPlugin(),
