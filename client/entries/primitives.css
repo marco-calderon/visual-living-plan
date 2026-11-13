@@ -1950,28 +1950,21 @@ body.plan-live .block.plan-changed {
   font-variant-numeric: tabular-nums;
 }
 
-/* Block Edit (E1): one pill follows the block under the pointer while the plan can be edited
- * (client/planEditButton.ts sets its place). */
-.plan-block-edit {
+/* Block tools (ADR 0040): one pill with Edit and + follows the block under the pointer, with focus,
+ * or tapped, while the plan can be edited (client/planEditButton.ts sets its place). */
+.plan-block-tools {
   position: absolute;
   z-index: 30;
   top: 0;
   left: 0;
   display: inline-flex;
-  align-items: center;
-  gap: 5px;
+  align-items: stretch;
   height: 26px;
-  padding: 0 10px;
   border: 1px solid var(--hairline-strong);
   border-radius: 999px;
   background: var(--canvas);
   box-shadow: var(--shadow);
-  color: var(--ink);
-  font-family: var(--font-body);
-  font-size: 12.5px;
-  font-weight: 500;
-  line-height: 1;
-  cursor: pointer;
+  overflow: hidden;
   opacity: 0;
   pointer-events: none;
   transform: translateY(2px);
@@ -1980,33 +1973,116 @@ body.plan-live .block.plan-changed {
     transform 120ms var(--ease-out);
 }
 
-.plan-block-edit svg { width: 13px; height: 13px; }
-
-.plan-block-edit:hover { border-color: var(--hairline-strong-hover); }
-
-.plan-block-edit:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-
-.plan-block-edit[data-visible] {
+.plan-block-tools[data-visible] {
   opacity: 1;
   pointer-events: auto;
   transform: none;
 }
 
-body:not([data-plan-editable="true"]) .plan-block-edit { display: none; }
-
-@media (hover: none) {
-  .plan-block-edit { display: none; }
+.plan-block-tools button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
 }
 
+.plan-block-tools button + button { border-left: 1px solid var(--hairline-strong); }
+
+.plan-block-tools .plan-block-add-below { padding: 0 8px; color: var(--muted); }
+
+.plan-block-tools svg { width: 13px; height: 13px; }
+
+.plan-block-tools button:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
+
+.plan-block-tools button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+body:not([data-plan-editable="true"]) .plan-block-tools { display: none; }
+
 @media (prefers-reduced-motion: reduce) {
-  .plan-block-edit { transition: none; }
+  .plan-block-tools { transition: none; }
+}
+
+/* Add a block, after the plan's last block. */
+.plan-add-block {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 100%;
+  margin-top: var(--space-xl);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px dashed var(--hairline-strong);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.plan-add-block span { font-size: 16px; line-height: 1; }
+
+.plan-add-block:hover { border-color: var(--hairline-strong-hover); color: var(--ink); }
+
+.plan-add-block:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+body[data-plan-mode="comment"] .plan-add-block { display: none; }
+
+/* Changes not applied yet: a bar that stays at the bottom of the window over the plan column. */
+.plan-apply-bar {
+  position: sticky;
+  z-index: 20;
+  bottom: var(--space-sm);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+  padding: var(--space-xs) var(--space-xs) var(--space-xs) var(--space-md);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius);
+  background: var(--canvas);
+  box-shadow: var(--shadow);
+}
+
+.plan-apply-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 16rem;
+}
+
+.plan-apply-title { color: var(--ink); font-size: 14px; font-weight: 600; }
+
+.plan-apply-note { color: var(--muted); font-size: 12.5px; }
+
+.plan-apply-actions { display: flex; gap: var(--space-xs); margin-left: auto; }
+
+/* The editor's own frame while its code loads, so the page does not jump. */
+.plan-block-editor-loading {
+  padding: var(--space-md);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: 14px;
 }
 
 @media print {
-  .plan-block-edit { display: none; }
+  .plan-block-tools,
+  .plan-add-block,
+  .plan-apply-bar { display: none; }
 }
 
 /* ==========================================================================
@@ -2096,3 +2172,40 @@ body:not([data-plan-editable="true"]) .plan-block-edit { display: none; }
 .plan-document > :is(.plan-entry, .block, [data-doc-block]:not(.plan-path), div:has(> .plan-entry)) + :is(h1, h2, h3, h4) {
   margin-top: var(--space-xxl);
 }
+
+/* ==========================================================================
+   Room between blocks. No two blocks touch: a block after a block, a paragraph after a card, and a
+   heading after a data block all get space (ADR 0040 wraps lockable blocks in a .plan-block-frame).
+   ========================================================================== */
+
+:is(.plan-document, .plan-rich) > .plan-block-frame { margin-top: var(--space-md); }
+.plan-document > .plan-block-frame { margin-top: var(--flow-gap); }
+:is(.plan-document, .plan-rich) > .plan-block-frame:first-child { margin-top: 0; }
+
+/* An answer card, a frame, or a data block, then prose: the flow gap, as after any card. */
+.plan-document > :is(div:has(> .plan-entry), .plan-block-frame) + :is(p, ul, ol, blockquote, .code-host, div.rich-table) {
+  margin-top: var(--flow-gap);
+}
+
+.plan-rich > :is(.plan-entry, .plan-block-frame, div:has(> .plan-entry), [data-doc-block]:not(.plan-path), .code-host, .rich-table) + :is(p, ul, ol, blockquote) {
+  margin-top: var(--space-md);
+}
+
+/* Two blocks of the same kind in a row (endpoints, data blocks, frames) never share a border. */
+.plan-rich > [data-doc-block]:not(.plan-path) + [data-doc-block]:not(.plan-path),
+.plan-document > [data-doc-block]:not(.plan-path) + [data-doc-block]:not(.plan-path) {
+  margin-top: var(--space-sm);
+}
+
+/* Inside a phase, a heading after a block starts a new part of it. */
+.plan-rich > :is(.plan-entry, .plan-block-frame, div:has(> .plan-entry), [data-doc-block]:not(.plan-path), .code-host, .rich-table) + :is(h2, h3, h4) {
+  margin-top: var(--space-xl);
+}
+
+.plan-document > .plan-block-frame + :is(h1, h2, h3, h4) { margin-top: var(--space-xxl); }
+
+/* A box's last paragraph does not add its margin to the box's own padding. */
+.plan-box > :last-child { margin-bottom: 0; }
+
+/* Labels written side by side with no space between them (a Properties value) keep apart. */
+.plan-properties dd > :is(.plan-chip, .plan-pill) + :is(.plan-chip, .plan-pill) { margin-left: 6px; }

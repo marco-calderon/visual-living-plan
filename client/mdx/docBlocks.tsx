@@ -351,7 +351,7 @@ function FileRowView({ path, change }: FileProps) {
 /** One file in a FileTree. On its own, it reads as a path. */
 export const File = markRow(FileRowView, 'file')
 
-export function FileTree({ title, locked, children }: { title?: string; locked?: unknown; children?: ReactNode }) {
+export function FileTree({ title, locked, 'data-plan-block': blockRange, children }: { title?: string; locked?: unknown; 'data-plan-block'?: string; children?: ReactNode }) {
   const { rows, rest } = splitRows(children, ['file'])
   const files = (rows.file ?? []).flatMap((element) => {
     const props = element.props as FileProps
@@ -371,7 +371,7 @@ export function FileTree({ title, locked, children }: { title?: string; locked?:
       return next
     })
   return (
-    <section className="plan-doc-card plan-file-tree" data-doc-block="FileTree" data-edit-locked={lockAttr(locked)}>
+    <section className="plan-doc-card plan-file-tree" data-doc-block="FileTree" data-edit-locked={lockAttr(locked)} data-plan-block={blockRange}>
       <DataHead
         icon={<Folder size={14} />}
         title={text(title) || 'Files'}
@@ -418,6 +418,7 @@ export function Endpoint({
   summary,
   open,
   locked,
+  'data-plan-block': blockRange,
   children,
 }: {
   method?: string
@@ -427,6 +428,7 @@ export function Endpoint({
   summary?: string
   open?: unknown
   locked?: unknown
+  'data-plan-block'?: string
   children?: ReactNode
 }) {
   const { rows, rest } = splitRows(children, ['param', 'request', 'response'])
@@ -440,7 +442,7 @@ export function Endpoint({
   const responses = rows.response ?? []
   const authText = text(auth)
   return (
-    <details className="plan-doc-card plan-endpoint" data-doc-block="Endpoint" open={flag(open) || undefined} data-edit-locked={lockAttr(locked)}>
+    <details className="plan-doc-card plan-endpoint" data-doc-block="Endpoint" open={flag(open) || undefined} data-edit-locked={lockAttr(locked)} data-plan-block={blockRange}>
       <summary className="plan-endpoint-summary">
         <ChevronRight className="plan-endpoint-chev" size={14} aria-hidden="true" />
         <span className="plan-method" data-method={known}>
@@ -612,12 +614,12 @@ function EntityView({ entity }: { entity: ReactElement }) {
   )
 }
 
-export function DataModel({ title, locked, children }: { title?: string; locked?: unknown; children?: ReactNode }) {
+export function DataModel({ title, locked, 'data-plan-block': blockRange, children }: { title?: string; locked?: unknown; 'data-plan-block'?: string; children?: ReactNode }) {
   const { rows, rest } = splitRows(children, ['entity', 'relation'])
   const entities = rows.entity ?? []
   const relations = rows.relation ?? []
   return (
-    <section className="plan-doc-card plan-data-model" data-doc-block="DataModel" data-edit-locked={lockAttr(locked)}>
+    <section className="plan-doc-card plan-data-model" data-doc-block="DataModel" data-edit-locked={lockAttr(locked)} data-plan-block={blockRange}>
       <DataHead
         icon={<Database size={14} />}
         title={text(title) || 'Data model'}
@@ -769,13 +771,13 @@ export function readJson(source: string): { ok: true; value: Json } | { ok: fals
   }
 }
 
-export function JsonView({ title, depth, locked, children }: { title?: string; depth?: string | number; locked?: unknown; children?: ReactNode }) {
+export function JsonView({ title, depth, locked, 'data-plan-block': blockRange, children }: { title?: string; depth?: string | number; locked?: unknown; 'data-plan-block'?: string; children?: ReactNode }) {
   const source = collectText(children).trim()
   const parsed = readJson(source)
   const levels = Number(depth)
   const openTo = depth !== undefined && Number.isFinite(levels) && levels >= 0 ? levels : 1
   return (
-    <section className="plan-doc-card plan-json" data-doc-block="JsonView" data-edit-locked={lockAttr(locked)}>
+    <section className="plan-doc-card plan-json" data-doc-block="JsonView" data-edit-locked={lockAttr(locked)} data-plan-block={blockRange}>
       <DataHead title={text(title) || undefined} meta="JSON" />
       {parsed.ok ? (
         <div className="plan-json-tree">
@@ -824,7 +826,7 @@ function fenceOf(nodes: ReactNode[]): { code: string; language: string; index: n
   return null
 }
 
-export function AnnotatedCode({ title, start, locked, children }: { title?: string; start?: string | number; locked?: unknown; children?: ReactNode }) {
+export function AnnotatedCode({ title, start, locked, 'data-plan-block': blockRange, children }: { title?: string; start?: string | number; locked?: unknown; 'data-plan-block'?: string; children?: ReactNode }) {
   const { rows, rest } = splitRows(children, ['note'])
   const notes = rows.note ?? []
   const fence = fenceOf(rest)
@@ -855,7 +857,7 @@ export function AnnotatedCode({ title, start, locked, children }: { title?: stri
   ]
   const others = fence ? rest.filter((_, index) => index !== fence.index) : rest
   return (
-    <section className="plan-doc-card plan-annotated" data-doc-block="AnnotatedCode" data-edit-locked={lockAttr(locked)}>
+    <section className="plan-doc-card plan-annotated" data-doc-block="AnnotatedCode" data-edit-locked={lockAttr(locked)} data-plan-block={blockRange}>
       {text(title) ? <DataHead title={<span className="plan-mono">{text(title)}</span>} /> : null}
       {fence ? (
         <div className="code-host plan-annotated-code" data-react-code="" data-source={fence.code}>
@@ -908,7 +910,7 @@ export const Tab = markRow(function Tab({ children }: TabProps) {
   return <>{children}</>
 }, 'tab')
 
-export function Tabs({ label, locked, children }: { label?: string; locked?: unknown; children?: ReactNode }) {
+export function Tabs({ label, locked, 'data-plan-block': blockRange, children }: { label?: string; locked?: unknown; 'data-plan-block'?: string; children?: ReactNode }) {
   const { rows } = splitRows(children, ['tab'])
   const tabs = rows.tab ?? []
   const [selected, setSelected] = useState(0)
@@ -969,7 +971,7 @@ export function Tabs({ label, locked, children }: { label?: string; locked?: unk
   }, [current, tabs.length])
   if (tabs.length === 0) return null
   return (
-    <div ref={root} className="plan-tabs" data-doc-block="Tabs" data-edit-locked={lockAttr(locked)}>
+    <div ref={root} className="plan-tabs" data-doc-block="Tabs" data-edit-locked={lockAttr(locked)} data-plan-block={blockRange}>
       <div className="plan-tablist" role="tablist" aria-label={text(label) || undefined} onKeyDown={onKeyDown}>
         {tabs.map((tab, index) => {
           const props = tab.props as TabProps
@@ -1021,11 +1023,11 @@ export const Pane = markRow(function Pane({ children }: PaneProps) {
   return <>{children}</>
 }, 'pane')
 
-export function Compare({ locked, children }: { locked?: unknown; children?: ReactNode }) {
+export function Compare({ locked, 'data-plan-block': blockRange, children }: { locked?: unknown; 'data-plan-block'?: string; children?: ReactNode }) {
   const { rows } = splitRows(children, ['pane'])
   const panes = rows.pane ?? []
   return (
-    <div className="plan-compare" data-doc-block="Compare" data-panes={Math.min(panes.length, 3)} data-edit-locked={lockAttr(locked)}>
+    <div className="plan-compare" data-doc-block="Compare" data-panes={Math.min(panes.length, 3)} data-edit-locked={lockAttr(locked)} data-plan-block={blockRange}>
       {panes.map((pane, index) => {
         const props = pane.props as PaneProps
         return (
@@ -1082,13 +1084,13 @@ export function relativeTime(value: string, now: number = Date.now()): string | 
   return `${days}d ago`
 }
 
-export function Update({ health, by, date, locked, children }: { health?: string; by?: string; date?: string; locked?: unknown; children?: ReactNode }) {
+export function Update({ health, by, date, locked, 'data-plan-block': blockRange, children }: { health?: string; by?: string; date?: string; locked?: unknown; 'data-plan-block'?: string; children?: ReactNode }) {
   const level = healthOf(health)
   const when = text(date)
   const ago = when ? relativeTime(when) : null
   const Icon = level === 'off-track' ? TrendingDown : level === 'at-risk' ? Minus : TrendingUp
   return (
-    <section className="plan-doc-card plan-update" data-doc-block="Update" data-health={level} data-edit-locked={lockAttr(locked)}>
+    <section className="plan-doc-card plan-update" data-doc-block="Update" data-health={level} data-edit-locked={lockAttr(locked)} data-plan-block={blockRange}>
       <div className="plan-update-meta">
         {level ? (
           <span className="plan-health" data-health={level}>
@@ -1117,11 +1119,11 @@ export const Prop = markRow(function Prop({ children }: PropProps) {
   return <>{children}</>
 }, 'prop')
 
-export function Properties({ locked, children }: { locked?: unknown; children?: ReactNode }) {
+export function Properties({ locked, 'data-plan-block': blockRange, children }: { locked?: unknown; 'data-plan-block'?: string; children?: ReactNode }) {
   const { rows } = splitRows(children, ['prop'])
   const props = rows.prop ?? []
   return (
-    <dl className="plan-properties" data-doc-block="Properties" data-edit-locked={lockAttr(locked)}>
+    <dl className="plan-properties" data-doc-block="Properties" data-edit-locked={lockAttr(locked)} data-plan-block={blockRange}>
       {props.map((element, index) => {
         const prop = element.props as PropProps
         return (

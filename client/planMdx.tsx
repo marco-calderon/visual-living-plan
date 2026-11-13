@@ -1,5 +1,5 @@
 import { run } from '@mdx-js/mdx'
-import { Children, Suspense, cloneElement, createContext, isValidElement, lazy, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactElement, type ReactNode } from 'react'
+import { Children, Fragment, Suspense, cloneElement, createContext, isValidElement, lazy, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactElement, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import * as runtime from 'react/jsx-runtime'
 import { fileVersionName, fileVersionSeq, fileVersionText } from '../src/fileVersion.ts'
@@ -29,8 +29,11 @@ import { stampPlanParts } from './stampPlanParts.ts'
 import { markChangedBlocks, readBlockSignatures, restoreScrollAnchor, scrollAnchor, type BlockSignatures, type ScrollAnchor } from './liveUpdate.ts'
 import { viewingPlanVersion } from './versionView.ts'
 import { sendPlanMutation, sharedQueryClient } from './queryClient.tsx'
-import { readDraft, type PlanDraft } from './editor/draftStore.ts'
-import { bindBlockEditButton, bindPlanEditButton, markPlanEditButtons, scrollEditorToHeading, type EditAnchor } from './planEditButton.ts'
+import { clearDraft, isLegacyDraft, readDraft, writeDraft, type PlanDraft } from './editor/draftStore.ts'
+import { bindBlockEditButton } from './planEditButton.ts'
+import { parseBlockRange } from '../src/planMdx/remarkBlockRanges.ts'
+import { Button } from './ui/button.tsx'
+import type { BlockTarget } from './editor/BlockEditor.tsx'
 
 type PlanWindow = Window & {
   __LIVE_PLAN_BASE__?: string
@@ -105,7 +108,7 @@ const TocHeadingCursor = createContext<{ current: TocCursor } | null>(null)
 const PlanHeaderContext = createContext<PlanHeaderInfo | null>(null)
 
 /** The plan's first heading, with the eyebrow above it and the fact chips under it (ADR 0039). */
-function PlanTitleHeading({ id, children }: { id?: string; children?: ReactNode }) {
+function PlanTitleHeading({ id, blockRange, children }: { id?: string; blockRange?: string; children?: ReactNode }) {
   const info = useContext(PlanHeaderContext)
   return (
     <>
@@ -114,7 +117,9 @@ function PlanTitleHeading({ id, children }: { id?: string; children?: ReactNode 
           {info.eyebrow}
         </p>
       ) : null}
-      <h1 id={id}>{children}</h1>
+      <h1 id={id} data-plan-block={blockRange}>
+        {children}
+      </h1>
       {info && info.facts.length > 0 ? (
         <ul className="plan-head-facts" data-plan-head="" aria-label="Plan progress">
           {info.facts.map((fact) => (
@@ -129,6 +134,20 @@ function PlanTitleHeading({ id, children }: { id?: string; children?: ReactNode 
   )
 }
 
+function useOnline(): boolean {
+  const [online, setOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine))
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine)
+    window.addEventListener('online', update)
+    window.addEventListener('offline', update)
+    return () => {
+      window.removeEventListener('online', update)
+      window.removeEventListener('offline', update)
+    }
+  }, [])
+  return online
+}
+
 /** The page's mode (watch, review, a run). The toolbar changes it without a render. */
 function useBodyMode(): string | undefined {
   const [mode, setMode] = useState(() => document.body.dataset.planMode)
@@ -140,7 +159,7 @@ function useBodyMode(): string | undefined {
   return mode
 }
 
-function PlanMarkdownHeading({ level, children }: { level: 1 | 2 | 3; children?: ReactNode }) {
+function PlanMarkdownHeading({ level, children, 'data-plan-block': blockRange }: { level: 1 | 2 | 3; children?: ReactNode; 'data-plan-block'?: string }) {
   const cursor = useContext(TocHeadingCursor)
   let id: string | undefined
   // The plan's opening heading: the first heading of the document, when it is a `#` heading.
@@ -149,25 +168,60 @@ function PlanMarkdownHeading({ level, children }: { level: 1 | 2 | 3; children?:
     id = cursor.current.ids[cursor.current.n]
     cursor.current.n += 1
   }
-  if (level === 1 && first) return <PlanTitleHeading id={id}>{children}</PlanTitleHeading>
-  if (level === 1) return <h1 id={id}>{children}</h1>
-  if (level === 2) return <h2 id={id}>{children}</h2>
-  return <h3 id={id}>{children}</h3>
+  if (level === 1 && first) return <PlanTitleHeading id={id} blockRange={blockRange}>{children}</PlanTitleHeading>
+  if (level === 1) return <h1 id={id} data-plan-block={blockRange}>{children}</h1>
+  if (level === 2) return <h2 id={id} data-plan-block={blockRange}>{children}</h2>
+  return <h3 id={id} data-plan-block={blockRange}>{children}</h3>
 }
 
-function PlanH1(props: { children?: ReactNode }) {
+function PlanH1(props: { children?: ReactNode; 'data-plan-block'?: string }) {
   return <PlanMarkdownHeading level={1} {...props} />
 }
 
-function PlanH2(props: { children?: ReactNode }) {
+function PlanH2(props: { children?: ReactNode; 'data-plan-block'?: string }) {
   return <PlanMarkdownHeading level={2} {...props} />
 }
 
-function PlanH3(props: { children?: ReactNode }) {
+function PlanH3(props: { children?: ReactNode; 'data-plan-block'?: string }) {
   return <PlanMarkdownHeading level={3} {...props} />
 }
 
-const LazyPlanEditor = lazy(() => import('./editor/PlanEditor.tsx').then((module) => ({ default: module.PlanEditor })))
+const loadBlockEditor = () => import('./editor/BlockEditor.tsx')
+const LazyBlockEditor = lazy(() => loadBlockEditor().then((module) => ({ default: module.BlockEditor })))
+
+/** True when two plan files differ only in the spacing at their ends. */
+function samePlanSource(a: string, b: string): boolean {
+  return a.trimEnd() === b.trimEnd()
+}
+
+/** A block editor open on the page (ADR 0040): what it edits, and the plan file the page showed when it opened. */
+type OpenEdit = {
+  id: number
+  /** `data-plan-block` of the block to edit, or of the block to add after (null: after the last). */
+  target: { kind: 'edit'; range: string } | { kind: 'add'; after: string | null }
+  source: string
+  /** The plan file Done kept. The editor closes when the page shows it. */
+  committed?: string
+}
+
+type EditSlot = {
+  open: OpenEdit
+  commit: (next: string) => Promise<string | null>
+  cancel: () => void
+}
+
+/** The open block editor, for the plan body to draw in the block's place. */
+const EditSlotContext = createContext<EditSlot | null>(null)
+
+function blockTarget(open: OpenEdit): BlockTarget | null {
+  if (open.target.kind === 'edit') {
+    const range = parseBlockRange(open.target.range)
+    return range ? { kind: 'edit', range } : null
+  }
+  if (open.target.after === null) return { kind: 'add', after: null }
+  const after = parseBlockRange(open.target.after)
+  return after ? { kind: 'add', after } : null
+}
 
 type SaveResult = { ok: true } | { ok: false; message: string }
 
@@ -207,6 +261,8 @@ function PlanPre({ children }: { children?: ReactNode }) {
   const className = child && isValidElement<{ className?: string }>(child) ? (child.props.className ?? '') : ''
   // `start=40` after the fence's language (src/planMdx/remarkCodeMeta.ts).
   const start = child && isValidElement<{ 'data-meta'?: string }>(child) ? fenceStartLine(child.props['data-meta']) : undefined
+  // The fence's place in the plan file, for editing it in place (src/planMdx/remarkBlockRanges.ts).
+  const blockRange = child && isValidElement<{ 'data-plan-block'?: string }>(child) ? child.props['data-plan-block'] : undefined
   const lang = /language-([\w+-]+)/.exec(className)?.[1] ?? ''
   const diff = lang === 'diff' || lang === 'patch'
   const body = child && isValidElement<{ children?: ReactNode }>(child) ? child.props.children : children
@@ -217,7 +273,7 @@ function PlanPre({ children }: { children?: ReactNode }) {
     </pre>
   )
   return (
-    <div className="code-host" data-react-code="" data-source={code}>
+    <div className="code-host" data-react-code="" data-source={code} data-plan-block={blockRange}>
       <Suspense fallback={plain}>
         <LazyCodeBlock code={code} language={diff ? '' : lang} diff={diff} startingLineNumber={diff ? undefined : start} />
       </Suspense>
@@ -232,16 +288,110 @@ function textOf(node: ReactNode): string {
   return ''
 }
 
-type PlanBodyProps = { Content: PlanModule; components: typeof planComponents }
+type PlanBodyProps = { Content: PlanModule; components: typeof planComponents; source: string }
 
 /**
  * One component type for every version of the plan. The compiled function is called here rather
  * than mounted, so React compares the new blocks with the ones on the page and keeps what did not
  * change. Mounting a new compiled component would replace the whole document on each edit.
  */
-function PlanBody({ Content, components }: PlanBodyProps) {
+function PlanBody({ Content, components, source }: PlanBodyProps) {
+  const slot = useContext(EditSlotContext)
   const tree = (Content as (props: { components: typeof planComponents }) => ReactNode)({ components })
-  return <>{keyedBlocks(tree)}</>
+  const blocks = keyedBlocks(tree)
+  // The editor's range is a place in the file it opened on. A newer file has other places.
+  if (!slot || slot.open.source !== source || slot.open.committed !== undefined) return <>{blocks}</>
+  return <>{placeEditSlot(blocks, slot.open)}</>
+}
+
+/** The block's place in the plan file: its own `data-plan-block`, or a fence's on its `<code>`. */
+function rangeOfElement(element: ReactElement): string | undefined {
+  const props = element.props as { 'data-plan-block'?: unknown; children?: ReactNode }
+  if (typeof props['data-plan-block'] === 'string') return props['data-plan-block']
+  if (element.type !== PlanPre) return undefined
+  const code = Children.toArray(props.children).find((node) => isValidElement(node))
+  const inner = code && isValidElement<{ 'data-plan-block'?: unknown }>(code) ? code.props['data-plan-block'] : undefined
+  return typeof inner === 'string' ? inner : undefined
+}
+
+const PLAN_HEADINGS = new Set<unknown>([PlanH1, PlanH2, PlanH3])
+
+/** Headings inside a block. The editor takes the block's place, so the headings after it keep their ids. */
+function countHeadings(node: ReactNode): number {
+  if (Array.isArray(node)) return node.reduce<number>((sum, child) => sum + countHeadings(child as ReactNode), 0)
+  if (!isValidElement<{ children?: ReactNode }>(node)) return 0
+  return (PLAN_HEADINGS.has(node.type) ? 1 : 0) + countHeadings(node.props.children)
+}
+
+function BlockEditSlot({ replaced }: { replaced: ReactElement | null }) {
+  const slot = useContext(EditSlotContext)
+  const cursor = useContext(TocHeadingCursor)
+  if (cursor && replaced) cursor.current.n += countHeadings(replaced)
+  const target = slot ? blockTarget(slot.open) : null
+  if (!slot || !target) return replaced
+  return (
+    <Suspense
+      fallback={
+        <div className="plan-block-editor-loading" data-plan-block-editor="loading" role="status">
+          Opening the editor…
+        </div>
+      }
+    >
+      <LazyBlockEditor key={slot.open.id} source={slot.open.source} target={target} commit={slot.commit} onCancel={slot.cancel} />
+    </Suspense>
+  )
+}
+
+/**
+ * Put the open block editor in the tree: in the block's place, or after the block it adds to.
+ * Only the elements on the way to the block are copied, so every other block keeps its state.
+ */
+function placeEditSlot(blocks: ReactNode, open: OpenEdit): ReactNode {
+  const slot = (replaced: ReactElement | null, key: string) => <BlockEditSlot key={key} replaced={replaced} />
+  if (open.target.kind === 'add' && open.target.after === null) {
+    return [...(Array.isArray(blocks) ? blocks : [blocks]), slot(null, 'plan-block-new')]
+  }
+  const placed = placeIn(blocks, open, slot)
+  return placed ?? blocks
+}
+
+function placeIn(
+  children: ReactNode,
+  open: OpenEdit,
+  slot: (replaced: ReactElement | null, key: string) => ReactElement,
+): ReactNode | null {
+  const list = Array.isArray(children) ? (children as ReactNode[]) : [children]
+  for (const [index, node] of list.entries()) {
+    if (Array.isArray(node)) {
+      const inner = placeIn(node, open, slot)
+      if (inner === null) continue
+      const next = [...list]
+      next[index] = inner
+      return Array.isArray(children) ? next : next[0]
+    }
+    if (!isValidElement(node)) continue
+    const range = rangeOfElement(node)
+    if (range !== undefined && open.target.kind === 'edit' && range === open.target.range) {
+      const next = [...list]
+      next[index] = slot(node, node.key ?? `plan-block-edit-${index}`)
+      return Array.isArray(children) ? next : next[0]
+    }
+    if (range !== undefined && open.target.kind === 'add' && range === open.target.after) {
+      const next = [...list]
+      // Keyed siblings take a new one in between. Unkeyed ones would all shift, so the block and its new neighbour share a slot.
+      if (node.key !== null) next.splice(index + 1, 0, slot(null, 'plan-block-new'))
+      else next[index] = <Fragment key={`plan-block-add-${index}`}>{node}{slot(null, 'plan-block-new')}</Fragment>
+      return Array.isArray(children) ? next : next.length === 1 ? next[0] : next
+    }
+    const inner = (node.props as { children?: ReactNode }).children
+    if (inner === undefined || inner === null || typeof inner !== 'object') continue
+    const placed = placeIn(inner, open, slot)
+    if (placed === null) continue
+    const next = [...list]
+    next[index] = cloneElement(node as ReactElement<{ children?: ReactNode }>, { children: placed })
+    return Array.isArray(children) ? next : next[0]
+  }
+  return null
 }
 
 /** Key top-level blocks by their id, or by kind and position, so an insert does not shift every block after it. */
@@ -274,11 +424,11 @@ function sendInteraction(response: InteractionResponse) {
   void postInteraction(response)
 }
 
-function PlanChoice(props: { className?: string; id: string; locked?: unknown }) {
+function PlanChoice(props: { className?: string; id: string; locked?: unknown; 'data-plan-block'?: string }) {
   const { responses, locked } = useContext(InteractionContext)
   const saved = responses[props.id]
   return (
-    <div onClick={stopBubble} onSubmit={stopBubble} data-edit-locked={editLockAttr(props.locked, false)}>
+    <div onClick={stopBubble} onSubmit={stopBubble} data-edit-locked={editLockAttr(props.locked, false)} data-plan-block={props['data-plan-block']}>
       <Choice
         {...props}
         className={blockClass(props.className)}
@@ -291,11 +441,11 @@ function PlanChoice(props: { className?: string; id: string; locked?: unknown })
   )
 }
 
-function PlanForm(props: { className?: string; id: string; locked?: unknown }) {
+function PlanForm(props: { className?: string; id: string; locked?: unknown; 'data-plan-block'?: string }) {
   const { responses, locked } = useContext(InteractionContext)
   const saved = responses[props.id]
   return (
-    <div onClick={stopBubble} onSubmit={stopBubble} data-edit-locked={editLockAttr(props.locked, true)}>
+    <div onClick={stopBubble} onSubmit={stopBubble} data-edit-locked={editLockAttr(props.locked, true)} data-plan-block={props['data-plan-block']}>
       <Form
         {...props}
         className={blockClass(props.className)}
@@ -307,11 +457,11 @@ function PlanForm(props: { className?: string; id: string; locked?: unknown }) {
   )
 }
 
-function PlanQuestions(props: { className?: string; id: string; locked?: unknown }) {
+function PlanQuestions(props: { className?: string; id: string; locked?: unknown; 'data-plan-block'?: string }) {
   const { responses, locked } = useContext(InteractionContext)
   const saved = responses[props.id]
   return (
-    <div onClick={stopBubble} onSubmit={stopBubble} data-edit-locked={editLockAttr(props.locked, true)}>
+    <div onClick={stopBubble} onSubmit={stopBubble} data-edit-locked={editLockAttr(props.locked, true)} data-plan-block={props['data-plan-block']}>
       <Questions
         {...props}
         className={blockClass(props.className)}
@@ -323,11 +473,11 @@ function PlanQuestions(props: { className?: string; id: string; locked?: unknown
   )
 }
 
-function PlanApprove(props: { className?: string; id: string; locked?: unknown }) {
+function PlanApprove(props: { className?: string; id: string; locked?: unknown; 'data-plan-block'?: string }) {
   const { responses, locked } = useContext(InteractionContext)
   const saved = responses[props.id]
   return (
-    <div onClick={stopBubble} onSubmit={stopBubble} data-edit-locked={editLockAttr(props.locked, false)}>
+    <div onClick={stopBubble} onSubmit={stopBubble} data-edit-locked={editLockAttr(props.locked, false)} data-plan-block={props['data-plan-block']}>
       <Approve
         {...props}
         className={blockClass(props.className)}
@@ -427,20 +577,26 @@ function PlanMdxApp() {
   const pendingAnchor = useRef<ScrollAnchor | null>(null)
   const signatures = useRef<BlockSignatures | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // The source editing started from. Null while the page shows the plan.
-  // The open edit: the plan file it started from and the draft it continues. Null while the page shows the plan.
-  const [editing, setEditing] = useState<{ base: string; draft: PlanDraft | null } | null>(null)
   const planId = planContext().id
-  const [hasDraft, setHasDraft] = useState(() => readDraft(planId) !== null)
   // A local plan, or a hosted plan this account owns. A saved version is read-only.
   const canEdit =
     viewingPlanVersion() === null && (planContext().host === 'local' || document.body.dataset.planOwner === 'true')
-  // The source on screen. It lags `boot.source` when the newest source does not compile.
-  const [shownSource, setShownSource] = useState<string>(boot.source)
-  const stale = shownSource !== boot.source
+  // Block edits not applied yet (ADR 0040). The page shows them; Apply changes publishes them as a version.
+  const [draft, setDraft] = useState<PlanDraft | null>(() => {
+    const stored = canEdit ? readDraft(planId) : null
+    return stored && !isLegacyDraft(stored) ? stored : null
+  })
+  // The block editor on the page, if one is open.
+  const [openEdit, setOpenEdit] = useState<OpenEdit | null>(null)
+  const editIds = useRef(0)
+  // The plan file the page draws: the unapplied changes, else the file a block editor opened on, else the live plan.
+  const pageSource = draft?.source ?? openEdit?.source ?? boot.source
+  // The source on screen. It lags `pageSource` when the newest source does not compile.
+  const [shownSource, setShownSource] = useState<string>(pageSource)
+  const stale = shownSource !== pageSource
   const contentRef = useRef<ReactNode>(null)
   contentRef.current = content
-  const mdx = planSourceToMdx(boot.source)
+  const mdx = planSourceToMdx(pageSource)
   const responses = boot.responses
   const locked = boot.locked
   const interaction = useMemo<InteractionState>(() => ({ responses, locked }), [responses, locked])
@@ -573,7 +729,8 @@ function PlanMdxApp() {
     // Hide only the first render. Hiding a rendered plan collapses the page and resets the scroll.
     const root = document.getElementById('plan-mdx-root')
     if (!root?.querySelector('[data-plan-rendered]')) root?.classList.add('plan-mdx-pending')
-    const source = boot.source
+    const source = pageSource
+    const live = source === boot.source
     const render = async (Content: PlanModule, from: string): Promise<boolean> => {
       const fromMdx = planSourceToMdx(from)
       const [tableModule] = await Promise.all([
@@ -592,12 +749,13 @@ function PlanMdxApp() {
         checklist: PlanChecklist,
       }
       // Remember where the reader is and what the page shows, so the update can keep the place and point at what changed.
-      const live = document.getElementById('plan-mdx-root')
-      pendingAnchor.current = scrollAnchor(live)
-      signatures.current = live && contentRef.current ? readBlockSignatures(live) : null
+      const shown = document.getElementById('plan-mdx-root')
+      pendingAnchor.current = scrollAnchor(shown)
+      signatures.current = shown && contentRef.current ? readBlockSignatures(shown) : null
       setContent(
         <PlanBody
           Content={Content}
+          source={from}
           components={{
             ...planComponents,
             ...components,
@@ -618,7 +776,8 @@ function PlanMdxApp() {
         if (cancelled) return
         if (!(await render(Content, source))) return
         setError(null)
-        rememberLastRendered(source)
+        // Unapplied changes are not the plan. Only the live plan is kept as the fallback.
+        if (live) rememberLastRendered(source)
       },
       async (caught: unknown) => {
         if (cancelled) return
@@ -684,43 +843,124 @@ function PlanMdxApp() {
     })
   }, [boot.snapshots, boot.headSnapshotId])
 
-  // The toolbar's Edit button and the E key (src/planEditButton.ts). Editing needs a rendered plan.
+  // Editing needs a rendered plan. The pill and E (client/planEditButton.ts) read this on each use.
   const editable = canEdit && content !== null
-  const editState = useRef({ editable, editing: false, source: boot.source })
-  editState.current = { editable, editing: editing !== null, source: boot.source }
-  const editAnchor = useRef<EditAnchor | null>(null)
+  const editState = useRef({ editable, editing: false })
+  editState.current = { editable, editing: openEdit !== null }
+  const pageSourceRef = useRef(pageSource)
+  pageSourceRef.current = pageSource
+  const [applying, setApplying] = useState(false)
+  const [applyError, setApplyError] = useState<string | null>(null)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const [draftKept, setDraftKept] = useState(true)
+  const online = useOnline()
 
   useEffect(() => {
-    markPlanEditButtons({ canEdit, ready: content !== null || error !== null, editable, editing: editing !== null, hasDraft })
-  }, [canEdit, content, editable, editing, error, hasDraft])
+    if (!canEdit) return
+    document.body.dataset.planEditable = editable ? 'true' : 'false'
+  }, [canEdit, editable])
 
   useEffect(() => {
-    const open = (anchor: EditAnchor | null) => {
-      const draft = readDraft(planId)
-      editAnchor.current = anchor
-      setEditing({ base: draft?.base ?? editState.current.source, draft })
+    if (!canEdit) return
+    const open = (target: OpenEdit['target']) => {
+      editIds.current += 1
+      setOpenEdit({ id: editIds.current, target, source: pageSourceRef.current })
     }
-    const stopToolbar = bindPlanEditButton({ state: () => editState.current, open })
-    // A block's own Edit pill (ADR 0039). It opens the same editor at that block.
-    const stopBlocks = canEdit ? bindBlockEditButton({ state: () => editState.current, open }) : () => {}
+    // Load the editor while the reader looks at the pill, so Edit opens at once.
+    const warm = () => void loadBlockEditor().catch(() => undefined)
+    document.addEventListener('pointerover', warm, { once: true, passive: true })
+    const stop = bindBlockEditButton({
+      state: () => editState.current,
+      edit: (range) => open({ kind: 'edit', range }),
+      add: (after) => open({ kind: 'add', after }),
+    })
     return () => {
-      stopToolbar()
-      stopBlocks()
+      document.removeEventListener('pointerover', warm)
+      stop()
     }
-  }, [planId, canEdit])
+  }, [canEdit])
 
-  // The editor saves its last keystrokes as it unmounts, after Close. Read the draft once it has.
+  // A draft from the whole-page editor (before 2.26) holds the editor's text. Turn it into a plan file once.
   useEffect(() => {
-    if (editing === null) setHasDraft(readDraft(planId) !== null)
-  }, [editing, planId])
+    if (!canEdit) return
+    const stored = readDraft(planId)
+    if (!stored || !isLegacyDraft(stored)) return
+    void import('../src/planMdx/editSource.ts').then(({ planSourceFromEditor }) => {
+      try {
+        const source = planSourceFromEditor({ source: stored.base, edited: stored.markdown })
+        if (samePlanSource(source, stored.base)) {
+          clearDraft(planId)
+          return
+        }
+        const next: PlanDraft = { base: stored.base, source, edits: 1, savedAt: stored.savedAt }
+        writeDraft(planId, next)
+        setDraft(next)
+      } catch {
+        // The draft does not read as a plan. It stays on this device untouched.
+      }
+    })
+  }, [canEdit, planId])
 
-  // Open the editor where the reader was, not at the top of a long plan.
+  // Done keeps the edit; the editor closes once the page shows it.
   useEffect(() => {
-    if (editing === null) return
-    const anchor = editAnchor.current
-    editAnchor.current = null
-    return scrollEditorToHeading(anchor)
-  }, [editing])
+    if (openEdit?.committed !== undefined && samePlanSource(shownSource, openEdit.committed)) setOpenEdit(null)
+  }, [openEdit, shownSource])
+
+  const editSlot = useMemo<EditSlot | null>(() => {
+    if (!openEdit) return null
+    return {
+      open: openEdit,
+      cancel: () => setOpenEdit((current) => (current?.id === openEdit.id ? null : current)),
+      commit: async (next) => {
+        const base = draft?.base ?? openEdit.source
+        const kept: PlanDraft | null = samePlanSource(next, base)
+          ? null
+          : { base, source: next, edits: (draft?.edits ?? 0) + 1, savedAt: Date.now() }
+        if (kept) setDraftKept(writeDraft(planId, kept))
+        else clearDraft(planId)
+        setDraft(kept)
+        setApplyError(null)
+        setConfirmDiscard(false)
+        setOpenEdit((current) => (current?.id === openEdit.id ? { ...current, committed: next } : current))
+        return null
+      },
+    }
+  }, [openEdit, draft, planId])
+
+  async function applyChanges() {
+    if (!draft || applying) return
+    setApplying(true)
+    setApplyError(null)
+    try {
+      const result = await saveEditedSource(draft.base, draft.source)
+      if (!result.ok) {
+        setApplyError(result.message)
+        return
+      }
+      const payload = result.payload ?? {}
+      clearDraft(planId)
+      setBoot((current) => ({
+        ...current,
+        source: typeof payload.source === 'string' ? payload.source : draft.source,
+        ...(Array.isArray(payload.snapshots) ? { snapshots: payload.snapshots } : {}),
+        ...(payload.headSnapshotId !== undefined ? { headSnapshotId: payload.headSnapshotId } : {}),
+      }))
+      setDraft(null)
+    } finally {
+      setApplying(false)
+    }
+  }
+
+  function discardChanges() {
+    if (!confirmDiscard) {
+      setConfirmDiscard(true)
+      return
+    }
+    clearDraft(planId)
+    setDraft(null)
+    setConfirmDiscard(false)
+    setApplyError(null)
+  }
 
   useEffect(() => {
     const list = document.getElementById('plan-toc-list')
@@ -746,37 +986,62 @@ function PlanMdxApp() {
           {error}
         </p>
       ) : null}
-      {editing !== null ? (
-        <Suspense fallback={<p data-plan-rendering="">Opening the editor…</p>}>
-          <LazyPlanEditor
-            planId={planId}
-            base={editing.base}
-            draft={editing.draft}
-            outdated={boot.source !== editing.base}
-            onClose={() => setEditing(null)}
-            publish={async (next) => {
-              const result = await saveEditedSource(editing.base, next)
-              if (result.ok && result.payload) {
-                const payload = result.payload
-                setBoot((current) => ({
-                  ...current,
-                  ...(typeof payload.source === 'string' ? { source: payload.source } : {}),
-                  ...(Array.isArray(payload.snapshots) ? { snapshots: payload.snapshots } : {}),
-                  ...(payload.headSnapshotId !== undefined ? { headSnapshotId: payload.headSnapshotId } : {}),
-                }))
-              }
-              return result.ok ? { ok: true } : result
-            }}
-          />
-        </Suspense>
-      ) : null}
       {content ? (
-        <article className="plan-document plan-ui" data-plan-rendered="" hidden={editing !== null}>
-          {content}
-        </article>
+        <EditSlotContext.Provider value={editSlot}>
+          <article className="plan-document plan-ui" data-plan-rendered="" data-plan-draft={draft ? '' : undefined}>
+            {content}
+          </article>
+        </EditSlotContext.Provider>
       ) : error ? null : (
         <p data-plan-rendering="">Rendering plan…</p>
       )}
+      {editable && !openEdit ? (
+        <button
+          type="button"
+          className="plan-add-block"
+          data-plan-add-block=""
+          onClick={() => {
+            editIds.current += 1
+            setOpenEdit({ id: editIds.current, target: { kind: 'add', after: null }, source: pageSource })
+          }}
+        >
+          <span aria-hidden="true">+</span> Add a block
+        </button>
+      ) : null}
+      {draft && canEdit && !openEdit ? (
+        <div className="plan-apply-bar" role="region" aria-label="Changes not applied" data-plan-apply-bar="">
+          <div className="plan-apply-text">
+            <span className="plan-apply-title" role="status">
+              {draft.edits === 1 ? '1 change' : `${draft.edits} changes`} not applied
+            </span>
+            <span className="plan-apply-note" data-plan-apply-note="">
+              {applyError
+                ? applyError
+                : !samePlanSource(draft.base, boot.source)
+                  ? 'The plan changed after these edits started, so applying will be refused. Discard to edit the new version.'
+                  : !draftKept
+                    ? 'This browser did not keep the changes. Apply them before you close the page.'
+                    : !online
+                      ? 'Kept on this device. Apply them when you are back online.'
+                      : 'Kept on this device. Apply to save a new version of the plan.'}
+            </span>
+          </div>
+          <div className="plan-apply-actions">
+            <Button variant="ghost" onClick={discardChanges} disabled={applying} data-plan-discard="">
+              {confirmDiscard ? 'Discard changes?' : 'Discard'}
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => void applyChanges()}
+              disabled={applying || !online}
+              title={online ? 'Save these changes as a new version of the plan' : 'Applying needs a connection. The changes stay on this device.'}
+              data-plan-apply=""
+            >
+              {applying ? 'Applying…' : 'Apply changes'}
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </PlanHeaderContext.Provider>
     </TocHeadingCursor.Provider>
     </InteractionContext.Provider>

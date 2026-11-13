@@ -1,6 +1,6 @@
 # ADR 0039: The plan page reads as a document, data views are their own blocks, and every block can be edited from the block
 
-- Status: Accepted
+- Status: Accepted; a block's Edit opens its editor in place since [ADR 0040](0040-edit-in-place.md)
 - Date: 2026-11-13
 
 ## Context

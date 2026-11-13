@@ -74,10 +74,20 @@ export async function preloadPlanComponents(mdx: string): Promise<void> {
  * wrapped so the page sees the lock and shows no Edit on it (ADR 0039). The wrapper has no box of
  * its own. The `locked` prop is not passed down, so it never reaches the DOM.
  */
-export function lockable<P extends object>(Component: ComponentType<P>): ComponentType<P & { locked?: unknown }> {
-  function Lockable({ locked, ...props }: P & { locked?: unknown }) {
+export function lockable<P extends object>(Component: ComponentType<P>): ComponentType<P & { locked?: unknown; 'data-plan-block'?: string }> {
+  function Lockable({ locked, 'data-plan-block': blockRange, ...props }: P & { locked?: unknown; 'data-plan-block'?: string }) {
     const inner = <Component {...(props as P)} />
-    if (!editLocked(locked)) return inner
+    const isLocked = editLocked(locked)
+    // A top-level block carries its place in the plan file (ADR 0040). These components do not take
+    // it, so a frame does: a real box, so the page can find and measure the block it edits.
+    if (blockRange) {
+      return (
+        <div className="plan-block-frame" data-plan-block={blockRange} data-edit-locked={isLocked ? 'true' : undefined}>
+          {inner}
+        </div>
+      )
+    }
+    if (!isLocked) return inner
     return (
       <div className="plan-edit-lock" data-edit-locked="true">
         {inner}

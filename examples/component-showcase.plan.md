@@ -7,7 +7,7 @@ mode: watch
 
 # Component showcase
 
-Every component the plan page can draw, grouped by kind. Each phase below is one group, and each heading inside it is one component, so the contents list doubles as a catalog. The phases also show the five statuses a phase can have. Open the editor (E, or the Edit button beside a block) to see how each one is edited.
+Every component the plan page can draw, grouped by kind. Each phase below is one group, and each heading inside it is one component, so the contents list doubles as a catalog. The phases also show the five statuses a phase can have. Point at any block and press Edit (or E) to edit it where it sits; Apply changes saves your edits as a new version.
 
 <Update health="on-track" by="Agent" date="2026-11-13">
 This is an `<Update>`: a dated status note with a health level. Use it at the top of a long plan, or after a phase that changed course.

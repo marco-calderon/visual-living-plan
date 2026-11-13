@@ -2,6 +2,7 @@ import { compile, type CompileOptions } from '@mdx-js/mdx'
 import { recmaPlanComponents } from './recmaPlanComponents'
 import { remarkGfmTable } from './remarkGfmTable'
 import { remarkGfmTaskList } from './remarkGfmTaskList'
+import { remarkBlockRanges } from './remarkBlockRanges'
 import { remarkCodeMeta } from './remarkCodeMeta'
 import { remarkMermaid } from './remarkMermaid'
 
@@ -13,7 +14,7 @@ export function planMdxCompileOptions(): CompileOptions {
     outputFormat: 'function-body',
     format: 'mdx',
     development: false,
-    remarkPlugins: [remarkMermaid, remarkGfmTable, remarkGfmTaskList, remarkCodeMeta],
+    remarkPlugins: [remarkMermaid, remarkGfmTable, remarkGfmTaskList, remarkCodeMeta, remarkBlockRanges],
     recmaPlugins: [recmaPlanComponents],
   }
 }

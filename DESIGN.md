@@ -26,7 +26,8 @@ The plan page reads as one document, not a stack of cards ([ADR 0039](docs/archi
 - **D3 · Labels.** A small uppercase eyebrow names a block's kind (`RISK`, `NEEDS YOUR CHOICE`, `DONE WHEN`). The title or prompt under it is the heading.
 - **D4 · State.** State is shape plus color, with one glyph set everywhere (`StatusIcon`): an empty ring is pending, a progress ring is active, a check disc is done, a ban is blocked, and an × is failed. Phases, checklist lines, and the editor's status picker use the same glyphs. Counts read `3/6` next to a segmented bar.
 - **D5 · Code words.** Paths, symbols, and line ranges are mono. A file change carries a tag (NEW, MODIFY, DELETE, RENAME). A line reference is a cite chip (`L42–58`).
-- **D6 · Editable.** Every block can be edited from the toolbar's Edit or from the block's own Edit pill. A block is read-only only when it carries `locked`, or is an answer card (form, questions) that has not set `locked="false"`.
+- **D6 · Editable in place.** There is no edit mode. Every block opens its own editor where it sits, from its Edit pill, and + adds a block below it. Done keeps the change on the page; Apply changes makes the version. A block is read-only only when it carries `locked`, or is an answer card (form, questions) that has not set `locked="false"`.
+- **D7 · Room.** No two blocks touch. A block after a block gets `--space-md` (a card after a card in a phase) or `--flow-gap` (at the top level); a heading after a data block starts a new part with `--space-xl`. Only endpoints in a row join into one card, on purpose.
 
 ## Colors
 
@@ -171,7 +172,10 @@ Flat by default. Hairline border, no shadow, on documentation cards. Level 2 sha
 - **cite-chip**: mono 11px on `--tag-info-bg`, for line ranges and foreign keys.
 - **health-pill**: 24px pill with a trend glyph: On track, At risk, Off track.
 - **fact-chip**: 28px outline pill with a bold number, for the plan header (`Phase 2 of 6`, `1/6 phases done`, `3 open questions`).
-- **edit-pill**: 26px outline pill with a pencil and *Edit*, shown at a block's top right while the pointer is on it and the plan can be edited. Never shown on a locked block, a touch screen, or in print.
+- **block-tools**: 26px outline pill split in two, a pencil with *Edit* and a +, beside a block's first line while the pointer or focus is on it (a tap on a touch screen) and the plan can be edited. Never shown on a locked block, in comment mode, or in print.
+- **block-editor**: the block's editor in its place, framed by a 1px accent border with a 3px soft accent ring and the 16px radius. Its bar (hint, Remove in danger text, Cancel, Done) sticks to the bottom of the window on a tall block. The empty line with the caret shows *Type / to add a block* in muted text; the + bars never do.
+- **apply-bar**: sticky at the bottom of the plan column while changes are not applied: canvas, hairline-strong border, shadow, 16px radius. A count (`2 changes not applied`), a muted note, a ghost Discard, and a primary *Apply changes*.
+- **add-block**: full-width dashed hairline button, muted *+ Add a block*, after the plan's last block.
 - **text-input**: canvas fill, hairline border, 8px radius, 36px height. Focus ring is 2px `#0094fc` and appears on `:focus-visible` with no delay.
 - **badge-success**, **badge-new**, **badge-beta** as specified, pill shaped.
 - Tabs: underline segmented tabs or black pill tabs. Plan/Workflow/Settings can be pill tabs.

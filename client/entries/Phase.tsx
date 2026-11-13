@@ -17,9 +17,11 @@ export type PhaseProps = {
   className?: string
   /** Edit lock (ADR 0039): the page shows no Edit pill and the editor keeps the block as written. */
   locked?: unknown
+  /** Where the block is in the plan's MDX (src/planMdx/remarkBlockRanges.ts), for editing it in place. */
+  'data-plan-block'?: string
 }
 
-export function Phase({ id, title, status, children, className, locked }: PhaseProps) {
+export function Phase({ id, title, status, children, className, locked, 'data-plan-block': blockRange }: PhaseProps) {
   const normalized = phaseStatus(status)
   const parsed = splitStepHeading(title)
   const headingRef = useRef<HTMLDivElement>(null)
@@ -47,6 +49,7 @@ export function Phase({ id, title, status, children, className, locked }: PhaseP
       data-entry-id={id}
       data-status={normalized}
       data-edit-locked={editLockAttr(locked)}
+      data-plan-block={blockRange}
     >
       <HStack gap="md" align="stretch">
         <Box className="plan-phase-rail" padding="none" aria-hidden="true" />

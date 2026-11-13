@@ -1094,3 +1094,73 @@
   padding-left: var(--space-sm);
   color: var(--steel);
 }
+
+/* ==========================================================================
+   One block open for editing in its place on the page (ADR 0040).
+   ========================================================================== */
+
+.plan-block-editor {
+  position: relative;
+  gap: var(--space-xs);
+  margin-block: var(--space-sm);
+  padding: var(--space-sm) var(--space-sm) var(--space-xs);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--canvas);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+/* A block is short: no room held for a page, and less room under the last + bar. */
+.plan-block-editor .plan-editor-content {
+  min-height: 2.5rem;
+  padding-bottom: var(--space-lg);
+}
+
+/* Done stays in reach on a tall block: the bar sticks to the bottom of the window. */
+.plan-block-editor-bar {
+  position: sticky;
+  z-index: 7;
+  bottom: var(--space-xs);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  padding: var(--space-xs) 0 0;
+  border-top: 1px solid var(--line);
+  background: var(--canvas);
+}
+
+.plan-block-editor-hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.plan-block-editor-hint kbd {
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.plan-block-editor-hint kbd + kbd { margin-left: 2px; }
+
+.plan-block-editor .plan-block-editor-remove { color: var(--danger); }
+
+@media (max-width: 600px) {
+  .plan-block-editor-hint { display: none; }
+  .plan-block-editor-bar .plan-editor-actions { width: 100%; }
+}
+
+/* "Type / to add a block" on the empty line with the caret (client/editor/slashHint.tsx). The + bars do not show it. */
+.plan-editor-content [data-slash-hint]::before,
+.plan-editor-body [data-slash-hint]::before {
+  content: 'Type / to add a block';
+  float: left;
+  height: 0;
+  color: var(--muted);
+  opacity: 0.8;
+  pointer-events: none;
+  user-select: none;
+}

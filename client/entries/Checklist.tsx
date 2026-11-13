@@ -15,6 +15,8 @@ export type ChecklistProps = {
   className?: string
   /** Edit lock (ADR 0039): the page shows no Edit pill and the editor keeps the block as written. */
   locked?: unknown
+  /** Where the block is in the plan's MDX (src/planMdx/remarkBlockRanges.ts), for editing it in place. */
+  'data-plan-block'?: string
 }
 
 /** Done lines over all lines, and one bar segment per line in the line's state. */
@@ -39,7 +41,7 @@ function Progress({ states }: { states: CheckState[] }) {
   )
 }
 
-export function Checklist({ id, title, items, children, className, locked }: ChecklistProps) {
+export function Checklist({ id, title, items, children, className, locked, 'data-plan-block': blockRange }: ChecklistProps) {
   const { matches, rest } = partitionEntries(children, 'item')
   const indexed = indexItems(matches, items?.length ?? 0)
   const states: CheckState[] = [
@@ -57,6 +59,7 @@ export function Checklist({ id, title, items, children, className, locked }: Che
       id={anchorId(id)}
       data-entry="checklist"
       data-edit-locked={editLockAttr(locked)}
+      data-plan-block={blockRange}
       data-entry-id={id}
     >
       <ItemContext.Provider value={{ mode: 'checklist', disabled: true }}>

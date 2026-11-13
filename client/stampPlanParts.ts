@@ -29,6 +29,8 @@ export function stampPlanParts(root: ParentNode): void {
     // The plan header's eyebrow and facts (ADR 0039) are page chrome, not plan text: the server's
     // static targets do not have them, so they must not move the paragraph and list counts.
     if (child.matches('[data-plan-head]')) continue
+    // A block open in its editor (ADR 0040) is not plan text until it is drawn again.
+    if (child.matches('[data-plan-block-editor]')) continue
     if (child.matches('[data-entry]') || child.querySelector(':scope > [data-entry]')) {
       if (inProse) proseIndex += 1
       inProse = false
@@ -77,7 +79,7 @@ function stampEntry(entry: HTMLElement): void {
   if (rich) {
     const counts = freshCounts()
     for (const child of [...rich.children]) {
-      if (!(child instanceof HTMLElement) || child.matches('[data-entry]')) continue
+      if (!(child instanceof HTMLElement) || child.matches('[data-entry], [data-plan-block-editor]')) continue
       stampProse(child, scope, counts)
       stampElementTables(child, scope, counts)
     }

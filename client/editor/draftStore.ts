@@ -1,14 +1,20 @@
 /**
- * An unpublished edit of a plan, kept on this device. It lives in localStorage, so closing the tab
- * or the browser keeps it, and nothing reaches the plan until the person publishes it.
+ * Changes to a plan that are not applied yet, kept on this device. It lives in localStorage, so
+ * closing the tab or the browser keeps them, and nothing reaches the plan until the person applies
+ * them (ADR 0040).
  */
 export type PlanDraft = {
-  /** The plan file the edit started from. Publishing is refused when the plan moved on since. */
+  /** The plan file the changes started from. Applying is refused when the plan moved on since. */
   base: string
-  /** The editor's text at the last save. */
-  markdown: string
+  /** The plan file with the changes. */
+  source: string
+  /** How many block edits it holds, for the Apply bar. */
+  edits: number
   savedAt: number
 }
+
+/** A draft from the whole-page editor (before 2.26): the editor's text, not yet a plan file. */
+export type LegacyPlanDraft = { base: string; markdown: string; savedAt: number }
 
 const PREFIX = 'living-plan:draft:'
 
@@ -16,16 +22,25 @@ function key(planId: string): string {
   return `${PREFIX}${planId}`
 }
 
-export function readDraft(planId: string): PlanDraft | null {
+export function readDraft(planId: string): PlanDraft | LegacyPlanDraft | null {
   try {
     const raw = window.localStorage.getItem(key(planId))
     if (!raw) return null
-    const parsed = JSON.parse(raw) as Partial<PlanDraft>
-    if (typeof parsed.base !== 'string' || typeof parsed.markdown !== 'string') return null
-    return { base: parsed.base, markdown: parsed.markdown, savedAt: typeof parsed.savedAt === 'number' ? parsed.savedAt : 0 }
+    const parsed = JSON.parse(raw) as Partial<PlanDraft & LegacyPlanDraft>
+    if (typeof parsed.base !== 'string') return null
+    const savedAt = typeof parsed.savedAt === 'number' ? parsed.savedAt : 0
+    if (typeof parsed.source === 'string') {
+      return { base: parsed.base, source: parsed.source, edits: typeof parsed.edits === 'number' ? parsed.edits : 1, savedAt }
+    }
+    if (typeof parsed.markdown === 'string') return { base: parsed.base, markdown: parsed.markdown, savedAt }
+    return null
   } catch {
     return null
   }
+}
+
+export function isLegacyDraft(draft: PlanDraft | LegacyPlanDraft): draft is LegacyPlanDraft {
+  return !('source' in draft)
 }
 
 /** False when the browser refused the write (private window, storage full). */

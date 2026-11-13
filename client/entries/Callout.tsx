@@ -18,9 +18,11 @@ export type CalloutProps = {
   className?: string
   /** Edit lock (ADR 0039): the page shows no Edit pill and the editor keeps the block as written. */
   locked?: unknown
+  /** Where the block is in the plan's MDX (src/planMdx/remarkBlockRanges.ts), for editing it in place. */
+  'data-plan-block'?: string
 }
 
-export function Callout({ id, kind, title, icon, color, children, className, locked }: CalloutProps) {
+export function Callout({ id, kind, title, icon, color, children, className, locked, 'data-plan-block': blockRange }: CalloutProps) {
   const normalized = calloutKind(kind)
   const label = title ? `${normalized} · ${title}` : normalized
   return (
@@ -31,6 +33,7 @@ export function Callout({ id, kind, title, icon, color, children, className, loc
       id={anchorId(id)}
       data-entry="callout"
       data-edit-locked={editLockAttr(locked)}
+      data-plan-block={blockRange}
       data-entry-id={id}
       data-kind={normalized}
     >
