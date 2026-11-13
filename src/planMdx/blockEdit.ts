@@ -1,5 +1,5 @@
 import { fromEditorMarkdown, mergeEditedBody, splitFrontmatter, toEditorMarkdown, topEntryIds, wireNewSteps } from './editSource'
-import { blockText, insertBlockAfter, spliceBlock } from './remarkBlockRanges'
+import { blockText, insertBlockAfter, mdxBodyOffset, spliceBlock } from './remarkBlockRanges'
 
 /**
  * Editing one block of a plan on the page (ADR 0040). The page renders the plan, and a block's
@@ -44,4 +44,34 @@ export function applyBlockEdit(source: string, edit: BlockEdit): string {
 /** True when two plan files differ only in the spacing at their ends. */
 export function samePlanSource(a: string, b: string): boolean {
   return a.trimEnd() === b.trimEnd()
+}
+
+/** A pipe table cell's text in the plan file, for the editor that opens on that cell alone. */
+export function cellEditorText(source: string, range: BlockRange): string {
+  const offset = mdxBodyOffset(source)
+  return source.slice(offset + range.start, offset + range.end)
+}
+
+/**
+ * The editor's text as one pipe table cell: one line, with its pipes escaped so the row keeps its
+ * cells. Paragraphs and line breaks the editor wrote join with a space.
+ */
+export function cellMarkdown(edited: string): string {
+  return fromEditorMarkdown(edited)
+    .replace(/\\\n|\s*\n\s*/g, ' ')
+    .replace(/\\.|\|/g, (token) => (token === '|' ? '\\|' : token))
+    .trim()
+}
+
+/** The plan file with one pipe table cell's text replaced. Every other byte stays, the row's pipes and spacing included. */
+export function applyCellEdit(source: string, range: BlockRange, edited: string): string {
+  const offset = mdxBodyOffset(source)
+  const text = cellMarkdown(edited)
+  const start = offset + range.start
+  const end = offset + range.end
+  const before = source.slice(0, start)
+  const after = source.slice(end)
+  // An empty cell's place can be right against its closing pipe: new text keeps a space before it.
+  const pad = range.start === range.end && text && !after.startsWith(' ') ? ' ' : ''
+  return `${before}${text}${pad}${after}`
 }

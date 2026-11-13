@@ -1148,6 +1148,57 @@
 
 .plan-block-editor .plan-block-editor-remove { color: var(--danger); }
 
+/* Text edited as it reads (a paragraph, a heading, a list, a quote, a table cell): the editor takes
+ * the text's own place and look. No frame, no gutter, no bar; a faint wash says it is being edited.
+ * The wash spreads past the text with a shadow, so the text itself does not move. */
+.plan-block-editor[data-inline] {
+  --inline-wash: color-mix(in srgb, var(--accent) 7%, transparent);
+  gap: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: var(--inline-wash);
+  box-shadow: 0 0 0 4px var(--inline-wash);
+  /* The page passes the text's own margins; a table cell has none. */
+  margin-block: 0;
+}
+
+.plan-block-editor[data-inline] .plan-editor-surface,
+.plan-block-editor[data-inline] .mdxeditor-root-contenteditable {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.plan-block-editor[data-inline] .plan-editor-content {
+  min-height: 0;
+  padding: 0;
+}
+
+/* The page passes the space the text keeps around it (its margins and its first and last child's,
+ * collapsed), so the editor's own outer margins are off. Lists and quotes read as the page draws them. */
+.plan-block-editor[data-inline] .plan-editor-content > :first-child,
+.plan-block-editor[data-inline] .plan-editor-content > :first-child > :first-child { margin-top: 0; }
+.plan-block-editor[data-inline] .plan-editor-content > :last-child,
+.plan-block-editor[data-inline] .plan-editor-content > :last-child > :last-child { margin-bottom: 0; }
+.plan-block-editor[data-inline] .plan-editor-content li { margin-block: 0; }
+.plan-block-editor[data-inline] .plan-editor-content blockquote { padding-left: 0; border-left: 0; }
+
+.plan-block-editor[data-inline] :is(.plan-block-handles, .plan-block-add) { display: none !important; }
+
+.plan-block-editor[data-inline] .plan-block-editor-bar { margin-top: var(--space-xs); }
+
+/* A table cell's editor keeps its text's line. */
+:is(td, th) > .plan-block-editor[data-inline],
+:is(td, th) > .plan-block-editor[data-inline] :is(.mdxeditor, .mdxeditor-root-contenteditable, .plan-editor-content, .plan-editor-content > p) {
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  text-transform: inherit;
+}
+
 @media (max-width: 600px) {
   .plan-block-editor-hint { display: none; }
   .plan-block-editor-bar .plan-editor-actions { width: 100%; }

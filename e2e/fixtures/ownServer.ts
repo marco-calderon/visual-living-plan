@@ -8,9 +8,9 @@ import { test } from '@playwright/test'
  * submissions, or needs the plan as it is on disk, runs on one of these instead. Its port is also
  * its own browser origin, so the page's device store starts empty too.
  */
-export function startPlanServer(port: number, mode: 'watch' | 'review' = 'watch'): Promise<ChildProcess> {
+export function startPlanServer(port: number, mode: 'watch' | 'review' = 'watch', plan?: string): Promise<ChildProcess> {
   const child = spawn('bun', ['scripts/e2e-server.ts'], {
-    env: { ...process.env, E2E_PORT: String(port), E2E_MODE: mode },
+    env: { ...process.env, E2E_PORT: String(port), E2E_MODE: mode, ...(plan ? { E2E_PLAN: plan } : {}) },
     stdio: ['ignore', 'pipe', 'inherit'],
   })
   return new Promise((resolve, reject) => {
@@ -32,12 +32,12 @@ export function stopPlanServer(child: ChildProcess | undefined): Promise<void> {
   })
 }
 
-/** A fresh server for each test in this file. `current()` is the running one, for specs that restart it. */
-export function useOwnPlanServer(port: number, mode: 'watch' | 'review' = 'watch') {
+/** A fresh server for each test in this file, on the sample plan or on `plan`. `current()` is the running one, for specs that restart it. */
+export function useOwnPlanServer(port: number, mode: 'watch' | 'review' = 'watch', plan?: string) {
   let server: ChildProcess | undefined
   test.use({ baseURL: `http://127.0.0.1:${port}` })
   test.beforeEach(async () => {
-    server = await startPlanServer(port, mode)
+    server = await startPlanServer(port, mode, plan)
   })
   test.afterEach(async () => {
     await stopPlanServer(server)
@@ -47,7 +47,7 @@ export function useOwnPlanServer(port: number, mode: 'watch' | 'review' = 'watch
     stop: () => stopPlanServer(server),
     restart: async () => {
       await stopPlanServer(server)
-      server = await startPlanServer(port, mode)
+      server = await startPlanServer(port, mode, plan)
     },
   }
 }

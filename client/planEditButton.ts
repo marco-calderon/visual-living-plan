@@ -1,22 +1,46 @@
 /* ----------------------------------------------------------------------------------------------
  * Edit a block where it sits (ADR 0040). The page is both the reader and the editor: while the
- * plan can be edited, the block under the pointer (or with focus, or tapped) shows a small pill
- * with Edit and +. Edit opens that block's editor in its place; + opens a new block below it. E
- * edits the block with focus, or the one at the reading line. One pill follows the pointer, so the
- * page's blocks stay as React drew them.
+ * plan can be edited, a click on text (a paragraph, a heading, a list, a quote, a table cell) puts
+ * the caret there and the text is edited as it reads. A block that is more than text (a card, a
+ * choice, an endpoint, a diagram, code, a table) shows a small pill with Edit and + while it is
+ * under the pointer, has focus, or is tapped. Edit opens that block's editor in its place; + opens
+ * a new block below it. E edits the block under the pointer or with focus, or the one at the
+ * reading line. One pill follows the pointer, so the page's blocks stay as React drew them.
  * ------------------------------------------------------------------------------------------- */
+
+import { textOffsetAt } from './caretSpot.ts'
 
 /** The key that edits the block with focus. */
 export const BLOCK_EDIT_KEY = 'E'
 
 type EditState = { editable: boolean; editing: boolean }
 
+/** Where the caret goes when an editor opens: characters into the text, in a data table's cell when `row` is set. */
+export type EditCaret = { offset: number; row?: number; column?: number }
+
+/** How a block's editor opens. Text opens `inline`: it keeps its look and place, with no frame or bar. */
+export type EditHow = {
+  inline?: boolean
+  caret?: EditCaret
+  /** The space the block keeps around its text, so the text does not move when it turns into the editor. */
+  margins?: { top: string; bottom: string }
+}
+
 export type BlockEditActions = {
   state: () => EditState
   /** Open the editor for the block at this range (its `data-plan-block`). */
-  edit: (range: string) => void
+  edit: (range: string, how?: EditHow) => void
   /** Open a new block's editor after the block at this range. */
   add: (after: string) => void
+  /** Edit one cell of a pipe table where it is (its `data-plan-cell-range`). */
+  cell: (range: string, caret?: EditCaret) => void
+}
+
+/** What `bindBlockEditButton` returns: stop listening, and tell it the open editor closed. */
+export type BlockEditBinding = {
+  stop: () => void
+  /** A click on other text while an editor was open finishes that editor first; this opens the text it hit. */
+  closed: () => void
 }
 
 function article(): HTMLElement | null {
@@ -32,9 +56,62 @@ export function editTargetOf(target: EventTarget | null): HTMLElement | null {
   return block && root.contains(block) ? block : null
 }
 
+/** Text the page edits as it reads: no pill, a click puts the caret in it. */
+const TEXT_BLOCK = 'p, h1, h2, h3, h4, h5, h6, ul, ol, blockquote'
+
+export function isTextBlock(block: Element): boolean {
+  return block.matches(TEXT_BLOCK)
+}
+
+/** The block the pill is for: the innermost block under `target` that is more than text, such as the phase a paragraph is in. */
+export function pillTargetOf(target: EventTarget | null): HTMLElement | null {
+  const root = article()
+  let block = editTargetOf(target)
+  while (block && isTextBlock(block)) {
+    const outer = block.parentElement?.closest<HTMLElement>('[data-plan-block]') ?? null
+    block = outer && root?.contains(outer) ? outer : null
+  }
+  return block
+}
+
 /** A block the plan marks `locked`, or one inside a locked block, or an answer card that keeps its default lock. */
 export function isEditLocked(block: Element): boolean {
   return block.closest('[data-edit-locked="true"]') !== null || block.querySelector(':scope > [data-edit-locked="true"]') !== null
+}
+
+/** Controls inside text that keep their own click: links, buttons, checkboxes, fields. */
+const OWN_CLICK =
+  'a[href], button, input, select, textarea, label, summary, [contenteditable="true"], [role="button"], [role="link"], [role="checkbox"], [role="radio"], [role="switch"], [role="tab"], [role="menuitem"], [role="option"]'
+
+/** What a click on `target` edits where it is: text, a pipe table's cell, or a data table's cell. */
+export type DirectEdit =
+  | { kind: 'text'; element: HTMLElement }
+  | { kind: 'cell'; element: HTMLElement }
+  | { kind: 'grid'; element: HTMLElement; block: HTMLElement; row: number; column: number }
+
+export function directEditOf(target: EventTarget | null): DirectEdit | null {
+  if (!(target instanceof Element) || target.closest(OWN_CLICK)) return null
+  const block = editTargetOf(target)
+  if (!block || isEditLocked(block)) return null
+  if (isTextBlock(block)) return { kind: 'text', element: block }
+  const cell = target.closest<HTMLElement>('td, th')
+  if (!cell || !block.contains(cell)) return null
+  if (cell.hasAttribute('data-plan-cell-range')) return { kind: 'cell', element: cell }
+  // A data table's row keeps its place in the plan in its id (`row-3` is the third <Row>), whatever the sort.
+  const row = /^row-(\d+)$/.exec(cell.closest('tr')?.getAttribute('data-row') ?? '')
+  const table = cell.closest('[data-plan-data-table]')
+  // Only a data table that is a block of its own (its frame); one inside a card opens with that card's Edit.
+  if (row && cell.tagName === 'TD' && table && block.matches('.plan-block-frame') && block.querySelector('[data-plan-data-table]') === table && !cell.closest('[data-edit-locked="true"]')) {
+    const column = Array.prototype.indexOf.call(cell.parentElement?.children ?? [], cell) as number
+    return { kind: 'grid', element: cell, block, row: Number(row[1]) - 1, column }
+  }
+  return null
+}
+
+/** True while the reader has text selected: a drag over text selects it rather than editing it. */
+function selecting(): boolean {
+  const selection = window.getSelection()
+  return selection !== null && selection.rangeCount > 0 && !selection.isCollapsed
 }
 
 /** The line, from the top of the window, that the contents list marks the current section by (src/bindPlanChrome.ts). */
@@ -68,6 +145,44 @@ const PLUS =
 /** How long the pill waits after the pointer leaves a block, so it can be reached. */
 const HIDE_DELAY_MS = 300
 
+/** How long a click on text waits for the editor it finished to close. */
+const QUEUE_MS = 3000
+
+/** Where in `element`'s text a click at x, y is, for the editor's caret. */
+function caretIn(element: Element, x: number, y: number): EditCaret | undefined {
+  const offset = textOffsetAt(element, x, y)
+  return offset === null ? undefined : { offset }
+}
+
+const STACKED = ['block', 'list-item']
+
+/**
+ * The space a block keeps above or below its text: its own margin, collapsed with the margin of its
+ * first (or last) child where nothing separates them, as a quote's paragraph does. The editor that
+ * stands in for the block takes that space, so the text does not move.
+ */
+function collapsedMargin(element: Element, side: 'top' | 'bottom'): number {
+  let value = 0
+  let node: Element | null = element
+  while (node) {
+    const style = getComputedStyle(node)
+    value = Math.max(value, Number.parseFloat(side === 'top' ? style.marginTop : style.marginBottom) || 0)
+    const edge =
+      side === 'top'
+        ? (Number.parseFloat(style.paddingTop) || 0) + (Number.parseFloat(style.borderTopWidth) || 0)
+        : (Number.parseFloat(style.paddingBottom) || 0) + (Number.parseFloat(style.borderBottomWidth) || 0)
+    if (edge > 0 || style.overflow !== 'visible' || !STACKED.includes(style.display)) break
+    const child: Element | null = side === 'top' ? node.firstElementChild : node.lastElementChild
+    if (!child || !STACKED.includes(getComputedStyle(child).display)) break
+    node = child
+  }
+  return value
+}
+
+function marginsOf(element: Element): { top: string; bottom: string } {
+  return { top: `${collapsedMargin(element, 'top')}px`, bottom: `${collapsedMargin(element, 'bottom')}px` }
+}
+
 function toolButton(className: string, label: string, title: string, html: string): HTMLButtonElement {
   const button = document.createElement('button')
   button.type = 'button'
@@ -80,7 +195,7 @@ function toolButton(className: string, label: string, title: string, html: strin
   return button
 }
 
-export function bindBlockEditButton(options: BlockEditActions): () => void {
+export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding {
   const tools = document.createElement('div')
   tools.className = 'plan-block-tools'
   tools.dataset.planBlockTools = ''
@@ -94,6 +209,8 @@ export function bindBlockEditButton(options: BlockEditActions): () => void {
   tools.append(edit, add)
   document.body.append(tools)
   let block: HTMLElement | null = null
+  // The innermost block under the pointer, with focus, or tapped, text included: what E edits.
+  let pointed: HTMLElement | null = null
   let frame = 0
   let hideTimer = 0
 
@@ -136,8 +253,12 @@ export function bindBlockEditButton(options: BlockEditActions): () => void {
       window.clearTimeout(hideTimer)
       return
     }
-    const next = usable() ? editTargetOf(target) : null
+    const inner = usable() ? editTargetOf(target) : null
+    pointed = inner && !isEditLocked(inner) ? inner : null
+    const next = inner ? pillTargetOf(target) : null
     if (next && !isEditLocked(next)) {
+      // Back on the block after a trip to the pill: the hide that leaving it started is off.
+      window.clearTimeout(hideTimer)
       if (next !== block || !tools.hasAttribute('data-visible')) show(next)
       return
     }
@@ -182,13 +303,52 @@ export function bindBlockEditButton(options: BlockEditActions): () => void {
     event.preventDefault()
     // From Workflow or Settings, E shows the plan first.
     if (showPlanTab()) return
-    const shown = tools.hasAttribute('data-visible') ? block : null
+    const hovered = pointed?.isConnected ? pointed : null
     const focused = editTargetOf(document.activeElement)
-    const next = [shown, focused && !isEditLocked(focused) ? focused : null, blockAtReadingLine()].find(
+    const next = [hovered, focused && !isEditLocked(focused) ? focused : null, blockAtReadingLine()].find(
       (candidate): candidate is HTMLElement => Boolean(candidate?.dataset.planBlock),
     )
     hide()
-    if (next?.dataset.planBlock) options.edit(next.dataset.planBlock)
+    if (!next?.dataset.planBlock) return
+    options.edit(next.dataset.planBlock, isTextBlock(next) ? { inline: true, margins: marginsOf(next) } : undefined)
+  }
+  // A click on text another editor holds finishes that editor; the text opens once it has closed.
+  let queued: { edit: DirectEdit; x: number; y: number; text: string; at: number } | null = null
+  const openDirect = (direct: DirectEdit, x: number, y: number) => {
+    hide()
+    if (direct.kind === 'cell') {
+      const range = direct.element.getAttribute('data-plan-cell-range')
+      if (range) options.cell(range, caretIn(direct.element, x, y))
+      return
+    }
+    if (direct.kind === 'grid') {
+      const range = direct.block.dataset.planBlock
+      const offset = textOffsetAt(direct.element, x, y) ?? Number.MAX_SAFE_INTEGER
+      if (range) options.edit(range, { caret: { row: direct.row, column: direct.column, offset } })
+      return
+    }
+    const range = direct.element.dataset.planBlock
+    if (range) options.edit(range, { inline: true, caret: caretIn(direct.element, x, y), margins: marginsOf(direct.element) })
+  }
+  const onClick = (event: MouseEvent) => {
+    if (event.button !== 0 || event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
+    const direct = directEditOf(event.target)
+    if (!direct || selecting()) return
+    const state = options.state()
+    if (state.editable && state.editing && document.body.dataset.planMode !== 'comment') {
+      queued = { edit: direct, x: event.clientX, y: event.clientY, text: direct.element.textContent ?? '', at: Date.now() }
+      return
+    }
+    if (!usable()) return
+    openDirect(direct, event.clientX, event.clientY)
+  }
+  const closed = () => {
+    const next = queued
+    queued = null
+    if (!next || Date.now() - next.at > QUEUE_MS || !usable()) return
+    // The page drew the edit; the text clicked on is still there, unless the edit changed it.
+    if (!next.edit.element.isConnected || (next.edit.element.textContent ?? '') !== next.text) return
+    openDirect(next.edit, next.x, next.y)
   }
   // Focus moving into a block (a folder, a tab, a link) shows its pill too, and E edits it.
   const onFocus = (event: FocusEvent) => {
@@ -197,17 +357,20 @@ export function bindBlockEditButton(options: BlockEditActions): () => void {
   }
   edit.addEventListener('click', onEdit)
   add.addEventListener('click', onAdd)
+  document.addEventListener('click', onClick)
   document.addEventListener('pointerover', onPointer, { passive: true })
   document.addEventListener('pointerup', onTap, { passive: true })
   document.addEventListener('focusin', onFocus)
   document.addEventListener('keydown', onKey)
   window.addEventListener('scroll', onMove, { passive: true })
   window.addEventListener('resize', onMove)
-  return () => {
+  const stop = () => {
     cancelAnimationFrame(frame)
     window.clearTimeout(hideTimer)
+    queued = null
     edit.removeEventListener('click', onEdit)
     add.removeEventListener('click', onAdd)
+    document.removeEventListener('click', onClick)
     document.removeEventListener('pointerover', onPointer)
     document.removeEventListener('pointerup', onTap)
     document.removeEventListener('focusin', onFocus)
@@ -216,4 +379,5 @@ export function bindBlockEditButton(options: BlockEditActions): () => void {
     window.removeEventListener('resize', onMove)
     tools.remove()
   }
+  return { stop, closed }
 }

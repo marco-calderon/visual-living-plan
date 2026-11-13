@@ -32,8 +32,8 @@ import { sendPlanMutation, sharedQueryClient } from './queryClient.tsx'
 import { clearDraft, isLegacyDraft, readDraft, writeDraft, type PlanDraft } from './editor/draftStore.ts'
 import { planNotReadyReason } from '../src/planReady.ts'
 import type { DraftConflict, DraftSide } from '../src/planMdx/rebaseDraft.ts'
-import { bindBlockEditButton } from './planEditButton.ts'
-import { parseBlockRange } from '../src/planMdx/remarkBlockRanges.ts'
+import { bindBlockEditButton, type BlockEditBinding, type EditCaret, type EditHow } from './planEditButton.ts'
+import { CELL_RANGE_ATTR, parseBlockRange, parseCellRange } from '../src/planMdx/remarkBlockRanges.ts'
 import { Button } from './ui/button.tsx'
 import type { BlockTarget } from './editor/BlockEditor.tsx'
 
@@ -110,8 +110,13 @@ const TocHeadingCursor = createContext<{ current: TocCursor } | null>(null)
 const PlanHeaderContext = createContext<PlanHeaderInfo | null>(null)
 
 /** The plan's first heading, with the eyebrow above it and the fact chips under it (ADR 0039). */
-function PlanTitleHeading({ id, blockRange, children }: { id?: string; blockRange?: string; children?: ReactNode }) {
+function PlanTitleHeading({ id, blockRange, children, editing }: { id?: string; blockRange?: string; children?: ReactNode; editing?: boolean }) {
   const info = useContext(PlanHeaderContext)
+  const heading = (
+    <h1 id={id} data-plan-block={blockRange}>
+      {children}
+    </h1>
+  )
   return (
     <>
       {info?.eyebrow ? (
@@ -119,9 +124,8 @@ function PlanTitleHeading({ id, blockRange, children }: { id?: string; blockRang
           {info.eyebrow}
         </p>
       ) : null}
-      <h1 id={id} data-plan-block={blockRange}>
-        {children}
-      </h1>
+      {/* The title edited as it reads keeps the eyebrow above it and the facts under it. */}
+      {editing ? <BlockEditSlot replaced={null} fallback={heading} /> : heading}
       {info && info.facts.length > 0 ? (
         <ul className="plan-head-facts" data-plan-head="" aria-label="Plan progress">
           {info.facts.map((fact) => (
@@ -161,7 +165,9 @@ function useBodyMode(): string | undefined {
   return mode
 }
 
-function PlanMarkdownHeading({ level, children, 'data-plan-block': blockRange }: { level: 1 | 2 | 3; children?: ReactNode; 'data-plan-block'?: string }) {
+type PlanHeadingProps = { children?: ReactNode; 'data-plan-block'?: string; 'data-plan-editing'?: boolean }
+
+function PlanMarkdownHeading({ level, children, 'data-plan-block': blockRange, 'data-plan-editing': editing }: PlanHeadingProps & { level: 1 | 2 | 3 }) {
   const cursor = useContext(TocHeadingCursor)
   let id: string | undefined
   // The plan's opening heading: the first heading of the document, when it is a `#` heading.
@@ -170,21 +176,24 @@ function PlanMarkdownHeading({ level, children, 'data-plan-block': blockRange }:
     id = cursor.current.ids[cursor.current.n]
     cursor.current.n += 1
   }
-  if (level === 1 && first) return <PlanTitleHeading id={id} blockRange={blockRange}>{children}</PlanTitleHeading>
-  if (level === 1) return <h1 id={id} data-plan-block={blockRange}>{children}</h1>
-  if (level === 2) return <h2 id={id} data-plan-block={blockRange}>{children}</h2>
-  return <h3 id={id} data-plan-block={blockRange}>{children}</h3>
+  if (level === 1 && first) return <PlanTitleHeading id={id} blockRange={blockRange} editing={editing}>{children}</PlanTitleHeading>
+  const heading =
+    level === 1 ? <h1 id={id} data-plan-block={blockRange}>{children}</h1>
+    : level === 2 ? <h2 id={id} data-plan-block={blockRange}>{children}</h2>
+    : <h3 id={id} data-plan-block={blockRange}>{children}</h3>
+  // A heading open in the editor keeps its place in the contents, so the headings after it keep their ids.
+  return editing ? <BlockEditSlot replaced={null} fallback={heading} /> : heading
 }
 
-function PlanH1(props: { children?: ReactNode; 'data-plan-block'?: string }) {
+function PlanH1(props: PlanHeadingProps) {
   return <PlanMarkdownHeading level={1} {...props} />
 }
 
-function PlanH2(props: { children?: ReactNode; 'data-plan-block'?: string }) {
+function PlanH2(props: PlanHeadingProps) {
   return <PlanMarkdownHeading level={2} {...props} />
 }
 
-function PlanH3(props: { children?: ReactNode; 'data-plan-block'?: string }) {
+function PlanH3(props: PlanHeadingProps) {
   return <PlanMarkdownHeading level={3} {...props} />
 }
 
@@ -199,8 +208,14 @@ function samePlanSource(a: string, b: string): boolean {
 /** A block editor open on the page (ADR 0040): what it edits, and the plan file the page showed when it opened. */
 type OpenEdit = {
   id: number
-  /** `data-plan-block` of the block to edit, or of the block to add after (null: after the last). */
-  target: { kind: 'edit'; range: string } | { kind: 'add'; after: string | null }
+  /**
+   * `data-plan-block` of the block to edit (`inline` for text, edited as it reads), of the block to
+   * add after (null: after the last), or `data-plan-cell-range` of a pipe table cell.
+   */
+  target: { kind: 'edit'; range: string; inline?: boolean } | { kind: 'add'; after: string | null } | { kind: 'cell'; range: string }
+  /** Where the caret goes, and the margins inline text keeps. */
+  caret?: EditCaret
+  margins?: EditHow['margins']
   source: string
   /** The plan file Done kept. The editor closes when the page shows it. */
   committed?: string
@@ -218,7 +233,11 @@ const EditSlotContext = createContext<EditSlot | null>(null)
 function blockTarget(open: OpenEdit): BlockTarget | null {
   if (open.target.kind === 'edit') {
     const range = parseBlockRange(open.target.range)
-    return range ? { kind: 'edit', range } : null
+    return range ? { kind: 'edit', range, inline: open.target.inline } : null
+  }
+  if (open.target.kind === 'cell') {
+    const range = parseCellRange(open.target.range)
+    return range ? { kind: 'cell', range } : null
   }
   if (open.target.after === null) return { kind: 'add', after: null }
   const after = parseBlockRange(open.target.after)
@@ -352,21 +371,35 @@ function countHeadings(node: ReactNode): number {
   return (PLAN_HEADINGS.has(node.type) ? 1 : 0) + countHeadings(node.props.children)
 }
 
-function BlockEditSlot({ replaced }: { replaced: ReactElement | null }) {
+function BlockEditSlot({ replaced, fallback }: { replaced: ReactElement | null; fallback?: ReactNode }) {
   const slot = useContext(EditSlotContext)
   const cursor = useContext(TocHeadingCursor)
   if (cursor && replaced) cursor.current.n += countHeadings(replaced)
   const target = slot ? blockTarget(slot.open) : null
-  if (!slot || !target) return replaced
+  if (!slot || !target) return fallback ?? replaced
+  // Text edited as it reads stays as it is while the editor's code loads, so nothing flickers.
+  const inline = target.kind === 'cell' || (target.kind === 'edit' && target.inline === true)
   return (
     <Suspense
       fallback={
-        <div className="plan-block-editor-loading" data-plan-block-editor="loading" role="status">
-          Opening the editor…
-        </div>
+        inline ? (
+          (fallback ?? replaced)
+        ) : (
+          <div className="plan-block-editor-loading" data-plan-block-editor="loading" role="status">
+            Opening the editor…
+          </div>
+        )
       }
     >
-      <LazyBlockEditor key={slot.open.id} source={slot.open.source} target={target} commit={slot.commit} onCancel={slot.cancel} />
+      <LazyBlockEditor
+        key={slot.open.id}
+        source={slot.open.source}
+        target={target}
+        commit={slot.commit}
+        onCancel={slot.cancel}
+        caret={slot.open.caret}
+        margins={slot.open.margins}
+      />
     </Suspense>
   )
 }
@@ -399,10 +432,22 @@ function placeIn(
       return Array.isArray(children) ? next : next[0]
     }
     if (!isValidElement(node)) continue
+    // A pipe table cell keeps its own box; the editor goes in it, in place of its text.
+    if (open.target.kind === 'cell' && (node.props as Record<string, unknown>)[CELL_RANGE_ATTR] === open.target.range) {
+      const cellProps = node.props as { children?: ReactNode }
+      const next = [...list]
+      next[index] = cloneElement(node as ReactElement<{ children?: ReactNode }>, {
+        children: <BlockEditSlot key="plan-cell-edit" replaced={null} fallback={cellProps.children} />,
+      })
+      return Array.isArray(children) ? next : next[0]
+    }
     const range = rangeOfElement(node)
     if (range !== undefined && open.target.kind === 'edit' && range === open.target.range) {
       const next = [...list]
-      next[index] = slot(node, node.key ?? `plan-block-edit-${index}`)
+      // A heading draws the editor itself, in its own place: the title keeps its eyebrow and facts.
+      next[index] = PLAN_HEADINGS.has(node.type)
+        ? cloneElement(node as ReactElement<PlanHeadingProps>, { 'data-plan-editing': true })
+        : slot(node, node.key ?? `plan-block-edit-${index}`)
       return Array.isArray(children) ? next : next[0]
     }
     if (range !== undefined && open.target.kind === 'add' && range === open.target.after) {
@@ -631,6 +676,7 @@ function PlanMdxApp() {
   // The block editor on the page, if one is open.
   const [openEdit, setOpenEdit] = useState<OpenEdit | null>(null)
   const editIds = useRef(0)
+  const editBinding = useRef<BlockEditBinding | null>(null)
   // The plan file the page draws: the unapplied changes, else the file a block editor opened on, else the live plan.
   const pageSource = draft?.source ?? openEdit?.source ?? boot.source
   // The source on screen. It lags `pageSource` when the newest source does not compile.
@@ -908,23 +954,39 @@ function PlanMdxApp() {
 
   useEffect(() => {
     if (!canEdit) return
-    const open = (target: OpenEdit['target']) => {
+    const open = (target: OpenEdit['target'], how?: EditHow) => {
       editIds.current += 1
-      setOpenEdit({ id: editIds.current, target, source: pageSourceRef.current })
+      setOpenEdit({ id: editIds.current, target, caret: how?.caret, margins: how?.margins, source: pageSourceRef.current })
     }
-    // Load the editor while the reader looks at the pill, so Edit opens at once.
+    // Load the editor while the reader looks at the page, so a click on text or Edit opens at once.
     const warm = () => void loadBlockEditor().catch(() => undefined)
     document.addEventListener('pointerover', warm, { once: true, passive: true })
-    const stop = bindBlockEditButton({
+    const binding = bindBlockEditButton({
       state: () => editState.current,
-      edit: (range) => open({ kind: 'edit', range }),
+      edit: (range, how) => open({ kind: 'edit', range, inline: how?.inline }, how),
       add: (after) => open({ kind: 'add', after }),
+      cell: (range, caret) => open({ kind: 'cell', range }, { caret }),
     })
+    editBinding.current = binding
     return () => {
       document.removeEventListener('pointerover', warm)
-      stop()
+      editBinding.current = null
+      binding.stop()
     }
   }, [canEdit])
+
+  // A click on other text finished the editor that was open. That text opens once the page shows the edit.
+  const hadEdit = useRef(false)
+  useEffect(() => {
+    if (openEdit) {
+      hadEdit.current = true
+      return
+    }
+    if (!hadEdit.current) return
+    hadEdit.current = false
+    const frame = requestAnimationFrame(() => editBinding.current?.closed())
+    return () => cancelAnimationFrame(frame)
+  }, [openEdit])
 
   // A draft from the whole-page editor (before 2.26) holds the editor's text. Turn it into a plan file once.
   useEffect(() => {
