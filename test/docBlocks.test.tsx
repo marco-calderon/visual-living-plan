@@ -436,6 +436,21 @@ describe('plans that use document blocks', () => {
     expect(markdown.join('\n')).not.toContain('&lt;FileTree')
   })
 
+  test('the component showcase parses and uses every document block', () => {
+    const source = readFileSync(new URL('../examples/component-showcase.plan.md', import.meta.url), 'utf8')
+    const plan = parsePlan(source, 'component-showcase.plan.md')
+    expect(plan.entries.filter((entry) => entry.type === 'phase').map((entry) => (entry.type === 'phase' ? entry.status : ''))).toEqual([
+      'done',
+      'done',
+      'active',
+      'pending',
+      'blocked',
+      'failed',
+    ])
+    for (const name of DOC_BLOCK_NAMES) expect(source).toContain(`<${name}`)
+    for (const name of ['DataTable', 'BarChart', 'LineChart', 'Box', 'HStack', 'ResponsiveStack', 'Chip', 'Pill']) expect(source).toContain(`<${name}`)
+  })
+
   test('every document block is known to the outline', () => {
     const outline = readFileSync(new URL('../src/planMdx/outline.ts', import.meta.url), 'utf8')
     for (const name of DOC_BLOCK_NAMES) expect(outline).toContain(`'${name}'`)

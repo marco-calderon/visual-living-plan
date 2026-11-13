@@ -35,4 +35,4 @@ The plan page reads as a document instead of a stack of grey cards. Agents get b
 
 ### Notes
 
-No plan format break: every existing tag and event is unchanged, and `done` on a checklist item still works. `examples/component-tour.plan.md` uses every block. `SHELL_CACHE_VERSION` moves to 2.26.0. No service restart needed.
+No plan format break: every existing tag and event is unchanged, and `done` on a checklist item still works. `examples/component-showcase.plan.md` shows every component on one page, and `examples/component-tour.plan.md` uses the new blocks in a realistic plan. `SHELL_CACHE_VERSION` moves to 2.26.0. No service restart needed.

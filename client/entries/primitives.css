@@ -2091,3 +2091,8 @@ body:not([data-plan-editable="true"]) .plan-block-edit { display: none; }
   width: 16px;
   height: 16px;
 }
+
+/* A heading after a block starts a new section: it gets the section's space above it. */
+.plan-document > :is(.plan-entry, .block, [data-doc-block]:not(.plan-path), div:has(> .plan-entry)) + :is(h1, h2, h3, h4) {
+  margin-top: var(--space-xxl);
+}

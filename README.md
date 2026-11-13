@@ -21,7 +21,7 @@ bun install
 bun run serve -- examples/rate-limit.plan.md
 ```
 
-`examples/tables.plan.md` is the table showcase: a pipe table in the plan text, and the same syntax inside a phase and a callout.
+`examples/component-showcase.plan.md` shows every component a plan can hold on one page, grouped by kind: text and labels, callouts and checklists, code and diagrams, tables, charts and data views, layout, and the cards that ask the reader for an answer. `examples/tables.plan.md` is the table showcase: a pipe table in the plan text, and the same syntax inside a phase and a callout.
 
 The command prints a URL and waits for a submission. Open the URL. Edit the example file, change a phase `status`, and the page reloads. Click a choice, submit a form, comment, or approve or deny. This command prints that JSON and exits. The page stays up. Run `events --url <printed-url>` again after each exit so a pending comment or verdict is delivered. After an approval, `watch --url <printed-url>` stays running while the plan executes. Stop it when execution is finished. `--detach` registers the plan and returns without waiting.
 
