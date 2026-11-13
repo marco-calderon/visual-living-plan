@@ -16,7 +16,8 @@ import { cx } from '../entries/styles.ts'
 import { calloutKind, phaseStatus } from '../entries/types.ts'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select.tsx'
 import { IconPicker } from './iconPicker.tsx'
-import { isLockedTag, LockedContext } from './locked.ts'
+import { containsLocked, isLockedMdast, isLockedTag, lockedAttribute, LockedContext } from './locked.ts'
+import { dataTableDescriptor, labelDescriptors } from './dataTableEditor.tsx'
 import { hasLockedPreview, renderLockedPreview } from './lockedPreview.tsx'
 import { StatusPicker } from './statusPicker.tsx'
 import { useIsolatedFromEditor } from './isolate.ts'
@@ -25,6 +26,11 @@ type JsxNode = MdxJsxFlowElement | MdxJsxTextElement
 
 const CALLOUT_KINDS = ['note', 'tip', 'risk', 'decision', 'warning']
 const FIELD_TYPES = ['text', 'number', 'textarea', 'select', 'checkbox', 'stepper']
+const CHANGES = ['modified', 'added', 'deleted', 'renamed', 'unchanged']
+const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
+const PARAM_PLACES = ['path', 'query', 'header', 'body', 'cookie']
+const RELATIONS = ['1-n', '1-1', 'n-1', 'n-n']
+const HEALTHS = ['on-track', 'at-risk', 'off-track']
 
 type PropSpec = {
   name: string
@@ -34,7 +40,14 @@ type PropSpec = {
   /** Takes the free width of the header row. */
   wide?: boolean
   placeholder?: string
+  /** A select that can also be empty ("none"): the attribute is left out. */
+  optional?: boolean
+  /** Shown only while another attribute has this value, or while this one is set. */
+  when?: { name: string; is: string }
 }
+
+/** The select item that stands for an attribute left out. */
+const NONE = '__none__'
 
 type EntrySpec = {
   /** The tag name the editor sees. */
@@ -91,7 +104,11 @@ export const ENTRY_SPECS: EntrySpec[] = [
   {
     tag: 'plan-option',
     label: 'Option',
-    props: [{ name: 'label', label: 'Label', control: 'text', wide: true, placeholder: 'Option label' }, ID],
+    props: [
+      { name: 'label', label: 'Label', control: 'text', wide: true, placeholder: 'Option label' },
+      ID,
+      { name: 'recommended', label: 'Recommended', control: 'flag' },
+    ],
     hasChildren: true,
     row: true,
   },
@@ -126,7 +143,9 @@ export const ENTRY_SPECS: EntrySpec[] = [
   {
     tag: 'item',
     label: 'Item',
-    props: [{ name: 'done', label: 'Done', control: 'flag' }],
+    // A checklist line's status (ADR 0039). An item that only says `done` shows as done or pending.
+    pickStatus: true,
+    props: [],
     hasChildren: true,
     row: true,
   },
@@ -150,6 +169,172 @@ export const ENTRY_SPECS: EntrySpec[] = [
     icon: 'branch',
     props: [{ name: 'title', label: 'Title', control: 'text', wide: true, placeholder: 'Expected execution' }, ID],
     hasChildren: true,
+  },
+  // Document blocks (ADR 0039, client/mdx/docBlocks.tsx).
+  {
+    tag: 'FileTree',
+    label: 'File tree',
+    icon: 'file',
+    props: [{ name: 'title', label: 'Title', control: 'text', wide: true, placeholder: 'Files touched' }],
+    hasChildren: true,
+  },
+  {
+    tag: 'File',
+    label: 'File',
+    props: [
+      { name: 'path', label: 'Path', control: 'text', wide: true, placeholder: 'src/path/file.ts' },
+      { name: 'change', label: 'Change', control: 'select', options: CHANGES },
+      { name: 'from', label: 'From', control: 'text', placeholder: 'old/path', when: { name: 'change', is: 'renamed' } },
+    ],
+    hasChildren: true,
+    row: true,
+  },
+  {
+    tag: 'Endpoint',
+    label: 'API endpoint',
+    icon: 'globe',
+    props: [
+      { name: 'path', label: 'Path', control: 'text', wide: true, placeholder: '/api/resource/{id}' },
+      { name: 'method', label: 'Method', control: 'select', options: METHODS },
+      { name: 'change', label: 'Change', control: 'select', options: CHANGES, optional: true },
+      { name: 'auth', label: 'Auth', control: 'text', placeholder: 'API key' },
+      { name: 'open', label: 'Open', control: 'flag' },
+    ],
+    hasChildren: true,
+  },
+  {
+    tag: 'Param',
+    label: 'Param',
+    props: [
+      { name: 'name', label: 'Name', control: 'text', wide: true, placeholder: 'name' },
+      { name: 'in', label: 'In', control: 'select', options: PARAM_PLACES },
+      { name: 'type', label: 'Type', control: 'text', placeholder: 'string' },
+      { name: 'required', label: 'Required', control: 'flag' },
+    ],
+    hasChildren: true,
+    row: true,
+  },
+  { tag: 'Request', label: 'Request', props: [], hasChildren: true, row: true },
+  {
+    tag: 'Response',
+    label: 'Response',
+    props: [{ name: 'status', label: 'Status', control: 'text', wide: true, placeholder: '200' }],
+    hasChildren: true,
+    row: true,
+  },
+  {
+    tag: 'DataModel',
+    label: 'Data model',
+    icon: 'database',
+    props: [{ name: 'title', label: 'Title', control: 'text', wide: true, placeholder: 'Tables' }],
+    hasChildren: true,
+  },
+  {
+    tag: 'Entity',
+    label: 'Table',
+    props: [
+      { name: 'name', label: 'Name', control: 'text', wide: true, placeholder: 'table_name' },
+      { name: 'change', label: 'Change', control: 'select', options: CHANGES, optional: true },
+      { name: 'collapsed', label: 'Folded', control: 'flag' },
+    ],
+    hasChildren: true,
+    row: true,
+  },
+  {
+    tag: 'Attr',
+    label: 'Field',
+    props: [
+      { name: 'name', label: 'Name', control: 'text', wide: true, placeholder: 'column' },
+      { name: 'type', label: 'Type', control: 'text', placeholder: 'text' },
+      { name: 'fk', label: 'FK', control: 'text', placeholder: 'table.id' },
+      { name: 'change', label: 'Change', control: 'select', options: CHANGES, optional: true },
+      { name: 'pk', label: 'PK', control: 'flag' },
+      { name: 'nullable', label: 'Null', control: 'flag' },
+    ],
+    hasChildren: false,
+    row: true,
+  },
+  {
+    tag: 'Relation',
+    label: 'Relation',
+    props: [
+      { name: 'from', label: 'From', control: 'text', wide: true, placeholder: 'table' },
+      { name: 'to', label: 'To', control: 'text', placeholder: 'table' },
+      { name: 'kind', label: 'Kind', control: 'select', options: RELATIONS },
+    ],
+    hasChildren: false,
+    row: true,
+  },
+  {
+    tag: 'JsonView',
+    label: 'JSON',
+    icon: 'package',
+    props: [
+      { name: 'title', label: 'Title', control: 'text', wide: true, placeholder: 'Response body' },
+      { name: 'depth', label: 'Open levels', control: 'text', placeholder: '2' },
+    ],
+    hasChildren: true,
+  },
+  {
+    tag: 'AnnotatedCode',
+    label: 'Annotated code',
+    icon: 'file',
+    props: [
+      { name: 'title', label: 'Title', control: 'text', wide: true, placeholder: 'src/path/file.ts' },
+      { name: 'start', label: 'First line', control: 'text', placeholder: '1' },
+    ],
+    hasChildren: true,
+  },
+  {
+    tag: 'Note',
+    label: 'Note',
+    props: [
+      { name: 'label', label: 'Label', control: 'text', wide: true, placeholder: 'Short label' },
+      { name: 'lines', label: 'Lines', control: 'text', placeholder: '12-14' },
+    ],
+    hasChildren: true,
+    row: true,
+  },
+  {
+    tag: 'Tabs',
+    label: 'Tabs',
+    icon: 'list',
+    props: [{ name: 'label', label: 'Label', control: 'text', wide: true, placeholder: 'What the tabs show' }],
+    hasChildren: true,
+  },
+  {
+    tag: 'Tab',
+    label: 'Tab',
+    props: [{ name: 'label', label: 'Label', control: 'text', wide: true, placeholder: 'Tab name' }],
+    hasChildren: true,
+    row: true,
+  },
+  { tag: 'Compare', label: 'Compare', icon: 'branch', props: [], hasChildren: true },
+  {
+    tag: 'Pane',
+    label: 'Pane',
+    props: [{ name: 'label', label: 'Label', control: 'text', wide: true, placeholder: 'Before' }],
+    hasChildren: true,
+    row: true,
+  },
+  {
+    tag: 'Update',
+    label: 'Update',
+    icon: 'flag',
+    props: [
+      { name: 'by', label: 'By', control: 'text', wide: true, placeholder: 'Agent' },
+      { name: 'health', label: 'Health', control: 'select', options: HEALTHS, optional: true },
+      { name: 'date', label: 'Date', control: 'text', placeholder: 'YYYY-MM-DD' },
+    ],
+    hasChildren: true,
+  },
+  { tag: 'Properties', label: 'Properties', icon: 'list', props: [], hasChildren: true },
+  {
+    tag: 'Prop',
+    label: 'Property',
+    props: [{ name: 'label', label: 'Label', control: 'text', wide: true, placeholder: 'Owner' }],
+    hasChildren: true,
+    row: true,
   },
 ]
 
@@ -211,16 +396,21 @@ function PropControl({
     )
   }
   if (spec.control === 'select') {
-    const options = spec.options ?? []
+    const options = spec.optional ? [NONE, ...(spec.options ?? [])] : (spec.options ?? [])
+    const current = value || (spec.optional ? NONE : (options[0] ?? ''))
     return (
-      <Select value={value || (options[0] ?? '')} disabled={disabled} onValueChange={(next) => onChange(String(next ?? ''))}>
+      <Select
+        value={current}
+        disabled={disabled}
+        onValueChange={(next) => onChange(next === NONE ? '' : String(next ?? ''))}
+      >
         <SelectTrigger className="plan-editor-select" aria-label={spec.label}>
-          <SelectValue />
+          <SelectValue>{(selected: unknown) => (selected === NONE ? 'none' : String(selected ?? ''))}</SelectValue>
         </SelectTrigger>
         <SelectContent className="plan-editor-select-popup">
           {options.map((option) => (
             <SelectItem key={option} value={option}>
-              {option}
+              {option === NONE ? 'none' : option}
             </SelectItem>
           ))}
         </SelectContent>
@@ -262,7 +452,9 @@ function useCardUpdater(): (patch: Partial<JsxNode>) => void {
 function EntryEditor({ spec, mdastNode }: { spec: EntrySpec; mdastNode: JsxNode }) {
   const update = useCardUpdater()
   const remove = useLexicalNodeRemove()
-  const status = phaseStatus(readAttr(mdastNode, 'status') || undefined)
+  // A checklist item without a status shows as done or pending, from `done`.
+  const itemDone = spec.tag === 'item' && readAttr(mdastNode, 'done') === 'true' ? 'done' : undefined
+  const status = phaseStatus(readAttr(mdastNode, 'status') || itemDone)
   const kind = spec.tag === 'callout' ? calloutKind(readAttr(mdastNode, 'kind') || undefined) : undefined
   const set = (name: string, value: string) => update({ attributes: withAttr(mdastNode, name, value) })
   const label = kind ? `${spec.label} · ${kind}` : spec.label
@@ -270,11 +462,15 @@ function EntryEditor({ spec, mdastNode }: { spec: EntrySpec; mdastNode: JsxNode 
   useIsolatedFromEditor(head)
   // A card in LOCKED_ENTRY_TAGS, and every row inside one, shows as it is and cannot be changed.
   const insideLocked = useContext(LockedContext)
-  const lockedHere = isLockedTag(spec.tag)
+  // The answer cards (form, questions) unless `locked="false"`, and any card with `locked` (ADR 0039).
+  const lockedHere = isLockedMdast(mdastNode)
+  const lockedByPlan = lockedHere && lockedAttribute(mdastNode) === true && !isLockedTag(spec.tag)
   const locked = insideLocked || lockedHere
+  // Removing this card would remove a locked card inside it.
+  const holdsLocked = useMemo(() => containsLocked(mdastNode), [mdastNode])
   // A locked card the page can draw shows as the page draws it: no editing controls, all disabled.
   const preview = useMemo(
-    () => (lockedHere && hasLockedPreview(spec.tag) ? renderLockedPreview(mdastNode) : null),
+    () => (lockedHere && !lockedByPlan && hasLockedPreview(spec.tag) ? renderLockedPreview(mdastNode) : null),
     [lockedHere, mdastNode, spec.tag],
   )
   if (preview) {
@@ -300,8 +496,31 @@ function EntryEditor({ spec, mdastNode }: { spec: EntrySpec; mdastNode: JsxNode 
       data-locked={locked ? 'true' : undefined}
       aria-disabled={locked || undefined}
     >
+      {lockedByPlan ? (
+        <div className="plan-editor-locked-note">
+          <Lock size={12} strokeWidth={2.25} aria-hidden="true" />
+          <span>Locked by the plan · it can be moved, not changed</span>
+        </div>
+      ) : null}
       <div className="plan-editor-head" ref={head}>
-        {spec.pickStatus ? <StatusPicker status={status} disabled={locked} onChange={(next) => set('status', next)} /> : null}
+        {spec.pickStatus ? (
+          <StatusPicker
+            status={status}
+            disabled={locked}
+            onChange={(next) =>
+              // An item says done with `done="true"`, as agents write it, and uses `status` only for the
+              // states `done` cannot say. One attribute carries the state, so the file says one thing.
+              spec.tag === 'item'
+                ? update({
+                    attributes: withAttrs(mdastNode, {
+                      done: next === 'done' ? 'true' : readAttr(mdastNode, 'done') ? 'false' : '',
+                      status: next === 'done' || next === 'pending' ? '' : next,
+                    }),
+                  })
+                : set('status', next)
+            }
+          />
+        ) : null}
         {spec.pickIcon && locked ? (
           <CardLabel icon={readAttr(mdastNode, 'icon') || undefined} color={readAttr(mdastNode, 'color')} className="plan-editor-kicker">
             {label}
@@ -325,7 +544,14 @@ function EntryEditor({ spec, mdastNode }: { spec: EntrySpec; mdastNode: JsxNode 
             <Fragment key={prop.name}>{control(prop)}</Fragment>
           ))}
         {lockedHere ? (
-          <span className="plan-editor-locked" title="The agent writes this card for people to answer on the page. Move it with its grip.">
+          <span
+            className="plan-editor-locked"
+            title={
+              lockedByPlan
+                ? 'Locked by the plan. It can be moved, not changed.'
+                : 'The agent writes this card for people to answer on the page. Move it with its grip.'
+            }
+          >
             <Lock size={12} strokeWidth={2.25} aria-hidden="true" />
             Locked
           </span>
@@ -334,8 +560,8 @@ function EntryEditor({ spec, mdastNode }: { spec: EntrySpec; mdastNode: JsxNode 
           type="button"
           className="plan-editor-remove"
           aria-label={`Remove ${spec.label.toLowerCase()}`}
-          title={locked ? 'Locked cards cannot be removed' : 'Remove'}
-          disabled={locked}
+          title={locked ? 'Locked cards cannot be removed' : holdsLocked ? 'It holds a locked card, so it cannot be removed' : 'Remove'}
+          disabled={locked || holdsLocked}
           onClick={remove}
         >
           <Trash2 size={14} aria-hidden="true" />
@@ -343,6 +569,7 @@ function EntryEditor({ spec, mdastNode }: { spec: EntrySpec; mdastNode: JsxNode 
         <div className="plan-editor-props">
           {spec.props
             .filter((prop) => !prop.wide)
+            .filter((prop) => !prop.when || readAttr(mdastNode, prop.when.name) === prop.when.is || readAttr(mdastNode, prop.name) !== '')
             .map((prop) =>
               prop.control === 'flag' ? (
                 <Fragment key={prop.name}>{control(prop)}</Fragment>
@@ -381,7 +608,28 @@ function editorFor(spec: EntrySpec) {
   return SpecEditor
 }
 
-/** One editor per plan tag, and the generic editor for anything else (layout, charts, tables). */
+/**
+ * The generic editor for layout and charts, with `locked` honored (ADR 0039): a locked
+ * block's body is read-only, as a plan card's is.
+ */
+function LockableGenericEditor(props: JsxEditorProps) {
+  const locked = isLockedMdast(props.mdastNode)
+  return (
+    <LockedContext.Provider value={locked}>
+      <div className="plan-editor-generic" data-locked={locked ? 'true' : undefined}>
+        {locked ? (
+          <div className="plan-editor-locked-note">
+            <Lock size={12} strokeWidth={2.25} aria-hidden="true" />
+            <span>Locked by the plan · it can be moved, not changed</span>
+          </div>
+        ) : null}
+        <GenericJsxEditor {...props} />
+      </div>
+    </LockedContext.Provider>
+  )
+}
+
+/** One editor per plan tag, a table editor for `<DataTable>`, and the generic editor for anything else (layout, charts). */
 export const planJsxDescriptors: JsxComponentDescriptor[] = [
   ...ENTRY_SPECS.map((spec) => ({
     name: spec.tag,
@@ -397,5 +645,17 @@ export const planJsxDescriptors: JsxComponentDescriptor[] = [
     hasChildren: spec.hasChildren,
     Editor: editorFor(spec),
   })),
-  { name: '*', kind: 'flow', props: [], hasChildren: true, Editor: GenericJsxEditor },
+  // An inline file reference inside prose (ADR 0039).
+  {
+    name: 'Path',
+    kind: 'text',
+    props: ['path', 'change', 'lines'].map((name) => ({ name, type: 'string' as const })),
+    hasChildren: true,
+    Editor: GenericJsxEditor,
+  },
+  // Columns, rows, and cells are edited inside it as a grid, never as tags of their own.
+  dataTableDescriptor,
+  // Pills and chips, in a cell or in prose, look as they do on the page.
+  ...labelDescriptors,
+  { name: '*', kind: 'flow', props: [], hasChildren: true, Editor: LockableGenericEditor },
 ]

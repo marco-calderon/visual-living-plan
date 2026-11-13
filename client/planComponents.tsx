@@ -1,5 +1,7 @@
 import { Suspense, lazy, type ComponentProps, type ComponentType } from 'react'
+import { editLocked } from './entries/planEntry'
 import type { BarChart } from './mdx/BarChart'
+import { docBlockComponents } from './mdx/docBlocks'
 import type { LineChart } from './mdx/LineChart'
 import type { Mermaid } from './mdx/Mermaid'
 import { Row } from './mdx/Row'
@@ -68,20 +70,69 @@ export async function preloadPlanComponents(mdx: string): Promise<void> {
 }
 
 /**
+ * A component that does not mark `locked` itself (layout, figures, the workflow, a data table) is
+ * wrapped so the page sees the lock and shows no Edit on it (ADR 0039). The wrapper has no box of
+ * its own. The `locked` prop is not passed down, so it never reaches the DOM.
+ */
+export function lockable<P extends object>(Component: ComponentType<P>): ComponentType<P & { locked?: unknown; 'data-plan-block'?: string }> {
+  function Lockable({ locked, 'data-plan-block': blockRange, ...props }: P & { locked?: unknown; 'data-plan-block'?: string }) {
+    const inner = <Component {...(props as P)} />
+    const isLocked = editLocked(locked)
+    // A top-level block carries its place in the plan file (ADR 0040). These components do not take
+    // it, so a frame does: a real box, so the page can find and measure the block it edits.
+    if (blockRange) {
+      return (
+        <div className="plan-block-frame" data-plan-block={blockRange} data-edit-locked={isLocked ? 'true' : undefined}>
+          {inner}
+        </div>
+      )
+    }
+    if (!isLocked) return inner
+    return (
+      <div className="plan-edit-lock" data-edit-locked="true">
+        {inner}
+      </div>
+    )
+  }
+  Lockable.displayName = `Lockable(${Component.displayName ?? Component.name ?? 'Component'})`
+  return Lockable
+}
+
+const LockableStack = lockable(Stack)
+const LockableRow = lockable(Row)
+const LockableWorkflow = lockable(workflow.Component)
+const LockableMermaid = lockable(mermaid.Component)
+const LockableBarChart = lockable(barChart.Component)
+const LockableLineChart = lockable(lineChart.Component)
+const LockableBox = lockable(uiComponents.Box)
+const LockableHStack = lockable(uiComponents.HStack)
+const LockableVStack = lockable(uiComponents.VStack)
+const LockableResponsiveStack = lockable(uiComponents.ResponsiveStack)
+
+/**
  * Plan entries for the page, plus the ELK workflow, Pele diagrams, and TanStack charts.
  * Lowercase keys are the tags in the plan source.
  */
 export const planComponents = {
   ...uiComponents,
+  ...docBlockComponents,
   field: Field,
   Field,
   item: Item,
   Item,
-  workflow: workflow.Component,
-  Workflow: workflow.Component,
-  Stack,
-  Row,
-  Mermaid: mermaid.Component,
-  BarChart: barChart.Component,
-  LineChart: lineChart.Component,
+  workflow: LockableWorkflow,
+  Workflow: LockableWorkflow,
+  box: LockableBox,
+  Box: LockableBox,
+  hstack: LockableHStack,
+  HStack: LockableHStack,
+  vstack: LockableVStack,
+  VStack: LockableVStack,
+  responsiveStack: LockableResponsiveStack,
+  ResponsiveStack: LockableResponsiveStack,
+  Stack: LockableStack,
+  Row: LockableRow,
+  Mermaid: LockableMermaid,
+  BarChart: LockableBarChart,
+  LineChart: LockableLineChart,
 }

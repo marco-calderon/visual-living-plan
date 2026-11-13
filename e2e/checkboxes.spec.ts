@@ -50,21 +50,26 @@ test('a markdown task list shows checkboxes, not [ ] and [x]', async ({ page }) 
 })
 
 // The documented checklist puts each `<item>` on one line. The editor used to throw on those and show nothing.
-test('the editor opens a checklist written one item per line, and Done saves', async ({ page }) => {
+// A line's state is the status picker phases use (ADR 0039). Done still saves as `done="true"`.
+test('the checklist opens in its editor, one item per line, and Apply changes saves it', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))
   await page.goto('/')
-  await page.getByRole('button', { name: 'Edit', exact: true }).click()
+  await page.locator('[data-plan-rendered] [data-entry="checklist"]').first().hover()
+  await page.locator('[data-plan-block-edit]').click()
 
-  const done = page.locator('[data-editor-entry="item"]').getByRole('checkbox', { name: 'Done' })
-  await expect(done).toHaveCount(2)
-  await expect(done.nth(0)).toBeChecked()
-  await expect(done.nth(1)).not.toBeChecked()
+  const status = page.locator('[data-editor-entry="item"]').getByRole('button', { name: /^Status .*Change status$/ })
+  await expect(status).toHaveCount(2)
+  await expect(status.nth(0)).toHaveAccessibleName('Status Done. Change status')
+  await expect(status.nth(1)).toHaveAccessibleName('Status Pending. Change status')
   await expect(page.locator('[data-editor-entry="item"]').nth(1)).toContainText('Migration merged')
   expect(errors).toEqual([])
 
-  await done.nth(1).check()
-  await page.getByRole('button', { name: 'Publish', exact: true }).click()
+  await status.nth(1).click()
+  await page.locator('[data-status-picker-popup] [data-status-option="done"]').click()
+  await expect(status.nth(1)).toHaveAccessibleName('Status Done. Change status')
+  await page.locator('[data-plan-block-done]').click()
+  await page.getByRole('button', { name: 'Apply changes', exact: true }).click()
 
   const planPath = serverLog.match(/^e2e plan (.+)$/m)?.[1]?.trim() ?? ''
   expect(planPath).not.toBe('')

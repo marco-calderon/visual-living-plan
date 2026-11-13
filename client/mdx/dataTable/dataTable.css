@@ -14,10 +14,12 @@
   max-width: 100%;
   min-width: 0;
   margin: 0 0 1rem;
-  padding: 20px 24px;
+  /* A data card (DESIGN.md card policy): canvas body, hairline frame, the toolbar as its header strip. */
+  padding: 0;
+  overflow: hidden;
   border: 1px solid var(--hairline);
-  border-radius: 16px;
-  background: var(--surface);
+  border-radius: var(--data-card-radius, 12px);
+  background: var(--canvas);
   color: var(--charcoal);
   font-size: 14px;
   line-height: 1.5;
@@ -29,7 +31,10 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-  margin-bottom: 16px;
+  margin: 0;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--data-head-bg, var(--surface));
 }
 
 .plan-ui input.plan-data-table-search {
@@ -66,8 +71,8 @@
   max-width: 100%;
   min-width: 0;
   overflow-x: auto;
-  border: 1px solid var(--hairline);
-  border-radius: 8px;
+  border: 0;
+  border-radius: 0;
   background: var(--canvas);
 }
 

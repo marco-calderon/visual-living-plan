@@ -50,3 +50,19 @@ export function indexItems(elements: ReactElement[], start = 0): ReactElement[] 
     return cloneElement(element as ReactElement<{ index?: number }>, { index: itemIndex, key })
   })
 }
+
+/**
+ * `locked` on a plan block (ADR 0039): the page shows no Edit pill on it and the editor keeps it as
+ * written. Bare `locked`, `"true"`, or `{true}` lock it. `fallback` is the block's default, true for
+ * answer cards (form, questions), which `locked="false"` unlocks.
+ */
+export function editLocked(value: unknown, fallback = false): boolean {
+  if (value === true || value === '' || value === 'true') return true
+  if (value === false || value === 'false') return false
+  return fallback
+}
+
+/** The page attribute for an edit lock. */
+export function editLockAttr(value: unknown, fallback = false): 'true' | undefined {
+  return editLocked(value, fallback) ? 'true' : undefined
+}

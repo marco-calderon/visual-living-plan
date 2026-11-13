@@ -19,6 +19,11 @@ test('an offline reload renders the plan saved on this device', async ({ page, c
   })
   test.skip(!opfs, 'Chromium has no OPFS')
 
+  // The worker controls the pages that load after it is active. A reload sent while it activates
+  // stays uncontrolled, so wait for it first.
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.ready
+  })
   await page.reload()
   await page.waitForFunction(() => Boolean(navigator.serviceWorker?.controller))
   await page.waitForFunction(() => Boolean((window as OfflineWindow).__livingPlanOffline?.plan?.('local')?.source))

@@ -36,11 +36,14 @@ Decisions are numbered in the order they were made. Superseded decisions stay he
 | [0030](0030-agent-presence.md) | 2026-11-06 | Accepted | A plan is active only while an agent holds its agent stream open; the page and the dashboard follow each connect and drop |
 | [0031](0031-agent-slots.md) | 2026-11-07 | Accepted | The tier caps plans with an agent listening, not open plans; the Worker checks it when an agent connects |
 | [0032](0032-storage-limit.md) | 2026-11-07 | Accepted | Each account has a storage limit for saved versions; deleting a plan from the dashboard frees its storage |
-| [0033](0033-page-editor.md) | 2026-11-07 | Accepted | A person edits a local or hosted plan on the page as a draft on their device, and Publish makes a new version; the agent hears an `edit` event |
+| [0033](0033-page-editor.md) | 2026-11-07 | Accepted; editing moved into each block by 0040 | A person edits a local or hosted plan on the page as a draft on their device, and Publish makes a new version; the agent hears an `edit` event |
 | [0034](0034-listeners-reconnect-across-modes.md) | 2026-11-11 | Accepted | Waiting commands reconnect after drops and restarts; one `events --follow` prints every mode change; entering review keeps an unread verdict |
 | [0035](0035-six-plan-commands.md) | 2026-11-11 | Accepted | Six commands drive a plan, named by its file; `serve` returns; `reply` answers and closes a comment; after approval the run follows the file |
 | [0036](0036-desktop-app.md) | 2026-11-11 | Accepted; plans open in it by 0037; setup, hosted plans, and the title bar by 0038 | The desktop app is a Tauri window on the local plan service; it ships the bundled CLI and Bun, and uses a running service of any version |
 | [0037](0037-plans-open-in-the-desktop-app.md) | 2026-11-11 | Accepted; hosted pages and in-window links added by 0038 | A plan opens in the desktop app through `living-plan://plans/<id>` when it is installed; otherwise the browser, where the installed web app claims the link |
 | [0038](0038-desktop-setup-and-cloud.md) | 2026-11-11 | Accepted | The desktop app has a setup screen, opens local or hosted plans, installs the CLI and the agent skill, and uses the page toolbar as its title bar on macOS; pages reach it through `living-plan://` links, not an API |
 
-Add the next decision as `0039-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.
+| [0039](0039-document-first-page.md) | 2026-11-13 | Accepted; block Edit opens in place by 0040 | The plan page reads as a document: prose blocks have no card, data views (file tree, endpoint, data model, JSON, annotated code) are their own blocks, any block can carry `locked`, and each block opens the editor from its own Edit |
+| [0040](0040-edit-in-place.md) | 2026-11-13 | Accepted | The page is the editor: each block opens its own editor in place from its Edit or +, Done keeps the change on the device, and Apply changes makes the version; the toolbar Edit and the whole-page editor are gone |
+
+Add the next decision as `0040-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.

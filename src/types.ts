@@ -70,6 +70,8 @@ export type FormField = {
 export type ChecklistItem = {
   text: string
   done: boolean
+  /** pending | active | blocked | done | failed, when the item sets one. */
+  status?: string
 }
 
 /** One tag in the plan, including tags nested inside another tag. */

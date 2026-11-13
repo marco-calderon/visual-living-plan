@@ -5,7 +5,9 @@ import {
   addComposerChild$,
   addNestedEditorChild$,
   insertJsx$,
+  insertTable$,
   NESTED_EDITOR_UPDATED_COMMAND,
+  NestedEditorsContext,
   realmPlugin,
   usePublisher,
 } from '@mdxeditor/editor'
@@ -48,18 +50,20 @@ import {
   Image as ImageIcon,
   Link as LinkIcon,
   Quote,
+  Table2,
   Type,
   Workflow,
   type LucideIcon,
 } from 'lucide-react'
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CardLabel, type CardIcon } from '../entries/CardLabel.tsx'
 import { focusFenceWhenReady } from './codeFence.tsx'
+import { newDataTable } from './dataTableMdast.ts'
 import { InsertPrompt, type InsertKind, type InsertValues } from './insertPrompt.tsx'
 
 /** The menu's sections, in the order it shows them. */
-const SECTIONS = ['Text', 'Links and media', 'Code', 'Cards', 'In this card'] as const
+const SECTIONS = ['Text', 'Links and media', 'Code', 'Cards', 'Data', 'Layout', 'In this card'] as const
 type Section = (typeof SECTIONS)[number]
 
 type Card = {
@@ -72,6 +76,8 @@ type Card = {
   keywords: string[]
   /** Rows only make sense inside a card. */
   nested?: boolean
+  /** A row the menu offers only inside these cards (their name in the editor). Without it, any card. */
+  parents?: string[]
   /**
    * Cards the agent writes for the person to answer (decisions, choices, forms, questions,
    * approvals). The editor still edits them where the plan has them, but the menu does not offer them.
@@ -85,6 +91,8 @@ type Card = {
   block?: () => ElementNode
   /** Asks for an address first, then adds a link or an image where the "/" was. */
   prompt?: InsertKind
+  /** Adds a markdown table of this size where the "/" was. */
+  table?: { rows: number; columns: number }
 }
 
 function shortId(prefix: string): string {
@@ -101,6 +109,16 @@ function attrs(values: Record<string, string>): MdxJsxAttribute[] {
 
 function element(name: string, values: Record<string, string>, children: MdxJsxFlowElement['children'] = []): MdxJsxFlowElement {
   return { type: 'mdxJsxFlowElement', name, attributes: attrs(values), children }
+}
+
+/** A fenced code block inside a card. */
+function fenceNode(lang: string, value: string): MdxJsxFlowElement['children'][number] {
+  return { type: 'code', lang, value }
+}
+
+/** A document block's row (ADR 0039), offered only inside its parent block. */
+function row(key: string, parent: string, label: string, hint: string, icon: string, build: () => MdxJsxFlowElement): Card {
+  return { key, section: 'In this card', label, hint, icon, keywords: [key, label.toLowerCase()], nested: true, parents: [parent], build }
 }
 
 function glyph(Icon: LucideIcon) {
@@ -266,8 +284,170 @@ export const SLASH_CARDS: Card[] = [
     build: () => element('checklist', { id: shortId('checklist'), title: 'Done when' }, [element('item', { done: 'false' }, [text('First check')])]),
   },
   {
+    key: 'update',
+    section: 'Cards',
+    label: 'Update',
+    hint: 'A dated status note with a health level',
+    icon: 'flag',
+    keywords: ['update', 'status', 'health', 'progress', 'report'],
+    build: () =>
+      element('Update', { health: 'on-track', by: 'Agent', date: new Date().toISOString().slice(0, 10) }, [text('What changed since the last update.')]),
+  },
+  {
+    key: 'annotated-code',
+    section: 'Code',
+    label: 'Annotated code',
+    hint: 'Code with numbered notes on its lines',
+    icon: 'file',
+    keywords: ['annotated', 'code', 'notes', 'walkthrough', 'explain'],
+    build: () =>
+      element('AnnotatedCode', { title: 'src/file.ts' }, [
+        fenceNode('ts', 'export function example() {\n  return true\n}'),
+        element('Note', { lines: '2', label: 'Why' }, [text('What this line does.')]),
+      ]),
+  },
+  {
+    key: 'json',
+    section: 'Code',
+    label: 'JSON',
+    hint: 'A payload you can fold',
+    icon: 'package',
+    keywords: ['json', 'payload', 'response', 'body', 'object'],
+    build: () => element('JsonView', { title: 'Response' }, [fenceNode('json', '{\n  "ok": true\n}')]),
+  },
+  {
+    key: 'file-tree',
+    section: 'Data',
+    label: 'File tree',
+    hint: 'Files a change adds, edits, or removes',
+    icon: 'file',
+    keywords: ['file', 'tree', 'files', 'paths', 'changes', 'touched'],
+    build: () =>
+      element('FileTree', { title: 'Files touched' }, [
+        element('File', { path: 'src/new-file.ts', change: 'added' }, [text('What this file does.')]),
+        element('File', { path: 'src/existing.ts', change: 'modified' }, [text('What changes here.')]),
+      ]),
+  },
+  {
+    key: 'endpoint',
+    section: 'Data',
+    label: 'API endpoint',
+    hint: 'Method, path, params, and responses',
+    icon: 'globe',
+    keywords: ['api', 'endpoint', 'route', 'http', 'rest', 'request'],
+    build: () =>
+      element('Endpoint', { method: 'GET', path: '/api/resource/{id}', change: 'added' }, [
+        text('What the endpoint does.'),
+        element('Param', { name: 'id', in: 'path', type: 'string', required: 'true' }, [text('Which resource.')]),
+        element('Response', { status: '200' }, [text('The resource.')]),
+        element('Response', { status: '404' }, [text('No resource with this id.')]),
+      ]),
+  },
+  {
+    key: 'data-model',
+    section: 'Data',
+    label: 'Data model',
+    hint: 'Tables, fields, keys, and relations',
+    icon: 'database',
+    keywords: ['data', 'model', 'schema', 'table', 'database', 'entity'],
+    build: () =>
+      element('DataModel', { title: 'Tables' }, [
+        element('Entity', { name: 'items', change: 'added' }, [
+          element('Attr', { name: 'id', type: 'text', pk: 'true' }),
+          element('Attr', { name: 'created_at', type: 'timestamptz' }),
+        ]),
+      ]),
+  },
+  {
+    key: 'table',
+    section: 'Data',
+    label: 'Table',
+    hint: 'Rows and columns',
+    icon: 'list',
+    keywords: ['table', 'grid', 'rows', 'columns', 'matrix'],
+    table: { rows: 3, columns: 3 },
+  },
+  {
+    key: 'data-table',
+    section: 'Data',
+    label: 'Data table',
+    hint: 'Columns that search, sort, and filter',
+    icon: glyph(Table2),
+    keywords: ['datatable', 'data', 'table', 'grid', 'rows', 'columns', 'sort', 'filter', 'search'],
+    build: newDataTable,
+  },
+  {
+    key: 'bar-chart',
+    section: 'Data',
+    label: 'Bar chart',
+    hint: 'One bar per label and value',
+    icon: 'zap',
+    keywords: ['chart', 'bar', 'graph', 'numbers'],
+    build: () => element('BarChart', { ariaLabel: 'New chart' }, [text('First, 3\nSecond, 5\nThird, 2')]),
+  },
+  {
+    key: 'line-chart',
+    section: 'Data',
+    label: 'Line chart',
+    hint: 'A value over time',
+    icon: 'zap',
+    keywords: ['chart', 'line', 'trend', 'graph', 'time'],
+    build: () => element('LineChart', { ariaLabel: 'New chart' }, [text('Mon, 3\nTue, 5\nWed, 4')]),
+  },
+  {
+    key: 'tabs',
+    section: 'Layout',
+    label: 'Tabs',
+    hint: 'One view at a time',
+    icon: 'list',
+    keywords: ['tabs', 'tab', 'views'],
+    build: () =>
+      element('Tabs', {}, [
+        element('Tab', { label: 'First' }, [text('What the first tab shows.')]),
+        element('Tab', { label: 'Second' }, [text('What the second tab shows.')]),
+      ]),
+  },
+  {
+    key: 'compare',
+    section: 'Layout',
+    label: 'Compare',
+    hint: 'Before and after, side by side',
+    icon: 'branch',
+    keywords: ['compare', 'before', 'after', 'side', 'columns'],
+    build: () =>
+      element('Compare', {}, [
+        element('Pane', { label: 'Before' }, [text('How it works today.')]),
+        element('Pane', { label: 'After' }, [text('How it works after the change.')]),
+      ]),
+  },
+  {
+    key: 'properties',
+    section: 'Layout',
+    label: 'Properties',
+    hint: 'Labels and values: owner, flag, dates',
+    icon: 'list',
+    keywords: ['properties', 'props', 'facts', 'meta', 'owner'],
+    build: () =>
+      element('Properties', {}, [
+        element('Prop', { label: 'Owner' }, [text('Team or person')]),
+        element('Prop', { label: 'Target' }, [text('Date')]),
+      ]),
+  },
+  row('file', 'FileTree', 'File', 'One more file', 'file', () => element('File', { path: 'src/file.ts', change: 'modified' }, [text('What changes here.')])),
+  row('param', 'Endpoint', 'Param', 'One more parameter', 'key', () => element('Param', { name: 'name', in: 'query', type: 'string' }, [text('What it sets.')])),
+  row('request', 'Endpoint', 'Request', 'An example request body', 'message', () => element('Request', {}, [fenceNode('json', '{\n  "name": "value"\n}')])),
+  row('response', 'Endpoint', 'Response', 'One more response', 'message', () => element('Response', { status: '400' }, [text('When it happens.')])),
+  row('entity', 'DataModel', 'Entity', 'One more table in the model', 'database', () => element('Entity', { name: 'table_name' }, [element('Attr', { name: 'id', type: 'text', pk: 'true' })])),
+  row('attr', 'Entity', 'Field', 'One more field', 'key', () => element('Attr', { name: 'column', type: 'text' })),
+  row('relation', 'DataModel', 'Relation', 'How two tables link', 'branch', () => element('Relation', { from: 'parent', to: 'child', kind: '1-n' })),
+  row('note', 'AnnotatedCode', 'Note', 'A note on a line', 'message', () => element('Note', { lines: '1' }, [text('What this line does.')])),
+  row('tab', 'Tabs', 'Tab', 'One more tab', 'list', () => element('Tab', { label: 'New tab' }, [text('What this tab shows.')])),
+  row('pane', 'Compare', 'Pane', 'One more pane', 'branch', () => element('Pane', { label: 'New pane' }, [text('What this pane shows.')])),
+  row('prop', 'Properties', 'Property', 'One more label and value', 'list', () => element('Prop', { label: 'Label' }, [text('Value')])),
+  {
     key: 'option',
     section: 'In this card',
+    parents: ['choice'],
     label: 'Option',
     hint: 'One more option for a choice',
     icon: 'branch',
@@ -278,6 +458,7 @@ export const SLASH_CARDS: Card[] = [
   {
     key: 'field',
     section: 'In this card',
+    parents: ['plan-form'],
     label: 'Field',
     hint: 'One more field for a form',
     icon: 'wrench',
@@ -288,6 +469,7 @@ export const SLASH_CARDS: Card[] = [
   {
     key: 'item',
     section: 'In this card',
+    parents: ['checklist', 'questions'],
     label: 'Item',
     hint: 'A question or checklist line',
     icon: 'message',
@@ -403,8 +585,44 @@ class CardOption extends MenuOption {
 }
 
 /** The menu's options for a query, in its order. */
-function menuOptions(nested: boolean, query: string): CardOption[] {
-  return SLASH_CARDS.filter((card) => !card.agentOnly && (nested || !card.nested) && matches(card, query)).map((card) => new CardOption(card))
+/** Blocks whose body is part of a data view: they take text, code, and their own rows, not other cards. */
+const DATA_PARENTS = new Set([
+  // A data table's cells: text, labels, and code, not cards.
+  'DataTable',
+  'FileTree',
+  'File',
+  'Endpoint',
+  'Param',
+  'Request',
+  'Response',
+  'DataModel',
+  'Entity',
+  'Attr',
+  'Relation',
+  'JsonView',
+  'AnnotatedCode',
+  'Note',
+  'Properties',
+  'Prop',
+])
+
+const PLAIN_SECTIONS: readonly Section[] = ['Text', 'Links and media', 'Code', 'In this card']
+
+function menuOptions(nested: boolean, query: string, parent?: string | null): CardOption[] {
+  const inData = parent != null && DATA_PARENTS.has(parent)
+  // Grouped by section in the menu's order; inside a card, its own rows come first.
+  const rank = (section: Section) => (nested && section === 'In this card' ? -1 : SECTIONS.indexOf(section))
+  return SLASH_CARDS.map((card, index) => ({ card, index }))
+    .filter(
+      ({ card }) =>
+        !card.agentOnly &&
+        (nested || !card.nested) &&
+        (!card.parents || (parent != null && card.parents.includes(parent))) &&
+        (!inData || PLAIN_SECTIONS.includes(card.section)) &&
+        matches(card, query),
+    )
+    .sort((a, b) => rank(a.card.section) - rank(b.card.section) || a.index - b.index)
+    .map(({ card }) => new CardOption(card))
 }
 
 /** The query after a "/" right before the caret (the menu's trigger), or null when there is none. */
@@ -423,9 +641,10 @@ function matches(card: Card, query: string): boolean {
   return card.label.toLowerCase().includes(needle) || card.keywords.some((word) => word.startsWith(needle))
 }
 
-function SlashMenu({ nested }: { nested: boolean }) {
+function SlashMenu({ nested, parent }: { nested: boolean; parent?: string | null }) {
   const [editor] = useLexicalComposerContext()
   const insertJsx = usePublisher(insertJsx$)
+  const insertTable = usePublisher(insertTable$)
   const setActiveEditor = usePublisher(activeEditor$)
   const [query, setQuery] = useState<string | null>(null)
   const open = useRef(false)
@@ -434,7 +653,7 @@ function SlashMenu({ nested }: { nested: boolean }) {
   const selectAndClose = useRef<((option: CardOption) => void) | null>(null)
   const [prompt, setPrompt] = useState<{ kind: InsertKind; point: Point | null; line: string | null; anchor: DOMRect } | null>(null)
   const trigger = useBasicTypeaheadTriggerMatch('/', { minLength: 0, maxLength: 24 })
-  const options = useMemo(() => menuOptions(nested, query ?? ''), [nested, query])
+  const options = useMemo(() => menuOptions(nested, query ?? '', parent), [nested, query, parent])
 
   // Escape on a line that holds only the `/` (as the + under a block leaves it) empties the line.
   useEffect(
@@ -492,7 +711,7 @@ function SlashMenu({ nested }: { nested: boolean }) {
       // Read the query from the text: a fast typist can press Enter before the menu shows the last key.
       const typed = editor.getEditorState().read($slashQueryAtCaret)
       if (typed === null) return false
-      const list = menuOptions(nested, typed)
+      const list = menuOptions(nested, typed, parent)
       const option = list[typed === shownQuery.current ? highlighted.current : 0]
       if (!option) return false
       event?.preventDefault()
@@ -506,11 +725,11 @@ function SlashMenu({ nested }: { nested: boolean }) {
       enter()
       tab()
     }
-  }, [editor, nested])
+  }, [editor, nested, parent])
 
   const onSelect = useCallback(
     (option: CardOption, typed: { remove: () => void } | null, close: () => void) => {
-      const { build, fence, block, prompt: ask } = option.card
+      const { build, fence, block, prompt: ask, table } = option.card
       let line: string | null = null
       let point: Point | null = null
       editor.update(
@@ -536,6 +755,12 @@ function SlashMenu({ nested }: { nested: boolean }) {
         requestAnimationFrame(() => setPrompt({ kind: ask, point, line, anchor: lineRect(editor, line) }))
         return
       }
+      if (table) {
+        setActiveEditor(editor)
+        insertTable(table)
+        removeEmptiedLine(() => line)
+        return
+      }
       if (fence || !build) return
       const node = build()
       // The card goes into the editor the "/" was typed in, also a card's body.
@@ -552,7 +777,7 @@ function SlashMenu({ nested }: { nested: boolean }) {
       })
       removeEmptiedLine(() => line)
     },
-    [editor, insertJsx, removeEmptiedLine, setActiveEditor],
+    [editor, insertJsx, insertTable, removeEmptiedLine, setActiveEditor],
   )
   // Picked with Enter or Tab: through the menu, so it closes too. A key typed just before may not be on
   // screen yet, so wait a frame or two for the menu to show it.
@@ -646,7 +871,10 @@ function RootSlashMenu() {
 }
 
 function NestedSlashMenu() {
-  return <SlashMenu nested />
+  // The card this body belongs to, so its own rows (a FileTree's File) are offered.
+  const context = useContext(NestedEditorsContext)
+  const name = (context?.mdastNode as { name?: string | null } | undefined)?.name ?? null
+  return <SlashMenu nested parent={name} />
 }
 
 /**

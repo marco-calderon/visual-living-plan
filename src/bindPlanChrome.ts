@@ -134,6 +134,8 @@ function highlightPlanTarget(section: Element | null): void {
 }
 
 function scrollToPlanTarget(section: Element, instant: boolean): void {
+  // A target inside a hidden tab (ADR 0039) asks its Tabs to show it before the scroll.
+  section.dispatchEvent(new CustomEvent('living-plan-reveal', { bubbles: true }))
   const generation = ++scrollGeneration
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const run = () => {

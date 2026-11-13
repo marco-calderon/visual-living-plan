@@ -21,7 +21,7 @@ import {
 import { ArrowDown, ArrowUp, GripVertical, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { isLockedNode } from './locked.ts'
+import { isLockedNodeDeep } from './locked.ts'
 
 /**
  * Block handles, like a block editor's side menu: a grip to drag a block to another place, and in
@@ -366,7 +366,7 @@ function BlockHandles({ level }: { level: Level }) {
 
   const remove = useCallback(() => {
     if (!key) return
-    if (editor.getEditorState().read(() => isLockedNode($getNodeByKey(key)))) return
+    if (editor.getEditorState().read(() => isLockedNodeDeep($getNodeByKey(key)))) return
     setMenu(false)
     change(() => $getNodeByKey(key)?.remove())
     setKey(null)
@@ -424,7 +424,8 @@ function BlockHandles({ level }: { level: Level }) {
   if (!container || !editable) return null
   const keys = key ? blockKeys(editor) : []
   const index = key ? keys.indexOf(key) : -1
-  const locked = key ? editor.getEditorState().read(() => isLockedNode($getNodeByKey(key))) : false
+  // A card that is locked, or holds a locked card, can move but not be deleted.
+  const locked = key ? editor.getEditorState().read(() => isLockedNodeDeep($getNodeByKey(key))) : false
   return createPortal(
     <>
       <div

@@ -76,11 +76,12 @@ test('documentation cards use the space scale in both color schemes', () => {
   assert.match(css, /\.plan-card\s*\{[^}]*box-shadow:\s*var\(--shadow\)/)
 })
 
-test('choice cards use the same corner radius as other plan cards', () => {
+test('choice option rows use the data card radius, not a pill', () => {
   const css = readFileSync(new URL('../client/entries/primitives.css', import.meta.url), 'utf8')
   const card = css.match(/\.plan-choice-card\s*\{[^}]*\}/)
   assert.ok(card)
-  assert.match(card[0], /border-radius:\s*var\(--radius\)/)
+  assert.match(card[0], /border-radius:\s*var\(--data-card-radius\)/)
+  assert.match(css, /--data-card-radius:\s*12px/)
   assert.doesNotMatch(card[0], /9999px|999px/)
   assert.match(css, /--radius:\s*16px/)
   assert.match(css, /\.plan-panel,\s*\.plan-box\[data-surface="panel"\]\s*\{[^}]*border-radius:\s*16px/)

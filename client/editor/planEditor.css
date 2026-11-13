@@ -98,6 +98,35 @@
   border-color: var(--accent);
 }
 
+/*
+ * ADR 0039: a block that has no card on the page (a phase, a callout, a checklist) gets a lighter
+ * frame here: a hairline and no fill, so the editor reads like the document. A callout keeps its
+ * kind as the page draws it, a rule on the left. Data blocks keep the panel frame.
+ */
+.plan-editor-card.plan-entry:is([data-editor-entry='phase'], [data-editor-entry='callout'], [data-editor-entry='checklist'], [data-editor-entry='Tabs'], [data-editor-entry='Compare'], [data-editor-entry='Properties'], [data-editor-entry='Update']):not([data-locked='true']) {
+  border-color: var(--hairline);
+  background: var(--canvas);
+}
+
+.plan-editor-card.plan-entry[data-editor-entry='callout'] {
+  border-left: 2px solid var(--rule-note);
+}
+
+.plan-editor-card.plan-entry[data-editor-entry='callout'][data-kind='tip'] { border-left-color: var(--rule-tip); }
+.plan-editor-card.plan-entry[data-editor-entry='callout'][data-kind='risk'] { border-left-color: var(--rule-risk); }
+.plan-editor-card.plan-entry[data-editor-entry='callout'][data-kind='warning'] { border-left-color: var(--rule-warning); }
+.plan-editor-card.plan-entry[data-editor-entry='callout'][data-kind='decision'] { border-left-color: var(--rule-decision); }
+
+/* Data blocks and their rows use the data card radius. */
+.plan-editor-card:is([data-editor-entry='FileTree'], [data-editor-entry='Endpoint'], [data-editor-entry='DataModel'], [data-editor-entry='JsonView'], [data-editor-entry='AnnotatedCode'], [data-editor-entry='Update']) {
+  border-radius: var(--data-card-radius);
+}
+
+/* An Attr or Relation row is all fields, no body. */
+.plan-editor-card.plan-editor-row:is([data-editor-entry='Attr'], [data-editor-entry='Relation']) .plan-editor-head {
+  row-gap: 4px;
+}
+
 .plan-editor-head {
   display: flex;
   flex-wrap: wrap;
@@ -1046,4 +1075,623 @@
   .plan-editor [class*='_tableEditor_'] :is([class*='_addRowButton_'], [class*='_addColumnButton_']) {
     opacity: 1;
   }
+}
+
+/*
+ * ADR 0039 review: a document block's rows are lines in their block, not cards of their own. Fields
+ * sit on the row, a soft hairline splits rows, and the body (a note) follows without a frame.
+ */
+.plan-editor-card.plan-editor-row:is([data-editor-entry='File'], [data-editor-entry='Param'], [data-editor-entry='Request'], [data-editor-entry='Response'], [data-editor-entry='Entity'], [data-editor-entry='Attr'], [data-editor-entry='Relation'], [data-editor-entry='Note'], [data-editor-entry='Tab'], [data-editor-entry='Pane'], [data-editor-entry='Prop']) {
+  gap: 4px;
+  padding: var(--space-xs) 0;
+  border: 0;
+  border-top: 1px solid var(--hairline-soft);
+  border-radius: 0;
+  background: transparent;
+}
+
+.plan-editor-card.plan-editor-row:is([data-editor-entry='File'], [data-editor-entry='Param'], [data-editor-entry='Response'], [data-editor-entry='Note'], [data-editor-entry='Prop']) > .plan-editor-body {
+  padding-left: var(--space-sm);
+  color: var(--steel);
+}
+
+/* ==========================================================================
+   One block open for editing in its place on the page (ADR 0040).
+   ========================================================================== */
+
+.plan-block-editor {
+  position: relative;
+  gap: var(--space-xs);
+  margin-block: var(--space-sm);
+  padding: var(--space-sm) var(--space-sm) var(--space-xs);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--canvas);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+/* A block is short: no room held for a page, and less room under the last + bar. */
+.plan-block-editor .plan-editor-content {
+  min-height: 2.5rem;
+  padding-bottom: var(--space-lg);
+}
+
+/* Done stays in reach on a tall block: the bar sticks to the bottom of the window. */
+.plan-block-editor-bar {
+  position: sticky;
+  z-index: 7;
+  bottom: var(--space-xs);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  padding: var(--space-xs) 0 0;
+  border-top: 1px solid var(--line);
+  background: var(--canvas);
+}
+
+.plan-block-editor-hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.plan-block-editor-hint kbd {
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.plan-block-editor-hint kbd + kbd { margin-left: 2px; }
+
+.plan-block-editor .plan-block-editor-remove { color: var(--danger); }
+
+@media (max-width: 600px) {
+  .plan-block-editor-hint { display: none; }
+  .plan-block-editor-bar .plan-editor-actions { width: 100%; }
+}
+
+/* "Type / to add a block" on the empty line with the caret (client/editor/slashHint.tsx). The + bars do not show it. */
+.plan-editor-content [data-slash-hint]::before,
+.plan-editor-body [data-slash-hint]::before {
+  content: 'Type / to add a block';
+  float: left;
+  height: 0;
+  color: var(--muted);
+  opacity: 0.8;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ==========================================================================
+   <DataTable> as a table (client/editor/dataTableEditor.tsx). A data card, as on the page
+   (DESIGN.md): hairline frame, --data-card-radius, the label in a --data-head-bg strip, then a
+   grid with a soft header row and soft hairlines between rows and columns. It scrolls sideways
+   inside the card when its columns do not fit.
+   ========================================================================== */
+
+.plan-dt-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.plan-dt-card {
+  container-type: inline-size;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  border-radius: var(--data-card-radius, 12px);
+  background: var(--canvas);
+  color: var(--charcoal);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.plan-dt-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--space-xs);
+  min-height: 44px;
+  padding: 6px 6px 6px 14px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--data-head-bg, var(--surface));
+}
+
+/* On a phone the strip keeps one line: the kicker keeps its icon and lets the label have its words. */
+@container (max-width: 440px) {
+  .plan-dt-head .plan-card-label-text {
+    display: none;
+  }
+}
+
+.plan-dt-head .plan-editor-remove:hover:not(:disabled) {
+  background: var(--canvas);
+}
+
+.plan-dt-head .plan-editor-remove:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.plan-editor .plan-dt-label {
+  flex: 1 1 8em;
+  box-sizing: border-box;
+  width: auto;
+  min-width: 0;
+  height: 32px;
+  min-height: 0;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.plan-editor .plan-dt-label:hover:not(:disabled) {
+  border-color: var(--hairline);
+}
+
+.plan-editor .plan-dt-label:focus-visible {
+  border-color: transparent;
+  background: var(--canvas);
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.plan-dt-count {
+  flex: none;
+  color: var(--steel);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.plan-dt-scroll {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+/* The grid and the add-column bar beside it scroll together. */
+.plan-dt-grid-line {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  width: max-content;
+  min-width: 100%;
+  padding-right: 4px;
+}
+
+.plan-editor .plan-dt-grid {
+  flex: 1 0 auto;
+  width: auto;
+  margin: 0;
+  border: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
+}
+
+.plan-editor .plan-dt-grid :is(th, td) {
+  padding: 0;
+  border: 0;
+  text-align: left;
+}
+
+.plan-editor .plan-dt-grid th {
+  border-bottom: 1px solid var(--hairline);
+  background: var(--surface-soft);
+  color: var(--steel);
+  font-weight: 500;
+  vertical-align: middle;
+}
+
+/* Middle, as the page's data table: one-line text sits level with a pill beside it. */
+.plan-editor .plan-dt-grid td {
+  border-bottom: 1px solid var(--hairline-soft);
+  vertical-align: middle;
+}
+
+.plan-editor .plan-dt-grid tbody tr:last-child > td {
+  border-bottom: 0;
+}
+
+.plan-editor .plan-dt-grid :is(th, td) + :is(th, td):not(.plan-dt-tools) {
+  border-left: 1px solid var(--hairline-soft);
+}
+
+.plan-dt-th {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 8rem;
+  padding-right: 4px;
+}
+
+.plan-editor .plan-dt-header {
+  flex: 1 1 auto;
+  box-sizing: content-box;
+  width: auto;
+  min-width: 0;
+  height: 40px;
+  min-height: 0;
+  margin: 0;
+  padding: 0 4px 0 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.plan-editor .plan-dt-header::placeholder {
+  color: var(--steel);
+  font-weight: 500;
+}
+
+.plan-editor .plan-dt-header:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.plan-dt-column-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  height: 26px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.plan-dt-column-button:hover:not(:disabled),
+.plan-dt-column-button[data-popup-open] {
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  color: var(--ink);
+}
+
+.plan-dt-column-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.plan-dt-column-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* The flags a column has on, as small glyphs before the chevron. */
+.plan-dt-flags {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--ink);
+}
+
+/* A cell is an editor of its own. The caret's cell gets the outline a markdown table's active cell has. */
+.plan-dt-cell:focus-within {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.plan-dt-editor .plan-dt-cell-content {
+  box-sizing: border-box;
+  min-width: 8rem;
+  max-width: 22rem;
+  min-height: 42px;
+  padding: 10px 12px;
+  border-radius: 0;
+  background: transparent;
+  color: var(--charcoal);
+  outline: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.plan-dt-editor .plan-dt-cell-content > * {
+  margin: 0;
+}
+
+.plan-dt-editor .plan-dt-cell-content > * + * {
+  margin-top: 6px;
+}
+
+/* A cell is too small for block grips and the "/" hint; its text is the whole row. */
+.plan-dt-cell .plan-block-handles {
+  display: none;
+}
+
+.plan-editor-content .plan-dt-cell [data-slash-hint]::before {
+  content: none;
+}
+
+.plan-dt-tools {
+  width: 34px;
+}
+
+.plan-editor .plan-dt-grid td.plan-dt-tools {
+  padding: 0 4px;
+  vertical-align: middle;
+}
+
+.plan-dt-remove-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.plan-dt-grid tr:is(:hover, :focus-within) .plan-dt-remove-row,
+.plan-dt-remove-row:focus-visible {
+  opacity: 1;
+}
+
+.plan-dt-remove-row:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  color: var(--danger);
+}
+
+.plan-dt-remove-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.plan-dt-remove-row:disabled {
+  visibility: hidden;
+}
+
+.plan-dt-empty {
+  padding: 12px 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* The add-row and add-column bars: the markdown table's bars, and the + bar that adds a block. */
+.plan-dt-add {
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 120ms ease-out,
+    color 120ms ease-out,
+    background-color 120ms ease-out;
+}
+
+.plan-dt-add-column {
+  width: 16px;
+  min-height: 16px;
+  margin: 4px 0;
+}
+
+.plan-dt-add-row {
+  width: calc(100% - 8px);
+  height: 16px;
+  margin: 0 4px 4px;
+}
+
+.plan-dt-editor:is(:hover, :focus-within) .plan-dt-add {
+  opacity: 1;
+}
+
+.plan-dt-add:is(:hover, :active) {
+  opacity: 1;
+  background: color-mix(in srgb, var(--ink) 13%, transparent);
+  color: var(--ink);
+}
+
+.plan-dt-add:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+@media (hover: none) {
+  .plan-dt-add,
+  .plan-dt-remove-row {
+    opacity: 1;
+  }
+}
+
+/* A column's options. */
+.plan-popover.plan-dt-column-popover {
+  width: 240px;
+  padding: 6px;
+}
+
+.plan-dt-column-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px 6px;
+}
+
+.plan-dt-column-popover-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-dt-column-id {
+  flex: none;
+  max-width: 50%;
+  overflow: hidden;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--surface-soft);
+  color: var(--steel);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-dt-column-options {
+  display: flex;
+  flex-direction: column;
+}
+
+.plan-dt-column-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.plan-dt-column-option:hover,
+.plan-dt-column-option:focus-visible {
+  background: var(--surface-soft);
+  outline: none;
+}
+
+.plan-dt-column-option-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.plan-dt-column-option-hint {
+  color: var(--steel);
+  font-size: 12px;
+}
+
+.plan-dt-column-option-check {
+  flex: none;
+  visibility: hidden;
+  color: var(--accent);
+}
+
+.plan-dt-column-option[aria-pressed='true'] .plan-dt-column-option-check {
+  visibility: visible;
+}
+
+.plan-dt-column-remove {
+  margin-top: 4px;
+  border-top: 1px solid var(--hairline-soft);
+  border-radius: 0 0 6px 6px;
+  color: var(--danger);
+}
+
+/* A locked table: shown as it is, every control off, like a locked card. */
+.plan-dt-editor[data-locked='true'] .plan-dt-card {
+  background: var(--surface-soft);
+}
+
+.plan-dt-editor[data-locked='true'] :is(.plan-dt-label, .plan-dt-header):disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.plan-dt-editor[data-locked='true'] .plan-dt-cell-content {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+/* A pill or chip in the editor: the page's label, its text editable, and a pill's tone on a dot. */
+/* Middle, not baseline: the tone dot comes first and has no text to give the label a baseline. */
+.plan-editor-label {
+  gap: 6px;
+  vertical-align: middle;
+}
+
+.plan-editor .plan-editor-label .plan-editor-label-text {
+  display: inline-block;
+  min-width: 1ch;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  outline: none;
+  white-space: nowrap;
+}
+
+.plan-editor .plan-editor-label .plan-editor-label-text > * {
+  display: inline;
+  margin: 0;
+}
+
+.plan-editor-label:focus-within {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.plan-editor-pill-tone {
+  position: relative;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  /* A button does not take its parent's color by itself: the dot is the pill's text color. */
+  color: inherit;
+  background: currentColor;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+/* A finger gets a larger target than the dot. */
+.plan-editor-pill-tone::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+
+.plan-editor-pill-tone:hover:not(:disabled) {
+  opacity: 1;
+}
+
+.plan-editor-pill-tone:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.plan-editor-pill-tone:disabled {
+  cursor: not-allowed;
 }

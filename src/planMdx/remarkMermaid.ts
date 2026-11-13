@@ -2,6 +2,7 @@ import { valueToEstree } from 'estree-util-value-to-estree'
 
 type MdNode = {
   type: string
+  position?: unknown
   lang?: string | null
   value?: string
   children?: MdNode[]
@@ -27,7 +28,8 @@ function replaceMermaid(node: MdNode): void {
     const child = children[index]
     if (!child) continue
     if (child.type === 'code' && child.lang === 'mermaid' && child.value?.trim()) {
-      children[index] = mermaidElement(child.value.replace(/\n$/, ''))
+      // Keep the fence's place in the file, so the page can edit the diagram as a block (remarkBlockRanges).
+      children[index] = { ...mermaidElement(child.value.replace(/\n$/, '')), ...(child.position ? { position: child.position } : {}) }
       continue
     }
     replaceMermaid(child)

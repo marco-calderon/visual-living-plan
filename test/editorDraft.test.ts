@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { clearDraft, readDraft, throttle, writeDraft } from '../client/editor/draftStore.ts'
+import { clearDraft, isLegacyDraft, readDraft, throttle, writeDraft } from '../client/editor/draftStore.ts'
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -40,10 +40,15 @@ test('a draft is kept per plan until it is cleared, and a refused write is repor
   }
   try {
     assert.equal(readDraft('a'), null)
-    assert.equal(writeDraft('a', { base: '# A\n', markdown: '# A!\n', savedAt: 1 }), true)
-    assert.deepEqual(readDraft('a'), { base: '# A\n', markdown: '# A!\n', savedAt: 1 })
+    assert.equal(writeDraft('a', { base: '# A\n', source: '# A!\n', edits: 2, savedAt: 1 }), true)
+    assert.deepEqual(readDraft('a'), { base: '# A\n', source: '# A!\n', edits: 2, savedAt: 1 })
     assert.equal(readDraft('b'), null)
-    assert.equal(writeDraft('b', { base: '', markdown: 'too big', savedAt: 2 }), false)
+    assert.equal(writeDraft('b', { base: '', source: 'too big', edits: 1, savedAt: 2 }), false)
+    // A draft from the whole-page editor is still read, so the page can turn it into a plan file.
+    items.set('living-plan:draft:old', JSON.stringify({ base: '# A\n', markdown: '# A?\n', savedAt: 3 }))
+    const old = readDraft('old')
+    assert.deepEqual(old, { base: '# A\n', markdown: '# A?\n', savedAt: 3 })
+    assert.equal(old !== null && isLegacyDraft(old), true)
     clearDraft('a')
     assert.equal(readDraft('a'), null)
   } finally {

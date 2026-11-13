@@ -1,6 +1,6 @@
 # ADR 0033: A person edits a plan on the page as a draft on their device, and publishes it as a new version
 
-- Status: Accepted
+- Status: Accepted; the whole-page editor and the toolbar Edit were replaced by editing each block in place ([ADR 0040](0040-edit-in-place.md)). Drafts, versions, and the `edit` event stay.
 - Date: 2026-11-07, revised 2026-11-08 (block handles, icon picker, + bar under blocks, status picker, agent-only cards out of the menu, code fences in Pierre's editor, menu sections with headings, quote, link, and image, locked forms and questions), 2026-11-11 (Edit in the toolbar)
 
 ## Context

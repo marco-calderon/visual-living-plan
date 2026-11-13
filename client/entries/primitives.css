@@ -92,6 +92,29 @@
   --icon-red: #dc2626;
   --icon-pink: #db2777;
   --icon-purple: var(--brand-purple);
+  /* Document-first page (ADR 0039): change tags, status tints, callout rules, data cards. */
+  --hairline-soft: #f0f0f1;
+  --stone: #a1a1aa;
+  --tag-add-bg: #dcf5e2;
+  --tag-add-fg: #0a7a38;
+  --tag-mod-bg: #fff3d6;
+  --tag-mod-fg: #8a5300;
+  --tag-del-bg: #fff4f0;
+  --tag-del-fg: #c9322a;
+  --tag-info-bg: #dbeafe;
+  --tag-info-fg: #1e40af;
+  --tag-purple-fg: #6d3fd6;
+  --rule-note: #a1a1aa;
+  --rule-tip: #0a7a38;
+  --rule-risk: #c9322a;
+  --rule-warning: #c98a00;
+  --rule-decision: #0094fc;
+  --mark: #fff1b8;
+  --status-active: #0094fc;
+  --status-blocked: #c98a00;
+  --data-card-radius: 12px;
+  --flow-gap: 24px;
+  --data-head-bg: var(--surface);
 }
 
 :root[data-theme="dark"] {
@@ -155,6 +178,26 @@
   --icon-red: #f87171;
   --icon-pink: #f472b6;
   --icon-purple: #a78bfa;
+  --hairline-soft: #262626;
+  --stone: #666666;
+  --tag-add-bg: #0f2e1b;
+  --tag-add-fg: #4ade80;
+  --tag-mod-bg: #33270a;
+  --tag-mod-fg: #f5c451;
+  --tag-del-bg: #3a1612;
+  --tag-del-fg: #ff8a7a;
+  --tag-info-bg: #12294a;
+  --tag-info-fg: #a8cdff;
+  --tag-purple-fg: #a98bff;
+  --rule-note: #6e6e6e;
+  --rule-tip: #4ade80;
+  --rule-risk: #ff8a7a;
+  --rule-warning: #f2c94c;
+  --rule-decision: #0094fc;
+  --mark: #4a3d0a;
+  --status-active: #0094fc;
+  --status-blocked: #f2c94c;
+  --data-head-bg: #222222;
 }
 
 .plan-ui {
@@ -786,7 +829,7 @@ a.plan-step-label:hover {
   margin: 0;
   padding: 10px;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: var(--data-card-radius);
   background: var(--control-solid);
   color: var(--ink);
   cursor: pointer;
@@ -1234,7 +1277,7 @@ a.plan-step-label:hover {
 
 .plan-form-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .plan-form-actions .plan-btn {
@@ -1564,3 +1607,649 @@ body.plan-live .block.plan-changed {
     animation: none;
   }
 }
+
+/* ==========================================================================
+ * Document-first page (ADR 0039, DESIGN.md "Card policy").
+ * Prose blocks (phase, callout, checklist, choice, form, questions, approve) have no card: no fill,
+ * no frame, no radius. Data blocks keep theirs. These rules come last and carry an extra class so
+ * they win over `.block` (src/planPage.css) and the panel surface.
+ * ========================================================================== */
+
+:is(.plan-document, .plan-rich, .plan-editor-locked-card) :is(.block, .plan-box).plan-entry:is(.plan-phase, .plan-callout, .plan-checklist, .plan-choice, .plan-form, .plan-questions, .plan-approve),
+.plan-entry.plan-box:is(.plan-phase, .plan-callout, .plan-checklist, .plan-choice, .plan-form, .plan-questions, .plan-approve) {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+/* Flow: one column, space between blocks, a hairline before each phase. */
+.plan-document > :is(.plan-entry, .block),
+.plan-document > [data-doc-block]:not(.plan-path) {
+  margin-top: var(--flow-gap);
+}
+
+.plan-document > [data-doc-block]:not(.plan-path),
+.plan-rich > [data-doc-block]:not(.plan-path) {
+  margin-bottom: var(--space-md);
+}
+
+.plan-rich > [data-doc-block]:not(.plan-path):not(:first-child) { margin-top: var(--space-md); }
+
+.plan-document > :first-child { margin-top: 0; }
+
+:is(.plan-document, .plan-rich) .block.plan-entry.plan-phase {
+  margin-top: var(--space-xxl);
+  padding-top: var(--space-xl);
+  border-top: 1px solid var(--hairline);
+}
+
+.plan-document > .block.plan-entry.plan-phase:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Phase: the rail goes; the step number becomes a circle that carries the status. */
+.plan-phase .plan-phase-rail { display: none; }
+
+.plan-phase .plan-step-heading { align-items: center; }
+
+.plan-phase .plan-step-number {
+  align-self: center;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  border-width: 1.5px;
+  border-radius: 999px;
+}
+
+.plan-phase .plan-step-digit {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  transform: none;
+}
+
+.plan-phase[data-status="pending"] .plan-step-number {
+  border-color: var(--hairline-strong);
+  background: var(--canvas);
+  color: var(--steel);
+}
+
+.plan-phase[data-status="active"] .plan-step-number {
+  border-color: var(--status-active);
+  background: color-mix(in srgb, var(--status-active) 12%, var(--canvas));
+  color: var(--status-active);
+}
+
+.plan-phase[data-status="done"] .plan-step-number {
+  border-color: var(--ok);
+  background: var(--ok);
+  color: var(--canvas);
+}
+
+.plan-phase[data-status="blocked"] .plan-step-number {
+  border-color: var(--status-blocked);
+  background: color-mix(in srgb, var(--status-blocked) 12%, var(--canvas));
+  color: var(--tag-mod-fg);
+}
+
+.plan-phase[data-status="failed"] .plan-step-number {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.plan-document .plan-phase[data-status="done"] a.plan-step-number { color: var(--canvas); }
+.plan-document .plan-phase[data-status="blocked"] a.plan-step-number { color: var(--tag-mod-fg); }
+.plan-phase[data-status="blocked"] .plan-phase-status { color: var(--status-blocked); }
+
+.plan-phase .plan-title { font-size: 1.25rem; line-height: 1.3; }
+
+/* The body lines up with the title, not with the step number. */
+.plan-phase .plan-phase-body > .plan-rich { padding-left: calc(28px + var(--space-sm)); }
+
+@container (max-width: 30rem) {
+  .plan-phase .plan-phase-body > .plan-rich { padding-left: 0; }
+}
+
+/* Callout: a left rule in the kind's color and an eyebrow label. No fill. */
+:is(.plan-document, .plan-rich, .plan-editor-locked-card) :is(.block, .plan-box).plan-entry.plan-callout,
+.plan-entry.plan-box.plan-callout {
+  border-left: 2px solid var(--rule-note);
+  padding: 2px 0 2px var(--space-md);
+}
+
+:is(.plan-document, .plan-rich, .plan-editor-locked-card) :is(.block, .plan-box).plan-entry.plan-callout[data-kind="tip"],
+.plan-entry.plan-box.plan-callout[data-kind="tip"] { border-left-color: var(--rule-tip); }
+:is(.plan-document, .plan-rich, .plan-editor-locked-card) :is(.block, .plan-box).plan-entry.plan-callout[data-kind="risk"],
+.plan-entry.plan-box.plan-callout[data-kind="risk"] { border-left-color: var(--rule-risk); }
+:is(.plan-document, .plan-rich, .plan-editor-locked-card) :is(.block, .plan-box).plan-entry.plan-callout[data-kind="warning"],
+.plan-entry.plan-box.plan-callout[data-kind="warning"] { border-left-color: var(--rule-warning); }
+:is(.plan-document, .plan-rich, .plan-editor-locked-card) :is(.block, .plan-box).plan-entry.plan-callout[data-kind="decision"],
+.plan-entry.plan-box.plan-callout[data-kind="decision"] { border-left-color: var(--rule-decision); }
+
+.plan-callout .plan-card-label-text,
+.plan-entry .plan-card-label-text {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.plan-callout[data-kind="tip"] .plan-callout-label { color: var(--rule-tip); }
+.plan-callout[data-kind="risk"] .plan-callout-label { color: var(--rule-risk); }
+.plan-callout[data-kind="warning"] .plan-callout-label { color: var(--tag-mod-fg); }
+.plan-callout[data-kind="decision"] .plan-callout-label { color: var(--tag-info-fg); }
+
+.plan-callout[data-kind="warning"] .plan-card-icon {
+  color: var(--tag-mod-fg);
+  background: var(--tag-mod-bg);
+  border-color: color-mix(in srgb, var(--rule-warning) 45%, transparent);
+}
+
+.plan-callout[data-kind="decision"] .plan-card-icon {
+  color: var(--tag-info-fg);
+  background: var(--tag-info-bg);
+  border-color: color-mix(in srgb, var(--rule-decision) 40%, transparent);
+}
+
+/* Checklist: an eyebrow title, a done count, a segmented bar, and rows split by soft hairlines. */
+.plan-checklist-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-sm);
+  min-width: 0;
+}
+
+.plan-checklist .plan-checklist-title {
+  color: var(--steel);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.plan-checklist-count {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-checklist-bar {
+  display: grid;
+  flex: 1 1 120px;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 3px;
+  max-width: 220px;
+}
+
+.plan-checklist-bar i {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--hairline);
+}
+
+.plan-checklist-bar i[data-state="done"] { background: var(--ok); }
+.plan-checklist-bar i[data-state="active"] { background: var(--status-active); }
+.plan-checklist-bar i[data-state="blocked"] { background: var(--status-blocked); }
+.plan-checklist-bar i[data-state="failed"] { background: var(--danger); }
+
+.plan-checklist .plan-checklist-items {
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-checklist .plan-check-item {
+  padding: var(--space-xs) 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.plan-checklist .plan-check-item + .plan-check-item { border-top: 1px solid var(--hairline-soft); }
+
+.plan-checklist .plan-check-item.is-done { opacity: 1; }
+
+.plan-checklist .plan-check-item.is-done .plan-check-text {
+  color: var(--steel);
+  text-decoration: line-through;
+  text-decoration-color: var(--stone);
+}
+
+.plan-check-item[data-state="active"] .plan-check-text { font-weight: 600; }
+
+.plan-check[data-state="active"] { color: var(--status-active); }
+.plan-check[data-state="blocked"] { color: var(--status-blocked); }
+.plan-check[data-state="failed"] { color: var(--danger); }
+
+/* Choice: option rows are controls, so they keep a hairline frame. The radio leads. */
+.plan-choice-group .plan-choice-card {
+  padding: var(--space-sm) 14px;
+  border-color: var(--hairline);
+  background: var(--canvas);
+}
+
+.plan-choice-group .plan-choice-card-body { gap: var(--space-sm); }
+
+.plan-choice-group .plan-choice-card:has(.plan-radio[data-checked]),
+:root[data-theme="dark"] .plan-choice-group .plan-choice-card:has(.plan-radio[data-checked]) {
+  border-color: var(--focus);
+  background: color-mix(in srgb, var(--focus) 8%, var(--canvas));
+}
+
+.plan-choice-group .plan-radio[data-checked] {
+  border-color: var(--focus);
+  background: var(--focus);
+}
+
+.plan-choice-group .plan-choice-label {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.plan-recommended {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  margin-left: var(--space-xs);
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--tag-add-bg);
+  color: var(--tag-add-fg);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+  vertical-align: 2px;
+}
+
+/* Every block label is an eyebrow (D3): small capitals, tracked, steel unless the kind colors it. */
+.plan-entry .plan-kicker {
+  color: var(--steel);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.plan-callout[data-kind="tip"] .plan-kicker.plan-callout-label { color: var(--rule-tip); }
+.plan-callout[data-kind="risk"] .plan-kicker.plan-callout-label { color: var(--rule-risk); }
+.plan-callout[data-kind="warning"] .plan-kicker.plan-callout-label { color: var(--tag-mod-fg); }
+.plan-callout[data-kind="decision"] .plan-kicker.plan-callout-label { color: var(--tag-info-fg); }
+
+/* A question for the person is a section of its own: a hairline above it, like a phase. */
+.plan-document > div:has(> .plan-entry:is(.plan-choice, .plan-form, .plan-questions, .plan-approve)) {
+  margin-top: var(--space-xxl);
+  padding-top: var(--space-xl);
+  border-top: 1px solid var(--hairline);
+}
+
+/* Answer blocks: the prompt reads as a section heading under its eyebrow. */
+:is(.plan-choice, .plan-form, .plan-questions, .plan-approve) > .plan-vstack > .plan-title,
+:is(.plan-choice, .plan-form, .plan-questions, .plan-approve) .plan-title {
+  font-size: 1.2rem;
+  line-height: 1.3;
+}
+
+/* Plan header (C5): an eyebrow over the first heading and fact chips under it. */
+.plan-head-eyebrow {
+  margin: 0 0 var(--space-xs);
+  color: var(--steel);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.plan-head-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin: 0 0 var(--space-md);
+  padding: 0;
+  list-style: none;
+}
+
+.plan-head-fact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 2px 12px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  color: var(--charcoal);
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.plan-head-fact b {
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Block tools (ADR 0040): one pill with Edit and + follows the block under the pointer, with focus,
+ * or tapped, while the plan can be edited (client/planEditButton.ts sets its place). */
+.plan-block-tools {
+  position: absolute;
+  z-index: 30;
+  top: 0;
+  left: 0;
+  display: inline-flex;
+  align-items: stretch;
+  height: 26px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  background: var(--canvas);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(2px);
+  transition:
+    opacity 120ms var(--ease-out),
+    transform 120ms var(--ease-out);
+}
+
+.plan-block-tools[data-visible] {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}
+
+.plan-block-tools button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.plan-block-tools button + button { border-left: 1px solid var(--hairline-strong); }
+
+.plan-block-tools .plan-block-add-below { padding: 0 8px; color: var(--muted); }
+
+.plan-block-tools svg { width: 13px; height: 13px; }
+
+.plan-block-tools button:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
+
+.plan-block-tools button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+body:not([data-plan-editable="true"]) .plan-block-tools { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-block-tools { transition: none; }
+}
+
+/* Add a block, after the plan's last block. */
+.plan-add-block {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 100%;
+  margin-top: var(--space-xl);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px dashed var(--hairline-strong);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.plan-add-block span { font-size: 16px; line-height: 1; }
+
+.plan-add-block:hover { border-color: var(--hairline-strong-hover); color: var(--ink); }
+
+.plan-add-block:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+body[data-plan-mode="comment"] .plan-add-block { display: none; }
+
+/* Changes not applied yet: a bar that stays at the bottom of the window over the plan column. */
+.plan-apply-bar {
+  position: sticky;
+  z-index: 20;
+  bottom: var(--space-sm);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+  padding: var(--space-xs) var(--space-xs) var(--space-xs) var(--space-md);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius);
+  background: var(--canvas);
+  box-shadow: var(--shadow);
+}
+
+.plan-apply-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 16rem;
+}
+
+.plan-apply-title { color: var(--ink); font-size: 14px; font-weight: 600; }
+
+.plan-apply-note { color: var(--muted); font-size: 12.5px; }
+
+.plan-apply-actions { display: flex; gap: var(--space-xs); margin-left: auto; }
+
+/* Blocks both the person and the agent changed: one row each, with the two versions to keep. */
+.plan-apply-conflicts {
+  display: flex;
+  flex: 1 1 100%;
+  flex-direction: column;
+  max-height: min(32vh, 20rem);
+  margin: 0;
+  padding: 0 var(--space-xs) 0 0;
+  overflow-y: auto;
+  border-top: 1px solid var(--hairline);
+  list-style: none;
+}
+
+.plan-apply-conflict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-sm);
+  padding: var(--space-xs) 0;
+}
+
+.plan-apply-conflict + .plan-apply-conflict { border-top: 1px solid var(--hairline-soft); }
+
+.plan-apply-conflict-text {
+  display: flex;
+  flex: 1 1 14rem;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.plan-apply-conflict-label { color: var(--ink); font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; }
+
+.plan-apply-conflict-within { color: var(--steel); font-weight: 400; }
+
+.plan-apply-conflict-detail { color: var(--steel); font-size: 12.5px; overflow-wrap: anywhere; }
+
+.plan-apply-conflict-actions { display: flex; flex-wrap: wrap; gap: var(--space-xs); margin-left: auto; }
+
+/* Where the plan column runs under the corner buttons (Comment, contents), the bar sits above them. */
+@media (max-width: 1000px) {
+  .plan-apply-bar { bottom: calc(16px + 40px + var(--space-xs)); }
+}
+
+/* The editor's own frame while its code loads, so the page does not jump. */
+.plan-block-editor-loading {
+  padding: var(--space-md);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: 14px;
+}
+
+@media print {
+  .plan-block-tools,
+  .plan-add-block,
+  .plan-apply-bar { display: none; }
+}
+
+/* ==========================================================================
+ * Review pass (ADR 0039): the rest of the card policy and the flow.
+ * ========================================================================== */
+
+/* The fact chips line up with the heading, not with a list's indent. */
+.plan-document > ul.plan-head-facts {
+  margin: 0 0 var(--space-md);
+  padding: 0;
+  list-style: none;
+}
+
+/* The workflow and the charts are data cards: canvas, hairline, 12px. */
+:is(.plan-document, .plan-rich) .vlp-workflow.plan-panel {
+  border-color: var(--hairline);
+  border-radius: var(--data-card-radius);
+  background: var(--canvas);
+}
+
+.vlp-workflow > .plan-title { font-size: 1.1rem; }
+
+:is(.plan-document, .plan-rich) .vlp-chart {
+  padding: var(--space-sm) 14px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--data-card-radius);
+  background: var(--canvas);
+}
+
+.vlp-chart figcaption {
+  color: var(--steel);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* A markdown table is a data card with a surface header row. */
+.plan-document .rich-table {
+  border-color: var(--hairline);
+  background: var(--canvas);
+}
+
+.plan-document .rich-table th {
+  background: var(--data-head-bg);
+  color: var(--steel);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* What follows a block gets the flow gap too, so a table never touches a callout's rule. */
+.plan-document > :is(.plan-entry, .block, [data-doc-block]):not(.plan-path) + :not(.plan-entry):not(.block):not([data-doc-block]):not(h1):not(h2):not(h3) {
+  margin-top: var(--flow-gap);
+}
+
+/* Recommended reads as advice, not as a change tag. */
+.plan-recommended {
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--focus) 55%, transparent);
+  background: transparent;
+  color: var(--focus);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  vertical-align: 1px;
+}
+
+:root[data-theme="dark"] .plan-recommended { color: #5ab4ff; }
+
+/* A phase title wraps with its status glyph, and the step circle sits on the first line. */
+.plan-phase .plan-step-heading { align-items: start; }
+.plan-phase .plan-step-number { align-self: start; }
+
+/* A locked layout block, figure, or table (planComponents.tsx `lockable`): the wrapper has no box. */
+.plan-edit-lock { display: contents; }
+
+/* A checklist line's state glyph is the phase's StatusIcon, at the line's 16px. */
+.plan-check :is(.rf-progress-icon, .status-icon) {
+  width: 16px;
+  height: 16px;
+}
+
+/* A heading after a block starts a new section: it gets the section's space above it. */
+.plan-document > :is(.plan-entry, .block, [data-doc-block]:not(.plan-path), div:has(> .plan-entry)) + :is(h1, h2, h3, h4) {
+  margin-top: var(--space-xxl);
+}
+
+/* ==========================================================================
+   Room between blocks. No two blocks touch: a block after a block, a paragraph after a card, and a
+   heading after a data block all get space (ADR 0040 wraps lockable blocks in a .plan-block-frame).
+   ========================================================================== */
+
+:is(.plan-document, .plan-rich) > .plan-block-frame { margin-top: var(--space-md); }
+.plan-document > .plan-block-frame { margin-top: var(--flow-gap); }
+:is(.plan-document, .plan-rich) > .plan-block-frame:first-child { margin-top: 0; }
+
+/* An answer card, a frame, or a data block, then prose: the flow gap, as after any card. */
+.plan-document > :is(div:has(> .plan-entry), .plan-block-frame) + :is(p, ul, ol, blockquote, .code-host, div.rich-table) {
+  margin-top: var(--flow-gap);
+}
+
+.plan-rich > :is(.plan-entry, .plan-block-frame, div:has(> .plan-entry), [data-doc-block]:not(.plan-path), .code-host, .rich-table) + :is(p, ul, ol, blockquote) {
+  margin-top: var(--space-md);
+}
+
+/* Two blocks of the same kind in a row (endpoints, data blocks, frames) never share a border. */
+.plan-rich > [data-doc-block]:not(.plan-path) + [data-doc-block]:not(.plan-path),
+.plan-document > [data-doc-block]:not(.plan-path) + [data-doc-block]:not(.plan-path) {
+  margin-top: var(--space-sm);
+}
+
+/* Inside a phase, a heading after a block starts a new part of it. */
+.plan-rich > :is(.plan-entry, .plan-block-frame, div:has(> .plan-entry), [data-doc-block]:not(.plan-path), .code-host, .rich-table) + :is(h2, h3, h4) {
+  margin-top: var(--space-xl);
+}
+
+.plan-document > .plan-block-frame + :is(h1, h2, h3, h4) { margin-top: var(--space-xxl); }
+
+/* A box's last paragraph does not add its margin to the box's own padding. */
+.plan-box > :last-child { margin-bottom: 0; }
+
+/* Labels written side by side with no space between them (a Properties value) keep apart. */
+.plan-properties dd > :is(.plan-chip, .plan-pill) + :is(.plan-chip, .plan-pill) { margin-left: 6px; }

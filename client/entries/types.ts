@@ -28,6 +28,8 @@ export type FormFieldSpec = {
 export type ChecklistItemSpec = {
   text: string
   done?: boolean
+  /** pending | active | blocked | done | failed. Wins over `done`. */
+  status?: string
 }
 
 export type WorkflowNodeSpec = {

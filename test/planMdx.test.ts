@@ -60,7 +60,7 @@ test('task list items compile to read-only checkboxes in place of [ ] and [x]', 
   const loaded = await run(String(file), { ...runtime })
   const Content = loaded.default as (props: { components: { input: typeof MarkdownTaskCheckbox } }) => ReactElement
   const html = renderToStaticMarkup(createElement(Content, { components: { input: MarkdownTaskCheckbox } }))
-  assert.match(html, /<ul class="contains-task-list">/)
+  assert.match(html, /<ul class="contains-task-list"[^>]*>/)
   assert.equal(html.match(/<li class="task-list-item">/g)?.length, 2)
   assert.match(html, /role="checkbox" aria-checked="false" aria-readonly="true" class="plan-checkbox-control plan-task-checkbox" data-unchecked=""><\/span> Write the migration/)
   assert.match(html, /role="checkbox" aria-checked="true"[^>]*data-checked=""><span class="plan-checkbox-indicator"><svg[^]*?<\/span><\/span> Review the schema/)

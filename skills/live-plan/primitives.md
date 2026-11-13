@@ -90,7 +90,7 @@ Reject traffic if Redis is down.
 </choice>
 ```
 
-Give every option an `id`. The option body is the description. The page shows each option as a radio choice card. One selection posts the response above and is restored after a refresh. Picking another option posts again and replaces the answer, so the agent receives a new `choice` event. The choice locks only while execution is active. A checkbox field is a different control: it can select several values.
+Give every option an `id`. The option body is the description. A bare `recommended` on an option marks the one you suggest with a Recommended label. It does not pick it for the human, and the event is the same. The page shows each option as a radio choice card. One selection posts the response above and is restored after a refresh. Picking another option posts again and replaces the answer, so the agent receives a new `choice` event. The choice locks only while execution is active. A checkbox field is a different control: it can select several values.
 
 ## form
 
@@ -212,12 +212,18 @@ Phase statuses in this file will update as the work proceeds.
 
 Not an interaction. You flip `done` as you finish. `done` is true only for `done="true"` or `done={true}`.
 
-The page shows that state as an icon. A finished line is a filled circle with a check. A line still to do is an empty ring. The item text stays beside the icon. The words "done" and "todo" are not printed on the row. The human cannot toggle the icon. This is not a `<field type="checkbox">`.
+The page shows that state as an icon. A finished line is a filled circle with a check, dimmed and struck through. A line still to do is an empty ring. The item text stays beside the icon. The words "done" and "todo" are not printed on the row. The human cannot toggle the icon. This is not a `<field type="checkbox">`.
+
+An item can also say where it stands with `status`: `pending`, `active`, `blocked`, `done`, or `failed`. `status` wins over `done`. An active line shows a progress ring and bold text, a blocked line a ban, a failed line an ×, the same marks a phase uses. Set one line `active` while you work on it.
+
+The title is a small label over the list. Beside it the page counts the done lines (`1/4`) and draws one bar segment per line in that line's state.
 
 ```mdx
 <checklist title="Done when">
-<item done="false">Middleware behind a flag</item>
 <item done="true">429 + Retry-After covered by tests</item>
+<item status="active">Middleware behind a flag</item>
+<item status="blocked">Load test in staging</item>
+<item>Document the limits</item>
 </checklist>
 ```
 
@@ -348,6 +354,160 @@ The table body scrolls sideways when the columns are wider than the page column.
 ```
 
 `<Column id="notes" header="Notes" wrap />` wraps one column the same way.
+
+## Locking a block
+
+The human can edit every block on the page. Add `locked` to a component the human should not change: the page shows no Edit on it, and the editor shows it as written, lets it move, and does not let it change or go away. A form and a questions block are locked by default, because they are questions for the human; `locked="false"` unlocks one.
+
+```mdx
+<callout kind="decision" title="Bucket store" locked>
+Agreed with the gateway team on 12 November.
+</callout>
+```
+
+## Document blocks
+
+Data views that sit inside the prose. They are not plan entries: they need no `id`, send no events, and do not join the workflow. Use them in the plan markdown or inside a phase, callout, or approve body. Each one with a frame is a card; Tabs, Compare, and Properties are layout. Every one takes `locked`. Boolean attributes are bare (`pk`), `"true"`, or `{true}`.
+
+A file, an entity, an attribute, an endpoint, and a path take `change`: `added`, `modified`, `deleted`, `renamed`, or `unchanged`. The page shows NEW, MODIFY, DELETE, or RENAME. `added` also accepts `new`, `deleted` accepts `removed`, and `renamed` accepts `moved`.
+
+### FileTree
+
+The files a change touches, as a tree. Folders come from the paths, and a folder that holds only one folder joins it on one row (`src/gateway`). The header counts the files and each kind of change. A folder row folds and unfolds.
+
+```mdx
+<FileTree title="Files touched">
+<File path="src/gateway/limiter.ts" change="added">Token bucket per API key.</File>
+<File path="src/gateway/middleware.ts" change="modified">Calls the limiter first.</File>
+<File path="src/gateway/throttle.ts" change="deleted">Replaced by the limiter.</File>
+<File path="docs/limits.md" from="docs/rate-limits.md" change="renamed" />
+</FileTree>
+```
+
+`title` defaults to Files. `File` needs `path`; `change` defaults to `modified`; `from` is the old path of a renamed file. The body is a short note.
+
+### Endpoint
+
+An API contract. It starts folded as one row: method, path, change, the first line of the body, and a lock when `auth` is set. `open` starts it unfolded. Endpoints written one after another share one card.
+
+````mdx
+<Endpoint method="POST" path="/api/keys/{keyId}/limit" change="added" auth="API key">
+Set the request limit for one key.
+
+<Param name="keyId" in="path" type="string" required>Key to update.</Param>
+<Param name="perMinute" in="body" type="integer" required>1–10000.</Param>
+
+<Request>
+```json
+{ "perMinute": 600 }
+```
+</Request>
+
+<Response status="200">Limit saved.</Response>
+<Response status="404">No key with this id.</Response>
+</Endpoint>
+````
+
+`method` defaults to GET. `summary` replaces the first line of the body in the folded row. `Param` takes `name`, `in` (`path`, `query`, `header`, `body`, `cookie`), `type`, and `required`. `Request` holds an example, usually a fence. `Response` takes `status`; its body can hold a fence too. A `change` word the page does not know shows as written.
+
+### DataModel
+
+Tables or types with their fields, keys, and links. Each `Entity` folds; `collapsed` starts it folded.
+
+```mdx
+<DataModel title="Limiter tables">
+<Entity name="rate_limits" change="added">
+<Attr name="key_id" type="text" pk fk="api_keys.id" />
+<Attr name="per_minute" type="integer" />
+<Attr name="updated_at" type="timestamptz" nullable />
+</Entity>
+<Relation from="api_keys" to="rate_limits" kind="1-1" />
+</DataModel>
+```
+
+`Attr` takes `name`, `type`, `pk`, `fk` (the table and field it points at), `nullable`, `change`, and an optional note as its body. `Relation` takes `from`, `to`, and `kind` (`1-1`, `1-n`, `n-1`, `n-n`).
+
+### JsonView
+
+A JSON payload as a tree that folds. Put the JSON in a `json` fence: in plain MDX text a `{` starts an expression. Objects and arrays below `depth` start folded. The default, 1, opens the top level and folds what is inside it. JSON that does not parse shows as code with the reason under it.
+
+````mdx
+<JsonView title="429 response" depth="1">
+```json
+{ "error": "rate_limited", "retryAfter": 12, "limit": { "perMinute": 600 } }
+```
+</JsonView>
+````
+
+### AnnotatedCode
+
+One fence with numbered notes on its lines. Each note shows under its last line in the code and again in a list below. `lines` is `42` or `42-44`. Set `start` on `AnnotatedCode`, or `start=` after the fence's language, to number the fence from that line; `lines` uses the same numbers. A note on lines the fence does not have says so in the list.
+
+````mdx
+<AnnotatedCode title="src/gateway/middleware.ts" start="40">
+```ts
+export async function gate(req, reply) {
+  const key = req.headers['x-api-key']
+  if (await limiter.over(key)) {
+    return reply.code(429).send()
+  }
+}
+```
+<Note lines="42" label="Before auth">Runs before the session lookup.</Note>
+<Note lines="43">The reply carries Retry-After.</Note>
+</AnnotatedCode>
+````
+
+### Tabs
+
+Several views, one at a time: a walkthrough of three files, or a config per environment. Any blocks go in a tab. Arrow keys move between tabs, and find in page opens a tab that holds the match.
+
+```mdx
+<Tabs label="Limiter files">
+<Tab label="limiter.ts">The bucket refills every second.</Tab>
+<Tab label="limiter.test.ts">Tests cover the 429 path.</Tab>
+</Tabs>
+```
+
+### Compare
+
+Two or three panes side by side, such as before and after. The panes stack on a narrow screen.
+
+```mdx
+<Compare>
+<Pane label="Before">Every request reaches the handler.</Pane>
+<Pane label="After">Over the limit returns `429`.</Pane>
+</Compare>
+```
+
+### Update
+
+A dated status note with a health level. Put one at the top of a long plan, or after a phase that changed course. `health` is `on-track`, `at-risk`, or `off-track`. A `date` in `YYYY-MM-DD` form also shows how many days ago it was (today, yesterday, 3d ago); with a time, it shows hours.
+
+```mdx
+<Update health="on-track" by="Agent" date="2026-11-13">
+The limiter is merged behind a flag. The load test is next.
+</Update>
+```
+
+### Properties
+
+Labels and values: owner, flag, target date, links. A value can hold a chip or a pill.
+
+```mdx
+<Properties>
+<Prop label="Owner">Gateway team</Prop>
+<Prop label="Flag"><Chip>rate-limit-v2</Chip></Prop>
+</Properties>
+```
+
+### Path
+
+A file inside a sentence, with an optional change and line range.
+
+```mdx
+The gate lives in <Path change="modified" lines="42-58">src/gateway/middleware.ts</Path>.
+```
 
 ## code
 
@@ -527,7 +687,15 @@ Node `status`: `pending` | `active` | `blocked` | `done` | `failed`. `detail`, `
 
 ## Page
 
-These are part of the open plan. You do not author them as components. The human sets page width and code wrapping on the Settings tab. Both are saved in `live-plan.config.json` beside the plan:
+These are part of the open plan. You do not author them as components.
+
+### Plan header
+
+The plan's first `#` heading gets a small label above it (Living plan, the mode, and the `agent` from the front matter) and a row of facts under it: the active phase and its place (`Phase 2 of 6`), how many phases are done, and how many questions wait for an answer. Keep phase statuses current and these stay true.
+
+### Edit
+
+When the human can edit the plan, the page is the editor. The block under the pointer shows Edit and +: Edit opens that block's editor where it sits, and + opens a new block below it. E edits the block that has focus. Done keeps the change on the human's device and shows it on the page; nothing reaches your file until they press Apply changes, which saves a version and sends you an `edit` event. Only the edited block's text changes in the file. A locked block has no Edit. The human sets page width and code wrapping on the Settings tab. Both are saved in `live-plan.config.json` beside the plan:
 
 ```json
 {

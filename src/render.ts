@@ -12,7 +12,6 @@ import { PLAN_STATUS_LABEL, planStatus, workState } from './planStatus'
 import { LOCK_BANNER_TEXT } from './lockBanner'
 import { AGENT_ICONS_SVG, agentPresenceText, type AgentPresence } from './agentPresence'
 import { PROCESSES_PANEL_STYLES, processesPanelMarkup, processesPanelScript } from './processesPanel'
-import { planEditButtonHtml } from './planEditButton'
 import { accentCssCustomProperties, PAGE_WIDTH_OPTIONS, type PageWidth } from './theme'
 import {
   DEFAULT_DIFFS_THEME,
@@ -1520,7 +1519,6 @@ export function renderPlanPage(options: {
         ${tabButton('workflow', 'Workflow', false)}
         ${tabButton('settings', 'Settings', false)}
       </div>
-      ${planMdxHref ? planEditButtonHtml() : ''}
       ${processesPanelMarkup(selfId)}
     </div>
   </header>
