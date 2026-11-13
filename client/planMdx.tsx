@@ -30,6 +30,8 @@ import { markChangedBlocks, readBlockSignatures, restoreScrollAnchor, scrollAnch
 import { viewingPlanVersion } from './versionView.ts'
 import { sendPlanMutation, sharedQueryClient } from './queryClient.tsx'
 import { clearDraft, isLegacyDraft, readDraft, writeDraft, type PlanDraft } from './editor/draftStore.ts'
+import { planNotReadyReason } from '../src/planReady.ts'
+import type { DraftConflict, DraftSide } from '../src/planMdx/rebaseDraft.ts'
 import { bindBlockEditButton } from './planEditButton.ts'
 import { parseBlockRange } from '../src/planMdx/remarkBlockRanges.ts'
 import { Button } from './ui/button.tsx'
@@ -223,7 +225,7 @@ function blockTarget(open: OpenEdit): BlockTarget | null {
   return after ? { kind: 'add', after } : null
 }
 
-type SaveResult = { ok: true } | { ok: false; message: string }
+type SaveResult = { ok: true } | { ok: false; message: string; status?: number }
 
 /** Publish an edit. The same route on the local service and on the host, where it also saves a version. */
 async function saveEditedSource(base: string, source: string): Promise<SaveResult & { payload?: Partial<Boot> }> {
@@ -247,7 +249,34 @@ async function saveEditedSource(base: string, source: string): Promise<SaveResul
   } catch {
     // Plain text error.
   }
-  return { ok: false, message: message || `Could not save the plan (${response.status})` }
+  return { ok: false, message: message || `Could not save the plan (${response.status})`, status: response.status }
+}
+
+const loadRebase = () => import('../src/planMdx/rebaseDraft.ts')
+
+/**
+ * The person's changes on the plan the agent wrote since (src/planMdx/rebaseDraft.ts), as a draft
+ * on `theirs`. Null when the merge does not render (`planNotReadyReason`); the draft stays as it was.
+ */
+async function rebasedDraft(draft: PlanDraft, theirs: string, keep: Record<string, DraftSide>): Promise<PlanDraft | null> {
+  const from = draft.rebase ?? { base: draft.base, mine: draft.source }
+  try {
+    const { rebaseDraft } = await loadRebase()
+    const result = rebaseDraft({ base: from.base, mine: from.mine, theirs, keep })
+    if (await planNotReadyReason(result.source)) return null
+    const next: PlanDraft = { base: theirs, source: result.source, edits: draft.edits, savedAt: draft.savedAt }
+    if (result.conflicts.length === 0) return next
+    return { ...next, rebase: { base: from.base, mine: from.mine, keep, conflicts: result.conflicts } }
+  } catch {
+    return null
+  }
+}
+
+/** What the Apply bar says about one overlapping block, under its name. */
+function conflictDetail(conflict: DraftConflict): string {
+  if (!conflict.mine) return 'You removed it. The agent changed it.'
+  if (!conflict.theirs) return `The agent removed it. Yours: ${conflict.minePreview}`
+  return `Yours: ${conflict.minePreview}`
 }
 
 const LazyCodeBlock = lazy(() => import('./CodeBlock.tsx').then((module) => ({ default: module.CodeBlock })))
@@ -571,6 +600,19 @@ async function readPlanMdx(): Promise<Boot> {
   return (await response.json()) as Boot
 }
 
+/** Read the live plan again: through the device store when it runs, else from the plan. */
+async function refreshLivePlan(apply: (payload: Boot) => void): Promise<void> {
+  const engine = await startOfflineEngine()
+  if (engine?.available) {
+    await engine.syncPlan()
+    return
+  }
+  const payload = await sharedQueryClient()
+    .fetchQuery({ queryKey: ['plan-mdx', apiPath('')], queryFn: readPlanMdx, staleTime: 0 })
+    .catch(() => null)
+  if (payload && typeof payload.source === 'string') apply(payload)
+}
+
 function PlanMdxApp() {
   const [boot, setBoot] = useState<Boot>(readBoot)
   const [content, setContent] = useState<ReactNode>(null)
@@ -683,16 +725,7 @@ function PlanMdxApp() {
       }
     })
     const stopReload = subscribePlanEvents('reload', () => {
-      void startOfflineEngine().then(async (engine) => {
-        if (engine?.available) {
-          await engine.syncPlan()
-          return
-        }
-        const payload = await sharedQueryClient()
-          .fetchQuery({ queryKey: ['plan-mdx', apiPath('')], queryFn: readPlanMdx, staleTime: 0 })
-          .catch(() => null)
-        if (payload && typeof payload.source === 'string') setBoot(payload)
-      })
+      void refreshLivePlan(setBoot)
     })
     const forward = (type: string) =>
       subscribePlanEvents(type, (event) => {
@@ -843,8 +876,21 @@ function PlanMdxApp() {
     })
   }, [boot.snapshots, boot.headSnapshotId])
 
+  // The agent wrote after the unapplied changes started. They go on top of its plan once no editor is open.
+  const behind = draft !== null && !samePlanSource(draft.base, boot.source)
+  const [rebaseFailed, setRebaseFailed] = useState<{ mine: string; theirs: string } | null>(null)
+  const rebaseStuck =
+    behind &&
+    rebaseFailed !== null &&
+    rebaseFailed.theirs === boot.source &&
+    rebaseFailed.mine === (draft?.rebase?.mine ?? draft?.source)
+  const rebasing = behind && !rebaseStuck
+  // Blocks both the person and the agent changed. The person keeps a side of each before applying.
+  const conflicts = draft?.rebase?.conflicts ?? []
+  const [rebased, setRebased] = useState(false)
+  const [resolving, setResolving] = useState(false)
   // Editing needs a rendered plan. The pill and E (client/planEditButton.ts) read this on each use.
-  const editable = canEdit && content !== null
+  const editable = canEdit && content !== null && !rebasing && conflicts.length === 0
   const editState = useRef({ editable, editing: false })
   editState.current = { editable, editing: openEdit !== null }
   const pageSourceRef = useRef(pageSource)
@@ -906,6 +952,37 @@ function PlanMdxApp() {
     if (openEdit?.committed !== undefined && samePlanSource(shownSource, openEdit.committed)) setOpenEdit(null)
   }, [openEdit, shownSource])
 
+  // The agent wrote after these changes started: put them on top of its plan. An open editor first
+  // stages its edit against the file it opened on; this runs once it closes.
+  useEffect(() => {
+    if (!canEdit || !draft || openEdit || !rebasing) return
+    let cancelled = false
+    const theirs = boot.source
+    const mine = draft.rebase?.mine ?? draft.source
+    void rebasedDraft(draft, theirs, draft.rebase?.keep ?? {}).then((next) => {
+      if (cancelled) return
+      if (!next) {
+        // Keep the changes as they are; the bar says applying will be refused and offers Discard.
+        setRebaseFailed({ mine, theirs })
+        return
+      }
+      setApplyError(null)
+      setConfirmDiscard(false)
+      if (!next.rebase && samePlanSource(next.source, theirs)) {
+        // The agent made the same changes. Nothing is left to apply.
+        clearDraft(planId)
+        setDraft(null)
+        return
+      }
+      setDraftKept(writeDraft(planId, next))
+      setDraft(next)
+      setRebased(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [canEdit, draft, openEdit, rebasing, boot.source, planId])
+
   const editSlot = useMemo<EditSlot | null>(() => {
     if (!openEdit) return null
     return {
@@ -921,6 +998,7 @@ function PlanMdxApp() {
         setDraft(kept)
         setApplyError(null)
         setConfirmDiscard(false)
+        setRebased(false)
         setOpenEdit((current) => (current?.id === openEdit.id ? { ...current, committed: next } : current))
         return null
       },
@@ -928,13 +1006,15 @@ function PlanMdxApp() {
   }, [openEdit, draft, planId])
 
   async function applyChanges() {
-    if (!draft || applying) return
+    if (!draft || applying || draft.rebase) return
     setApplying(true)
     setApplyError(null)
     try {
       const result = await saveEditedSource(draft.base, draft.source)
       if (!result.ok) {
         setApplyError(result.message)
+        // The agent wrote just now and the page has not heard yet. Read the plan, so the changes go on top of it.
+        if (result.status === 409) void refreshLivePlan((payload) => setBoot((current) => ({ ...current, ...payload })))
         return
       }
       const payload = result.payload ?? {}
@@ -946,6 +1026,7 @@ function PlanMdxApp() {
         ...(payload.headSnapshotId !== undefined ? { headSnapshotId: payload.headSnapshotId } : {}),
       }))
       setDraft(null)
+      setRebased(false)
     } finally {
       setApplying(false)
     }
@@ -960,6 +1041,34 @@ function PlanMdxApp() {
     setDraft(null)
     setConfirmDiscard(false)
     setApplyError(null)
+    setRebased(false)
+  }
+
+  /** Keep one side of a block both changed. The page shows the choice; Apply waits for the last one. */
+  async function keepSide(conflict: DraftConflict, side: DraftSide) {
+    if (!draft?.rebase || resolving || rebasing) return
+    setResolving(true)
+    setApplyError(null)
+    setConfirmDiscard(false)
+    try {
+      const next = await rebasedDraft(draft, draft.base, { ...draft.rebase.keep, [conflict.key]: side })
+      if (!next) {
+        setApplyError('That choice leaves the plan unable to render. Keep the other version, or discard.')
+        return
+      }
+      if (!next.rebase && samePlanSource(next.source, draft.base)) {
+        // Every block kept the agent's version: nothing is left to apply.
+        clearDraft(planId)
+        setDraft(null)
+        setRebased(false)
+        return
+      }
+      setDraftKept(writeDraft(planId, next))
+      setDraft(next)
+      setRebased(!next.rebase)
+    } finally {
+      setResolving(false)
+    }
   }
 
   useEffect(() => {
@@ -1009,37 +1118,98 @@ function PlanMdxApp() {
         </button>
       ) : null}
       {draft && canEdit && !openEdit ? (
-        <div className="plan-apply-bar" role="region" aria-label="Changes not applied" data-plan-apply-bar="">
+        <div
+          className="plan-apply-bar"
+          role="region"
+          aria-label="Changes not applied"
+          data-plan-apply-bar=""
+          data-plan-conflicts={conflicts.length > 0 ? String(conflicts.length) : undefined}
+        >
           <div className="plan-apply-text">
             <span className="plan-apply-title" role="status">
-              {draft.edits === 1 ? '1 change' : `${draft.edits} changes`} not applied
+              {conflicts.length === 1
+                ? "1 of your changes overlaps the agent's"
+                : conflicts.length > 1
+                  ? `${conflicts.length} of your changes overlap the agent's`
+                  : draft.edits === 1
+                    ? '1 change not applied'
+                    : `${draft.edits} changes not applied`}
             </span>
             <span className="plan-apply-note" data-plan-apply-note="">
               {applyError
                 ? applyError
-                : !samePlanSource(draft.base, boot.source)
-                  ? 'The plan changed after these edits started, so applying will be refused. Discard to edit the new version.'
-                  : !draftKept
-                    ? 'This browser did not keep the changes. Apply them before you close the page.'
-                    : !online
-                      ? 'Kept on this device. Apply them when you are back online.'
-                      : 'Kept on this device. Apply to save a new version of the plan.'}
+                : conflicts.length > 0
+                  ? conflicts.length === 1
+                    ? "The agent changed that block too. The page shows the agent's version until you choose."
+                    : "The agent changed those blocks too. The page shows the agent's versions until you choose."
+                  : rebaseStuck
+                    ? 'The plan changed after these edits started, so applying will be refused. Discard to edit the new version.'
+                    : rebasing
+                      ? 'The agent updated the plan. Bringing your changes onto it…'
+                      : !draftKept
+                        ? 'This browser did not keep the changes. Apply them before you close the page.'
+                        : rebased
+                          ? 'The agent updated the plan. Your changes are kept on top of it.'
+                          : !online
+                            ? 'Kept on this device. Apply them when you are back online.'
+                            : 'Kept on this device. Apply to save a new version of the plan.'}
             </span>
           </div>
           <div className="plan-apply-actions">
-            <Button variant="ghost" onClick={discardChanges} disabled={applying} data-plan-discard="">
+            <Button variant="ghost" onClick={discardChanges} disabled={applying || resolving} data-plan-discard="">
               {confirmDiscard ? 'Discard changes?' : 'Discard'}
             </Button>
             <Button
               variant="primary"
               onClick={() => void applyChanges()}
-              disabled={applying || !online}
-              title={online ? 'Save these changes as a new version of the plan' : 'Applying needs a connection. The changes stay on this device.'}
+              disabled={applying || !online || rebasing || conflicts.length > 0}
+              title={
+                conflicts.length > 0
+                  ? 'Keep one version of each overlapping block first'
+                  : online
+                    ? 'Save these changes as a new version of the plan'
+                    : 'Applying needs a connection. The changes stay on this device.'
+              }
               data-plan-apply=""
             >
               {applying ? 'Applying…' : 'Apply changes'}
             </Button>
           </div>
+          {conflicts.length > 0 ? (
+            <ul className="plan-apply-conflicts" aria-label="Changes that overlap the agent's" data-plan-conflict-list="">
+              {conflicts.map((conflict) => (
+                <li key={conflict.key} className="plan-apply-conflict" data-plan-conflict={conflict.key}>
+                  <div className="plan-apply-conflict-text">
+                    <span className="plan-apply-conflict-label">
+                      {conflict.label}
+                      {conflict.within ? <span className="plan-apply-conflict-within"> in {conflict.within}</span> : null}
+                    </span>
+                    <span className="plan-apply-conflict-detail">{conflictDetail(conflict)}</span>
+                  </div>
+                  <div className="plan-apply-conflict-actions">
+                    <Button
+                      variant="secondary"
+                      onClick={() => void keepSide(conflict, 'mine')}
+                      disabled={resolving || rebasing}
+                      aria-label={`Keep mine: ${conflict.label}`}
+                      data-plan-keep-mine=""
+                    >
+                      Keep mine
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => void keepSide(conflict, 'theirs')}
+                      disabled={resolving || rebasing}
+                      aria-label={`Keep the agent's: ${conflict.label}`}
+                      data-plan-keep-theirs=""
+                    >
+                      Keep the agent's
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       ) : null}
     </PlanHeaderContext.Provider>
