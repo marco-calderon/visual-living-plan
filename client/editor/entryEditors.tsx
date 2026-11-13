@@ -16,7 +16,7 @@ import { cx } from '../entries/styles.ts'
 import { calloutKind, phaseStatus } from '../entries/types.ts'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select.tsx'
 import { IconPicker } from './iconPicker.tsx'
-import { isLockedMdast, isLockedTag, lockedAttribute, LockedContext } from './locked.ts'
+import { containsLocked, isLockedMdast, isLockedTag, lockedAttribute, LockedContext } from './locked.ts'
 import { hasLockedPreview, renderLockedPreview } from './lockedPreview.tsx'
 import { StatusPicker } from './statusPicker.tsx'
 import { useIsolatedFromEditor } from './isolate.ts'
@@ -465,6 +465,8 @@ function EntryEditor({ spec, mdastNode }: { spec: EntrySpec; mdastNode: JsxNode 
   const lockedHere = isLockedMdast(mdastNode)
   const lockedByPlan = lockedHere && lockedAttribute(mdastNode) === true && !isLockedTag(spec.tag)
   const locked = insideLocked || lockedHere
+  // Removing this card would remove a locked card inside it.
+  const holdsLocked = useMemo(() => containsLocked(mdastNode), [mdastNode])
   // A locked card the page can draw shows as the page draws it: no editing controls, all disabled.
   const preview = useMemo(
     () => (lockedHere && !lockedByPlan && hasLockedPreview(spec.tag) ? renderLockedPreview(mdastNode) : null),
@@ -493,6 +495,12 @@ function EntryEditor({ spec, mdastNode }: { spec: EntrySpec; mdastNode: JsxNode 
       data-locked={locked ? 'true' : undefined}
       aria-disabled={locked || undefined}
     >
+      {lockedByPlan ? (
+        <div className="plan-editor-locked-note">
+          <Lock size={12} strokeWidth={2.25} aria-hidden="true" />
+          <span>Locked by the plan · it can be moved, not changed</span>
+        </div>
+      ) : null}
       <div className="plan-editor-head" ref={head}>
         {spec.pickStatus ? (
           <StatusPicker
@@ -551,8 +559,8 @@ function EntryEditor({ spec, mdastNode }: { spec: EntrySpec; mdastNode: JsxNode 
           type="button"
           className="plan-editor-remove"
           aria-label={`Remove ${spec.label.toLowerCase()}`}
-          title={locked ? 'Locked cards cannot be removed' : 'Remove'}
-          disabled={locked}
+          title={locked ? 'Locked cards cannot be removed' : holdsLocked ? 'It holds a locked card, so it cannot be removed' : 'Remove'}
+          disabled={locked || holdsLocked}
           onClick={remove}
         >
           <Trash2 size={14} aria-hidden="true" />
@@ -599,6 +607,27 @@ function editorFor(spec: EntrySpec) {
   return SpecEditor
 }
 
+/**
+ * The generic editor for layout, charts, and tables, with `locked` honored (ADR 0039): a locked
+ * block's body is read-only, as a plan card's is.
+ */
+function LockableGenericEditor(props: JsxEditorProps) {
+  const locked = isLockedMdast(props.mdastNode)
+  return (
+    <LockedContext.Provider value={locked}>
+      <div className="plan-editor-generic" data-locked={locked ? 'true' : undefined}>
+        {locked ? (
+          <div className="plan-editor-locked-note">
+            <Lock size={12} strokeWidth={2.25} aria-hidden="true" />
+            <span>Locked by the plan · it can be moved, not changed</span>
+          </div>
+        ) : null}
+        <GenericJsxEditor {...props} />
+      </div>
+    </LockedContext.Provider>
+  )
+}
+
 /** One editor per plan tag, and the generic editor for anything else (layout, charts, tables). */
 export const planJsxDescriptors: JsxComponentDescriptor[] = [
   ...ENTRY_SPECS.map((spec) => ({
@@ -623,5 +652,5 @@ export const planJsxDescriptors: JsxComponentDescriptor[] = [
     hasChildren: true,
     Editor: GenericJsxEditor,
   },
-  { name: '*', kind: 'flow', props: [], hasChildren: true, Editor: GenericJsxEditor },
+  { name: '*', kind: 'flow', props: [], hasChildren: true, Editor: LockableGenericEditor },
 ]

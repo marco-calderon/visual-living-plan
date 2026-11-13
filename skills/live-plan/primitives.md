@@ -214,7 +214,7 @@ Not an interaction. You flip `done` as you finish. `done` is true only for `done
 
 The page shows that state as an icon. A finished line is a filled circle with a check, dimmed and struck through. A line still to do is an empty ring. The item text stays beside the icon. The words "done" and "todo" are not printed on the row. The human cannot toggle the icon. This is not a `<field type="checkbox">`.
 
-An item can also say where it stands with `status`: `pending`, `active`, `blocked`, `done`, or `failed`. `status` wins over `done`. An active line shows a half-filled ring and bold text, a blocked line a pause, a failed line an ×. Set one line `active` while you work on it.
+An item can also say where it stands with `status`: `pending`, `active`, `blocked`, `done`, or `failed`. `status` wins over `done`. An active line shows a progress ring and bold text, a blocked line a ban, a failed line an ×, the same marks a phase uses. Set one line `active` while you work on it.
 
 The title is a small label over the list. Beside it the page counts the done lines (`1/4`) and draws one bar segment per line in that line's state.
 
@@ -408,7 +408,7 @@ Set the request limit for one key.
 </Endpoint>
 ````
 
-`method` defaults to GET. `summary` replaces the first line of the body in the folded row. `Param` takes `name`, `in` (`path`, `query`, `header`, `body`, `cookie`), `type`, and `required`. `Request` holds an example, usually a fence. `Response` takes `status`; its body can hold a fence too.
+`method` defaults to GET. `summary` replaces the first line of the body in the folded row. `Param` takes `name`, `in` (`path`, `query`, `header`, `body`, `cookie`), `type`, and `required`. `Request` holds an example, usually a fence. `Response` takes `status`; its body can hold a fence too. A `change` word the page does not know shows as written.
 
 ### DataModel
 
@@ -429,7 +429,7 @@ Tables or types with their fields, keys, and links. Each `Entity` folds; `collap
 
 ### JsonView
 
-A JSON payload as a tree that folds. Put the JSON in a `json` fence: in plain MDX text a `{` starts an expression. Objects and arrays below `depth` (default 2) start folded. JSON that does not parse shows as code with the reason under it.
+A JSON payload as a tree that folds. Put the JSON in a `json` fence: in plain MDX text a `{` starts an expression. Objects and arrays below `depth` start folded. The default, 1, opens the top level and folds what is inside it. JSON that does not parse shows as code with the reason under it.
 
 ````mdx
 <JsonView title="429 response" depth="1">
@@ -441,7 +441,7 @@ A JSON payload as a tree that folds. Put the JSON in a `json` fence: in plain MD
 
 ### AnnotatedCode
 
-One fence with numbered notes on its lines. Each note shows under its last line in the code and again in a list below. `lines` is `42` or `42-44`. Set `start` on `AnnotatedCode` to number the fence from that line; `lines` uses the same numbers.
+One fence with numbered notes on its lines. Each note shows under its last line in the code and again in a list below. `lines` is `42` or `42-44`. Set `start` on `AnnotatedCode`, or `start=` after the fence's language, to number the fence from that line; `lines` uses the same numbers. A note on lines the fence does not have says so in the list.
 
 ````mdx
 <AnnotatedCode title="src/gateway/middleware.ts" start="40">
@@ -482,7 +482,7 @@ Two or three panes side by side, such as before and after. The panes stack on a 
 
 ### Update
 
-A dated status note with a health level. Put one at the top of a long plan, or after a phase that changed course. `health` is `on-track`, `at-risk`, or `off-track`. A `date` in `YYYY-MM-DD` form also shows how long ago it was.
+A dated status note with a health level. Put one at the top of a long plan, or after a phase that changed course. `health` is `on-track`, `at-risk`, or `off-track`. A `date` in `YYYY-MM-DD` form also shows how many days ago it was (today, yesterday, 3d ago); with a time, it shows hours.
 
 ```mdx
 <Update health="on-track" by="Agent" date="2026-11-13">

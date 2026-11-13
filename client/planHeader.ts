@@ -9,7 +9,7 @@ export type PlanFact = { key: string; before?: string; strong: string; text: str
 
 export type PlanHeaderInfo = { eyebrow: string; facts: PlanFact[] }
 
-const MODE_NAMES: Record<string, string> = { watch: 'Watch', review: 'Review', execute: 'Running', execution: 'Running' }
+const MODE_NAMES: Record<string, string> = { watch: 'Watch', comment: 'Comments', review: 'Review', execute: 'Running', execution: 'Running' }
 
 export function planHeaderInfo(source: string, answered: ReadonlySet<string>, mode?: string): PlanHeaderInfo {
   let meta: Record<string, unknown> = {}

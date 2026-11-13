@@ -24,7 +24,7 @@ The plan page reads as one document, not a stack of cards ([ADR 0039](docs/archi
 - **D1 · Flow.** One column of prose. Top-level blocks are separated by space. A phase and a question for the person also get a hairline above them.
 - **D2 · Cards.** A card is only for a block whose content has its own format: code, diffs, diagrams, charts, tables, file trees, API contracts, schemas, JSON, and status updates. See *Card policy* under Layout.
 - **D3 · Labels.** A small uppercase eyebrow names a block's kind (`RISK`, `NEEDS YOUR CHOICE`, `DONE WHEN`). The title or prompt under it is the heading.
-- **D4 · State.** State is shape plus color, with one glyph set everywhere: a hollow ring is pending, a half-filled ring is active, a filled check disc is done, a pause is blocked, and an × is failed. Counts read `3/6` next to a segmented bar.
+- **D4 · State.** State is shape plus color, with one glyph set everywhere (`StatusIcon`): an empty ring is pending, a progress ring is active, a check disc is done, a ban is blocked, and an × is failed. Phases, checklist lines, and the editor's status picker use the same glyphs. Counts read `3/6` next to a segmented bar.
 - **D5 · Code words.** Paths, symbols, and line ranges are mono. A file change carries a tag (NEW, MODIFY, DELETE, RENAME). A line reference is a cite chip (`L42–58`).
 - **D6 · Editable.** Every block can be edited from the toolbar's Edit or from the block's own Edit pill. A block is read-only only when it carries `locked`, or is an answer card (form, questions) that has not set `locked="false"`.
 
@@ -80,6 +80,7 @@ Tints for change tags, method and status badges, health, and status glyphs. Each
 | `--tag-purple-fg` | `#6d3fd6` | `#a98bff` | JSON booleans |
 | `--rule-note` · `--rule-tip` · `--rule-risk` · `--rule-warning` · `--rule-decision` | `#a1a1aa` · `#0a7a38` · `#c9322a` · `#c98a00` · `#0094fc` | `#6e6e6e` · `#4ade80` · `#ff8a7a` · `#f2c94c` · `#0094fc` | A callout's left rule and eyebrow |
 | `--status-active` · `--status-blocked` | `#0094fc` · `#c98a00` | `#0094fc` · `#f2c94c` | Active and blocked glyphs and bar segments |
+| `--data-head-bg` | `var(--surface)` | `#222222` | A data card's header strip, kept apart from the canvas in dark mode |
 | `--mark` | `#fff1b8` | `#4a3d0a` | Marked lines and passages |
 
 Dark document, measured on the product theme (`data-product-color-mode=dark`), not an inversion of the light page:

@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { isLockedMdast, lockedAttribute } from '../client/editor/locked.ts'
+import { containsLocked, isLockedMdast, isLockedNodeDeep, lockedAttribute } from '../client/editor/locked.ts'
+import { lockable } from '../client/planComponents.tsx'
+import { fenceStartLine } from '../src/planMdx/remarkCodeMeta.ts'
+import { compilePlanMdx } from '../src/planMdx/compilePlanMdx.ts'
 import { checkState } from '../client/entries/Item.tsx'
 import { Checklist } from '../client/entries/Checklist.tsx'
 import { ItemContext } from '../client/entries/entryContext.ts'
@@ -80,6 +83,9 @@ describe('document block attributes', () => {
     expect(relativeTime('2026-11-13T10:00:00Z', now)).toBe('2h ago')
     expect(relativeTime('2026-11-10T12:00:00Z', now)).toBe('3d ago')
     expect(relativeTime('next week', now)).toBeNull()
+    // A date without a time counts in days.
+    expect(relativeTime('2026-11-13', now)).toBe('today')
+    expect(relativeTime('2026-11-10', now)).toBe('3d ago')
     expect(relativeTime('2026-11-14T12:00:00Z', now)).toBeNull()
   })
 
@@ -121,6 +127,21 @@ describe('FileTree', () => {
     expect(out).toContain('<span aria-hidden="true">NEW</span><span class="plan-sr">Added</span>')
     expect(out).toContain('← docs/old.md')
     expect(out).toContain('New file.')
+  })
+
+  test('folders are nested lists the folder button controls, an empty tree says so, and an unknown change shows as written', () => {
+    const out = html(
+      <FileTree>
+        <File path="src/a.ts" change="sideways" />
+        <File path="src/b.ts" />
+      </FileTree>,
+    )
+    expect(out).toContain('class="plan-tree-group"')
+    expect(out).toMatch(/aria-controls="[^"]+"/)
+    expect(out).toContain('data-change="other"')
+    expect(out).toContain('SIDEWAYS')
+    expect(out).toContain('aria-label="1 modified"')
+    expect(html(<FileTree title="None">{null}</FileTree>)).toContain('No files.')
   })
 
   test('a File on its own reads as a path', () => {
@@ -201,6 +222,22 @@ describe('AnnotatedCode, Tabs, Compare, Update, Properties, Path', () => {
     expect(out).toContain('data-source="a\nb\nc"')
   })
 
+  test('annotated code reads start= from the fence and flags notes outside it', () => {
+    const out = html(
+      <AnnotatedCode>
+        <pre>
+          <code className="language-ts" data-meta="start=40">{'a\nb\n'}</code>
+        </pre>
+        <Note lines="99">Too far.</Note>
+      </AnnotatedCode>,
+    )
+    expect(out).toContain('These lines are not in this code.')
+    expect(fenceStartLine('start=40')).toBe(40)
+    expect(fenceStartLine('title=x start=7')).toBe(7)
+    expect(fenceStartLine('start=0')).toBeUndefined()
+    expect(fenceStartLine(undefined)).toBeUndefined()
+  })
+
   test('tabs are WAI-ARIA tabs, and hidden panels can still be found', () => {
     const out = html(
       <Tabs label="Files">
@@ -213,6 +250,8 @@ describe('AnnotatedCode, Tabs, Compare, Update, Properties, Path', () => {
     expect(out.match(/role="tab"/g)?.length).toBe(2)
     expect(out).toContain('aria-selected="true"')
     expect(out).toContain('data-tab-state="hidden"')
+    // Only the shown panel is in the tab order.
+    expect(out.match(/role="tabpanel"[^>]*tabindex="0"/g)?.length).toBe(1)
   })
 
   test('compare, update, properties, and path', () => {
@@ -307,6 +346,23 @@ describe('locking a block', () => {
     expect(editLocked('false', true)).toBe(false)
   })
 
+  test('a card that holds a locked card cannot be removed, and a lockable block marks its lock', () => {
+    const attribute = [{ type: 'mdxJsxAttribute', name: 'locked', value: null }]
+    const phase = {
+      type: 'mdxJsxFlowElement',
+      name: 'phase',
+      attributes: [],
+      children: [{ type: 'paragraph', children: [] }, { type: 'mdxJsxFlowElement', name: 'FileTree', attributes: attribute, children: [] }],
+    }
+    expect(containsLocked(phase)).toBe(true)
+    expect(containsLocked({ ...phase, children: [] })).toBe(false)
+    expect(isLockedNodeDeep({ getMdastNode: () => phase })).toBe(true)
+    expect(isLockedNodeDeep({ getMdastNode: () => ({ ...phase, children: [] }) })).toBe(false)
+    const Box = lockable((props: { children?: React.ReactNode }) => <div className="box">{props.children}</div>)
+    expect(html(<Box locked>x</Box>)).toBe('<div class="plan-edit-lock" data-edit-locked="true"><div class="box">x</div></div>')
+    expect(html(<Box>x</Box>)).toBe('<div class="box">x</div>')
+  })
+
   test('the editor reads `locked` on any tag, and `locked="false"` unlocks an answer card', () => {
     const attribute = (value: unknown) => [{ type: 'mdxJsxAttribute', name: 'locked', value }]
     expect(lockedAttribute({ name: 'callout', attributes: attribute(null) })).toBe(true)
@@ -359,6 +415,13 @@ a -> b
       '1 open question',
     ])
     expect(planHeaderInfo(source, new Set(['c'])).facts.at(-1)?.text).toBe('questions answered')
+  })
+})
+
+describe('fence meta', () => {
+  test('a fence keeps its meta on the rendered code, so start= numbers its lines', async () => {
+    const compiled = String(await compilePlanMdx('```ts start=40\nconst a = 1\n```\n'))
+    expect(compiled).toContain('"data-meta": "start=40"')
   })
 })
 

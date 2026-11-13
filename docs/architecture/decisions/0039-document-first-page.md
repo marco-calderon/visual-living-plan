@@ -58,6 +58,20 @@ The plan's first heading, when it is the document's first heading and an `h1`, g
 - A checklist item's Done checkbox became the status picker phases use.
 - In the editor, a phase, a callout, and a checklist get a hairline frame with no fill, and a callout keeps its left rule.
 
+### Review pass (same day)
+
+A design review and a UX and accessibility review of the first cut changed these:
+
+- DataTable, the workflow card, charts, and markdown tables are data cards too: canvas body, hairline, 12px radius, a header strip (`--data-head-bg`, a step lighter than the canvas in dark mode). Code inside a data card has no frame of its own, and endpoints in a row join with no gap.
+- AnnotatedCode tints its marked lines through Pierre's `unsafeCSS` (`[data-line-index]`) and lists the notes once, under the code. A note on lines the fence does not have says so.
+- A fence's meta reaches the page (`src/planMdx/remarkCodeMeta.ts` puts it on `<code data-meta>`), so `start=` numbers lines in the React page and in AnnotatedCode.
+- Code follows the page's light or dark choice (`html[data-theme]`), not only the system's.
+- The Edit pill sits in the gutter beside the block's first line, never under the toolbar, and targets the nearest data block or plan card under the pointer, so a file tree inside a phase opens the editor at the file tree. It shows on focus as well as hover, and hides in comment mode. The keyboard's way in stays E, at the block that holds focus.
+- A card that holds a locked card cannot be removed, cut, or typed over (`isLockedNodeDeep`). `locked` works on every component: layout, figures, the workflow, and DataTable are wrapped (`lockable` in `client/planComponents.tsx`), and the generic editor keeps a locked block's body read-only. The editor says "Locked by the plan" in the card, not only in a tooltip.
+- A FileTree folder is a nested list its button controls (`aria-controls`), so a screen reader hears a file inside its folder. Hidden tab panels leave the tab order, and a jump to a part inside a hidden tab shows that tab first (`living-plan-reveal`).
+- In the editor, a data block's rows are lines, not cards; a change select can be empty; From shows only for a rename. The `/` menu offers a block's rows only inside that block, lists them first, and offers no cards inside a data block.
+- Checklist lines use the phase glyphs (`StatusIcon`). Recommended is an outlined label, not a change tag. The PK chip is neutral. JSON opens one level by default. A date-only Update counts in days.
+
 ## Not in this decision
 
 - Wireframes (agent-written HTML in a sketch frame) and a storyboard canvas. Rendering agent HTML needs a sandbox, and plan pages already treat agent code as untrusted ([ADR 0037](0037-plans-open-in-the-desktop-app.md)).

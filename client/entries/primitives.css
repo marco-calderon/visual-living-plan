@@ -2082,3 +2082,12 @@ body:not([data-plan-editable="true"]) .plan-block-edit { display: none; }
 /* A phase title wraps with its status glyph, and the step circle sits on the first line. */
 .plan-phase .plan-step-heading { align-items: start; }
 .plan-phase .plan-step-number { align-self: start; }
+
+/* A locked layout block, figure, or table (planComponents.tsx `lockable`): the wrapper has no box. */
+.plan-edit-lock { display: contents; }
+
+/* A checklist line's state glyph is the phase's StatusIcon, at the line's 16px. */
+.plan-check :is(.rf-progress-icon, .status-icon) {
+  width: 16px;
+  height: 16px;
+}

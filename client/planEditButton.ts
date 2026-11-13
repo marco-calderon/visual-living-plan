@@ -174,9 +174,17 @@ export function planBlockOf(target: EventTarget | null): HTMLElement | null {
   return node instanceof HTMLElement ? node : null
 }
 
-/** A block the plan marks `locked`, or an answer card (form, questions) that keeps its default lock. */
+/** The block an edit should open at: the data block or plan card under the pointer, else the top-level block. */
+export function editTargetOf(target: EventTarget | null): HTMLElement | null {
+  const top = planBlockOf(target)
+  if (!top || !(target instanceof Element)) return top
+  const nested = target.closest<HTMLElement>('[data-doc-block]:not([data-doc-block="Path"]), [data-entry]')
+  return nested && top.contains(nested) ? nested : top
+}
+
+/** A block the plan marks `locked`, or one inside a locked block, or an answer card that keeps its default lock. */
 export function isEditLocked(block: Element): boolean {
-  return block.matches('[data-edit-locked="true"]') || block.querySelector(':scope > [data-edit-locked="true"]') !== null
+  return block.closest('[data-edit-locked="true"]') !== null || block.querySelector(':scope > [data-edit-locked="true"]') !== null
 }
 
 const BLOCK_TITLE = '.plan-step-label, .plan-title, h1, h2, h3, h4, h5, h6'
@@ -192,22 +200,36 @@ export function blockAnchor(block: Element): EditAnchor | null {
     const parts = headingText(label).split(' · ')
     if (parts.length > 1) return { text: parts.slice(1).join(' · ') }
   }
-  const own = block.querySelector(BLOCK_TITLE)
+  // A data block is found by its title, or an endpoint by its path: the editor shows both as fields.
+  const own = block.matches('[data-doc-block]')
+    ? block.querySelector('.plan-data-title, .plan-endpoint-path')
+    : block.querySelector(BLOCK_TITLE)
   if (own) {
     const text = headingText(own)
     if (text) return { text }
   }
-  for (let node = block.previousElementSibling; node; node = node.previousElementSibling) {
-    const heading = /^H[1-6]$/.test(node.tagName) ? node : node.querySelector(BLOCK_TITLE)
-    if (!heading) continue
-    const text = headingText(heading)
-    if (text) return { text }
+  // Otherwise the heading above it: in its own section first, then in the sections around it.
+  const article = document.querySelector('[data-plan-rendered]')
+  for (let node: Element | null = block; node && node !== article; node = node.parentElement) {
+    for (let before = node.previousElementSibling; before; before = before.previousElementSibling) {
+      const heading = /^H[1-6]$/.test(before.tagName) ? before : before.querySelector(BLOCK_TITLE)
+      if (!heading) continue
+      const text = headingText(heading)
+      if (text) return { text }
+    }
+    const parent = node.parentElement
+    const card = parent?.closest('[data-entry]')
+    if (card && card !== block && article?.contains(card)) {
+      const title = card.querySelector(BLOCK_TITLE)
+      const text = title ? headingText(title) : ''
+      if (text) return { text }
+    }
   }
   return null
 }
 
 function focusedBlockAnchor(): EditAnchor | null {
-  const block = planBlockOf(document.activeElement)
+  const block = editTargetOf(document.activeElement)
   if (!block || isEditLocked(block)) return null
   return blockAnchor(block)
 }
@@ -223,8 +245,11 @@ export function bindBlockEditButton(options: { state: () => EditState; open: (an
   button.type = 'button'
   button.className = 'plan-block-edit'
   button.dataset.planBlockEdit = ''
+  // The keyboard's way in is E, which opens the editor at the block that has focus.
   button.tabIndex = -1
   button.setAttribute('aria-label', 'Edit this block')
+  button.setAttribute('aria-keyshortcuts', 'E')
+  button.title = 'Edit this block (E)'
   button.innerHTML = `${PENCIL}<span>Edit</span>`
   document.body.append(button)
   let block: HTMLElement | null = null
@@ -262,14 +287,15 @@ export function bindBlockEditButton(options: { state: () => EditState; open: (an
   }
   const usable = () => {
     const state = options.state()
-    return state.editable && !state.editing
+    // In comment mode a click picks a part to comment on, so the pill stays away.
+    return state.editable && !state.editing && document.body.dataset.planMode !== 'comment'
   }
   const track = (target: EventTarget | null) => {
     if (target === button || button.contains(target as Node)) {
       window.clearTimeout(hideTimer)
       return
     }
-    const next = usable() ? planBlockOf(target) : null
+    const next = usable() ? editTargetOf(target) : null
     if (next && !isEditLocked(next)) {
       if (next !== block || !button.hasAttribute('data-visible')) show(next)
       return
@@ -296,8 +322,14 @@ export function bindBlockEditButton(options: { state: () => EditState; open: (an
   const onKey = (event: KeyboardEvent) => {
     if (event.key === 'Escape') hide()
   }
+  // Focus moving into a block (a folder, a tab, a link) shows its pill too, and E opens it.
+  const onFocus = (event: FocusEvent) => {
+    if (event.target === button) return
+    track(event.target)
+  }
   button.addEventListener('click', onClick)
   document.addEventListener('pointerover', onPointer, { passive: true })
+  document.addEventListener('focusin', onFocus)
   document.addEventListener('keydown', onKey)
   window.addEventListener('scroll', onMove, { passive: true })
   window.addEventListener('resize', onMove)
@@ -306,6 +338,7 @@ export function bindBlockEditButton(options: { state: () => EditState; open: (an
     window.clearTimeout(hideTimer)
     button.removeEventListener('click', onClick)
     document.removeEventListener('pointerover', onPointer)
+    document.removeEventListener('focusin', onFocus)
     document.removeEventListener('keydown', onKey)
     window.removeEventListener('scroll', onMove)
     window.removeEventListener('resize', onMove)

@@ -426,7 +426,7 @@ export const SLASH_CARDS: Card[] = [
   row('param', 'Endpoint', 'Param', 'One more parameter', 'key', () => element('Param', { name: 'name', in: 'query', type: 'string' }, [text('What it sets.')])),
   row('request', 'Endpoint', 'Request', 'An example request body', 'message', () => element('Request', {}, [fenceNode('json', '{\n  "name": "value"\n}')])),
   row('response', 'Endpoint', 'Response', 'One more response', 'message', () => element('Response', { status: '400' }, [text('When it happens.')])),
-  row('entity', 'DataModel', 'Table', 'One more table', 'database', () => element('Entity', { name: 'table_name' }, [element('Attr', { name: 'id', type: 'text', pk: 'true' })])),
+  row('entity', 'DataModel', 'Entity', 'One more table in the model', 'database', () => element('Entity', { name: 'table_name' }, [element('Attr', { name: 'id', type: 'text', pk: 'true' })])),
   row('attr', 'Entity', 'Field', 'One more field', 'key', () => element('Attr', { name: 'column', type: 'text' })),
   row('relation', 'DataModel', 'Relation', 'How two tables link', 'branch', () => element('Relation', { from: 'parent', to: 'child', kind: '1-n' })),
   row('note', 'AnnotatedCode', 'Note', 'A note on a line', 'message', () => element('Note', { lines: '1' }, [text('What this line does.')])),
@@ -436,6 +436,7 @@ export const SLASH_CARDS: Card[] = [
   {
     key: 'option',
     section: 'In this card',
+    parents: ['choice'],
     label: 'Option',
     hint: 'One more option for a choice',
     icon: 'branch',
@@ -446,6 +447,7 @@ export const SLASH_CARDS: Card[] = [
   {
     key: 'field',
     section: 'In this card',
+    parents: ['plan-form'],
     label: 'Field',
     hint: 'One more field for a form',
     icon: 'wrench',
@@ -456,6 +458,7 @@ export const SLASH_CARDS: Card[] = [
   {
     key: 'item',
     section: 'In this card',
+    parents: ['checklist', 'questions'],
     label: 'Item',
     hint: 'A question or checklist line',
     icon: 'message',
@@ -571,14 +574,42 @@ class CardOption extends MenuOption {
 }
 
 /** The menu's options for a query, in its order. */
+/** Blocks whose body is part of a data view: they take text, code, and their own rows, not other cards. */
+const DATA_PARENTS = new Set([
+  'FileTree',
+  'File',
+  'Endpoint',
+  'Param',
+  'Request',
+  'Response',
+  'DataModel',
+  'Entity',
+  'Attr',
+  'Relation',
+  'JsonView',
+  'AnnotatedCode',
+  'Note',
+  'Properties',
+  'Prop',
+])
+
+const PLAIN_SECTIONS: readonly Section[] = ['Text', 'Links and media', 'Code', 'In this card']
+
 function menuOptions(nested: boolean, query: string, parent?: string | null): CardOption[] {
-  return SLASH_CARDS.filter(
-    (card) =>
-      !card.agentOnly &&
-      (nested || !card.nested) &&
-      (!card.parents || (parent != null && card.parents.includes(parent))) &&
-      matches(card, query),
-  ).map((card) => new CardOption(card))
+  const inData = parent != null && DATA_PARENTS.has(parent)
+  // Grouped by section in the menu's order; inside a card, its own rows come first.
+  const rank = (section: Section) => (nested && section === 'In this card' ? -1 : SECTIONS.indexOf(section))
+  return SLASH_CARDS.map((card, index) => ({ card, index }))
+    .filter(
+      ({ card }) =>
+        !card.agentOnly &&
+        (nested || !card.nested) &&
+        (!card.parents || (parent != null && card.parents.includes(parent))) &&
+        (!inData || PLAIN_SECTIONS.includes(card.section)) &&
+        matches(card, query),
+    )
+    .sort((a, b) => rank(a.card.section) - rank(b.card.section) || a.index - b.index)
+    .map(({ card }) => new CardOption(card))
 }
 
 /** The query after a "/" right before the caret (the menu's trigger), or null when there is none. */

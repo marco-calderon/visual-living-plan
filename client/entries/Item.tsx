@@ -1,4 +1,5 @@
-import { Circle, CircleCheck, CirclePause, CircleX } from 'lucide-react'
+import { Circle, CircleCheck } from 'lucide-react'
+import { StatusIcon } from '../execution-canvas/adapters/reactFlow/StatusIcon.tsx'
 import { useContext, type ReactNode } from 'react'
 import { ItemContext } from './entryContext'
 import { HStack } from './HStack'
@@ -36,26 +37,13 @@ export function checkState(status: unknown, done: unknown): CheckState {
   return done === true || done === 'true' ? 'done' : 'todo'
 }
 
-/** Half a ring filled: the same in-progress mark the plan's other status glyphs use. */
-function HalfRing() {
-  return (
-    <svg width={16} height={16} viewBox="0 0 16 16" aria-hidden="true" className="plan-check-half">
-      <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.75" />
-      <path d="M8 4a4 4 0 0 1 0 8z" fill="currentColor" />
-    </svg>
-  )
-}
-
 function ChecklistMark({ state }: { state: CheckState }) {
   const icon =
     state === 'done' ? (
       <CircleCheck size={16} strokeWidth={2.25} aria-hidden="true" />
-    ) : state === 'active' ? (
-      <HalfRing />
-    ) : state === 'blocked' ? (
-      <CirclePause size={16} strokeWidth={2.25} aria-hidden="true" />
-    ) : state === 'failed' ? (
-      <CircleX size={16} strokeWidth={2.25} aria-hidden="true" />
+    ) : state === 'active' || state === 'blocked' || state === 'failed' ? (
+      // The same glyphs a phase and the editor's status picker use (D4).
+      <StatusIcon status={state} />
     ) : (
       <Circle size={16} strokeWidth={2.25} aria-hidden="true" />
     )

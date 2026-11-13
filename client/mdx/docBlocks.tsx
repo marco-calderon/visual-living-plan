@@ -29,6 +29,8 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react'
+import { fenceStartLine } from '../../src/planMdx/remarkCodeMeta.ts'
+import { flushSync } from 'react-dom'
 import { collectText } from './textChildren'
 import './docBlocks.css'
 
@@ -157,8 +159,15 @@ const CHANGE_TAG: Record<Exclude<Change, 'unchanged'>, { tag: string; name: stri
 }
 
 /** NEW, MODIFY, DELETE, or RENAME. The full word is what a screen reader hears. */
-export function ChangeTag({ change }: { change?: Change }) {
-  if (!change || change === 'unchanged') return null
+export function ChangeTag({ change, raw }: { change?: Change; raw?: string }) {
+  if (!change || change === 'unchanged') {
+    // An unknown word (`change="moved-out"`) shows as written, in a neutral tag.
+    return raw ? (
+      <span className="plan-change-tag" data-change="other" title={raw}>
+        {raw.toUpperCase()}
+      </span>
+    ) : null
+  }
   const { tag, name } = CHANGE_TAG[change]
   return (
     <span className="plan-change-tag" data-change={change} title={name}>
@@ -183,7 +192,7 @@ function DataHead({ icon, title, meta, end }: { icon?: ReactNode; title?: ReactN
 
 export type FileProps = { path?: string; change?: string; from?: string; children?: ReactNode }
 
-type Leaf = { kind: 'file'; name: string; path: string; change: Change; from?: string; note: ReactNode; key: string }
+type Leaf = { kind: 'file'; name: string; path: string; change: Change; rawChange?: string; from?: string; note: ReactNode; key: string }
 type Dir = { kind: 'dir'; name: string; path: string; dirs: Map<string, Dir>; files: Leaf[] }
 
 function newDir(name: string, path: string): Dir {
@@ -191,7 +200,7 @@ function newDir(name: string, path: string): Dir {
 }
 
 /** Folders from the files' paths. A file without a change is shown as modified, the usual case in a plan. */
-export function buildFileTree(files: Array<{ path: string; change?: Change; from?: string; note?: ReactNode }>): Dir {
+export function buildFileTree(files: Array<{ path: string; change?: Change; rawChange?: string; from?: string; note?: ReactNode }>): Dir {
   const root = newDir('', '')
   files.forEach((file, index) => {
     const parts = file.path.split('/').filter(Boolean)
@@ -211,7 +220,9 @@ export function buildFileTree(files: Array<{ path: string; change?: Change; from
       kind: 'file',
       name,
       path: file.path,
-      change: file.change ?? 'modified',
+      // A change word the page does not know shows as written, not as a guess.
+      change: file.change ?? (file.rawChange ? 'unchanged' : 'modified'),
+      rawChange: file.change ? undefined : file.rawChange,
       from: file.from,
       note: file.note ?? null,
       key: `${file.path}#${index}`,
@@ -233,17 +244,76 @@ function compactDir(dir: Dir, isRoot = false): Dir {
   return node
 }
 
-type TreeRow = { depth: number; node: Dir | Leaf }
-
-function flattenTree(dir: Dir, collapsed: ReadonlySet<string>, depth = 0, out: TreeRow[] = []): TreeRow[] {
+/**
+ * One folder's contents as a nested list, so a screen reader hears a file inside its folder. Each
+ * folder's button folds the list it controls.
+ */
+function TreeLevel({
+  dir,
+  depth,
+  collapsed,
+  onToggle,
+  idBase,
+  className,
+}: {
+  dir: Dir
+  depth: number
+  collapsed: ReadonlySet<string>
+  onToggle: (path: string) => void
+  idBase: string
+  className: string
+}) {
   const dirs = [...dir.dirs.values()].sort((a, b) => a.name.localeCompare(b.name))
   const files = [...dir.files].sort((a, b) => a.name.localeCompare(b.name))
-  for (const child of dirs) {
-    out.push({ depth, node: child })
-    if (!collapsed.has(child.path)) flattenTree(child, collapsed, depth + 1, out)
-  }
-  for (const file of files) out.push({ depth, node: file })
-  return out
+  return (
+    <ul className={className}>
+      {dirs.map((child) => {
+        const open = !collapsed.has(child.path)
+        const groupId = `${idBase}-${child.path.replace(/[^\w-]/g, '_')}`
+        return (
+          <li key={`dir:${child.path}`} className="plan-tree-row" data-kind="dir" style={{ '--depth': depth } as CSSProperties}>
+            <button type="button" className="plan-tree-toggle" aria-expanded={open} aria-controls={groupId} onClick={() => onToggle(child.path)}>
+              <ChevronRight className="plan-tree-chev" size={14} aria-hidden="true" />
+              {open ? (
+                <FolderOpen className="plan-tree-icon" size={15} aria-hidden="true" />
+              ) : (
+                <Folder className="plan-tree-icon" size={15} aria-hidden="true" />
+              )}
+              <span className="plan-tree-name">{child.name}</span>
+            </button>
+            <div id={groupId} hidden={!open}>
+              {open ? (
+                <TreeLevel dir={child} depth={depth + 1} collapsed={collapsed} onToggle={onToggle} idBase={idBase} className="plan-tree-group" />
+              ) : null}
+            </div>
+          </li>
+        )
+      })}
+      {files.map((file) => (
+        <li
+          key={file.key}
+          className="plan-tree-row"
+          data-kind="file"
+          data-change={file.change}
+          style={{ '--depth': depth } as CSSProperties}
+        >
+          <span className="plan-tree-chev-space" aria-hidden="true" />
+          <FileIcon className="plan-tree-icon" size={15} aria-hidden="true" />
+          <span className="plan-tree-name" title={file.path}>
+            {file.name}
+          </span>
+          <ChangeTag change={file.change} raw={file.rawChange} />
+          {file.from || file.note ? (
+            <span className="plan-tree-note">
+              {file.from ? <span className="plan-tree-from">← {file.from}</span> : null}
+              {file.from && file.note ? ' · ' : null}
+              {file.note}
+            </span>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 function countChanges(rows: Array<{ change?: Change }>): Record<Change, number> {
@@ -287,12 +357,12 @@ export function FileTree({ title, locked, children }: { title?: string; locked?:
     const props = element.props as FileProps
     const path = text(props.path)
     if (!path) return []
-    return [{ path, change: changeKind(props.change), from: text(props.from) || undefined, note: inline(props.children) }]
+    return [{ path, change: changeKind(props.change), rawChange: text(props.change) || undefined, from: text(props.from) || undefined, note: inline(props.children) }]
   })
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
   const tree = buildFileTree(files)
-  const list = flattenTree(tree, collapsed)
-  const counts = countChanges(files.map((file) => ({ change: file.change ?? 'modified' })))
+  const treeId = useId()
+  const counts = countChanges(files.map((file) => ({ change: file.change ?? (file.rawChange ? 'unchanged' : 'modified') })))
   const toggle = (path: string) =>
     setCollapsed((current) => {
       const next = new Set(current)
@@ -309,50 +379,11 @@ export function FileTree({ title, locked, children }: { title?: string; locked?:
         end={<ChangeSums counts={counts} />}
       />
       {rest.length > 0 ? <div className="plan-doc-card-note plan-rich">{rest}</div> : null}
-      <ul className="plan-tree">
-        {list.map(({ depth, node }) =>
-          node.kind === 'dir' ? (
-            <li key={`dir:${node.path}`} className="plan-tree-row" data-kind="dir" style={{ '--depth': depth } as CSSProperties}>
-              <button
-                type="button"
-                className="plan-tree-toggle"
-                aria-expanded={!collapsed.has(node.path)}
-                onClick={() => toggle(node.path)}
-              >
-                <ChevronRight className="plan-tree-chev" size={14} aria-hidden="true" />
-                {collapsed.has(node.path) ? (
-                  <Folder className="plan-tree-icon" size={15} aria-hidden="true" />
-                ) : (
-                  <FolderOpen className="plan-tree-icon" size={15} aria-hidden="true" />
-                )}
-                <span className="plan-tree-name">{node.name}</span>
-              </button>
-            </li>
-          ) : (
-            <li
-              key={node.key}
-              className="plan-tree-row"
-              data-kind="file"
-              data-change={node.change}
-              style={{ '--depth': depth } as CSSProperties}
-            >
-              <span className="plan-tree-chev-space" aria-hidden="true" />
-              <FileIcon className="plan-tree-icon" size={15} aria-hidden="true" />
-              <span className="plan-tree-name" title={node.path}>
-                {node.name}
-              </span>
-              <ChangeTag change={node.change} />
-              {node.from || node.note ? (
-                <span className="plan-tree-note">
-                  {node.from ? <span className="plan-tree-from">← {node.from}</span> : null}
-                  {node.from && node.note ? ' · ' : null}
-                  {node.note}
-                </span>
-              ) : null}
-            </li>
-          ),
-        )}
-      </ul>
+      {files.length === 0 ? (
+        <p className="plan-tree-empty">No files.</p>
+      ) : (
+        <TreeLevel dir={tree} depth={0} collapsed={collapsed} onToggle={toggle} idBase={treeId} className="plan-tree" />
+      )}
     </section>
   )
 }
@@ -481,12 +512,16 @@ export function Endpoint({
             <ul className="plan-response-list">
               {responses.map((element, index) => {
                 const props = element.props as ResponseProps
-                const status = text(props.status) || '200'
+                const status = text(props.status)
                 return (
                   <li key={`${status}-${index}`}>
-                    <span className="plan-status-code" data-class={statusClass(status)}>
-                      {status}
-                    </span>
+                    {status ? (
+                      <span className="plan-status-code" data-class={statusClass(status)}>
+                        {status}
+                      </span>
+                    ) : (
+                      <span />
+                    )}
                     <div className="plan-rich">{inline(props.children)}</div>
                   </li>
                 )
@@ -683,7 +718,7 @@ function JsonNode({ name, value, level, depth, last }: { name?: string; value: J
           type="button"
           className="plan-json-toggle"
           aria-expanded={open}
-          aria-label={`${open ? 'Fold' : 'Unfold'} ${label}`}
+          aria-label={label}
           onClick={() => setOpen(!open)}
         >
           <ChevronRight size={12} aria-hidden="true" />
@@ -738,7 +773,7 @@ export function JsonView({ title, depth, locked, children }: { title?: string; d
   const source = collectText(children).trim()
   const parsed = readJson(source)
   const levels = Number(depth)
-  const openTo = Number.isFinite(levels) && levels >= 0 ? levels : 2
+  const openTo = depth !== undefined && Number.isFinite(levels) && levels >= 0 ? levels : 1
   return (
     <section className="plan-doc-card plan-json" data-doc-block="JsonView" data-edit-locked={lockAttr(locked)}>
       <DataHead title={text(title) || undefined} meta="JSON" />
@@ -776,15 +811,15 @@ export function lineRange(value: unknown): { start: number; end: number } | null
   return { start, end }
 }
 
-function fenceOf(nodes: ReactNode[]): { code: string; language: string; index: number } | null {
+function fenceOf(nodes: ReactNode[]): { code: string; language: string; index: number; start?: number } | null {
   for (let index = 0; index < nodes.length; index += 1) {
     const node = nodes[index]
     if (!isValidElement<{ children?: ReactNode }>(node)) continue
     const inner = Children.toArray(node.props.children).find((child) => isValidElement(child))
-    if (!isValidElement<{ className?: string; children?: ReactNode }>(inner)) continue
+    if (!isValidElement<{ className?: string; children?: ReactNode; 'data-meta'?: string }>(inner)) continue
     if (inner.type !== 'code') continue
     const language = /language-([\w+-]+)/.exec(inner.props.className ?? '')?.[1] ?? ''
-    return { code: collectText(inner.props.children).replace(/\n$/, ''), language, index }
+    return { code: collectText(inner.props.children).replace(/\n$/, ''), language, index, start: fenceStartLine(inner.props['data-meta']) }
   }
   return null
 }
@@ -793,12 +828,16 @@ export function AnnotatedCode({ title, start, locked, children }: { title?: stri
   const { rows, rest } = splitRows(children, ['note'])
   const notes = rows.note ?? []
   const fence = fenceOf(rest)
+  // `start` on AnnotatedCode, or `start=` after the fence's language.
   const first = Number(start)
-  const startLine = Number.isInteger(first) && first >= 1 ? first : 1
+  const startLine = Number.isInteger(first) && first >= 1 ? first : (fence?.start ?? 1)
   const lineCount = fence ? fence.code.split('\n').length : 0
   const marks = notes.map((element, index) => {
     const props = element.props as NoteProps
-    return { number: index + 1, range: lineRange(props.lines), label: text(props.label), body: inline(props.children) }
+    const range = lineRange(props.lines)
+    // A note on a line the fence does not have says so, rather than marking nothing.
+    const outside = Boolean(fence && range && (range.end < startLine || range.start > startLine + lineCount - 1))
+    return { number: index + 1, range, outside, label: text(props.label), body: inline(props.children) }
   })
   // The marked lines, in the fence's own numbering (1 is its first line). The notes list below says what each mark means.
   const highlightLines = [
@@ -851,6 +890,7 @@ export function AnnotatedCode({ title, start, locked, children }: { title?: stri
                 {mark.label ? <b>{mark.label}.</b> : null}
                 {mark.label && mark.body ? ' ' : null}
                 {mark.body}
+                {mark.outside ? <span className="plan-note-outside"> These lines are not in this code.</span> : null}
               </span>
             </li>
           ))}
@@ -901,6 +941,24 @@ export function Tabs({ label, locked, children }: { label?: string; locked?: unk
     })
     return () => cleanups.forEach((cleanup) => cleanup())
   }, [tabs.length])
+  // A jump to a part inside a hidden panel (a comment, a link) asks for it to be shown first:
+  // src/bindPlanChrome.ts sends `living-plan-reveal` from the target before it scrolls.
+  const root = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const node = root.current
+    if (!node) return
+    const reveal = (event: Event) => {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      const index = panels.current.findIndex((panel) => panel?.contains(target))
+      if (index < 0) return
+      const panel = panels.current[index]
+      panel?.removeAttribute('hidden')
+      flushSync(() => setSelected(index))
+    }
+    node.addEventListener('living-plan-reveal', reveal)
+    return () => node.removeEventListener('living-plan-reveal', reveal)
+  }, [tabs.length])
   // React writes `hidden` as a plain flag. `until-found` keeps a hidden panel searchable, so it is set here.
   useLayoutEffect(() => {
     panels.current.slice(0, tabs.length).forEach((node, index) => {
@@ -911,7 +969,7 @@ export function Tabs({ label, locked, children }: { label?: string; locked?: unk
   }, [current, tabs.length])
   if (tabs.length === 0) return null
   return (
-    <div className="plan-tabs" data-doc-block="Tabs" data-edit-locked={lockAttr(locked)}>
+    <div ref={root} className="plan-tabs" data-doc-block="Tabs" data-edit-locked={lockAttr(locked)}>
       <div className="plan-tablist" role="tablist" aria-label={text(label) || undefined} onKeyDown={onKeyDown}>
         {tabs.map((tab, index) => {
           const props = tab.props as TabProps
@@ -945,7 +1003,7 @@ export function Tabs({ label, locked, children }: { label?: string; locked?: unk
           id={`${base}-panel-${index}`}
           aria-labelledby={`${base}-tab-${index}`}
           className="plan-tabpanel plan-rich"
-          tabIndex={0}
+          tabIndex={index === current ? 0 : -1}
           data-tab-state={index === current ? 'selected' : 'hidden'}
         >
           {(tab.props as TabProps).children}
@@ -1000,6 +1058,19 @@ export function relativeTime(value: string, now: number = Date.now()): string | 
   if (!/\d{4}-\d{2}-\d{2}/.test(value)) return null
   const time = Date.parse(value)
   if (!Number.isFinite(time)) return null
+  // A date without a time counts in days, on the reader's calendar.
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.exec(value.trim())
+  if (dateOnly) {
+    const [year, month, day] = value.trim().split('-').map(Number)
+    const then = new Date(year ?? 0, (month ?? 1) - 1, day ?? 1).getTime()
+    const today = new Date(now)
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
+    const days = Math.round((start - then) / 86_400_000)
+    if (days < 0) return null
+    if (days === 0) return 'today'
+    if (days === 1) return 'yesterday'
+    return `${days}d ago`
+  }
   const seconds = Math.round((now - time) / 1000)
   if (seconds < 0) return null
   if (seconds < 60) return 'just now'

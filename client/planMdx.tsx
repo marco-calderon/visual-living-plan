@@ -10,6 +10,7 @@ import type { InteractionResponse } from '../src/types.ts'
 import { planComponents, preloadPlanComponents } from './planComponents.tsx'
 import { editLockAttr } from './entries/planEntry.ts'
 import { planHeaderInfo, type PlanHeaderInfo } from './planHeader.ts'
+import { fenceStartLine } from '../src/planMdx/remarkCodeMeta.ts'
 import { compilePlanMdx } from '../src/planMdx/compilePlanMdx.ts'
 import { planHasDataTable } from './mdx/dataTable/detect.ts'
 import { MarkdownTable } from './mdx/MarkdownTable.tsx'
@@ -204,6 +205,8 @@ const LazyCodeBlock = lazy(() => import('./CodeBlock.tsx').then((module) => ({ d
 function PlanPre({ children }: { children?: ReactNode }) {
   const child = Children.toArray(children).find((node) => isValidElement<{ className?: string; children?: ReactNode }>(node))
   const className = child && isValidElement<{ className?: string }>(child) ? (child.props.className ?? '') : ''
+  // `start=40` after the fence's language (src/planMdx/remarkCodeMeta.ts).
+  const start = child && isValidElement<{ 'data-meta'?: string }>(child) ? fenceStartLine(child.props['data-meta']) : undefined
   const lang = /language-([\w+-]+)/.exec(className)?.[1] ?? ''
   const diff = lang === 'diff' || lang === 'patch'
   const body = child && isValidElement<{ children?: ReactNode }>(child) ? child.props.children : children
@@ -216,7 +219,7 @@ function PlanPre({ children }: { children?: ReactNode }) {
   return (
     <div className="code-host" data-react-code="" data-source={code}>
       <Suspense fallback={plain}>
-        <LazyCodeBlock code={code} language={diff ? '' : lang} diff={diff} />
+        <LazyCodeBlock code={code} language={diff ? '' : lang} diff={diff} startingLineNumber={diff ? undefined : start} />
       </Suspense>
     </div>
   )

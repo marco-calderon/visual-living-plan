@@ -53,3 +53,29 @@ export function isLockedNode(node: unknown): boolean {
 
 /** True inside a locked card, so its rows and its body editor are locked with it. */
 export const LockedContext = createContext(false)
+
+type MdastTree = MdastLike & { children?: ReadonlyArray<unknown> }
+
+function isJsxNode(node: unknown): node is MdastTree {
+  if (!node || typeof node !== 'object') return false
+  const type = (node as { type?: unknown }).type
+  return type === 'mdxJsxFlowElement' || type === 'mdxJsxTextElement'
+}
+
+/** Whether a tag holds a locked tag anywhere inside it (not counting itself). */
+export function containsLocked(node: unknown): boolean {
+  const children = node && typeof node === 'object' ? (node as { children?: ReadonlyArray<unknown> }).children : undefined
+  if (!children) return false
+  return children.some((child) => (isJsxNode(child) && isLockedMdast(child)) || containsLocked(child))
+}
+
+/**
+ * Whether removing a node of the editor would remove a locked card: it is locked, or it holds one.
+ * A parent of a locked card can still be moved; only cut, delete, and typing over it are stopped.
+ */
+export function isLockedNodeDeep(node: unknown): boolean {
+  if (isLockedNode(node)) return true
+  if (!node || typeof node !== 'object' || !('getMdastNode' in node)) return false
+  const getMdastNode = (node as { getMdastNode?: () => unknown }).getMdastNode
+  return typeof getMdastNode === 'function' && containsLocked(getMdastNode.call(node))
+}

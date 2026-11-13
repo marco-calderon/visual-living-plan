@@ -841,3 +841,42 @@ details[open] > summary > .plan-endpoint-chev { transform: rotate(90deg); }
 .plan-endpoint-summary { background: var(--data-head-bg, var(--surface)); }
 .plan-endpoint[open] > .plan-endpoint-summary { border-bottom: 1px solid var(--hairline); }
 .plan-endpoint[open] > .plan-endpoint-body { padding-top: 12px; }
+
+.plan-note-outside { color: var(--tag-del-fg); }
+
+/* Nested folder lists (screen readers hear a file inside its folder). */
+.plan-tree-group {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-tree-row[data-kind="dir"] { padding: 0; }
+
+.plan-tree-toggle {
+  padding: 0 14px 0 calc(14px + var(--depth, 0) * 20px);
+  border-radius: 0;
+}
+
+.plan-tree-toggle:focus-visible { outline-offset: -2px; }
+
+.plan-tree-empty {
+  margin: 0;
+  padding: 12px 14px;
+  color: var(--steel);
+  font-size: 13.5px;
+}
+
+.plan-change-tag[data-change="other"] {
+  border: 1px solid var(--hairline-strong);
+  background: transparent;
+  color: var(--steel);
+}
+
+/* A 24px target around the 16px JSON fold button. */
+.plan-json-toggle { position: relative; }
+.plan-json-toggle::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+}

@@ -19,14 +19,14 @@ import {
   type LexicalNode,
 } from 'lexical'
 import { useContext, useEffect } from 'react'
-import { isLockedNode, LockedContext } from './locked.ts'
+import { isLockedNodeDeep, LockedContext } from './locked.ts'
 
 /** Whether the selection covers a locked card, so typing, deleting, or pasting over it would remove it. */
 function $selectionHasLocked(): boolean {
   const selection = $getSelection()
-  if ($isNodeSelection(selection)) return selection.getNodes().some(isLockedNode)
+  if ($isNodeSelection(selection)) return selection.getNodes().some(isLockedNodeDeep)
   if (!$isRangeSelection(selection) || selection.isCollapsed()) return false
-  return selection.getNodes().some(isLockedNode)
+  return selection.getNodes().some(isLockedNodeDeep)
 }
 
 /** Whether the caret is at the very start (or end) of its line. */
@@ -53,7 +53,7 @@ function $atLineEdge(backward: boolean): LexicalNode | null {
 function $caretAgainstLocked(backward: boolean): boolean {
   const line = $atLineEdge(backward)
   const card = backward ? line?.getPreviousSibling() : line?.getNextSibling()
-  if (!line || !isLockedNode(card)) return false
+  if (!line || !isLockedNodeDeep(card)) return false
   if (line.getTextContent() === '' && $isElementNode(line)) {
     const before = line.getPreviousSibling()
     const after = line.getNextSibling()
