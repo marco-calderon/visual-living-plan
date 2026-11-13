@@ -2,7 +2,7 @@
 
 ## 2.26.0
 
-**PR:** pending
+**PR:** [#190](https://github.com/marco-calderon/visual-living-plan/pull/190)
 
 **Bump:** minor
 
