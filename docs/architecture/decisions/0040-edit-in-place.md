@@ -42,9 +42,19 @@ A person who wanted to fix one line lost the rendered plan around it: code becam
 - A draft from the whole-page editor (`{ base, markdown }`) is turned into a plan file once, with `planSourceFromEditor`.
 - Unapplied changes are never remembered as the last rendered plan, so a reload offline still falls back to the live plan.
 
+### An agent write under unapplied changes
+
+Added the same day ([#191](https://github.com/marco-calderon/visual-living-plan/pull/191)).
+
+- When the live plan moves past `draft.base` and no block editor is open, the page merges the draft onto it with `rebaseDraft` (`src/planMdx/rebaseDraft.ts`), a block-level three-way merge at the same grain as editing: top-level blocks and the blocks inside a phase. Cards match by id, other blocks by meaning, and a block changed in place pairs with the most alike block of its shape. An open editor stages its Done against the file it opened on first.
+- A block only one side changed takes that side; a block the person added goes after its neighbour in the agent's plan; every byte of the agent's plan the edits do not touch stays as written; a phase merges attribute by attribute and block by block; front matter takes the agent's unless only the person changed it.
+- When the person's workflow differs only by the steps `wireNewSteps` wrote for their new cards, the agent's workflow wins and those cards are wired onto it again.
+- A block both changed differently keeps the agent's text, and the draft holds `rebase: { base, mine, keep, conflicts }` until the person keeps a side of each in the Apply bar. Apply and block editing wait meanwhile. A merge that does not compile (`planNotReadyReason`) leaves the draft as it was, and the bar says applying will be refused and offers Discard.
+- A 409 on Apply reads the live plan again, so the merge runs.
+- A move the person made counts as a remove plus an add, so a move of a block the agent also changed is a conflict. Blocks inside an indented container merge as one block.
+
 ## Not in this decision
 
-- Merging an agent's write into unapplied changes. The page says the plan moved on; the person discards and edits again.
 - A table editor for `DataTable`. It still opens in MDXEditor's generic tag view.
 
 ## Consequences
