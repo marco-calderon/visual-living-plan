@@ -241,8 +241,17 @@ export function bindBlockEditButton(options: { state: () => EditState; open: (an
     const rect = block.getBoundingClientRect()
     if (rect.bottom < 0 || rect.top > window.innerHeight) return hide()
     const width = button.offsetWidth || 64
-    const left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8))
-    button.style.top = `${Math.max(0, rect.top + window.scrollY - 13)}px`
+    const height = button.offsetHeight || 26
+    // Beside the block's first line (a phase's padding puts its title below the hairline), in the
+    // gutter right of the column when there is room, over the block's corner when there is not.
+    const padTop = Number.parseFloat(getComputedStyle(block).paddingTop) || 0
+    const titleBar = document.querySelector('header.titlebar')?.getBoundingClientRect().bottom ?? 0
+    const roomRight = window.innerWidth - rect.right >= width + 24
+    const left = roomRight ? rect.right + 12 : Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8))
+    const firstLine = roomRight ? rect.top + padTop : rect.top + padTop - height - 4
+    // Never under the toolbar: a block whose top has scrolled away keeps the pill below the bar.
+    const top = Math.min(Math.max(firstLine, titleBar + 8), rect.bottom - height)
+    button.style.top = `${top + window.scrollY}px`
     button.style.left = `${left + window.scrollX}px`
   }
   const show = (next: HTMLElement) => {

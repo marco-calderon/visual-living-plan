@@ -114,6 +114,7 @@
   --status-blocked: #c98a00;
   --data-card-radius: 12px;
   --flow-gap: 24px;
+  --data-head-bg: var(--surface);
 }
 
 :root[data-theme="dark"] {
@@ -196,6 +197,7 @@
   --mark: #4a3d0a;
   --status-active: #0094fc;
   --status-blocked: #f2c94c;
+  --data-head-bg: #222222;
 }
 
 .plan-ui {
@@ -1275,7 +1277,7 @@ a.plan-step-label:hover {
 
 .plan-form-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .plan-form-actions .plan-btn {
@@ -2006,3 +2008,77 @@ body:not([data-plan-editable="true"]) .plan-block-edit { display: none; }
 @media print {
   .plan-block-edit { display: none; }
 }
+
+/* ==========================================================================
+ * Review pass (ADR 0039): the rest of the card policy and the flow.
+ * ========================================================================== */
+
+/* The fact chips line up with the heading, not with a list's indent. */
+.plan-document > ul.plan-head-facts {
+  margin: 0 0 var(--space-md);
+  padding: 0;
+  list-style: none;
+}
+
+/* The workflow and the charts are data cards: canvas, hairline, 12px. */
+:is(.plan-document, .plan-rich) .vlp-workflow.plan-panel {
+  border-color: var(--hairline);
+  border-radius: var(--data-card-radius);
+  background: var(--canvas);
+}
+
+.vlp-workflow > .plan-title { font-size: 1.1rem; }
+
+:is(.plan-document, .plan-rich) .vlp-chart {
+  padding: var(--space-sm) 14px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--data-card-radius);
+  background: var(--canvas);
+}
+
+.vlp-chart figcaption {
+  color: var(--steel);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* A markdown table is a data card with a surface header row. */
+.plan-document .rich-table {
+  border-color: var(--hairline);
+  background: var(--canvas);
+}
+
+.plan-document .rich-table th {
+  background: var(--data-head-bg);
+  color: var(--steel);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* What follows a block gets the flow gap too, so a table never touches a callout's rule. */
+.plan-document > :is(.plan-entry, .block, [data-doc-block]):not(.plan-path) + :not(.plan-entry):not(.block):not([data-doc-block]):not(h1):not(h2):not(h3) {
+  margin-top: var(--flow-gap);
+}
+
+/* Recommended reads as advice, not as a change tag. */
+.plan-recommended {
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--focus) 55%, transparent);
+  background: transparent;
+  color: var(--focus);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  vertical-align: 1px;
+}
+
+:root[data-theme="dark"] .plan-recommended { color: #5ab4ff; }
+
+/* A phase title wraps with its status glyph, and the step circle sits on the first line. */
+.plan-phase .plan-step-heading { align-items: start; }
+.plan-phase .plan-step-number { align-self: start; }

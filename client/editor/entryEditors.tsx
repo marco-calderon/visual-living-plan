@@ -39,7 +39,14 @@ type PropSpec = {
   /** Takes the free width of the header row. */
   wide?: boolean
   placeholder?: string
+  /** A select that can also be empty ("none"): the attribute is left out. */
+  optional?: boolean
+  /** Shown only while another attribute has this value, or while this one is set. */
+  when?: { name: string; is: string }
 }
+
+/** The select item that stands for an attribute left out. */
+const NONE = '__none__'
 
 type EntrySpec = {
   /** The tag name the editor sees. */
@@ -176,7 +183,7 @@ export const ENTRY_SPECS: EntrySpec[] = [
     props: [
       { name: 'path', label: 'Path', control: 'text', wide: true, placeholder: 'src/path/file.ts' },
       { name: 'change', label: 'Change', control: 'select', options: CHANGES },
-      { name: 'from', label: 'From', control: 'text', placeholder: 'old/path (renamed)' },
+      { name: 'from', label: 'From', control: 'text', placeholder: 'old/path', when: { name: 'change', is: 'renamed' } },
     ],
     hasChildren: true,
     row: true,
@@ -188,7 +195,7 @@ export const ENTRY_SPECS: EntrySpec[] = [
     props: [
       { name: 'path', label: 'Path', control: 'text', wide: true, placeholder: '/api/resource/{id}' },
       { name: 'method', label: 'Method', control: 'select', options: METHODS },
-      { name: 'change', label: 'Change', control: 'select', options: CHANGES },
+      { name: 'change', label: 'Change', control: 'select', options: CHANGES, optional: true },
       { name: 'auth', label: 'Auth', control: 'text', placeholder: 'API key' },
       { name: 'open', label: 'Open', control: 'flag' },
     ],
@@ -226,7 +233,7 @@ export const ENTRY_SPECS: EntrySpec[] = [
     label: 'Table',
     props: [
       { name: 'name', label: 'Name', control: 'text', wide: true, placeholder: 'table_name' },
-      { name: 'change', label: 'Change', control: 'select', options: CHANGES },
+      { name: 'change', label: 'Change', control: 'select', options: CHANGES, optional: true },
       { name: 'collapsed', label: 'Folded', control: 'flag' },
     ],
     hasChildren: true,
@@ -239,7 +246,7 @@ export const ENTRY_SPECS: EntrySpec[] = [
       { name: 'name', label: 'Name', control: 'text', wide: true, placeholder: 'column' },
       { name: 'type', label: 'Type', control: 'text', placeholder: 'text' },
       { name: 'fk', label: 'FK', control: 'text', placeholder: 'table.id' },
-      { name: 'change', label: 'Change', control: 'select', options: CHANGES },
+      { name: 'change', label: 'Change', control: 'select', options: CHANGES, optional: true },
       { name: 'pk', label: 'PK', control: 'flag' },
       { name: 'nullable', label: 'Null', control: 'flag' },
     ],
@@ -315,7 +322,7 @@ export const ENTRY_SPECS: EntrySpec[] = [
     icon: 'flag',
     props: [
       { name: 'by', label: 'By', control: 'text', wide: true, placeholder: 'Agent' },
-      { name: 'health', label: 'Health', control: 'select', options: HEALTHS },
+      { name: 'health', label: 'Health', control: 'select', options: HEALTHS, optional: true },
       { name: 'date', label: 'Date', control: 'text', placeholder: 'YYYY-MM-DD' },
     ],
     hasChildren: true,
@@ -388,16 +395,21 @@ function PropControl({
     )
   }
   if (spec.control === 'select') {
-    const options = spec.options ?? []
+    const options = spec.optional ? [NONE, ...(spec.options ?? [])] : (spec.options ?? [])
+    const current = value || (spec.optional ? NONE : (options[0] ?? ''))
     return (
-      <Select value={value || (options[0] ?? '')} disabled={disabled} onValueChange={(next) => onChange(String(next ?? ''))}>
+      <Select
+        value={current}
+        disabled={disabled}
+        onValueChange={(next) => onChange(next === NONE ? '' : String(next ?? ''))}
+      >
         <SelectTrigger className="plan-editor-select" aria-label={spec.label}>
-          <SelectValue />
+          <SelectValue>{(selected: unknown) => (selected === NONE ? 'none' : String(selected ?? ''))}</SelectValue>
         </SelectTrigger>
         <SelectContent className="plan-editor-select-popup">
           {options.map((option) => (
             <SelectItem key={option} value={option}>
-              {option}
+              {option === NONE ? 'none' : option}
             </SelectItem>
           ))}
         </SelectContent>
@@ -548,6 +560,7 @@ function EntryEditor({ spec, mdastNode }: { spec: EntrySpec; mdastNode: JsxNode 
         <div className="plan-editor-props">
           {spec.props
             .filter((prop) => !prop.wide)
+            .filter((prop) => !prop.when || readAttr(mdastNode, prop.when.name) === prop.when.is || readAttr(mdastNode, prop.name) !== '')
             .map((prop) =>
               prop.control === 'flag' ? (
                 <Fragment key={prop.name}>{control(prop)}</Fragment>

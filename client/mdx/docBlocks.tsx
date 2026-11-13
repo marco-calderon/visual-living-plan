@@ -800,24 +800,20 @@ export function AnnotatedCode({ title, start, locked, children }: { title?: stri
     const props = element.props as NoteProps
     return { number: index + 1, range: lineRange(props.lines), label: text(props.label), body: inline(props.children) }
   })
-  const annotations = marks.flatMap((mark) => {
-    if (!mark.range) return []
-    const lineNumber = mark.range.end - startLine + 1
-    if (lineNumber < 1 || lineNumber > lineCount) return []
-    return [
-      {
-        lineNumber,
-        content: (
-          <span className="plan-code-note">
-            <span className="plan-note-mark" aria-hidden="true">
-              {mark.number}
-            </span>
-            <span>{mark.label || mark.body}</span>
-          </span>
-        ),
-      },
-    ]
-  })
+  // The marked lines, in the fence's own numbering (1 is its first line). The notes list below says what each mark means.
+  const highlightLines = [
+    ...new Set(
+      marks.flatMap((mark) => {
+        if (!mark.range) return []
+        const lines: number[] = []
+        for (let line = mark.range.start; line <= mark.range.end; line += 1) {
+          const index = line - startLine + 1
+          if (index >= 1 && index <= lineCount) lines.push(index)
+        }
+        return lines
+      }),
+    ),
+  ]
   const others = fence ? rest.filter((_, index) => index !== fence.index) : rest
   return (
     <section className="plan-doc-card plan-annotated" data-doc-block="AnnotatedCode" data-edit-locked={lockAttr(locked)}>
@@ -831,7 +827,7 @@ export function AnnotatedCode({ title, start, locked, children }: { title?: stri
               </pre>
             }
           >
-            <LazyCodeBlock code={fence.code} language={fence.language} startingLineNumber={startLine} annotations={annotations} />
+            <LazyCodeBlock code={fence.code} language={fence.language} startingLineNumber={startLine} highlightLines={highlightLines} />
           </Suspense>
         </div>
       ) : null}

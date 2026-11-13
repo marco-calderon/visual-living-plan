@@ -76,6 +76,8 @@ export function Phase({ id, title, status, children, className, locked }: PhaseP
                 ) : (
                   label
                 )}
+                {/* A word joiner: the status glyph wraps with the title's last word, never alone. */}
+                {'\u2060'}
                 <span
                   className="plan-phase-status"
                   role="img"

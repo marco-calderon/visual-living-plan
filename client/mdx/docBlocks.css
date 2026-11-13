@@ -50,7 +50,7 @@
   min-height: 40px;
   padding: 8px 14px;
   border-bottom: 1px solid var(--hairline);
-  background: var(--surface);
+  background: var(--data-head-bg, var(--surface));
   font-size: 13.5px;
   line-height: 1.4;
 }
@@ -446,7 +446,7 @@ details[open] > summary > .plan-endpoint-chev { transform: rotate(90deg); }
 
 .plan-attr {
   display: grid;
-  grid-template-columns: 16px minmax(7rem, max-content) minmax(0, 1fr) auto;
+  grid-template-columns: 16px minmax(7rem, max-content) max-content minmax(0, 1fr);
   align-items: center;
   column-gap: 10px;
   min-height: 28px;
@@ -456,7 +456,7 @@ details[open] > summary > .plan-endpoint-chev { transform: rotate(90deg); }
 
 .plan-attr + .plan-attr { border-top: 1px solid var(--hairline-soft, var(--hairline)); }
 
-.plan-attr-key { display: inline-flex; color: var(--tag-mod-fg); }
+.plan-attr-key { display: inline-flex; color: var(--steel); }
 
 .plan-attr-name {
   color: var(--ink);
@@ -476,7 +476,7 @@ details[open] > summary > .plan-endpoint-chev { transform: rotate(90deg); }
 .plan-attr-badges {
   display: inline-flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 4px;
 }
 
@@ -493,8 +493,9 @@ details[open] > summary > .plan-endpoint-chev { transform: rotate(90deg); }
   height: 18px;
   padding: 0 6px;
   border-radius: 4px;
-  background: var(--tag-mod-bg);
-  color: var(--tag-mod-fg);
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  color: var(--ink);
   font-family: var(--font-mono);
   font-size: 10.5px;
   font-weight: 600;
@@ -816,3 +817,27 @@ details[open] > summary > .plan-endpoint-chev { transform: rotate(90deg); }
   .plan-endpoint-chev,
   .plan-json-toggle svg { transition: none; }
 }
+
+/* ---------------------------------------------------------------- Review pass */
+
+/* Code inside a data card has no frame of its own: the card is the frame. */
+.plan-doc-card .code-host {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+/* An example in an endpoint sits on a quiet surface, not in a second card. */
+.plan-endpoint-body .code-host {
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+/* Endpoints in a row are one card: no gap between them. */
+.plan-endpoint:has(+ .plan-endpoint) { margin-bottom: 0 !important; }
+
+/* A closed endpoint's row is its header strip. */
+.plan-endpoint-summary { background: var(--data-head-bg, var(--surface)); }
+.plan-endpoint[open] > .plan-endpoint-summary { border-bottom: 1px solid var(--hairline); }
+.plan-endpoint[open] > .plan-endpoint-body { padding-top: 12px; }

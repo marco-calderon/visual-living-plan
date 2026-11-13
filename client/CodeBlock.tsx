@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { File, PatchDiff, type FileContents } from '@pierre/diffs/react'
-import type { LineAnnotation } from '@pierre/diffs'
 import { codeForDisplay, patchText } from './codeForDisplay'
 import { DEFAULT_DIFFS_THEME, diffsThemePair } from '../src/diffsTheme'
 
@@ -51,10 +50,32 @@ export function useWrapCode(): boolean {
   return wrap
 }
 
+type ThemeType = 'light' | 'dark' | 'system'
+
+function readThemeType(): ThemeType {
+  const theme = document.documentElement.dataset.theme
+  return theme === 'dark' || theme === 'light' ? theme : 'system'
+}
+
+/**
+ * The page's light or dark choice from Settings (`html[data-theme]`), or the system's when there is
+ * none. Code follows the page, not only the operating system, so a dark page on a light system
+ * does not show light code.
+ */
+export function useThemeType(): ThemeType {
+  const [type, setType] = useState<ThemeType>(readThemeType)
+  useEffect(() => {
+    const observer = new MutationObserver(() => setType(readThemeType()))
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => observer.disconnect()
+  }, [])
+  return type
+}
+
 /** Pierre options the page's code blocks share. */
-export function appearance(wrap: boolean) {
+export function appearance(wrap: boolean, themeType: ThemeType = 'system', extraCSS = '') {
   return {
-    themeType: 'system' as const,
+    themeType,
     // Pierre's WebAssembly highlighter. Every theme in Settings has a Highlights palette.
     preferredHighlighter: 'highlights' as const,
     overflow: wrap ? ('wrap' as const) : ('scroll' as const),
@@ -64,22 +85,25 @@ export function appearance(wrap: boolean) {
       --diffs-font-size: 13.5px;
       --diffs-line-height: 22px;
     }
-  `,
+  ${extraCSS}`,
   }
 }
-
-/** A note drawn under a line of the code. `lineNumber` counts from 1 at the fence's first line. */
-export type CodeAnnotation = { lineNumber: number; content: ReactNode }
 
 export type CodeBlockProps = {
   code: string
   language: string
   startingLineNumber?: number
   diff?: boolean
-  annotations?: CodeAnnotation[]
+  /** Lines to mark, counted from 1 at the fence's first line (AnnotatedCode's notes). */
+  highlightLines?: readonly number[]
 }
 
-const NO_ANNOTATIONS: LineAnnotation<ReactNode>[] = []
+/** Tint the marked lines, gutter and code, with the page's `--mark` color. */
+function highlightCSS(lines: readonly number[] | undefined): string {
+  if (!lines || lines.length === 0) return ''
+  const selectors = lines.map((line) => `[data-line-index="${line - 1}"]`).join(', ')
+  return `:is(${selectors}) { background-color: color-mix(in srgb, var(--mark, #fff1b8) 70%, transparent) !important; }`
+}
 
 function renumber(node: HTMLElement, start: number): void {
   const root = node.shadowRoot ?? node
@@ -91,10 +115,12 @@ function renumber(node: HTMLElement, start: number): void {
   }
 }
 
-export function CodeBlock({ code, language, startingLineNumber, diff = false, annotations }: CodeBlockProps) {
+export function CodeBlock({ code, language, startingLineNumber, diff = false, highlightLines }: CodeBlockProps) {
   const named = language.trim()
   const theme = useDiffsThemePair()
   const wrap = useWrapCode()
+  const themeType = useThemeType()
+  const marked = highlightLines?.join(',') ?? ''
   const displayed = useMemo(() => codeForDisplay(code), [code])
   const file = useMemo<FileContents>(
     () => ({
@@ -107,7 +133,7 @@ export function CodeBlock({ code, language, startingLineNumber, diff = false, an
   const patch = useMemo(() => patchText(displayed, named), [displayed, named])
   const fileOptions = useMemo(
     () => ({
-      ...appearance(wrap),
+      ...appearance(wrap, themeType, highlightCSS(marked ? marked.split(',').map(Number) : undefined)),
       theme,
       disableFileHeader: true,
       onPostRender:
@@ -117,22 +143,18 @@ export function CodeBlock({ code, language, startingLineNumber, diff = false, an
             }
           : undefined,
     }),
-    [startingLineNumber, theme, wrap],
-  )
-  const lineAnnotations = useMemo<LineAnnotation<ReactNode>[]>(
-    () => (annotations && annotations.length > 0 ? annotations.map((note) => ({ lineNumber: note.lineNumber, metadata: note.content })) : NO_ANNOTATIONS),
-    [annotations],
+    [marked, startingLineNumber, theme, themeType, wrap],
   )
   const diffOptions = useMemo(
     () => ({
-      ...appearance(wrap),
+      ...appearance(wrap, themeType),
       theme,
       disableFileHeader: false,
       diffStyle: 'unified' as const,
       diffIndicators: 'bars' as const,
       hunkSeparators: 'line-info' as const,
     }),
-    [theme, wrap],
+    [theme, themeType, wrap],
   )
 
   if (diff) {
@@ -140,13 +162,6 @@ export function CodeBlock({ code, language, startingLineNumber, diff = false, an
   }
 
   return (
-    <File<ReactNode>
-      file={file}
-      options={fileOptions}
-      disableWorkerPool
-      className="plan-code"
-      lineAnnotations={lineAnnotations}
-      renderAnnotation={(annotation) => annotation.metadata}
-    />
+    <File file={file} options={fileOptions} disableWorkerPool className="plan-code" />
   )
 }

@@ -103,7 +103,7 @@
  * frame here: a hairline and no fill, so the editor reads like the document. A callout keeps its
  * kind as the page draws it, a rule on the left. Data blocks keep the panel frame.
  */
-.plan-editor-card.plan-entry:is([data-editor-entry='phase'], [data-editor-entry='callout'], [data-editor-entry='checklist']):not([data-locked='true']) {
+.plan-editor-card.plan-entry:is([data-editor-entry='phase'], [data-editor-entry='callout'], [data-editor-entry='checklist'], [data-editor-entry='Tabs'], [data-editor-entry='Compare'], [data-editor-entry='Properties'], [data-editor-entry='Update']):not([data-locked='true']) {
   border-color: var(--hairline);
   background: var(--canvas);
 }
@@ -1075,4 +1075,22 @@
   .plan-editor [class*='_tableEditor_'] :is([class*='_addRowButton_'], [class*='_addColumnButton_']) {
     opacity: 1;
   }
+}
+
+/*
+ * ADR 0039 review: a document block's rows are lines in their block, not cards of their own. Fields
+ * sit on the row, a soft hairline splits rows, and the body (a note) follows without a frame.
+ */
+.plan-editor-card.plan-editor-row:is([data-editor-entry='File'], [data-editor-entry='Param'], [data-editor-entry='Request'], [data-editor-entry='Response'], [data-editor-entry='Entity'], [data-editor-entry='Attr'], [data-editor-entry='Relation'], [data-editor-entry='Note'], [data-editor-entry='Tab'], [data-editor-entry='Pane'], [data-editor-entry='Prop']) {
+  gap: 4px;
+  padding: var(--space-xs) 0;
+  border: 0;
+  border-top: 1px solid var(--hairline-soft);
+  border-radius: 0;
+  background: transparent;
+}
+
+.plan-editor-card.plan-editor-row:is([data-editor-entry='File'], [data-editor-entry='Param'], [data-editor-entry='Response'], [data-editor-entry='Note'], [data-editor-entry='Prop']) > .plan-editor-body {
+  padding-left: var(--space-sm);
+  color: var(--steel);
 }

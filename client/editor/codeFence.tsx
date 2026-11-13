@@ -3,7 +3,7 @@ import { EditProvider, File, type EditorFactory, type FileContents } from '@pier
 import { Editor } from '@pierre/diffs/edit'
 import { isSupportedLanguage } from '@pierre/highlights'
 import { useEffect, useId, useMemo, useRef, useState, type RefObject } from 'react'
-import { appearance, useDiffsThemePair, useWrapCode } from '../CodeBlock.tsx'
+import { appearance, useDiffsThemePair, useThemeType, useWrapCode } from '../CodeBlock.tsx'
 import { renderMermaidSvg } from '../mdx/Mermaid.tsx'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select.tsx'
 
@@ -155,7 +155,8 @@ function CodeFenceEditor({ code, language }: CodeBlockEditorProps) {
     () => ({ name: 'fence', contents: latest.current, lang: highlightLanguage(lang) as FileContents['lang'] }),
     [lang],
   )
-  const fileOptions = useMemo(() => ({ ...appearance(wrap), theme, disableFileHeader: true }), [theme, wrap])
+  const themeType = useThemeType()
+  const fileOptions = useMemo(() => ({ ...appearance(wrap, themeType), theme, disableFileHeader: true }), [theme, themeType, wrap])
 
   return (
     <div className="plan-editor-code" ref={box} data-code-fence={lang || 'text'}>
