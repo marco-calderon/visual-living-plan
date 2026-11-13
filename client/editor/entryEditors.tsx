@@ -17,6 +17,7 @@ import { calloutKind, phaseStatus } from '../entries/types.ts'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select.tsx'
 import { IconPicker } from './iconPicker.tsx'
 import { containsLocked, isLockedMdast, isLockedTag, lockedAttribute, LockedContext } from './locked.ts'
+import { dataTableDescriptor, labelDescriptors } from './dataTableEditor.tsx'
 import { hasLockedPreview, renderLockedPreview } from './lockedPreview.tsx'
 import { StatusPicker } from './statusPicker.tsx'
 import { useIsolatedFromEditor } from './isolate.ts'
@@ -608,7 +609,7 @@ function editorFor(spec: EntrySpec) {
 }
 
 /**
- * The generic editor for layout, charts, and tables, with `locked` honored (ADR 0039): a locked
+ * The generic editor for layout and charts, with `locked` honored (ADR 0039): a locked
  * block's body is read-only, as a plan card's is.
  */
 function LockableGenericEditor(props: JsxEditorProps) {
@@ -628,7 +629,7 @@ function LockableGenericEditor(props: JsxEditorProps) {
   )
 }
 
-/** One editor per plan tag, and the generic editor for anything else (layout, charts, tables). */
+/** One editor per plan tag, a table editor for `<DataTable>`, and the generic editor for anything else (layout, charts). */
 export const planJsxDescriptors: JsxComponentDescriptor[] = [
   ...ENTRY_SPECS.map((spec) => ({
     name: spec.tag,
@@ -652,5 +653,9 @@ export const planJsxDescriptors: JsxComponentDescriptor[] = [
     hasChildren: true,
     Editor: GenericJsxEditor,
   },
+  // Columns, rows, and cells are edited inside it as a grid, never as tags of their own.
+  dataTableDescriptor,
+  // Pills and chips, in a cell or in prose, look as they do on the page.
+  ...labelDescriptors,
   { name: '*', kind: 'flow', props: [], hasChildren: true, Editor: LockableGenericEditor },
 ]
