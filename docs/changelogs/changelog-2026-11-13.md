@@ -31,6 +31,10 @@ The plan page reads as a document instead of a stack of grey cards, and it is al
 - The empty line with the caret says "Type / to add a block". Add a block, under the plan, adds one at the end.
 - When the agent writes the plan while you have changes that are not applied, the page puts your changes on top of the agent's plan. The Apply bar says *The agent updated the plan. Your changes are kept on top of it.*, and Apply changes works ([#191](https://github.com/marco-calderon/visual-living-plan/pull/191)).
 - When you and the agent changed the same block, the Apply bar lists those blocks with what you wrote, and offers Keep mine and Keep the agent's for each. The page shows the agent's version until you choose. Apply and block editing wait until every overlapping block is chosen. Discard still drops everything.
+- A `<DataTable>` opens as a table ([#192](https://github.com/marco-calderon/visual-living-plan/pull/192)). Its label sits in the header strip and each column's header is editable in the grid. A column's menu turns Search, Sort, and Filter on or off and removes the column. Each cell is editable where it sits, pills and chips included.
+- Add a row or a column with the + bars, and remove one from its row's ✕ or its column's menu. A new column gets an id from its header; existing ids stay. A locked table is read-only.
+- A one-cell edit changes one line of the plan file: the table is written one column, row, or line of cells per line.
+- The `/` menu has **Data table** under Data. Pills and chips in the editor look as they do on the page, and a pill's dot changes its tone.
 - `locked` on any block keeps the person from changing it on the page or in the editor, and from removing it with the block around it. Forms and questions stay locked unless `locked="false"`.
 - The editor's `/` menu has Data and Layout sections with every new block, plus Table, Bar chart, and Line chart. Each new block has fields for its attributes, and a block's rows (a file, a param, a tab) are offered inside it.
 

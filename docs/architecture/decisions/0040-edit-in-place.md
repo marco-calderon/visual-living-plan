@@ -34,6 +34,7 @@ A person who wanted to fix one line lost the rendered plan around it: code becam
 - Done runs `applyBlockEdit` (`src/planMdx/blockEdit.ts`): the editor's text replaces the block's range, or goes after it. Blocks of the edit that mean the same as the file keep the file's text (`mergeEditedBody`), and a new phase, choice, form, questions, or approval gets a workflow step (`wireNewSteps`). Every other byte of the file stays.
 - The result must compile (`planNotReadyReason`) before it is kept. The editor shows the error and stays open otherwise.
 - The empty line with the caret shows "Type / to add a block" (`client/editor/slashHint.tsx`), in the block and in each card body. The + bars do not.
+- `<DataTable>` has its own editor (`client/editor/dataTableEditor.tsx`, added the same day in [#192](https://github.com/marco-calderon/visual-living-plan/pull/192)). The header strip holds the label, the header row holds the columns, and each cell is a nested editor on that cell's children. The pure changes live in `client/editor/dataTableMdast.ts`. Ids stay, attributes stay, and a cell's `value` follows its text only when it repeated that text. The editor writes the table one part per line (`compactTableHandler`), so an edit to one cell is one changed line. A locked table is read-only.
 
 ### Apply changes makes the version
 
@@ -52,10 +53,6 @@ Added the same day ([#191](https://github.com/marco-calderon/visual-living-plan/
 - A block both changed differently keeps the agent's text, and the draft holds `rebase: { base, mine, keep, conflicts }` until the person keeps a side of each in the Apply bar. Apply and block editing wait meanwhile. A merge that does not compile (`planNotReadyReason`) leaves the draft as it was, and the bar says applying will be refused and offers Discard.
 - A 409 on Apply reads the live plan again, so the merge runs.
 - A move the person made counts as a remove plus an add, so a move of a block the agent also changed is a conflict. Blocks inside an indented container merge as one block.
-
-## Not in this decision
-
-- A table editor for `DataTable`. It still opens in MDXEditor's generic tag view.
 
 ## Consequences
 
