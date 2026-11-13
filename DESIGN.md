@@ -17,6 +17,17 @@ DM Sans anchors every surface from oversized 80px hero displays down to 12px mic
 
 For this app, use the documentation family only. Do not paint plan cards as vibrant product gradients. Keep coral, magenta, blue, and purple as tokens, unused on the plan page.
 
+### Document-first plan page
+
+The plan page reads as one document, not a stack of cards ([ADR 0039](docs/architecture/decisions/0039-document-first-page.md)). Six rules:
+
+- **D1 · Flow.** One column of prose. Top-level blocks are separated by space. A phase and a question for the person also get a hairline above them.
+- **D2 · Cards.** A card is only for a block whose content has its own format: code, diffs, diagrams, charts, tables, file trees, API contracts, schemas, JSON, and status updates. See *Card policy* under Layout.
+- **D3 · Labels.** A small uppercase eyebrow names a block's kind (`RISK`, `NEEDS YOUR CHOICE`, `DONE WHEN`). The title or prompt under it is the heading.
+- **D4 · State.** State is shape plus color, with one glyph set everywhere: a hollow ring is pending, a half-filled ring is active, a filled check disc is done, a pause is blocked, and an × is failed. Counts read `3/6` next to a segmented bar.
+- **D5 · Code words.** Paths, symbols, and line ranges are mono. A file change carries a tag (NEW, MODIFY, DELETE, RENAME). A line reference is a cite chip (`L42–58`).
+- **D6 · Editable.** Every block can be edited from the toolbar's Edit or from the block's own Edit pill. A block is read-only only when it carries `locked`, or is an answer card (form, questions) that has not set `locked="false"`.
+
 ## Colors
 
 ### Brand & Accent
@@ -56,6 +67,21 @@ For this app, use the documentation family only. Do not paint plan cards as vibr
 - **On dark** (`colors.on-dark`): `#ffffff`.
 - **Footer bg** (`colors.footer-bg`): `#171717`.
 
+### Status and change tags
+
+Tints for change tags, method and status badges, health, and status glyphs. Each pair is a background and its text. Every pair has a dark value; the text keeps 4.5:1 on its tint in both themes.
+
+| Token | Light | Dark | Use |
+|---|---|---|---|
+| `--tag-add-bg` / `--tag-add-fg` | `#dcf5e2` / `#0a7a38` | `#0f2e1b` / `#4ade80` | NEW, GET, 2xx, On track |
+| `--tag-mod-bg` / `--tag-mod-fg` | `#fff3d6` / `#8a5300` | `#33270a` / `#f5c451` | MODIFY, PUT and PATCH, 4xx, At risk, PK, note markers |
+| `--tag-del-bg` / `--tag-del-fg` | `#fff4f0` / `#c9322a` | `#3a1612` / `#ff8a7a` | DELETE, the DELETE method, 5xx, Off track |
+| `--tag-info-bg` / `--tag-info-fg` | `#dbeafe` / `#1e40af` | `#12294a` / `#a8cdff` | RENAME, POST, 3xx, cite and FK chips |
+| `--tag-purple-fg` | `#6d3fd6` | `#a98bff` | JSON booleans |
+| `--rule-note` · `--rule-tip` · `--rule-risk` · `--rule-warning` · `--rule-decision` | `#a1a1aa` · `#0a7a38` · `#c9322a` · `#c98a00` · `#0094fc` | `#6e6e6e` · `#4ade80` · `#ff8a7a` · `#f2c94c` · `#0094fc` | A callout's left rule and eyebrow |
+| `--status-active` · `--status-blocked` | `#0094fc` · `#c98a00` | `#0094fc` · `#f2c94c` | Active and blocked glyphs and bar segments |
+| `--mark` | `#fff1b8` | `#4a3d0a` | Marked lines and passages |
+
 Dark document, measured on the product theme (`data-product-color-mode=dark`), not an inversion of the light page:
 - Canvas `#171717`, surface `#1c1c1c`, elevated `#262626`, hairline `#2c2c2c`, hairline strong `#4a4a4a` (hover `#666666`), ink `#ededed`, secondary text `#949494`.
 - The primary pill inverts: `#ffffff` fill, `#171717` label, same 36px height. Links and focus use `#0094fc`.
@@ -81,6 +107,7 @@ Dark document, measured on the product theme (`data-product-color-mode=dark`), n
 | caption-bold | 13px | 600 | 1.50 | 0 | Badge labels |
 | micro | 12px | 400 | 1.50 | 0 | Chip labels |
 | button-md | 14px | 500 | 1 | 0 | Pill button labels |
+| eyebrow | 12px | 600 | 1.40 | 0.08em, uppercase | Block kind labels, data card captions, the plan header |
 
 Plan titles use heading-sm or card-title, not hero-display. Body uses body-md.
 
@@ -89,6 +116,25 @@ Plan titles use heading-sm or card-title, not hero-display. Body uses body-md.
 - Base unit 4px. Tokens: xxs 4, xs 8, sm 12, md 16, lg 20, xl 24, xxl 32, xxxl 40, section-sm 48, section 64, section-lg 80, hero 96.
 - Documentation cards pad 16px (`space-md`). A card nested inside another card pads 12px (`space-sm`). Entries sit 16px apart. A row gaps 12px (`space-sm`). The page column is 720px by default, 1120px when wide, or the available width when full. Cards and prose use that column. A pipe table wraps cell text between words and keeps inline code on one line. It scrolls sideways only when its columns still do not fit. A data-table cell, column, or whole table can wrap, or wrap inside a percentage of the table. Data-table cells without that stay on one line and still scroll.
 - No blueprint grid. No noise overlay.
+- Flow (`--flow-gap`): 24px between top-level blocks. 32px, a hairline, and 24px of padding above a phase and above a choice, form, questions block, or approval.
+
+### Card policy
+
+| Block | Card | Treatment |
+|---|---|---|
+| phase | No | Hairline above, a 28px step circle that carries the status, 20px title, body aligned to the title |
+| callout | No | 2px left rule in the kind's color, eyebrow `KIND · TITLE`, no fill |
+| checklist | No | Eyebrow title, `n/m` count pill, segmented bar, rows split by soft hairlines |
+| choice, form, questions, approve | No | Eyebrow kind, prompt heading, controls. Choice options are controls, so each keeps a hairline frame |
+| Tabs, Compare, Properties | No | Layout only |
+| Markdown table, DataTable | Yes | Hairline frame, surface header row |
+| code, diff, AnnotatedCode | Yes | Data card |
+| Mermaid, workflow, BarChart, LineChart | Yes | Data card |
+| FileTree, Endpoint, DataModel, JsonView | Yes | Data card |
+| Update | Yes | Canvas card with a health pill, no header strip |
+| `Box surface="panel"` | Yes | The author asked for a panel |
+
+A **data card** has a hairline frame, a 12px radius (`--data-card-radius`), a surface header strip with the title and its counts, and a canvas body. A **panel** (surface fill, 16px radius) stays for `<Box surface="panel">` and editor chrome. A card never sits inside another card.
 
 ## Elevation
 
@@ -101,7 +147,7 @@ Flat by default. Hairline border, no shadow, on documentation cards. Level 2 sha
 | rounded.xs | 4px | Code chips |
 | rounded.sm | 6px | Compact controls |
 | rounded.md | 8px | Inputs |
-| rounded.lg | 12px | Recommendation tiles |
+| rounded.lg | 12px | Data cards, choice option rows, recommendation tiles |
 | rounded.xl | 16px | Documentation cards |
 | rounded.xxl | 20px | Larger panels |
 | rounded.xxxl | 24px | Feature tiles |
@@ -116,7 +162,15 @@ Flat by default. Hairline border, no shadow, on documentation cards. Level 2 sha
 - **button-tertiary**: canvas fill, hairline border, 36px height, pill.
 - **button-danger**: `#fff4f0` fill, `#c9322a` text, `#ef4d3e` border, 36px height, pill.
 - **button-ghost**: transparent pill, no border, ink icon or label, 36px height. Hover mixes 6% ink into the background. An icon-only ghost is a 36px circle; an icon with a chevron keeps the pill and horizontal padding.
-- **card-base**: canvas was the spec for white cards; this app uses surface (`#f5f5f5`) so the card is visibly different from the white page. 16px radius, 16px padding, 1px hairline. Nested cards pad 12px.
+- **card-base**: a panel uses surface (`#f5f5f5`) so it is visibly different from the white page. 16px radius, 16px padding, 1px hairline. On the plan page only `<Box surface="panel">` and editor chrome use it; prose blocks have no card (see Card policy).
+- **data-card**: hairline frame, 12px radius, surface header strip (40px, 13.5px, title in ink 600 plus steel counts), canvas body. Rows inside split by `hairline-soft`.
+- **eyebrow**: the eyebrow type token in steel. A callout's eyebrow takes its rule color.
+- **count-pill**: 22px tall, `hairline-strong` outline, mono 11.5px, `done/total`. Beside a segmented bar of 4px segments with 3px gaps, one per item, colored by the item's state.
+- **change-tag**: mono 10.5px 600, 18px tall, 4px radius, on the tag tint. Text is NEW, MODIFY, DELETE, RENAME; a screen reader hears Added, Modified, Deleted, Renamed.
+- **cite-chip**: mono 11px on `--tag-info-bg`, for line ranges and foreign keys.
+- **health-pill**: 24px pill with a trend glyph: On track, At risk, Off track.
+- **fact-chip**: 28px outline pill with a bold number, for the plan header (`Phase 2 of 6`, `1/6 phases done`, `3 open questions`).
+- **edit-pill**: 26px outline pill with a pencil and *Edit*, shown at a block's top right while the pointer is on it and the plan can be edited. Never shown on a locked block, a touch screen, or in print.
 - **text-input**: canvas fill, hairline border, 8px radius, 36px height. Focus ring is 2px `#0094fc` and appears on `:focus-visible` with no delay.
 - **badge-success**, **badge-new**, **badge-beta** as specified, pill shaped.
 - Tabs: underline segmented tabs or black pill tabs. Plan/Workflow/Settings can be pill tabs.
@@ -127,6 +181,9 @@ Flat by default. Hairline border, no shadow, on documentation cards. Level 2 sha
 - Brand coral stays off body text, off plan cards, and off standard buttons.
 - Pill buttons only. Icons inside a button are 16px, `currentColor`, and decorative unless they are the only label.
 - DM Sans on product UI, JetBrains Mono for code. Outfit stays on marketing titles.
+- Keep prose blocks flat. Give a card only to data with its own format.
+- Show state with shape and color together, and give every tag and glyph a text name for screen readers.
+- Let a wide tree, table, or code block scroll inside its own card, never the page.
 
 ## Don't
 
@@ -135,3 +192,6 @@ Flat by default. Hairline border, no shadow, on documentation cards. Level 2 sha
 - Don't put gradient backgrounds on standard buttons or plan cards.
 - Don't introduce a second display typeface.
 - Don't use heavy shadows on cards.
+- Don't nest a card inside a card.
+- Don't wrap a phase, callout, checklist, choice, form, questions block, or approval in a card.
+- Don't put a fill behind a callout. Its rule and eyebrow carry the kind.

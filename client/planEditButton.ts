@@ -33,7 +33,8 @@ export function bindPlanEditButton(options: { state: () => EditState; open: (anc
     const state = options.state()
     if (!state.editable || state.editing) return
     // Read the place before the tab changes. The plan tab may be hidden behind Workflow or Settings.
-    const anchor = readerHeading()
+    // A key pressed with focus inside a block opens at that block.
+    const anchor = focusedBlockAnchor() ?? readerHeading()
     showPlanTab()
     options.open(anchor)
   }
@@ -156,4 +157,149 @@ function findEditorPlace(editor: Element, text: string): Element | undefined {
       ? node.value.replace(/\s+/g, ' ').trim() === text
       : headingText(node) === text,
   )
+}
+
+/* ----------------------------------------------------------------------------------------------
+ * Edit one block (ADR 0039). While the plan can be edited, the block under the pointer shows a
+ * small Edit pill at its top right. It opens the same editor as the toolbar, at that block. One
+ * button follows the pointer, so the page's blocks stay as React drew them.
+ * ------------------------------------------------------------------------------------------- */
+
+/** The plan's top-level block that holds `target`, or null outside the plan. */
+export function planBlockOf(target: EventTarget | null): HTMLElement | null {
+  const article = document.querySelector('[data-plan-rendered]')
+  if (!article || !(target instanceof Element) || !article.contains(target) || target === article) return null
+  let node: Element | null = target
+  while (node && node.parentElement !== article) node = node.parentElement
+  return node instanceof HTMLElement ? node : null
+}
+
+/** A block the plan marks `locked`, or an answer card (form, questions) that keeps its default lock. */
+export function isEditLocked(block: Element): boolean {
+  return block.matches('[data-edit-locked="true"]') || block.querySelector(':scope > [data-edit-locked="true"]') !== null
+}
+
+const BLOCK_TITLE = '.plan-step-label, .plan-title, h1, h2, h3, h4, h5, h6'
+
+/** The text the editor finds the block by: its own title or prompt, or the heading above it. */
+export function blockAnchor(block: Element): EditAnchor | null {
+  if (/^H[1-6]$/.test(block.tagName)) {
+    const text = headingText(block)
+    return text ? { text } : null
+  }
+  const label = block.querySelector('.plan-callout-label .plan-card-label-text')
+  if (label) {
+    const parts = headingText(label).split(' · ')
+    if (parts.length > 1) return { text: parts.slice(1).join(' · ') }
+  }
+  const own = block.querySelector(BLOCK_TITLE)
+  if (own) {
+    const text = headingText(own)
+    if (text) return { text }
+  }
+  for (let node = block.previousElementSibling; node; node = node.previousElementSibling) {
+    const heading = /^H[1-6]$/.test(node.tagName) ? node : node.querySelector(BLOCK_TITLE)
+    if (!heading) continue
+    const text = headingText(heading)
+    if (text) return { text }
+  }
+  return null
+}
+
+function focusedBlockAnchor(): EditAnchor | null {
+  const block = planBlockOf(document.activeElement)
+  if (!block || isEditLocked(block)) return null
+  return blockAnchor(block)
+}
+
+const PENCIL =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>'
+
+/** How long the pill waits after the pointer leaves a block, so it can be reached. */
+const HIDE_DELAY_MS = 300
+
+export function bindBlockEditButton(options: { state: () => EditState; open: (anchor: EditAnchor | null) => void }): () => void {
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.className = 'plan-block-edit'
+  button.dataset.planBlockEdit = ''
+  button.tabIndex = -1
+  button.setAttribute('aria-label', 'Edit this block')
+  button.innerHTML = `${PENCIL}<span>Edit</span>`
+  document.body.append(button)
+  let block: HTMLElement | null = null
+  let frame = 0
+  let hideTimer = 0
+
+  const hide = () => {
+    window.clearTimeout(hideTimer)
+    block = null
+    button.removeAttribute('data-visible')
+  }
+  const place = () => {
+    if (!block || !block.isConnected) return hide()
+    const rect = block.getBoundingClientRect()
+    if (rect.bottom < 0 || rect.top > window.innerHeight) return hide()
+    const width = button.offsetWidth || 64
+    const left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8))
+    button.style.top = `${Math.max(0, rect.top + window.scrollY - 13)}px`
+    button.style.left = `${left + window.scrollX}px`
+  }
+  const show = (next: HTMLElement) => {
+    window.clearTimeout(hideTimer)
+    block = next
+    button.setAttribute('data-visible', '')
+    place()
+  }
+  const usable = () => {
+    const state = options.state()
+    return state.editable && !state.editing
+  }
+  const track = (target: EventTarget | null) => {
+    if (target === button || button.contains(target as Node)) {
+      window.clearTimeout(hideTimer)
+      return
+    }
+    const next = usable() ? planBlockOf(target) : null
+    if (next && !isEditLocked(next)) {
+      if (next !== block || !button.hasAttribute('data-visible')) show(next)
+      return
+    }
+    if (!block) return
+    window.clearTimeout(hideTimer)
+    hideTimer = window.setTimeout(hide, HIDE_DELAY_MS)
+  }
+  const onPointer = (event: PointerEvent) => {
+    if (event.pointerType === 'touch') return
+    const target = event.target
+    cancelAnimationFrame(frame)
+    frame = requestAnimationFrame(() => track(target))
+  }
+  const onMove = () => {
+    if (block) place()
+  }
+  const onClick = () => {
+    const target = block
+    hide()
+    if (!target || !usable()) return
+    options.open(blockAnchor(target))
+  }
+  const onKey = (event: KeyboardEvent) => {
+    if (event.key === 'Escape') hide()
+  }
+  button.addEventListener('click', onClick)
+  document.addEventListener('pointerover', onPointer, { passive: true })
+  document.addEventListener('keydown', onKey)
+  window.addEventListener('scroll', onMove, { passive: true })
+  window.addEventListener('resize', onMove)
+  return () => {
+    cancelAnimationFrame(frame)
+    window.clearTimeout(hideTimer)
+    button.removeEventListener('click', onClick)
+    document.removeEventListener('pointerover', onPointer)
+    document.removeEventListener('keydown', onKey)
+    window.removeEventListener('scroll', onMove)
+    window.removeEventListener('resize', onMove)
+    button.remove()
+  }
 }

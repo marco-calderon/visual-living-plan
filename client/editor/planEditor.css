@@ -98,6 +98,35 @@
   border-color: var(--accent);
 }
 
+/*
+ * ADR 0039: a block that has no card on the page (a phase, a callout, a checklist) gets a lighter
+ * frame here: a hairline and no fill, so the editor reads like the document. A callout keeps its
+ * kind as the page draws it, a rule on the left. Data blocks keep the panel frame.
+ */
+.plan-editor-card.plan-entry:is([data-editor-entry='phase'], [data-editor-entry='callout'], [data-editor-entry='checklist']):not([data-locked='true']) {
+  border-color: var(--hairline);
+  background: var(--canvas);
+}
+
+.plan-editor-card.plan-entry[data-editor-entry='callout'] {
+  border-left: 2px solid var(--rule-note);
+}
+
+.plan-editor-card.plan-entry[data-editor-entry='callout'][data-kind='tip'] { border-left-color: var(--rule-tip); }
+.plan-editor-card.plan-entry[data-editor-entry='callout'][data-kind='risk'] { border-left-color: var(--rule-risk); }
+.plan-editor-card.plan-entry[data-editor-entry='callout'][data-kind='warning'] { border-left-color: var(--rule-warning); }
+.plan-editor-card.plan-entry[data-editor-entry='callout'][data-kind='decision'] { border-left-color: var(--rule-decision); }
+
+/* Data blocks and their rows use the data card radius. */
+.plan-editor-card:is([data-editor-entry='FileTree'], [data-editor-entry='Endpoint'], [data-editor-entry='DataModel'], [data-editor-entry='JsonView'], [data-editor-entry='AnnotatedCode'], [data-editor-entry='Update']) {
+  border-radius: var(--data-card-radius);
+}
+
+/* An Attr or Relation row is all fields, no body. */
+.plan-editor-card.plan-editor-row:is([data-editor-entry='Attr'], [data-editor-entry='Relation']) .plan-editor-head {
+  row-gap: 4px;
+}
+
 .plan-editor-head {
   display: flex;
   flex-wrap: wrap;

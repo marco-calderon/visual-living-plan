@@ -130,6 +130,8 @@ A plan is optional YAML frontmatter, then markdown, plus MDX components. Every i
 | `checklist` | Definition of done. `<item done="true">` shows a filled check. A line still to do shows an empty ring. This is separate from a checkbox field | No (you update `done`) |
 | `workflow` | Required. The execution path. The Workflow tab draws it before the run, and the live run follows it. Node `ref` is the plan block a click jumps to. Nodes and edges are a pipe table inside the component, optionally in a `workflow` fence | No |
 
+Document blocks show data in the prose with their own look: `<FileTree>` and `<File>` for the files a change touches, `<Endpoint>` for an API contract, `<DataModel>` for a schema, `<JsonView>` for a payload, `<AnnotatedCode>` with `<Note>` for a code walkthrough, `<Tabs>`, `<Compare>`, `<Update>` for a status note with a health level, `<Properties>`, and `<Path>` inline. They are not plan entries. Any block can carry `locked`, which keeps the human from editing it; forms and questions are locked unless `locked="false"`.
+
 `Box`, `HStack`, `VStack`, `Stack`, `Row`, and `ResponsiveStack` arrange children. `<Chip>` and `<Pill>` are short labels (`tone` is `success`, `warning`, `danger`, or `neutral`). `<Mermaid>`, `<BarChart>`, and `<LineChart>` draw figures. A mermaid fence does the same as `<Mermaid>`. `<DataTable>` pages at 100 rows. `search` and `sort` on a column are off until set. One `filter` column gets a state select. Cells can hold chips, pills, lists, checkboxes, and other plan components.
 
 Frontmatter fields the parser reads: `title`, `summary`, `agent`, `mode` (`watch` or `review`). A leading `#` heading is the title when frontmatter has none.

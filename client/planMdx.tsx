@@ -8,6 +8,8 @@ import { planSourceToMdx } from '../src/planMdx/source.ts'
 import { buildPlanToc, renderTocItemsHtml } from '../src/planToc.ts'
 import type { InteractionResponse } from '../src/types.ts'
 import { planComponents, preloadPlanComponents } from './planComponents.tsx'
+import { editLockAttr } from './entries/planEntry.ts'
+import { planHeaderInfo, type PlanHeaderInfo } from './planHeader.ts'
 import { compilePlanMdx } from '../src/planMdx/compilePlanMdx.ts'
 import { planHasDataTable } from './mdx/dataTable/detect.ts'
 import { MarkdownTable } from './mdx/MarkdownTable.tsx'
@@ -27,7 +29,7 @@ import { markChangedBlocks, readBlockSignatures, restoreScrollAnchor, scrollAnch
 import { viewingPlanVersion } from './versionView.ts'
 import { sendPlanMutation, sharedQueryClient } from './queryClient.tsx'
 import { readDraft, type PlanDraft } from './editor/draftStore.ts'
-import { bindPlanEditButton, markPlanEditButtons, scrollEditorToHeading, type EditAnchor } from './planEditButton.ts'
+import { bindBlockEditButton, bindPlanEditButton, markPlanEditButtons, scrollEditorToHeading, type EditAnchor } from './planEditButton.ts'
 
 type PlanWindow = Window & {
   __LIVE_PLAN_BASE__?: string
@@ -98,13 +100,55 @@ type TocCursor = { n: number; ids: string[] }
 
 const TocHeadingCursor = createContext<{ current: TocCursor } | null>(null)
 
+/** The plan header's eyebrow and facts (client/planHeader.ts), for the plan's first heading. */
+const PlanHeaderContext = createContext<PlanHeaderInfo | null>(null)
+
+/** The plan's first heading, with the eyebrow above it and the fact chips under it (ADR 0039). */
+function PlanTitleHeading({ id, children }: { id?: string; children?: ReactNode }) {
+  const info = useContext(PlanHeaderContext)
+  return (
+    <>
+      {info?.eyebrow ? (
+        <p className="plan-head-eyebrow" data-plan-head="">
+          {info.eyebrow}
+        </p>
+      ) : null}
+      <h1 id={id}>{children}</h1>
+      {info && info.facts.length > 0 ? (
+        <ul className="plan-head-facts" data-plan-head="" aria-label="Plan progress">
+          {info.facts.map((fact) => (
+            <li key={fact.key} className="plan-head-fact" title={fact.title}>
+              {fact.before ? `${fact.before} ` : null}
+              <b>{fact.strong}</b> {fact.text}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </>
+  )
+}
+
+/** The page's mode (watch, review, a run). The toolbar changes it without a render. */
+function useBodyMode(): string | undefined {
+  const [mode, setMode] = useState(() => document.body.dataset.planMode)
+  useEffect(() => {
+    const observer = new MutationObserver(() => setMode(document.body.dataset.planMode))
+    observer.observe(document.body, { attributes: true, attributeFilter: ['data-plan-mode'] })
+    return () => observer.disconnect()
+  }, [])
+  return mode
+}
+
 function PlanMarkdownHeading({ level, children }: { level: 1 | 2 | 3; children?: ReactNode }) {
   const cursor = useContext(TocHeadingCursor)
   let id: string | undefined
+  // The plan's opening heading: the first heading of the document, when it is a `#` heading.
+  const first = cursor ? cursor.current.n === 0 : false
   if (cursor) {
     id = cursor.current.ids[cursor.current.n]
     cursor.current.n += 1
   }
+  if (level === 1 && first) return <PlanTitleHeading id={id}>{children}</PlanTitleHeading>
   if (level === 1) return <h1 id={id}>{children}</h1>
   if (level === 2) return <h2 id={id}>{children}</h2>
   return <h3 id={id}>{children}</h3>
@@ -227,11 +271,11 @@ function sendInteraction(response: InteractionResponse) {
   void postInteraction(response)
 }
 
-function PlanChoice(props: { className?: string; id: string }) {
+function PlanChoice(props: { className?: string; id: string; locked?: unknown }) {
   const { responses, locked } = useContext(InteractionContext)
   const saved = responses[props.id]
   return (
-    <div onClick={stopBubble} onSubmit={stopBubble}>
+    <div onClick={stopBubble} onSubmit={stopBubble} data-edit-locked={editLockAttr(props.locked, false)}>
       <Choice
         {...props}
         className={blockClass(props.className)}
@@ -244,11 +288,11 @@ function PlanChoice(props: { className?: string; id: string }) {
   )
 }
 
-function PlanForm(props: { className?: string; id: string }) {
+function PlanForm(props: { className?: string; id: string; locked?: unknown }) {
   const { responses, locked } = useContext(InteractionContext)
   const saved = responses[props.id]
   return (
-    <div onClick={stopBubble} onSubmit={stopBubble}>
+    <div onClick={stopBubble} onSubmit={stopBubble} data-edit-locked={editLockAttr(props.locked, true)}>
       <Form
         {...props}
         className={blockClass(props.className)}
@@ -260,11 +304,11 @@ function PlanForm(props: { className?: string; id: string }) {
   )
 }
 
-function PlanQuestions(props: { className?: string; id: string }) {
+function PlanQuestions(props: { className?: string; id: string; locked?: unknown }) {
   const { responses, locked } = useContext(InteractionContext)
   const saved = responses[props.id]
   return (
-    <div onClick={stopBubble} onSubmit={stopBubble}>
+    <div onClick={stopBubble} onSubmit={stopBubble} data-edit-locked={editLockAttr(props.locked, true)}>
       <Questions
         {...props}
         className={blockClass(props.className)}
@@ -276,11 +320,11 @@ function PlanQuestions(props: { className?: string; id: string }) {
   )
 }
 
-function PlanApprove(props: { className?: string; id: string }) {
+function PlanApprove(props: { className?: string; id: string; locked?: unknown }) {
   const { responses, locked } = useContext(InteractionContext)
   const saved = responses[props.id]
   return (
-    <div onClick={stopBubble} onSubmit={stopBubble}>
+    <div onClick={stopBubble} onSubmit={stopBubble} data-edit-locked={editLockAttr(props.locked, false)}>
       <Approve
         {...props}
         className={blockClass(props.className)}
@@ -300,7 +344,7 @@ const interactiveComponents = {
   approve: PlanApprove,
 }
 
-function PlanPhase(props: { className?: string }) {
+function PlanPhase(props: { className?: string; locked?: unknown }) {
   return <Phase {...props} className={blockClass(props.className)} />
 }
 
@@ -407,6 +451,11 @@ function PlanMdxApp() {
   const tocCursor = useRef<TocCursor>({ n: 0, ids: [] })
   tocCursor.current.n = 0
   tocCursor.current.ids = headingIds
+  const pageMode = useBodyMode()
+  const headerInfo = useMemo(
+    () => planHeaderInfo(shownSource, new Set(Object.keys(responses)), pageMode),
+    [shownSource, responses, pageMode],
+  )
 
   useLayoutEffect(() => {
     // A saved version shows the source it was rendered with. The device copy and the stream are the live plan.
@@ -642,18 +691,20 @@ function PlanMdxApp() {
     markPlanEditButtons({ canEdit, ready: content !== null || error !== null, editable, editing: editing !== null, hasDraft })
   }, [canEdit, content, editable, editing, error, hasDraft])
 
-  useEffect(
-    () =>
-      bindPlanEditButton({
-        state: () => editState.current,
-        open: (anchor) => {
-          const draft = readDraft(planId)
-          editAnchor.current = anchor
-          setEditing({ base: draft?.base ?? editState.current.source, draft })
-        },
-      }),
-    [planId],
-  )
+  useEffect(() => {
+    const open = (anchor: EditAnchor | null) => {
+      const draft = readDraft(planId)
+      editAnchor.current = anchor
+      setEditing({ base: draft?.base ?? editState.current.source, draft })
+    }
+    const stopToolbar = bindPlanEditButton({ state: () => editState.current, open })
+    // A block's own Edit pill (ADR 0039). It opens the same editor at that block.
+    const stopBlocks = canEdit ? bindBlockEditButton({ state: () => editState.current, open }) : () => {}
+    return () => {
+      stopToolbar()
+      stopBlocks()
+    }
+  }, [planId, canEdit])
 
   // The editor saves its last keystrokes as it unmounts, after Close. Read the draft once it has.
   useEffect(() => {
@@ -682,6 +733,7 @@ function PlanMdxApp() {
   return (
     <InteractionContext.Provider value={interaction}>
     <TocHeadingCursor.Provider value={tocCursor}>
+    <PlanHeaderContext.Provider value={headerInfo}>
       {error && content && stale ? (
         <p className="lock-banner" role="status" data-plan-stale="">
           The latest update to this plan could not be shown. This is the last version that rendered. {error}
@@ -722,6 +774,7 @@ function PlanMdxApp() {
       ) : error ? null : (
         <p data-plan-rendering="">Rendering plan…</p>
       )}
+    </PlanHeaderContext.Provider>
     </TocHeadingCursor.Provider>
     </InteractionContext.Provider>
   )

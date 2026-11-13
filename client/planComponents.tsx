@@ -1,5 +1,6 @@
 import { Suspense, lazy, type ComponentProps, type ComponentType } from 'react'
 import type { BarChart } from './mdx/BarChart'
+import { docBlockComponents } from './mdx/docBlocks'
 import type { LineChart } from './mdx/LineChart'
 import type { Mermaid } from './mdx/Mermaid'
 import { Row } from './mdx/Row'
@@ -73,6 +74,7 @@ export async function preloadPlanComponents(mdx: string): Promise<void> {
  */
 export const planComponents = {
   ...uiComponents,
+  ...docBlockComponents,
   field: Field,
   Field,
   item: Item,

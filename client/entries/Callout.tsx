@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Box } from './Box'
 import { CardLabel, type CardIcon } from './CardLabel'
-import { anchorId } from './planEntry'
+import { anchorId, editLockAttr } from './planEntry'
 import { cx } from './styles'
 import { calloutKind } from './types'
 import { VStack } from './VStack'
@@ -16,18 +16,21 @@ export type CalloutProps = {
   color?: string
   children?: ReactNode
   className?: string
+  /** Edit lock (ADR 0039): the page shows no Edit pill and the editor keeps the block as written. */
+  locked?: unknown
 }
 
-export function Callout({ id, kind, title, icon, color, children, className }: CalloutProps) {
+export function Callout({ id, kind, title, icon, color, children, className, locked }: CalloutProps) {
   const normalized = calloutKind(kind)
   const label = title ? `${normalized} · ${title}` : normalized
   return (
     <Box
       as="section"
-      surface="panel"
+      surface="plain"
       className={cx('plan-entry', 'plan-callout', className)}
       id={anchorId(id)}
       data-entry="callout"
+      data-edit-locked={editLockAttr(locked)}
       data-entry-id={id}
       data-kind={normalized}
     >

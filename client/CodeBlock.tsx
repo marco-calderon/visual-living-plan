@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { File, PatchDiff, type FileContents } from '@pierre/diffs/react'
+import type { LineAnnotation } from '@pierre/diffs'
 import { codeForDisplay, patchText } from './codeForDisplay'
 import { DEFAULT_DIFFS_THEME, diffsThemePair } from '../src/diffsTheme'
 
@@ -67,12 +68,18 @@ export function appearance(wrap: boolean) {
   }
 }
 
+/** A note drawn under a line of the code. `lineNumber` counts from 1 at the fence's first line. */
+export type CodeAnnotation = { lineNumber: number; content: ReactNode }
+
 export type CodeBlockProps = {
   code: string
   language: string
   startingLineNumber?: number
   diff?: boolean
+  annotations?: CodeAnnotation[]
 }
+
+const NO_ANNOTATIONS: LineAnnotation<ReactNode>[] = []
 
 function renumber(node: HTMLElement, start: number): void {
   const root = node.shadowRoot ?? node
@@ -84,7 +91,7 @@ function renumber(node: HTMLElement, start: number): void {
   }
 }
 
-export function CodeBlock({ code, language, startingLineNumber, diff = false }: CodeBlockProps) {
+export function CodeBlock({ code, language, startingLineNumber, diff = false, annotations }: CodeBlockProps) {
   const named = language.trim()
   const theme = useDiffsThemePair()
   const wrap = useWrapCode()
@@ -112,6 +119,10 @@ export function CodeBlock({ code, language, startingLineNumber, diff = false }: 
     }),
     [startingLineNumber, theme, wrap],
   )
+  const lineAnnotations = useMemo<LineAnnotation<ReactNode>[]>(
+    () => (annotations && annotations.length > 0 ? annotations.map((note) => ({ lineNumber: note.lineNumber, metadata: note.content })) : NO_ANNOTATIONS),
+    [annotations],
+  )
   const diffOptions = useMemo(
     () => ({
       ...appearance(wrap),
@@ -128,5 +139,14 @@ export function CodeBlock({ code, language, startingLineNumber, diff = false }: 
     return <PatchDiff patch={patch} options={diffOptions} disableWorkerPool className="plan-code" />
   }
 
-  return <File file={file} options={fileOptions} disableWorkerPool className="plan-code" />
+  return (
+    <File<ReactNode>
+      file={file}
+      options={fileOptions}
+      disableWorkerPool
+      className="plan-code"
+      lineAnnotations={lineAnnotations}
+      renderAnnotation={(annotation) => annotation.metadata}
+    />
+  )
 }

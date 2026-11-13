@@ -26,6 +26,9 @@ export function stampPlanParts(root: ParentNode): void {
   let counts = freshCounts()
   for (const child of [...article.children]) {
     if (!(child instanceof HTMLElement)) continue
+    // The plan header's eyebrow and facts (ADR 0039) are page chrome, not plan text: the server's
+    // static targets do not have them, so they must not move the paragraph and list counts.
+    if (child.matches('[data-plan-head]')) continue
     if (child.matches('[data-entry]') || child.querySelector(':scope > [data-entry]')) {
       if (inProse) proseIndex += 1
       inProse = false

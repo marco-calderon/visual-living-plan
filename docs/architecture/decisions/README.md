@@ -43,4 +43,6 @@ Decisions are numbered in the order they were made. Superseded decisions stay he
 | [0037](0037-plans-open-in-the-desktop-app.md) | 2026-11-11 | Accepted; hosted pages and in-window links added by 0038 | A plan opens in the desktop app through `living-plan://plans/<id>` when it is installed; otherwise the browser, where the installed web app claims the link |
 | [0038](0038-desktop-setup-and-cloud.md) | 2026-11-11 | Accepted | The desktop app has a setup screen, opens local or hosted plans, installs the CLI and the agent skill, and uses the page toolbar as its title bar on macOS; pages reach it through `living-plan://` links, not an API |
 
-Add the next decision as `0039-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.
+| [0039](0039-document-first-page.md) | 2026-11-13 | Accepted | The plan page reads as a document: prose blocks have no card, data views (file tree, endpoint, data model, JSON, annotated code) are their own blocks, any block can carry `locked`, and each block opens the editor from its own Edit |
+
+Add the next decision as `0040-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.

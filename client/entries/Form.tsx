@@ -198,7 +198,7 @@ export function Form({ id, prompt, fields, values, locked, lockedState, children
   return (
     <Box
       as="section"
-      surface="panel"
+      surface="plain"
       className={cx('plan-entry', 'plan-form', immediate && 'plan-form-immediate', className)}
       id={anchorId(id)}
       data-entry="form"

@@ -52,6 +52,28 @@ const EMBED_NAMES = new Set([
   'Pill',
   'pill',
   'Checkbox',
+  // Document blocks (ADR 0039, client/mdx/docBlocks.tsx). Their text joins the outline as markdown.
+  'FileTree',
+  'File',
+  'Endpoint',
+  'Param',
+  'Request',
+  'Response',
+  'DataModel',
+  'Entity',
+  'Attr',
+  'Relation',
+  'JsonView',
+  'AnnotatedCode',
+  'Note',
+  'Tabs',
+  'Tab',
+  'Compare',
+  'Pane',
+  'Update',
+  'Properties',
+  'Prop',
+  'Path',
 ])
 
 const KNOWN = new Set([...ENTRY_NAMES, ...LAYOUT_NAMES, ...EMBED_NAMES])
@@ -400,7 +422,9 @@ function checklistItems(node: ElementNode): ChecklistItem[] {
     if (child.name !== 'item') return
     const text = textOf(child.children).trim()
     if (!text) return
-    items.push({ text, done: child.attrs.done === true || child.attrs.done === 'true' })
+    const status = str(child.attrs.status).toLowerCase()
+    const done = status ? status === 'done' : child.attrs.done === true || child.attrs.done === 'true'
+    items.push({ text, done, ...(status ? { status } : {}) })
   })
   return items
 }

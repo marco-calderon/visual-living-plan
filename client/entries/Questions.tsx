@@ -56,7 +56,7 @@ export function Questions({ id, prompt, items, answers, locked, lockedState, chi
   return (
     <Box
       as="section"
-      surface="panel"
+      surface="plain"
       className={cx('plan-entry', 'plan-questions', className)}
       id={anchorId(id)}
       data-entry="questions"

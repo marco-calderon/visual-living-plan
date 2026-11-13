@@ -56,7 +56,7 @@ export function Approve({ id, prompt, children, note, approved, locked, lockedSt
   return (
     <Box
       as="section"
-      surface="panel"
+      surface="plain"
       className={cx('plan-entry', 'plan-approve', className)}
       id={anchorId(id)}
       data-entry="approve"

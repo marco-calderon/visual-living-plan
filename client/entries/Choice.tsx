@@ -71,7 +71,7 @@ export function Choice({
   return (
     <Box
       as="section"
-      surface="panel"
+      surface="plain"
       className={cx('plan-entry', 'plan-choice', className)}
       id={anchorId(id)}
       data-entry="choice"
