@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { applyBlockEdit, applyCellEdit, blockEditorText, cellEditorText, cellMarkdown, samePlanSource } from '../src/planMdx/blockEdit.ts'
 import { compilePlanMdx } from '../src/planMdx/compilePlanMdx.ts'
-import { blockText, insertBlockAfter, mdxBodyOffset, parseBlockRange, parseCellRange, spliceBlock } from '../src/planMdx/remarkBlockRanges.ts'
+import { blockText, insertBlockAfter, mdxBodyOffset, moveBlock, parseBlockRange, parseCellRange, spliceBlock } from '../src/planMdx/remarkBlockRanges.ts'
 import { planSourceToMdx } from '../src/planMdx/source.ts'
 
 const plan = `---
@@ -129,6 +129,57 @@ test('splice and insert work on raw ranges too', () => {
   assert.equal(spliceBlock(source, two, 'Deux.'), '---\na: 1\n---\n\nOne.\n\nDeux.\n')
   assert.equal(insertBlockAfter(source, { start: 0, end: 4 }, 'Half.'), '---\na: 1\n---\n\nOne.\n\nHalf.\n\nTwo.\n')
   assert.equal(samePlanSource('a\n', 'a\n\n'), true)
+})
+
+/** Moves the block that starts with `moved` before or after the one that starts with `target`, and checks the page still finds it. */
+async function move(source: string, moved: string, place: 'before' | 'after', target: string): Promise<string> {
+  const result = moveBlock(source, await rangeOf(source, moved), await rangeOf(source, target), place)
+  assert.ok(result)
+  assert.ok(blockText(result.source, result.range).startsWith(moved))
+  // The page stamps the moved block with the range the move returned, so it can keep pointing at it.
+  const found = (await ranges(result.source)).find((entry) => entry.text.startsWith(moved))
+  assert.deepEqual(found?.range, result.range)
+  return result.source
+}
+
+test('a block moves down or up as written, and every other byte stays', async () => {
+  const down = await move(plan, 'Ship the limiter', 'after', '<choice')
+  assert.equal(
+    down,
+    plan.replace('Ship the limiter behind a flag.\n\n', '').replace('</choice>\n', '</choice>\n\nShip the limiter behind a flag.\n'),
+  )
+  const up = await move(down, 'Ship the limiter', 'before', '<phase id="build"')
+  assert.equal(up, plan)
+  // The title can move too.
+  const title = await move(plan, '# Rollout', 'after', 'Ship the limiter')
+  assert.match(title, /---\n\nShip the limiter behind a flag\.\n\n# Rollout\n\n<phase/)
+})
+
+test('a block moves out of a phase, into one, and between the blocks in it', async () => {
+  const out = await move(plan, '<callout', 'after', '<phase id="build"')
+  assert.match(out, /First line of the phase\.\n<\/phase>\n\n<callout kind="risk" title="Redis">\nRedis can go away\.\n<\/callout>\n\n<choice/)
+  const back = await move(out, '<callout', 'after', 'First line of the phase.')
+  assert.equal(back, plan)
+  const swapped = await move(plan, '<callout', 'before', 'First line of the phase.')
+  assert.match(swapped, /status="active">\n<callout[\s\S]*<\/callout>\n\nFirst line of the phase\.\n<\/phase>/)
+  const into = await move(plan, 'Ship the limiter', 'before', 'First line of the phase.')
+  assert.match(into, /# Rollout\n\n<phase id="build" title="Build it" status="active">\nShip the limiter behind a flag\.\n\nFirst line/)
+  for (const source of [out, swapped, into]) await compilePlanMdx(planSourceToMdx(source))
+})
+
+test('the last block moves to the top, and a move to where the block is changes nothing', async () => {
+  const top = await move(plan, '<workflow', 'before', '# Rollout')
+  assert.match(top, /---\n\n<workflow id="flow"[\s\S]*<\/workflow>\n\n# Rollout/)
+  assert.match(top, /<\/choice>\n$/)
+  assert.equal(await move(plan, 'Ship the limiter', 'before', '<phase id="build"'), plan)
+  assert.equal(await move(plan, 'Ship the limiter', 'after', '# Rollout'), plan)
+})
+
+test('a block cannot move inside itself', async () => {
+  const phase = await rangeOf(plan, '<phase id="build"')
+  const line = await rangeOf(plan, 'First line of the phase.')
+  assert.equal(moveBlock(plan, phase, line, 'after'), null)
+  assert.equal(moveBlock(plan, phase, line, 'before'), null)
 })
 
 const table = `---

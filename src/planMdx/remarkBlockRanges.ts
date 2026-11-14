@@ -143,6 +143,63 @@ export function insertBlockAfter(source: string, range: { start: number; end: nu
   return `${source.slice(0, at)}\n\n${next}${source.slice(at)}`
 }
 
+/** Where a moved block goes: before or after another block. */
+export type BlockPlace = 'before' | 'after'
+
+/**
+ * Cut the text between `from` and `to` (absolute offsets) out of a plan file with one of the
+ * separators beside it: the one after it when another block follows, else the one before it, so
+ * a closing tag or the end of the file keeps its own line.
+ */
+function cutBlock(source: string, from: number, to: number): { source: string; start: number; end: number } {
+  const after = source.slice(to)
+  const trailing = /^\s*\n/.exec(after)?.[0] ?? ''
+  const rest = after.slice(trailing.length).trimStart()
+  if (trailing && rest && !rest.startsWith('</')) {
+    return { source: `${source.slice(0, from)}${after.slice(trailing.length)}`, start: from, end: to + trailing.length }
+  }
+  const before = source.slice(0, from)
+  const leading = /\s*$/.exec(before)?.[0] ?? ''
+  const start = from - leading.length
+  return { source: `${source.slice(0, start)}${after}`, start, end: to }
+}
+
+/**
+ * The plan file with the block at `moved` put before or after the block at `target` (both ranges
+ * in the compiled MDX, as `data-plan-block` has them). The block's text moves as written and every
+ * other byte stays. `range` is the moved block's place in the new file. Null when the move would
+ * put the block inside itself.
+ */
+export function moveBlock(
+  source: string,
+  moved: { start: number; end: number },
+  target: { start: number; end: number },
+  place: BlockPlace,
+): { source: string; range: { start: number; end: number } } | null {
+  const offset = mdxBodyOffset(source)
+  const from = offset + moved.start
+  const to = offset + moved.end
+  const at = offset + (place === 'before' ? target.start : target.end)
+  if (at > from && at < to) return null
+  const text = source.slice(from, to)
+  const insert = place === 'before' ? `${text}\n\n` : `\n\n${text}`
+  const lead = place === 'before' ? 0 : 2
+  let next: string
+  let start: number
+  if (at >= to) {
+    // Put it in first: the cut before it then shifts it by what it took.
+    const cut = cutBlock(`${source.slice(0, at)}${insert}${source.slice(at)}`, from, to)
+    next = cut.source
+    start = at + lead - (cut.end - cut.start)
+  } else {
+    const cut = cutBlock(source, from, to)
+    next = `${cut.source.slice(0, at)}${insert}${cut.source.slice(at)}`
+    start = at + lead
+  }
+  const body = mdxBodyOffset(next)
+  return { source: next, range: { start: start - body, end: start - body + text.length } }
+}
+
 /** A block's text in the plan file. */
 export function blockText(source: string, range: { start: number; end: number }): string {
   const offset = mdxBodyOffset(source)

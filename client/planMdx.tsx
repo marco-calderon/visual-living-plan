@@ -33,7 +33,8 @@ import { clearDraft, isLegacyDraft, readDraft, writeDraft, type PlanDraft } from
 import { planNotReadyReason } from '../src/planReady.ts'
 import type { DraftConflict, DraftSide } from '../src/planMdx/rebaseDraft.ts'
 import { bindBlockEditButton, type BlockEditBinding, type EditCaret, type EditHow } from './planEditButton.ts'
-import { CELL_RANGE_ATTR, parseBlockRange, parseCellRange } from '../src/planMdx/remarkBlockRanges.ts'
+import { bindBlockMove, type BlockMoveBinding, type BlockMoved } from './planBlockMove.ts'
+import { CELL_RANGE_ATTR, moveBlock, parseBlockRange, parseCellRange, type BlockPlace } from '../src/planMdx/remarkBlockRanges.ts'
 import { Button } from './ui/button.tsx'
 import type { BlockTarget } from './editor/BlockEditor.tsx'
 
@@ -941,6 +942,11 @@ function PlanMdxApp() {
   editState.current = { editable, editing: openEdit !== null }
   const pageSourceRef = useRef(pageSource)
   pageSourceRef.current = pageSource
+  const shownSourceRef = useRef(shownSource)
+  shownSourceRef.current = shownSource
+  const draftRef = useRef(draft)
+  draftRef.current = draft
+  const moveBinding = useRef<BlockMoveBinding | null>(null)
   const [applying, setApplying] = useState(false)
   const [applyError, setApplyError] = useState<string | null>(null)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
@@ -968,12 +974,30 @@ function PlanMdxApp() {
       cell: (range, caret) => open({ kind: 'cell', range }, { caret }),
     })
     editBinding.current = binding
+    // Every block moves where it reads: its grip drags it, or opens Move up and Move down.
+    const mover = bindBlockMove({
+      state: () => editState.current,
+      move: (range, target, place) => moveRef.current(range, target, place),
+    })
+    moveBinding.current = mover
     return () => {
       document.removeEventListener('pointerover', warm)
       editBinding.current = null
+      moveBinding.current = null
       binding.stop()
+      mover.stop()
     }
   }, [canEdit])
+
+  // An editor opened, or the plan stopped being editable: the move grip goes.
+  useEffect(() => {
+    moveBinding.current?.refresh()
+  }, [editable, openEdit])
+
+  // A move waits for the page to draw it, so the grip follows the block and the next move has the new places.
+  useEffect(() => {
+    if (content) moveBinding.current?.rendered(shownSource)
+  }, [content, shownSource])
 
   // A click on other text finished the editor that was open. That text opens once the page shows the edit.
   const hadEdit = useRef(false)
@@ -1045,27 +1069,54 @@ function PlanMdxApp() {
     }
   }, [canEdit, draft, openEdit, rebasing, boot.source, planId])
 
+  /** Keep `next` as one more unapplied change on top of `base`, or drop the changes when `next` is `base` again. */
+  function keepChange(next: string, base: string, current: PlanDraft | null) {
+    const kept: PlanDraft | null = samePlanSource(next, base)
+      ? null
+      : { base, source: next, edits: (current?.edits ?? 0) + 1, savedAt: Date.now() }
+    if (kept) setDraftKept(writeDraft(planId, kept))
+    else clearDraft(planId)
+    setDraft(kept)
+    setApplyError(null)
+    setConfirmDiscard(false)
+    setRebased(false)
+  }
+
   const editSlot = useMemo<EditSlot | null>(() => {
     if (!openEdit) return null
     return {
       open: openEdit,
       cancel: () => setOpenEdit((current) => (current?.id === openEdit.id ? null : current)),
       commit: async (next) => {
-        const base = draft?.base ?? openEdit.source
-        const kept: PlanDraft | null = samePlanSource(next, base)
-          ? null
-          : { base, source: next, edits: (draft?.edits ?? 0) + 1, savedAt: Date.now() }
-        if (kept) setDraftKept(writeDraft(planId, kept))
-        else clearDraft(planId)
-        setDraft(kept)
-        setApplyError(null)
-        setConfirmDiscard(false)
-        setRebased(false)
+        keepChange(next, draft?.base ?? openEdit.source, draft)
         setOpenEdit((current) => (current?.id === openEdit.id ? { ...current, committed: next } : current))
         return null
       },
     }
   }, [openEdit, draft, planId])
+
+  // A block moved by its grip (client/planBlockMove.ts) is one more unapplied change, like an edit's Done.
+  const moveRef = useRef<(range: string, target: string, place: BlockPlace) => Promise<BlockMoved | null>>(async () => null)
+  moveRef.current = async (rangeText, targetText, place) => {
+    const range = parseBlockRange(rangeText)
+    const target = parseBlockRange(targetText)
+    const from = pageSourceRef.current
+    // The blocks on screen carry places in the file the page shows. A newer file that has not rendered has other places.
+    if (!range || !target || from !== shownSourceRef.current) return null
+    const result = moveBlock(from, range, target, place)
+    if (!result || samePlanSource(result.source, from)) return null
+    try {
+      // The page compiles the same text next, from the same cache.
+      await compileMdx(planSourceToMdx(result.source))
+    } catch {
+      window.showPlanToast?.('That move would leave the plan unable to render, so the block stayed where it was.', 'error')
+      return null
+    }
+    // The plan changed while the move was checked, so its places are not this file's any more.
+    if (pageSourceRef.current !== from) return null
+    keepChange(result.source, draftRef.current?.base ?? from, draftRef.current)
+    return { range: `${result.range.start}-${result.range.end}`, source: result.source }
+  }
 
   async function applyChanges() {
     if (!draft || applying || draft.rebase) return

@@ -67,8 +67,20 @@ Added the next day (2.27.0).
 - The pill no longer hides when the pointer goes to it and back onto its block: coming back cancels the hide that leaving started.
 - Ctrl or Cmd+Enter is caught before the editor sees it; it used to split the line at the caret before Done read the text.
 
+### Every block moves where it reads
+
+Added in 2.27.2. The whole-page editor had a grip on every block. Once each block opened its own editor, a grip was left only inside an open editor, so on the page nothing could be reordered.
+
+- `bindBlockMove` (`client/planBlockMove.ts`) shows a grip left of the block under the pointer, with focus, or tapped: text, cards, choices, forms, endpoints, diagrams, code, tables, layout, phases, and the blocks inside a phase. These are exactly the blocks `remarkBlockRanges` stamps. A phase's rail and the gutter left of its blocks belong to the block level with the pointer, so the pointer can go left to that block's grip.
+- The grip fits the 20px between the docked contents list and the plan column. On a narrow screen it sits over the block's top-left corner, as the pill sits over its top-right one.
+- Dragging the grip draws a line where the block will go: between the top-level blocks, or between the blocks of a phase, as wide as that level. A phase goes only between top-level blocks. Near the top or bottom of the window the page scrolls. Escape cancels.
+- A click or a tap on the grip opens Move up and Move down, which stay open on the block after it moves. Alt+Up and Alt+Down move the block with focus (or the block of the focused grip).
+- `moveBlock` (`src/planMdx/remarkBlockRanges.ts`) cuts the block's text with one separator beside it and puts it before or after the target block, as written. Every other byte stays, and moving a block back where it was gives the file back. The result must compile before it is kept. A move is one more unapplied change, like Done, and Apply changes publishes it.
+- Blocks a component draws inside itself (a file tree's rows, a choice's options, an endpoint's fields, a diagram's nodes, a tab's panel) are not blocks of the plan and keep their order; that component's editor changes them. Blocks inside a locked block keep their order too, and nothing is dropped into one. The locked block itself moves, as a locked card does in the editor.
+- The grip is gone while an editor is open, in comment mode, and while the page merges an agent write.
+
 ## Consequences
 
 - Reading and editing are the same page. Nothing jumps when a block opens, and the blocks around it stay rendered.
 - An edit touches only its block's bytes in the file, so the agent's formatting survives.
-- The e2e specs drive the block pill (`e2e/block-edit.spec.ts`) and text and cells edited where they read (`e2e/inline-edit.spec.ts`); the checklist and dark-text specs open a block's editor instead of the toolbar's.
+- The e2e specs drive the block pill (`e2e/block-edit.spec.ts`), text and cells edited where they read (`e2e/inline-edit.spec.ts`), and the move grip (`e2e/block-move.spec.ts`); the checklist and dark-text specs open a block's editor instead of the toolbar's.
