@@ -143,6 +143,15 @@ export function directEditOf(target: EventTarget | null): DirectEdit | null {
   return null
 }
 
+/**
+ * True while a click picks a part to comment on. The comment toggle marks the page at once
+ * (`html[data-comments]`, client/PlanSelector.tsx); the session's mode follows after the service
+ * answers, and in review it stays `review`. This page hears clicks before the comment picker does.
+ */
+export function commenting(): boolean {
+  return document.documentElement.dataset.comments === 'on' || document.body.dataset.planMode === 'comment'
+}
+
 /** True while the reader has text selected: a drag over text selects it rather than editing it. */
 function selecting(): boolean {
   const selection = window.getSelection()
@@ -283,7 +292,7 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
   const usable = () => {
     const state = options.state()
     // In comment mode a click picks a part to comment on, so the pill stays away.
-    return state.editable && !state.editing && document.body.dataset.planMode !== 'comment'
+    return state.editable && !state.editing && !commenting()
   }
   const track = (target: EventTarget | null) => {
     if (target instanceof Node && tools.contains(target)) {
@@ -389,7 +398,7 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
   let queued: { direct: DirectEdit; caret: EditCaret | undefined; text: string; at: number } | null = null
   const queue = (event: MouseEvent): boolean => {
     const state = options.state()
-    if (!state.editable || !state.editing || document.body.dataset.planMode === 'comment') return false
+    if (!state.editable || !state.editing || commenting()) return false
     const direct = directEditOf(event.target)
     if (direct) queued = { direct, caret: caretFor(direct, event.clientX, event.clientY), text: direct.element.textContent ?? '', at: Date.now() }
     return true
@@ -405,7 +414,7 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
   const onClick = (event: MouseEvent) => {
     if (!plainPress(event) || event.defaultPrevented) return
     const state = options.state()
-    const direct = state.editable && document.body.dataset.planMode !== 'comment' ? directEditOf(event.target) : null
+    const direct = state.editable && !commenting() ? directEditOf(event.target) : null
     // A title's click is its own while the plan can be edited: the link it sits in (a phase's, to the
     // workflow) does not follow, even when the click finishes another edit first.
     if (direct?.kind === 'title') event.preventDefault()

@@ -531,8 +531,8 @@ a.plan-step-label:hover {
 
 /* A card's title, where the plan can be edited, reads as text to click into (ADR 0040). The step
  * number still jumps to the workflow. */
-body[data-plan-editable="true"] [data-plan-title]:not([data-edit-locked="true"] [data-plan-title]) { cursor: text; }
-body[data-plan-editable="true"] a.plan-step-label:hover { text-decoration: none; }
+html:not([data-comments="on"]) body[data-plan-editable="true"]:not([data-plan-mode="comment"]) [data-plan-title]:not([data-edit-locked="true"] [data-plan-title]) { cursor: text; }
+html:not([data-comments="on"]) body[data-plan-editable="true"]:not([data-plan-mode="comment"]) a.plan-step-label:hover { text-decoration: none; }
 
 /* A title being edited where it reads (client/titleEdit.ts): the faint wash text has in its
  * editor (client/editor/planEditor.css), and no ring. The wash spreads past the text, so it does not move. */
