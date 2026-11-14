@@ -94,6 +94,11 @@
   background: var(--canvas);
 }
 
+/* Framed rows (a choice's options, a form's fields, a list's items) sit apart, as options do on the page. */
+.plan-editor-body [contenteditable] > * + * > .plan-editor-card.plan-editor-row:is([data-editor-entry='plan-option'], [data-editor-entry='field'], [data-editor-entry='item']) {
+  margin-top: var(--space-xs);
+}
+
 .plan-editor-card[data-status='active'] {
   border-color: var(--accent);
 }
