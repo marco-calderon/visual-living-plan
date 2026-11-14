@@ -54,8 +54,21 @@ Added the same day ([#191](https://github.com/marco-calderon/visual-living-plan/
 - A 409 on Apply reads the live plan again, so the merge runs.
 - A move the person made counts as a remove plus an add, so a move of a block the agent also changed is a conflict. Blocks inside an indented container merge as one block.
 
+### Text is edited as it reads
+
+Added the next day (2.27.0).
+
+- Text (a paragraph, a heading, a list, a quote, top-level or in a phase) shows no pill. A click on it opens its editor in place with the caret where the click landed (`client/caretSpot.ts` counts characters on the page and puts the caret at the same count in the editor). A link, a checkbox, or a drag that selects text keeps its own click.
+- The editor opens `inline` (`data-inline` on `.plan-block-editor`): no frame, no bar, the page's font and the block's own margins (collapsed with its first and last child's), and no empty line after a heading, a list, or a quote unless the caret is on it. Text in it sits where the text sat, and the blocks under it do not move.
+- A press outside it, a Tab out of it, Ctrl or Cmd+Enter, or Escape keeps the edit; Escape with nothing typed closes it. A finger keeps it at a tap, since its press may start a scroll. A press on other text keeps the open edit, then opens that text with the caret where it was pressed. Emptying the text removes the block. The bar appears only when the edit does not render, so there is a way back.
+- `remarkBlockRanges` also stamps each pipe table cell with `data-plan-cell-range`, the place of its text (an empty cell's is where its text would go). A click on a cell opens an editor in that cell; Enter keeps it, and `applyCellEdit` (`src/planMdx/blockEdit.ts`) writes only that cell's text, on one line, with its pipes escaped.
+- A click on a cell of a `<DataTable>` that is a block of its own opens the table's editor with the caret in that cell. The row is found by its id (`row-3` is the third `<Row>`), whatever the sort.
+- The pill stays on everything that is more than text: cards, choices, forms, endpoints, data models, diagrams, code, layout, and tables (for their rows and columns). Text in a phase shows the phase's pill. E edits the block under the pointer or with focus, text included.
+- The pill no longer hides when the pointer goes to it and back onto its block: coming back cancels the hide that leaving started.
+- Ctrl or Cmd+Enter is caught before the editor sees it; it used to split the line at the caret before Done read the text.
+
 ## Consequences
 
 - Reading and editing are the same page. Nothing jumps when a block opens, and the blocks around it stay rendered.
 - An edit touches only its block's bytes in the file, so the agent's formatting survives.
-- The e2e specs drive the block pill (`e2e/block-edit.spec.ts`), and the checklist and dark-text specs open a block's editor instead of the toolbar's.
+- The e2e specs drive the block pill (`e2e/block-edit.spec.ts`) and text and cells edited where they read (`e2e/inline-edit.spec.ts`); the checklist and dark-text specs open a block's editor instead of the toolbar's.

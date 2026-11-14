@@ -40,7 +40,8 @@ test('pipe tables compile to tables and keep inline markdown in cells', async ()
   const Content = loaded.default as (props: { components: { table: typeof MarkdownTable } }) => ReactElement
   const html = renderToStaticMarkup(createElement(Content, { components: { table: MarkdownTable } }))
   assert.match(html, /class="rich-table"/)
-  assert.match(html, /<th>Name<\/th>/)
+  // A cell carries the place of its text (data-plan-cell-range), so a click edits it where it is.
+  assert.match(html, /<th data-plan-cell-range="\d+-\d+">Name<\/th>/)
   assert.match(html, /text-align:right/)
   assert.match(html, /text-align:center/)
   assert.match(html, /<strong>Ada<\/strong>/)
@@ -82,9 +83,9 @@ test('pipe tables inside a phase and a callout stay tables', async () => {
       components: { table: MarkdownTable, phase: Passthrough, callout: Passthrough, workflow: Passthrough },
     }),
   )
-  assert.match(html, /<th>Status<\/th><th>Meaning<\/th>/)
+  assert.match(html, /<th[^>]*>Status<\/th><th[^>]*>Meaning<\/th>/)
   assert.match(html, /<code>PENDING<\/code>/)
-  assert.match(html, /<th>Column<\/th><th>Purpose<\/th>/)
+  assert.match(html, /<th[^>]*>Column<\/th><th[^>]*>Purpose<\/th>/)
   assert.match(html, /<code>google_ads_operation_id<\/code>/)
   assert.match(html, /<th>Producer<\/th><th>When<\/th>/)
   assert.equal(html.match(/class="rich-table"/g)?.length, 3)
