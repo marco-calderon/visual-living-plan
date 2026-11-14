@@ -1,5 +1,30 @@
 # Changelog — 2026-11-14
 
+## 2.27.1
+
+**PR:** not opened yet
+
+**Bump:** patch
+
+### Summary
+
+Every block on a plan page can be reordered again, without opening an editor: drag the grip beside it, or click the grip for Move up and Move down.
+
+### Bugs fixed
+
+- Since 2.26.0 blocks could be reordered only inside an open block's editor, so most of the page could not be reordered. Text, cards, choices, forms, endpoints, diagrams, code, tables, layout blocks, phases, and the blocks inside a phase now each show a grip on the left.
+
+### Improvements
+
+- Drag a grip to move the block before or after another one, at the top level or inside a phase. A line shows where it will go, and the page scrolls near the window's edges. Escape cancels.
+- Click or tap a grip for Move up and Move down; the menu stays open on the block as it moves. Alt+Up and Alt+Down move the block with focus.
+- A move is kept on this device with your other unapplied changes, and Apply changes saves it. Only the moved block's place in the file changes, and moving it back leaves nothing to apply.
+- The parts of a component (a file tree's rows, a choice's options, a diagram's nodes) keep their order on the page; edit the component to change them. Blocks inside a locked block keep their order too. A locked block itself can move.
+
+### Notes
+
+No registry restart needed.
+
 ## 2.27.0
 
 **PR:** [#193](https://github.com/marco-calderon/visual-living-plan/pull/193)

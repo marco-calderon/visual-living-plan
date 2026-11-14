@@ -2013,6 +2013,117 @@ body:not([data-plan-editable="true"]) .plan-block-tools { display: none; }
   .plan-block-tools { transition: none; }
 }
 
+/* Move a block (client/planBlockMove.ts): a grip left of the block under the pointer, with focus, or
+ * tapped. Drag it to another place, or click it for Move up and Move down. */
+.plan-block-move {
+  position: absolute;
+  z-index: 30;
+  top: 0;
+  left: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* GRIP_WIDTH in client/planBlockMove.ts: it fits the 20px between the docked contents and the plan. */
+  width: 16px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: grab;
+  /* A drag on the grip moves the block; it does not scroll the page. */
+  touch-action: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms var(--ease-out);
+}
+
+.plan-block-move[data-visible] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.plan-block-move:hover,
+.plan-block-move[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  color: var(--ink);
+}
+
+.plan-block-move:active,
+body[data-plan-block-moving],
+body[data-plan-block-moving] * { cursor: grabbing; }
+
+body[data-plan-block-moving] { user-select: none; }
+
+.plan-block-move:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.plan-block-move svg { width: 16px; height: 16px; }
+
+.plan-block-move-menu {
+  position: absolute;
+  z-index: 31;
+  display: flex;
+  flex-direction: column;
+  min-width: 148px;
+  padding: 4px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 10px;
+  background: var(--canvas);
+  box-shadow: var(--shadow);
+}
+
+.plan-block-move-menu[hidden] { display: none; }
+
+.plan-block-move-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+}
+
+.plan-block-move-menu button svg { width: 14px; height: 14px; }
+
+.plan-block-move-menu button:hover:not(:disabled),
+.plan-block-move-menu button:focus-visible {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  outline: none;
+}
+
+.plan-block-move-menu button:disabled { color: var(--muted); cursor: default; }
+
+/* Where the dragged block will go: as wide as the level it goes into, the top level or a phase. */
+.plan-block-move-line {
+  position: absolute;
+  z-index: 29;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.plan-block-move-line[hidden] { display: none; }
+
+[data-plan-moving] { opacity: 0.4; }
+
+body:not([data-plan-editable="true"]) :is(.plan-block-move, .plan-block-move-menu, .plan-block-move-line) { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-block-move { transition: none; }
+}
+
 /* Add a block, after the plan's last block. */
 .plan-add-block {
   display: flex;
