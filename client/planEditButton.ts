@@ -1,8 +1,9 @@
 /* ----------------------------------------------------------------------------------------------
  * Edit a block where it sits (ADR 0040). The page is both the reader and the editor: while the
- * plan can be edited, a click on text (a paragraph, a heading, a list, a quote, a table cell) puts
- * the caret there and the text is edited as it reads. A block that is more than text (a card, a
- * choice, an endpoint, a diagram, code, a table) shows a small pill with Edit and + while it is
+ * plan can be edited, a click on text (a paragraph, a heading, a list, a quote, a table cell, the
+ * text inside a card, or a card's title) puts the caret there and the text is edited as it reads.
+ * A block that is more than text (a card, a choice, an endpoint, a diagram, code, a table) shows
+ * a small pill with Edit and + while it is
  * under the pointer, has focus, or is tapped. Edit opens that block's editor in its place; + opens
  * a new block below it. E edits the block under the pointer or with focus, or the one at the
  * reading line. One pill follows the pointer, so the page's blocks stay as React drew them.
@@ -34,6 +35,8 @@ export type BlockEditActions = {
   add: (after: string) => void
   /** Edit one cell of a pipe table where it is (its `data-plan-cell-range`). */
   cell: (range: string, caret?: EditCaret) => void
+  /** Edit a card's title where it reads: `element` is its text, `attr` the attribute it comes from, `block` the card's range. */
+  title: (element: HTMLElement, block: string, attr: string, caret?: EditCaret) => void
 }
 
 /** What `bindBlockEditButton` returns: stop listening, and tell it the open editor closed. */
@@ -83,14 +86,46 @@ export function isEditLocked(block: Element): boolean {
 const OWN_CLICK =
   'a[href], button, input, select, textarea, label, summary, [contenteditable="true"], [role="button"], [role="link"], [role="checkbox"], [role="radio"], [role="switch"], [role="tab"], [role="menuitem"], [role="option"]'
 
-/** What a click on `target` edits where it is: text, a pipe table's cell, or a data table's cell. */
+/** What a click on `target` edits where it is: text, a card's title, a pipe table's cell, or a data table's cell. */
 export type DirectEdit =
   | { kind: 'text'; element: HTMLElement }
+  | { kind: 'title'; element: HTMLElement; block: HTMLElement; attr: string }
   | { kind: 'cell'; element: HTMLElement }
   | { kind: 'grid'; element: HTMLElement; block: HTMLElement; row: number; column: number }
 
+/** The card a title belongs to: a plan entry, or the workflow. */
+const TITLE_OWNER = '[data-entry], .vlp-workflow'
+
+/**
+ * A card's title under `target` (its text carries `data-plan-title`, the attribute it comes from),
+ * when the card has its own place in the file: the card is that block, or the one thing inside it.
+ * A card drawn inside another block without a place of its own is edited with that block.
+ */
+function titleEditOf(target: Element, root: HTMLElement): DirectEdit | null {
+  const title = target.closest<HTMLElement>('[data-plan-title]')
+  if (!title || !root.contains(title) || title.closest('[data-plan-block-editor]')) return null
+  // The title's own link (a phase's, to the workflow) gives way to editing; a control inside a title keeps its click.
+  const own = target.closest(OWN_CLICK)
+  if (own && title.contains(own) && own !== title) return null
+  const attr = title.dataset.planTitle
+  const block = title.closest<HTMLElement>('[data-plan-block]')
+  const owner = title.closest<HTMLElement>(TITLE_OWNER)
+  if (!attr || !block || !owner || !root.contains(block)) return null
+  if (owner !== block && owner.parentElement !== block && owner.parentElement?.parentElement !== block) return null
+  if (isEditLocked(title) || isEditLocked(block) || !(title.textContent ?? '').trim()) return null
+  return { kind: 'title', element: title, block, attr }
+}
+
 export function directEditOf(target: EventTarget | null): DirectEdit | null {
-  if (!(target instanceof Element) || target.closest(OWN_CLICK)) return null
+  if (!(target instanceof Element)) return null
+  const root = article()
+  if (!root || !root.contains(target) || target.closest('[data-plan-block-editor], [data-plan-title-editing]')) return null
+  const title = titleEditOf(target, root)
+  if (title) return title
+  if (target.closest('[data-plan-title]') || target.closest(OWN_CLICK)) return null
+  // Text a card draws inside itself (a callout's paragraph, a tab's list) has the place of its text.
+  const text = target.closest<HTMLElement>('[data-plan-text]')
+  if (text && root.contains(text)) return isEditLocked(text) ? null : { kind: 'text', element: text }
   const block = editTargetOf(target)
   if (!block || isEditLocked(block)) return null
   if (isTextBlock(block)) return { kind: 'text', element: block }
@@ -211,6 +246,8 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
   let block: HTMLElement | null = null
   // The innermost block under the pointer, with focus, or tapped, text included: what E edits.
   let pointed: HTMLElement | null = null
+  // Text inside a card under the pointer: E edits it before the card.
+  let pointedText: HTMLElement | null = null
   let frame = 0
   let hideTimer = 0
 
@@ -255,6 +292,8 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     }
     const inner = usable() ? editTargetOf(target) : null
     pointed = inner && !isEditLocked(inner) ? inner : null
+    const text = inner && target instanceof Element ? target.closest<HTMLElement>('[data-plan-text]') : null
+    pointedText = text && inner?.contains(text) && !isEditLocked(text) ? text : null
     const next = inner ? pillTargetOf(target) : null
     if (next && !isEditLocked(next)) {
       // Back on the block after a trip to the pill: the hide that leaving it started is off.
@@ -303,6 +342,13 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     event.preventDefault()
     // From Workflow or Settings, E shows the plan first.
     if (showPlanTab()) return
+    if (pointedText?.isConnected && pointedText.dataset.planText) {
+      const range = pointedText.dataset.planText
+      const margins = marginsOf(pointedText)
+      hide()
+      options.edit(range, { inline: true, margins })
+      return
+    }
     const hovered = pointed?.isConnected ? pointed : null
     const focused = editTargetOf(document.activeElement)
     const next = [hovered, focused && !isEditLocked(focused) ? focused : null, blockAtReadingLine()].find(
@@ -324,7 +370,13 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
       if (range) options.cell(range, caret)
       return
     }
-    const range = (direct.kind === 'grid' ? direct.block : direct.element).dataset.planBlock
+    if (direct.kind === 'title') {
+      const range = direct.block.dataset.planBlock
+      if (range) options.title(direct.element, range, direct.attr, caret)
+      return
+    }
+    // Text in a card has the place of its text; other text is a block of its own.
+    const range = direct.kind === 'grid' ? direct.block.dataset.planBlock : (direct.element.dataset.planText ?? direct.element.dataset.planBlock)
     if (!range) return
     if (direct.kind === 'grid') options.edit(range, { caret })
     else options.edit(range, { inline: true, caret, margins: marginsOf(direct.element) })
@@ -347,13 +399,28 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     queued = null
     if (plainPress(event)) queue(event)
   }
+  // The page hears a click first, on the window as it goes down: a card that keeps clicks to itself
+  // (a choice, an approval) still has text and a title to edit. The handlers on the way run before
+  // the text opens, so a control that takes the click (it prevents the default) keeps it.
   const onClick = (event: MouseEvent) => {
     if (!plainPress(event) || event.defaultPrevented) return
+    const state = options.state()
+    const direct = state.editable && document.body.dataset.planMode !== 'comment' ? directEditOf(event.target) : null
+    // A title's click is its own while the plan can be edited: the link it sits in (a phase's, to the
+    // workflow) does not follow, even when the click finishes another edit first.
+    if (direct?.kind === 'title') event.preventDefault()
     if ((event as PointerEvent).pointerType === 'touch' && queue(event)) return
-    if (!usable()) return
-    const direct = directEditOf(event.target)
-    if (!direct || selecting()) return
-    openDirect(direct, caretFor(direct, event.clientX, event.clientY))
+    if (!usable() || !direct || selecting()) return
+    const caret = caretFor(direct, event.clientX, event.clientY)
+    // A title opens within the click, so a touch screen shows its keyboard.
+    if (direct.kind === 'title') {
+      openDirect(direct, caret)
+      return
+    }
+    window.setTimeout(() => {
+      if (event.defaultPrevented || !usable() || selecting()) return
+      openDirect(direct, caret)
+    }, 0)
   }
   const closed = () => {
     const next = queued
@@ -370,7 +437,7 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
   }
   edit.addEventListener('click', onEdit)
   add.addEventListener('click', onAdd)
-  document.addEventListener('click', onClick)
+  window.addEventListener('click', onClick, true)
   document.addEventListener('pointerdown', onPress, { passive: true })
   document.addEventListener('pointerover', onPointer, { passive: true })
   document.addEventListener('pointerup', onTap, { passive: true })
@@ -384,7 +451,7 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     queued = null
     edit.removeEventListener('click', onEdit)
     add.removeEventListener('click', onAdd)
-    document.removeEventListener('click', onClick)
+    window.removeEventListener('click', onClick, true)
     document.removeEventListener('pointerdown', onPress)
     document.removeEventListener('pointerover', onPointer)
     document.removeEventListener('pointerup', onTap)

@@ -33,6 +33,8 @@ import { clearDraft, isLegacyDraft, readDraft, writeDraft, type PlanDraft } from
 import { planNotReadyReason } from '../src/planReady.ts'
 import type { DraftConflict, DraftSide } from '../src/planMdx/rebaseDraft.ts'
 import { bindBlockEditButton, type BlockEditBinding, type EditCaret, type EditHow } from './planEditButton.ts'
+import { editTitleInPlace, typedTitle } from './titleEdit.ts'
+import { applyTitleEdit, titleRange } from '../src/planMdx/titleEdit.ts'
 import { bindBlockMove, type BlockMoveBinding, type BlockMoved } from './planBlockMove.ts'
 import { CELL_RANGE_ATTR, moveBlock, parseBlockRange, parseCellRange, type BlockPlace } from '../src/planMdx/remarkBlockRanges.ts'
 import { Button } from './ui/button.tsx'
@@ -166,9 +168,15 @@ function useBodyMode(): string | undefined {
   return mode
 }
 
-type PlanHeadingProps = { children?: ReactNode; 'data-plan-block'?: string; 'data-plan-editing'?: boolean }
+type PlanHeadingProps = { children?: ReactNode; 'data-plan-block'?: string; 'data-plan-text'?: string; 'data-plan-editing'?: boolean }
 
-function PlanMarkdownHeading({ level, children, 'data-plan-block': blockRange, 'data-plan-editing': editing }: PlanHeadingProps & { level: 1 | 2 | 3 }) {
+function PlanMarkdownHeading({
+  level,
+  children,
+  'data-plan-block': blockRange,
+  'data-plan-text': textRange,
+  'data-plan-editing': editing,
+}: PlanHeadingProps & { level: 1 | 2 | 3 }) {
   const cursor = useContext(TocHeadingCursor)
   let id: string | undefined
   // The plan's opening heading: the first heading of the document, when it is a `#` heading.
@@ -177,11 +185,12 @@ function PlanMarkdownHeading({ level, children, 'data-plan-block': blockRange, '
     id = cursor.current.ids[cursor.current.n]
     cursor.current.n += 1
   }
-  if (level === 1 && first) return <PlanTitleHeading id={id} blockRange={blockRange} editing={editing}>{children}</PlanTitleHeading>
+  if (level === 1 && first && !textRange) return <PlanTitleHeading id={id} blockRange={blockRange} editing={editing}>{children}</PlanTitleHeading>
+  // A heading in a card carries the place of its text (data-plan-text) rather than a block's.
   const heading =
-    level === 1 ? <h1 id={id} data-plan-block={blockRange}>{children}</h1>
-    : level === 2 ? <h2 id={id} data-plan-block={blockRange}>{children}</h2>
-    : <h3 id={id} data-plan-block={blockRange}>{children}</h3>
+    level === 1 ? <h1 id={id} data-plan-block={blockRange} data-plan-text={textRange}>{children}</h1>
+    : level === 2 ? <h2 id={id} data-plan-block={blockRange} data-plan-text={textRange}>{children}</h2>
+    : <h3 id={id} data-plan-block={blockRange} data-plan-text={textRange}>{children}</h3>
   // A heading open in the editor keeps its place in the contents, so the headings after it keep their ids.
   return editing ? <BlockEditSlot replaced={null} fallback={heading} /> : heading
 }
@@ -211,9 +220,14 @@ type OpenEdit = {
   id: number
   /**
    * `data-plan-block` of the block to edit (`inline` for text, edited as it reads), of the block to
-   * add after (null: after the last), or `data-plan-cell-range` of a pipe table cell.
+   * add after (null: after the last), `data-plan-cell-range` of a pipe table cell, or a card's title,
+   * which client/titleEdit.ts edits in its own text, with no editor.
    */
-  target: { kind: 'edit'; range: string; inline?: boolean } | { kind: 'add'; after: string | null } | { kind: 'cell'; range: string }
+  target:
+    | { kind: 'edit'; range: string; inline?: boolean }
+    | { kind: 'add'; after: string | null }
+    | { kind: 'cell'; range: string }
+    | { kind: 'title' }
   /** Where the caret goes, and the margins inline text keeps. */
   caret?: EditCaret
   margins?: EditHow['margins']
@@ -232,6 +246,8 @@ type EditSlot = {
 const EditSlotContext = createContext<EditSlot | null>(null)
 
 function blockTarget(open: OpenEdit): BlockTarget | null {
+  // A title is edited in its own text, not in a block editor.
+  if (open.target.kind === 'title') return null
   if (open.target.kind === 'edit') {
     const range = parseBlockRange(open.target.range)
     return range ? { kind: 'edit', range, inline: open.target.inline } : null
@@ -353,10 +369,14 @@ function PlanBody({ Content, components, source }: PlanBodyProps) {
   return <>{placeEditSlot(blocks, slot.open)}</>
 }
 
-/** The block's place in the plan file: its own `data-plan-block`, or a fence's on its `<code>`. */
+/**
+ * The block's place in the plan file: its own `data-plan-block`, or a fence's on its `<code>`. Text
+ * inside a card has the place of its text instead (`data-plan-text`); the two never name the same place.
+ */
 function rangeOfElement(element: ReactElement): string | undefined {
-  const props = element.props as { 'data-plan-block'?: unknown; children?: ReactNode }
+  const props = element.props as { 'data-plan-block'?: unknown; 'data-plan-text'?: unknown; children?: ReactNode }
   if (typeof props['data-plan-block'] === 'string') return props['data-plan-block']
+  if (typeof props['data-plan-text'] === 'string') return props['data-plan-text']
   if (element.type !== PlanPre) return undefined
   const code = Children.toArray(props.children).find((node) => isValidElement(node))
   const inner = code && isValidElement<{ 'data-plan-block'?: unknown }>(code) ? code.props['data-plan-block'] : undefined
@@ -947,6 +967,8 @@ function PlanMdxApp() {
   const draftRef = useRef(draft)
   draftRef.current = draft
   const moveBinding = useRef<BlockMoveBinding | null>(null)
+  // The open title edit (client/titleEdit.ts makes the title's text editable where it is), and how to put it back.
+  const titleEdit = useRef<{ id: number; stop: () => void } | null>(null)
   const [applying, setApplying] = useState(false)
   const [applyError, setApplyError] = useState<string | null>(null)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
@@ -972,6 +994,36 @@ function PlanMdxApp() {
       edit: (range, how) => open({ kind: 'edit', range, inline: how?.inline }, how),
       add: (after) => open({ kind: 'add', after }),
       cell: (range, caret) => open({ kind: 'cell', range }, { caret }),
+      title: (element, block, attr, caret) => {
+        const range = parseBlockRange(block)
+        const place = range ? titleRange(pageSourceRef.current, range, attr, typedTitle(element)) : null
+        // A title the file does not hold as plain text (a character reference, an expression) opens the card's editor.
+        if (!place) {
+          open({ kind: 'edit', range: block })
+          return
+        }
+        const source = pageSourceRef.current
+        open({ kind: 'title' }, { caret })
+        const id = editIds.current
+        const close = () => setOpenEdit((current) => (current?.id === id ? null : current))
+        // The title turns editable within the click, so a touch screen shows its keyboard.
+        const stop = editTitleInPlace(element, {
+          caret: caret?.offset,
+          cancel: close,
+          done: async (text) => {
+            const next = applyTitleEdit(source, place, text)
+            if (samePlanSource(next, source) || (await planNotReadyReason(next))) {
+              close()
+              return false
+            }
+            // One more unapplied change, like an editor's Done. The page draws the file the edit opened on until it shows this one.
+            keepChange(next, draftRef.current?.base ?? source, draftRef.current)
+            setOpenEdit((current) => (current?.id === id ? { ...current, committed: next } : current))
+            return true
+          },
+        })
+        titleEdit.current = { id, stop }
+      },
     })
     editBinding.current = binding
     // Every block moves where it reads: its grip drags it, or opens Move up and Move down.
@@ -1094,6 +1146,16 @@ function PlanMdxApp() {
       },
     }
   }, [openEdit, draft, planId])
+  // A title edit that closed some other way (the page stopped being editable) puts its text back as React drew it.
+  const titleEditId = openEdit?.target.kind === 'title' ? openEdit.id : null
+  useEffect(() => {
+    const open = titleEdit.current
+    if (open && open.id !== titleEditId) {
+      open.stop()
+      titleEdit.current = null
+    }
+  }, [titleEditId])
+  useEffect(() => () => titleEdit.current?.stop(), [])
 
   // A block moved by its grip (client/planBlockMove.ts) is one more unapplied change, like an edit's Done.
   const moveRef = useRef<(range: string, target: string, place: BlockPlace) => Promise<BlockMoved | null>>(async () => null)
@@ -1217,11 +1279,17 @@ function PlanMdxApp() {
       ) : error ? null : (
         <p data-plan-rendering="">Rendering plan…</p>
       )}
-      {editable && !openEdit ? (
+      {/* While an editor is open the button keeps its room, unseen: the page keeps its height, so text
+          near the end of a plan scrolled to the bottom does not jump when it opens. */}
+      {editable ? (
         <button
           type="button"
           className="plan-add-block"
           data-plan-add-block=""
+          data-editing={openEdit ? '' : undefined}
+          aria-hidden={openEdit ? true : undefined}
+          tabIndex={openEdit ? -1 : undefined}
+          disabled={openEdit !== null}
           onClick={() => {
             editIds.current += 1
             setOpenEdit({ id: editIds.current, target: { kind: 'add', after: null }, source: pageSource })

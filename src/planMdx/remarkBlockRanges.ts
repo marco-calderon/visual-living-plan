@@ -27,8 +27,64 @@ const BLOCK_TYPES = new Set([
   'mdxJsxFlowElement',
 ])
 
+/**
+ * The attribute that carries the place of text a component draws inside itself: a paragraph, a
+ * heading, a list, or a quote in a callout, an approval, an update, a tab, a pane, or a layout box.
+ * A click on it edits that text where it reads. It is not a block of the plan: it has no grip and
+ * keeps its place in its card.
+ */
+export const TEXT_RANGE_ATTR = 'data-plan-text'
+
 /** Blocks whose own blocks are edited one by one too: a phase's paragraphs, code, and cards. */
 const CONTAINERS = new Set(['phase'])
+
+/** Text, the markdown that is edited as it reads. */
+const TEXT_TYPES = new Set(['paragraph', 'heading', 'list', 'blockquote'])
+
+/**
+ * Components that draw their children as the plan's prose, so the text in them is edited where it
+ * reads. Components that read their children as data (a data table, a file tree, an endpoint, a
+ * choice's options, a form's fields) are not here: their own editor changes them.
+ */
+const TEXT_CONTAINERS = new Set([
+  'callout',
+  'approve',
+  'choice',
+  'questions',
+  'Update',
+  'Tabs',
+  'Tab',
+  'Compare',
+  'Pane',
+  'box',
+  'Box',
+  'hstack',
+  'HStack',
+  'vstack',
+  'VStack',
+  'responsiveStack',
+  'ResponsiveStack',
+  'Stack',
+  'Row',
+])
+
+/** Stamp the text inside a component with its place, and the text inside the components it holds. */
+function stampText(nodes: MdNode[] | undefined): void {
+  for (const node of nodes ?? []) {
+    if (node.type === 'mdxJsxFlowElement') {
+      if (node.name && TEXT_CONTAINERS.has(node.name)) stampText(node.children)
+      continue
+    }
+    if (!TEXT_TYPES.has(node.type)) continue
+    const start = node.position?.start?.offset
+    const end = node.position?.end?.offset
+    if (typeof start !== 'number' || typeof end !== 'number' || end <= start) continue
+    // Indented text would lose its indentation when edited on its own. The card's editor edits it.
+    if (node.position?.start?.column !== 1) continue
+    const data = node.data ?? {}
+    node.data = { ...data, hProperties: { ...(data.hProperties ?? {}), [TEXT_RANGE_ATTR]: `${start}-${end}` } }
+  }
+}
 
 /** Each cell of a pipe table gets the place of its text: from its first child to its last, or where text would go. */
 function stampCells(table: MdNode, source: string): void {
@@ -69,6 +125,7 @@ function stamp(nodes: MdNode[] | undefined, nested: boolean, source: string): vo
     if (node.type === 'mdxJsxFlowElement') {
       node.attributes = [...(node.attributes ?? []), { type: 'mdxJsxAttribute', name: BLOCK_RANGE_ATTR, value }]
       if (node.name && CONTAINERS.has(node.name)) stamp(node.children, true, source)
+      else if (node.name && TEXT_CONTAINERS.has(node.name)) stampText(node.children)
       continue
     }
     if (node.type === 'table') stampCells(node, source)
@@ -81,7 +138,8 @@ function stamp(nodes: MdNode[] | undefined, nested: boolean, source: string): vo
  * Mark each block with where it is in the plan's MDX (ADR 0040), so the page can edit that block
  * in place and splice the edit back into the file. Top-level blocks are marked, and so are the
  * blocks inside a phase. A JSX block gets the range as an attribute; markdown gets it on the
- * element it renders to (a fence on its `<code>`).
+ * element it renders to (a fence on its `<code>`). Text inside a card is marked with
+ * `data-plan-text` instead, so it is edited where it reads without becoming a block that moves.
  */
 export function remarkBlockRanges() {
   return (tree: MdNode, file?: { value?: unknown }) => stamp(tree.children, false, String(file?.value ?? ''))

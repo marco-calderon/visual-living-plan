@@ -529,6 +529,21 @@ a.plan-step-label:hover {
   text-underline-offset: 0.16em;
 }
 
+/* A card's title, where the plan can be edited, reads as text to click into (ADR 0040). The step
+ * number still jumps to the workflow. */
+body[data-plan-editable="true"] [data-plan-title]:not([data-edit-locked="true"] [data-plan-title]) { cursor: text; }
+body[data-plan-editable="true"] a.plan-step-label:hover { text-decoration: none; }
+
+/* A title being edited where it reads (client/titleEdit.ts): the faint wash text has in its
+ * editor (client/editor/planEditor.css), and no ring. The wash spreads past the text, so it does not move. */
+[data-plan-title-editing] {
+  --inline-wash: color-mix(in srgb, var(--accent) 7%, transparent);
+  outline: none;
+  border-radius: 2px;
+  background: var(--inline-wash);
+  box-shadow: 0 0 0 4px var(--inline-wash);
+}
+
 .rf-progress-icon {
   width: 12px;
   height: 12px;
@@ -2148,6 +2163,7 @@ body:not([data-plan-editable="true"]) :is(.plan-block-move, .plan-block-move-men
 .plan-add-block:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 body[data-plan-mode="comment"] .plan-add-block { display: none; }
+.plan-add-block[data-editing] { visibility: hidden; }
 
 /* Changes not applied yet: a bar that stays at the bottom of the window over the plan column. */
 .plan-apply-bar {

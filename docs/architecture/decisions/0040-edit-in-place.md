@@ -67,6 +67,18 @@ Added the next day (2.27.0).
 - The pill no longer hides when the pointer goes to it and back onto its block: coming back cancels the hide that leaving started.
 - Ctrl or Cmd+Enter is caught before the editor sees it; it used to split the line at the caret before Done read the text.
 
+### Text in a card, and a card's title, are edited as they read
+
+Added in 2.28.0. A click did nothing on most of what reads as text: a callout's paragraph, an update's note, a tab or a pane, a box, an approval's or a choice's note, and every card's title. A phase's title was a link, so a click left for the Workflow tab. Only the Edit pill reached them.
+
+- `remarkBlockRanges` stamps text (a paragraph, a heading, a list, a quote) inside a component that draws its children as prose with `data-plan-text`, the place of that text: `callout`, `approve`, `choice`, `questions`, `Update`, `Tabs`, `Tab`, `Compare`, `Pane`, and the layout blocks (`Box`, the stacks, `Row`), at any depth among them, top-level or in a phase. As in a phase, only text that starts at column 1. Components that read their children as data (a data table, a file tree, an endpoint, a choice's options, a form's fields, a checklist's items) are not on the list; their editor changes them.
+- `data-plan-text` is not `data-plan-block`: the text has no grip, keeps its place in its card, and does not turn the card into a level blocks can be dropped into. A click opens it `inline` like other text, and Done splices its range as it splices a block's. The card keeps its pill.
+- A card's title text carries `data-plan-title`, the attribute it comes from (`title` on a phase, a callout, a checklist, and the workflow; `prompt` on a choice, a form, questions, and an approval). A click makes that text editable where it reads (`client/titleEdit.ts`), with the caret where the click landed and the same faint wash as text in its editor. Enter, a press outside, or a Tab out keeps it; Escape keeps what was typed and closes it when nothing was. A title is one line, and an emptied title keeps the one it had.
+- `titleRange` (`src/planMdx/titleEdit.ts`) finds the title in its card's opening tag: the part of the attribute's value the page shows, so a phase's leading step number (`3. `) stays out of it. `applyTitleEdit` writes only those bytes, with the attribute's quote and anything that would read as a character reference escaped. A title the file does not hold as plain text opens the card's editor instead.
+- The browser edits React's own text nodes while a title is open. The edit puts those nodes back, holding the typed text until the page draws the new file, so React never finds a node it did not make. The edit is one more unapplied change, like Done, and the page draws the file it opened on until it shows the change.
+- The page hears clicks on the window as they go down (capture), so a card that keeps clicks to itself (a choice, an approval) still has text and a title to edit. Text opens after the click has gone through, and not when a control on the way prevented its default. A title takes its click at once: where the plan can be edited, the link a phase's title sits in does not follow, and the title turns editable within the click, so a touch screen shows its keyboard. The step number still jumps to the workflow, and a plan that cannot be edited keeps the title's jump.
+- The Add a block button keeps its room, unseen, while an editor is open, so text near the end of a plan scrolled to the bottom does not jump when it opens.
+
 ### Every block moves where it reads
 
 Added in 2.27.2. The whole-page editor had a grip on every block. Once each block opened its own editor, a grip was left only inside an open editor, so on the page nothing could be reordered.
@@ -83,4 +95,4 @@ Added in 2.27.2. The whole-page editor had a grip on every block. Once each bloc
 
 - Reading and editing are the same page. Nothing jumps when a block opens, and the blocks around it stay rendered.
 - An edit touches only its block's bytes in the file, so the agent's formatting survives.
-- The e2e specs drive the block pill (`e2e/block-edit.spec.ts`), text and cells edited where they read (`e2e/inline-edit.spec.ts`), and the move grip (`e2e/block-move.spec.ts`); the checklist and dark-text specs open a block's editor instead of the toolbar's.
+- The e2e specs drive the block pill (`e2e/block-edit.spec.ts`), text, cells, text in a card, and titles edited where they read (`e2e/inline-edit.spec.ts`), and the move grip (`e2e/block-move.spec.ts`); the checklist and dark-text specs open a block's editor instead of the toolbar's.

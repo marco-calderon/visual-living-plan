@@ -1,5 +1,29 @@
 # Changelog — 2026-11-14
 
+## 2.28.0
+
+**PR:** to be linked
+
+**Bump:** minor
+
+### Summary
+
+A click on a card's title or on the text inside a card now puts the caret there and edits it where it reads, as paragraphs and headings already did. No Edit button is needed for text.
+
+### Bugs fixed
+
+- A click on a phase's title jumped to the Workflow tab instead of editing it. Where the plan can be edited, the title now takes the caret; the step number still jumps to the workflow.
+- A click on the text inside a callout, an update, a tab, a compare pane, a box, an approval, or a choice did nothing. It now opens that text in place, in its own font and spacing.
+- Text near the end of a plan scrolled to the bottom no longer jumps up when it opens for editing.
+
+### New features
+
+- Titles are edited where they read: phases, callouts, checklists, choices, forms, questions, approvals, and the workflow. Enter or a click elsewhere keeps the change; Escape with nothing typed closes it. Only the title's text changes in the file, and a phase's step number stays as written.
+
+### Notes
+
+Locked cards, and forms and questions (locked by default), keep their text and titles as written. `SHELL_CACHE_VERSION` moves to 2.28.0. No registry restart needed.
+
 ## 2.27.2
 
 **PR:** [#195](https://github.com/marco-calderon/visual-living-plan/pull/195)

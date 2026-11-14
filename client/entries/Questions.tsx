@@ -65,7 +65,7 @@ export function Questions({ id, prompt, items, answers, locked, lockedState, chi
     >
       <VStack gap="sm">
         <CardLabel icon={icon} color={color}>Open questions</CardLabel>
-        <h3 className="plan-title">{prompt || 'Please answer'}</h3>
+        <h3 className="plan-title">{prompt ? <span data-plan-title="prompt">{prompt}</span> : 'Please answer'}</h3>
         {rest.length > 0 ? <div className="plan-rich">{rest}</div> : null}
         <ItemContext.Provider value={{ mode: 'questions', disabled, answers }}>
           <form onSubmit={handleSubmit} data-questions-id={id}>

@@ -30,7 +30,8 @@ test('a callout icon keeps the comment anchor on the label', () => {
   )
   const label = html.match(/<div[^>]*data-plan-part="callout:redis\/label"[^>]*>/)?.[0] ?? ''
   assert.match(label, /class="plan-card-label plan-callout-label"/)
-  assert.match(html, /<span class="plan-card-label-text">risk · Redis<\/span>/)
+  // The title's own text is marked, so the page edits it where it reads (ADR 0040); the kind is not.
+  assert.match(html, /<span class="plan-card-label-text">risk · <span data-plan-title="title">Redis<\/span><\/span>/)
 })
 
 test('a card color tints the icon square, and an unknown color keeps the card tint', () => {

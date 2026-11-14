@@ -129,7 +129,7 @@ test("a data table cell opens the table's editor with the caret in that cell", a
   await expect(page.locator('[data-plan-apply-bar]')).toHaveCount(0)
 })
 
-test('components keep the Edit pill, and text in them does not open an editor of its own', async ({ page }) => {
+test("components keep the Edit pill, and a choice's option text picks the option", async ({ page }) => {
   await openPlan(page)
   const components = [
     rendered(page).locator('.rich-table'),
@@ -157,6 +157,75 @@ test('components keep the Edit pill, and text in them does not open an editor of
   await rendered(page).locator('[data-entry="choice"]').getByText('Allow traffic.').click()
   await page.waitForTimeout(300)
   await expect(editor(page)).toHaveCount(0)
+})
+
+test("text in a card and a card's title are edited where they read, and only their bytes change", async ({ page }) => {
+  await openPlan(page)
+  const before = await planSource(page)
+
+  // A callout's paragraph opens in its place with the caret where the click landed.
+  const note = rendered(page).locator('[data-entry="callout"] p[data-plan-text]')
+  await note.scrollIntoViewIfNeeded()
+  const box = await note.boundingBox()
+  await clickTextAt(page, note, 'week')
+  await page.keyboard.type('@')
+  await expect(inlineEditor(page)).toContainText('a @week first')
+  const open = await inlineEditor(page).locator('.plan-editor-content > *').first().boundingBox()
+  expect(Math.abs((open?.y ?? 0) - (box?.y ?? 0))).toBeLessThan(1)
+  await page.keyboard.press('Control+Enter')
+  await expect(editor(page)).toHaveCount(0)
+  await expect(note).toHaveText('Staff get the flag for a @week first.')
+
+  // A phase's title takes the caret where it reads; the click does not jump to the workflow.
+  const phaseTitle = rendered(page).locator('[data-entry="phase"] [data-plan-title]')
+  await phaseTitle.scrollIntoViewIfNeeded()
+  const titleBox = await phaseTitle.boundingBox()
+  const point = await pointAtWord(phaseTitle, 'limiter')
+  await page.mouse.click(point.x, point.y)
+  await expect(phaseTitle).toBeFocused()
+  await expect(page.locator('[data-tab-target="plan"]')).toHaveAttribute('aria-selected', 'true')
+  await page.keyboard.type('new ')
+  const editingBox = await phaseTitle.boundingBox()
+  expect(Math.abs((editingBox?.y ?? 0) - (titleBox?.y ?? 0))).toBeLessThan(1)
+  await page.keyboard.press('Enter')
+  await expect(page.locator('[data-plan-title-editing]')).toHaveCount(0)
+  await expect(phaseTitle).toHaveText('Build the new limiter')
+
+  // Escape with nothing typed closes a title as it was.
+  const calloutTitle = rendered(page).locator('[data-entry="callout"] [data-plan-title]')
+  await calloutTitle.click()
+  await expect(calloutTitle).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-plan-title-editing]')).toHaveCount(0)
+  await expect(page.locator('[data-plan-apply-bar]')).toContainText('2 changes not applied')
+
+  // A choice's prompt, in a card that keeps clicks to itself. A click outside keeps the edit.
+  const prompt = rendered(page).locator('[data-entry="choice"] [data-plan-title]')
+  await prompt.click()
+  await expect(prompt).toBeFocused()
+  await page.keyboard.press('End')
+  await page.keyboard.type(' "now"')
+  await page.mouse.click(5, 450)
+  await expect(page.locator('[data-plan-title-editing]')).toHaveCount(0)
+  await expect(prompt).toHaveText('If Redis is unreachable, how should the limiter behave? "now"')
+
+  await page.locator('[data-plan-apply]').click()
+  await expect(page.locator('[data-plan-apply-bar]')).toHaveCount(0)
+  await expect.poll(() => planSource(page)).toContain('Build the new limiter')
+  const after = (await planSource(page)).split('\n')
+  const changed = after.filter((line, index) => line !== before.split('\n')[index])
+  expect(changed).toEqual([
+    '<phase id="build" title="Build the new limiter" status="active">',
+    '<choice id="mode" prompt="If Redis is unreachable, how should the limiter behave? &quot;now&quot;">',
+    'Staff get the flag for a @week first.',
+  ])
+})
+
+test("a phase's step number still jumps to the workflow while its title is editable", async ({ page }) => {
+  await openPlan(page)
+  await rendered(page).locator('[data-entry="phase"] a.plan-step-number').click()
+  await expect(page.locator('[data-tab-target="workflow"]')).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('[data-plan-title-editing]')).toHaveCount(0)
 })
 
 test('a link in text keeps its click', async ({ page }) => {

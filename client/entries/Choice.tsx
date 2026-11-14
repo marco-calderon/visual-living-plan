@@ -81,7 +81,7 @@ export function Choice({
       <VStack gap="sm">
         <CardLabel icon={icon} color={color}>Needs your choice</CardLabel>
         <h3 className="plan-title" id={promptId}>
-          {prompt}
+          <span data-plan-title="prompt">{prompt}</span>
         </h3>
         {rest.length > 0 ? <div className="plan-rich">{rest}</div> : null}
         <ChoiceContext.Provider

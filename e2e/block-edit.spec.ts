@@ -245,14 +245,21 @@ test('E edits the block with focus, or the text under the pointer, and typing an
 test.describe('on a touch screen', () => {
   test.use({ hasTouch: true, viewport: { width: 390, height: 800 } })
 
-  test('a tap on text edits it, and a tap on a component shows its Edit', async ({ page }) => {
+  test('a tap on text or a title edits it, and a tap on a component shows its Edit', async ({ page }) => {
     await openPlan(page)
     await intro(page).tap()
     await expect(inlineEditor(page).locator('[contenteditable="true"]')).toBeFocused()
     await page.keyboard.press('Escape')
     await expect(editor(page)).toHaveCount(0)
 
-    await choice(page).getByText('If Redis is unreachable').tap()
+    // A card's title takes the caret where it was tapped.
+    const prompt = choice(page).locator('[data-plan-title]')
+    await prompt.tap()
+    await expect(prompt).toBeFocused()
+    await page.keyboard.press('Escape')
+    await expect(page.locator('[data-plan-title-editing]')).toHaveCount(0)
+
+    await choice(page).getByText('Needs your choice').tap()
     await expect(tools(page)).toHaveAttribute('data-visible', '')
     await page.locator('[data-plan-block-edit]').tap()
     await expect(page.locator('[data-plan-block-editor="edit"]')).toBeVisible()
