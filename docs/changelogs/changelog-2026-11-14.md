@@ -1,6 +1,6 @@
 # Changelog — 2026-11-14
 
-## 2.27.1
+## 2.27.2
 
 **PR:** not opened yet
 
@@ -24,6 +24,24 @@ Every block on a plan page can be reordered again, without opening an editor: dr
 ### Notes
 
 No registry restart needed.
+
+## 2.27.1
+
+**PR:** [#194](https://github.com/marco-calderon/visual-living-plan/pull/194)
+
+**Bump:** patch
+
+### Summary
+
+In the editor, a choice's options, a form's fields, and a checklist's lines no longer touch: each framed row has room above it, as options do on the page.
+
+### Bugs fixed
+
+- Editing a choice, a form, or a checklist stacked its option, field, or item cards with no space between them. They are now 8px apart.
+
+### Notes
+
+`SHELL_CACHE_VERSION` moves to 2.27.1. No service restart needed.
 
 ## 2.27.0
 

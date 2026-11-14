@@ -69,7 +69,7 @@ Added the next day (2.27.0).
 
 ### Every block moves where it reads
 
-Added in 2.27.1. The whole-page editor had a grip on every block. Once each block opened its own editor, a grip was left only inside an open editor, so on the page nothing could be reordered.
+Added in 2.27.2. The whole-page editor had a grip on every block. Once each block opened its own editor, a grip was left only inside an open editor, so on the page nothing could be reordered.
 
 - `bindBlockMove` (`client/planBlockMove.ts`) shows a grip left of the block under the pointer, with focus, or tapped: text, cards, choices, forms, endpoints, diagrams, code, tables, layout, phases, and the blocks inside a phase. These are exactly the blocks `remarkBlockRanges` stamps. A phase's rail and the gutter left of its blocks belong to the block level with the pointer, so the pointer can go left to that block's grip.
 - The grip fits the 20px between the docked contents list and the plan column. On a narrow screen it sits over the block's top-left corner, as the pill sits over its top-right one.
