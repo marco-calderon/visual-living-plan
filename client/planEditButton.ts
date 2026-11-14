@@ -20,11 +20,12 @@ type EditState = { editable: boolean; editing: boolean }
 export type EditCaret = { offset: number; row?: number; column?: number }
 
 /**
- * What opens once an editor closes after Enter split its text: the block after the one at `start`
- * (the text after the caret), or an empty new block after it. `start` is a place in the plan file the
- * page draws next, where the edited block still starts.
+ * What opens once an editor closes, found by a block's `start` in the plan file the page draws next.
+ * After Enter: the block after the one at `start` (the text after the caret), or an empty new block
+ * after it. After Backspace removed an empty block: the block at `start`, with the caret at its end
+ * (the block above) or at its start (the block below, when there was none above).
  */
-export type EditFollow = { open: 'next' | 'add'; start: number }
+export type EditFollow = { open: 'next' | 'add' | 'end' | 'start'; start: number }
 
 /** How a block's editor opens. Text opens `inline`: it keeps its look and place, with no frame or bar. */
 export type EditHow = {
@@ -293,6 +294,10 @@ export function followEdit(follow: EditFollow): ({ kind: 'edit' | 'add'; range: 
   const place = block ? placeOf(block) : undefined
   if (!block || !place) return null
   if (follow.open === 'add') return { kind: 'add', range: place, ...paragraphAfter(block) }
+  if (follow.open === 'end' || follow.open === 'start') {
+    if (!isTextBlock(block) || isEditLocked(block)) return null
+    return { kind: 'edit', range: place, caret: { offset: follow.open === 'end' ? Number.MAX_SAFE_INTEGER : 0 }, ...textPlace(block) }
+  }
   const next = textBlockAfter(block)
   const range = next ? placeOf(next) : undefined
   return next && range ? { kind: 'edit', range, caret: { offset: 0 }, ...textPlace(next) } : null

@@ -13,6 +13,7 @@ import '@mdxeditor/editor/style.css'
 import { $isHeadingNode } from '@lexical/rich-text'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { applyBlockEdit, applyCellEdit, blockEditorText, cellEditorText, samePlanSource, type BlockRange } from '../../src/planMdx/blockEdit.ts'
+import { remapBlockStart } from '../../src/planMdx/remarkBlockRanges.ts'
 import { planNotReadyReason } from '../../src/planReady.ts'
 import { placeCaret } from '../caretSpot.ts'
 import type { EditCaret, EditFollow } from '../planEditButton.ts'
@@ -343,6 +344,40 @@ export function BlockEditor({ source, target, commit, onCancel, caret, margins, 
   const splitRef = useRef(splitOnEnter)
   splitRef.current = splitOnEnter
 
+  /**
+   * Backspace in an empty paragraph or heading removes the block (an empty new block just closes),
+   * and the caret goes to the end of the block above, or to the start of the block below when it was
+   * the first. Returns false when Backspace is the editor's.
+   */
+  function removeOnBackspace(): boolean {
+    const node = surface.current
+    if (!node || finishing.current || closingRef.current) return false
+    if (target.kind !== 'edit' && !(target.kind === 'add' && target.after)) return false
+    const content = node.querySelector<HTMLElement>('.plan-editor-content')
+    const lexical = content ? getNearestEditorFromDOMNode(content) : null
+    if (!lexical) return false
+    const empty = lexical.getEditorState().read(() => {
+      const root = $getRoot()
+      const first = root.getFirstChild()
+      return root.getChildrenSize() === 1 && ($isParagraphNode(first) || $isHeadingNode(first)) && first.getChildrenSize() === 0
+    })
+    if (!empty) return false
+    // The blocks beside this one, as the page draws them now.
+    const above = blockBeside(node, -1)
+    const below = above ? null : blockBeside(node, 1)
+    const next = target.kind === 'edit' ? applyBlockEdit(source, { kind: 'replace', range: target.range, edited: '' }) : source
+    const neighbour = above ?? below
+    const start = neighbour ? Number(/^(\d+)-/.exec(neighbour.dataset.planBlock ?? neighbour.dataset.planText ?? '')?.[1]) : Number.NaN
+    const moved = Number.isFinite(start) ? remapBlockStart(source, next, start) : null
+    finishing.current = true
+    void finish('', moved === null ? undefined : { open: above ? 'end' : 'start', start: moved }).finally(() => {
+      finishing.current = false
+    })
+    return true
+  }
+  const removeRef = useRef(removeOnBackspace)
+  removeRef.current = removeOnBackspace
+
   // The page can ask this editor to finish: a block's grip was pressed while it was open.
   const registerRef = useRef(registerDone)
   registerRef.current = registerDone
@@ -352,12 +387,22 @@ export function BlockEditor({ source, target, commit, onCancel, caret, margins, 
   }, [])
 
   // Ctrl or Cmd+Enter is Done, and in a cell, which is one line, so is Enter, as in a spreadsheet.
-  // Caught before the editor sees it, or it would split the line at the caret first.
+  // Caught before the editor sees it, or it would split the line at the caret first. So is Backspace
+  // in an empty block, which the editor would ignore.
   useEffect(() => {
     const node = surface.current
     if (!node) return
     const onEnter = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== 'Enter' || event.isComposing) return
+      if (event.isComposing) return
+      if (event.key === 'Backspace') {
+        const bare = !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
+        if (bare && inline && target.kind !== 'cell' && !document.querySelector('.plan-slash-menu') && removeRef.current()) {
+          event.preventDefault()
+          event.stopPropagation()
+        }
+        return
+      }
+      if (event.key !== 'Enter') return
       const chord = event.metaKey || event.ctrlKey
       const plain = !chord && !event.shiftKey && !event.altKey
       if (plain && inline && target.kind !== 'cell' && !document.querySelector('.plan-slash-menu') && splitRef.current()) {
@@ -491,6 +536,22 @@ export function BlockEditor({ source, target, commit, onCancel, caret, margins, 
       )}
     </div>
   )
+}
+
+/**
+ * The block drawn right above (`-1`) or below (`1`) an editor that stands in for one, at its level:
+ * a block of the plan or text in a card. The plan header's eyebrow and facts are not blocks.
+ */
+function blockBeside(editor: HTMLElement, direction: -1 | 1): HTMLElement | null {
+  for (
+    let next = direction < 0 ? editor.previousElementSibling : editor.nextElementSibling;
+    next;
+    next = direction < 0 ? next.previousElementSibling : next.nextElementSibling
+  ) {
+    if (!(next instanceof HTMLElement) || next.matches('[data-plan-head]')) continue
+    if (next.matches('[data-plan-block], [data-plan-text]')) return next
+  }
+  return null
 }
 
 /** True when the caret is before the first letter of `content`'s text. */

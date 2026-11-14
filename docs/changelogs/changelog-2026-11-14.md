@@ -25,6 +25,7 @@ A click on a card's title or on the text inside a card now puts the caret there 
 
 - Enter in a paragraph or a heading makes a new block: the text after the caret becomes the next block and the caret moves to its start. Enter at the end opens an empty block below. The page keeps its spacing throughout, and nothing moves when the edit closes.
 - Pressing a grip while a block is open keeps what was typed, then moves the block. Move up and Move down work the same way.
+- Backspace in an empty block removes it and puts the caret at the end of the block above, or at the start of the block below when it was the first. It used to do nothing.
 
 ### New features
 
