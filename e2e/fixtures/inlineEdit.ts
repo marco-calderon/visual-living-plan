@@ -3,8 +3,9 @@ import { expect, type Locator, type Page } from '@playwright/test'
 /** The editor that text opens in when it is clicked: in its place, with no frame or bar (ADR 0040). */
 export const inlineEditor = (page: Page) => page.locator('[data-plan-block-editor][data-inline]')
 
-/** Where a word of `block` is on screen: the middle of its first letter. */
+/** Where a word of `block` is on screen, scrolled into view: the middle of its first letter. */
 export async function pointAtWord(block: Locator, word: string): Promise<{ x: number; y: number }> {
+  await block.scrollIntoViewIfNeeded()
   const point = await block.evaluate((node, word) => {
     const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT)
     for (let text = walker.nextNode() as Text | null; text; text = walker.nextNode() as Text | null) {
@@ -24,7 +25,6 @@ export async function pointAtWord(block: Locator, word: string): Promise<{ x: nu
 
 /** Click just before `word` in a text block: the text opens for editing with the caret there. */
 export async function clickTextAt(page: Page, block: Locator, word: string): Promise<Locator> {
-  await block.scrollIntoViewIfNeeded()
   const point = await pointAtWord(block, word)
   await page.mouse.click(point.x, point.y)
   const content = inlineEditor(page).locator('[contenteditable="true"].plan-editor-content')

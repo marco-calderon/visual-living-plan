@@ -145,7 +145,7 @@ const PLUS =
 /** How long the pill waits after the pointer leaves a block, so it can be reached. */
 const HIDE_DELAY_MS = 300
 
-/** How long a click on text waits for the editor it finished to close. */
+/** How long a press on text waits for the editor it finished to close. */
 const QUEUE_MS = 3000
 
 /** Where in `element`'s text a click at x, y is, for the editor's caret. */
@@ -312,43 +312,56 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     if (!next?.dataset.planBlock) return
     options.edit(next.dataset.planBlock, isTextBlock(next) ? { inline: true, margins: marginsOf(next) } : undefined)
   }
-  // A click on text another editor holds finishes that editor; the text opens once it has closed.
-  let queued: { edit: DirectEdit; x: number; y: number; text: string; at: number } | null = null
-  const openDirect = (direct: DirectEdit, x: number, y: number) => {
+  /** Where the caret goes for a click at x, y on `direct`. */
+  const caretFor = (direct: DirectEdit, x: number, y: number): EditCaret | undefined => {
+    if (direct.kind !== 'grid') return caretIn(direct.element, x, y)
+    return { row: direct.row, column: direct.column, offset: textOffsetAt(direct.element, x, y) ?? Number.MAX_SAFE_INTEGER }
+  }
+  const openDirect = (direct: DirectEdit, caret: EditCaret | undefined) => {
     hide()
     if (direct.kind === 'cell') {
       const range = direct.element.getAttribute('data-plan-cell-range')
-      if (range) options.cell(range, caretIn(direct.element, x, y))
+      if (range) options.cell(range, caret)
       return
     }
-    if (direct.kind === 'grid') {
-      const range = direct.block.dataset.planBlock
-      const offset = textOffsetAt(direct.element, x, y) ?? Number.MAX_SAFE_INTEGER
-      if (range) options.edit(range, { caret: { row: direct.row, column: direct.column, offset } })
-      return
-    }
-    const range = direct.element.dataset.planBlock
-    if (range) options.edit(range, { inline: true, caret: caretIn(direct.element, x, y), margins: marginsOf(direct.element) })
+    const range = (direct.kind === 'grid' ? direct.block : direct.element).dataset.planBlock
+    if (!range) return
+    if (direct.kind === 'grid') options.edit(range, { caret })
+    else options.edit(range, { inline: true, caret, margins: marginsOf(direct.element) })
+  }
+  const plainPress = (event: MouseEvent) =>
+    event.button === 0 && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
+  // A press on other text while an editor is open finishes that editor (client/editor/BlockEditor.tsx);
+  // that text opens once the page shows the edit. A mouse is taken at the press, since the page can
+  // move before the release; a finger at the tap, since a press may start a scroll.
+  let queued: { direct: DirectEdit; caret: EditCaret | undefined; text: string; at: number } | null = null
+  const queue = (event: MouseEvent): boolean => {
+    const state = options.state()
+    if (!state.editable || !state.editing || document.body.dataset.planMode === 'comment') return false
+    const direct = directEditOf(event.target)
+    if (direct) queued = { direct, caret: caretFor(direct, event.clientX, event.clientY), text: direct.element.textContent ?? '', at: Date.now() }
+    return true
+  }
+  const onPress = (event: PointerEvent) => {
+    if (event.pointerType === 'touch') return
+    queued = null
+    if (plainPress(event)) queue(event)
   }
   const onClick = (event: MouseEvent) => {
-    if (event.button !== 0 || event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
+    if (!plainPress(event) || event.defaultPrevented) return
+    if ((event as PointerEvent).pointerType === 'touch' && queue(event)) return
+    if (!usable()) return
     const direct = directEditOf(event.target)
     if (!direct || selecting()) return
-    const state = options.state()
-    if (state.editable && state.editing && document.body.dataset.planMode !== 'comment') {
-      queued = { edit: direct, x: event.clientX, y: event.clientY, text: direct.element.textContent ?? '', at: Date.now() }
-      return
-    }
-    if (!usable()) return
-    openDirect(direct, event.clientX, event.clientY)
+    openDirect(direct, caretFor(direct, event.clientX, event.clientY))
   }
   const closed = () => {
     const next = queued
     queued = null
-    if (!next || Date.now() - next.at > QUEUE_MS || !usable()) return
-    // The page drew the edit; the text clicked on is still there, unless the edit changed it.
-    if (!next.edit.element.isConnected || (next.edit.element.textContent ?? '') !== next.text) return
-    openDirect(next.edit, next.x, next.y)
+    if (!next || Date.now() - next.at > QUEUE_MS || !usable() || selecting()) return
+    // The text pressed on is still there, unless the edit changed it.
+    if (!next.direct.element.isConnected || (next.direct.element.textContent ?? '') !== next.text) return
+    openDirect(next.direct, next.caret)
   }
   // Focus moving into a block (a folder, a tab, a link) shows its pill too, and E edits it.
   const onFocus = (event: FocusEvent) => {
@@ -358,6 +371,7 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
   edit.addEventListener('click', onEdit)
   add.addEventListener('click', onAdd)
   document.addEventListener('click', onClick)
+  document.addEventListener('pointerdown', onPress, { passive: true })
   document.addEventListener('pointerover', onPointer, { passive: true })
   document.addEventListener('pointerup', onTap, { passive: true })
   document.addEventListener('focusin', onFocus)
@@ -371,6 +385,7 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     edit.removeEventListener('click', onEdit)
     add.removeEventListener('click', onAdd)
     document.removeEventListener('click', onClick)
+    document.removeEventListener('pointerdown', onPress)
     document.removeEventListener('pointerover', onPointer)
     document.removeEventListener('pointerup', onTap)
     document.removeEventListener('focusin', onFocus)

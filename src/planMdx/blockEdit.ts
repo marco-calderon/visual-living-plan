@@ -59,6 +59,8 @@ export function cellEditorText(source: string, range: BlockRange): string {
 export function cellMarkdown(edited: string): string {
   return fromEditorMarkdown(edited)
     .replace(/\\\n|\s*\n\s*/g, ' ')
+    // A space the writer kept at a line's end as `&#x20;` is an ordinary space once the lines join.
+    .replace(/&#x20;/g, ' ')
     .replace(/\\.|\|/g, (token) => (token === '|' ? '\\|' : token))
     .trim()
 }

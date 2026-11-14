@@ -6,7 +6,7 @@ mode: watch
 
 # Inline edit
 
-The gateway keeps one window per key and returns 429 when it is full.
+The gateway keeps one window per key and returns 429 when it is full. See [the rollout](#rollout).
 
 ## Rollout
 

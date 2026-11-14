@@ -1,5 +1,13 @@
 import { MDXEditor, type MDXEditorMethods } from '@mdxeditor/editor'
-import { $getRoot, $isParagraphNode, getNearestEditorFromDOMNode } from 'lexical'
+import {
+  $createRangeSelectionFromDom,
+  $getRoot,
+  $getSelection,
+  $isParagraphNode,
+  $isRangeSelection,
+  $setSelection,
+  getNearestEditorFromDOMNode,
+} from 'lexical'
 import '@mdxeditor/editor/style.css'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { applyBlockEdit, applyCellEdit, blockEditorText, cellEditorText, samePlanSource, type BlockRange } from '../../src/planMdx/blockEdit.ts'
@@ -43,19 +51,29 @@ function insideEditor(surface: HTMLElement, target: EventTarget | null): boolean
 }
 
 /**
- * The editor keeps an empty line after a heading, a list, or a quote, to type below it. Text edited
- * as it reads opens without it, so the blocks under it stay where they were.
+ * The editor adds an empty line after a heading, a list, or a quote, to type below it. Text edited
+ * as it reads keeps no such line unless the caret is on it (Enter at the end made it), so the
+ * blocks under the text stay where they were. Returns the cleanup.
  */
-function dropTrailingLine(content: HTMLElement): void {
+function keepNoTrailingLine(content: HTMLElement): () => void {
   const editor = getNearestEditorFromDOMNode(content)
-  editor?.update(
-    () => {
+  if (!editor) return () => undefined
+  const drop = () => {
+    const extra = editor.getEditorState().read(() => {
       const root = $getRoot()
       const last = root.getLastChild()
-      if (root.getChildrenSize() > 1 && $isParagraphNode(last) && last.getChildrenSize() === 0) last.remove()
-    },
-    { discrete: true },
-  )
+      if (root.getChildrenSize() < 2 || !$isParagraphNode(last) || last.getChildrenSize() > 0) return false
+      const selection = $getSelection()
+      return !($isRangeSelection(selection) && selection.anchor.getNode().is(last))
+    })
+    if (!extra) return
+    editor.update(() => {
+      const last = $getRoot().getLastChild()
+      if ($isParagraphNode(last) && last.getChildrenSize() === 0) last.remove()
+    }, { tag: 'history-merge' })
+  }
+  drop()
+  return editor.registerUpdateListener(drop)
 }
 
 /** Put the caret where the click landed: in the text, or in a data table's cell. Cells appear a frame or two after the table. */
@@ -70,7 +88,13 @@ function placeOpeningCaret(surface: HTMLElement, caret: EditCaret, frames = 12):
       return
     }
     content.focus({ preventScroll: true })
-    placeCaret(content, caret.offset)
+    if (!placeCaret(content, caret.offset)) return
+    // The editor takes a caret moved right after its own focus for its own; tell it where the caret is.
+    const editor = getNearestEditorFromDOMNode(content)
+    editor?.update(() => {
+      const selection = $createRangeSelectionFromDom(window.getSelection(), editor)
+      if (selection) $setSelection(selection)
+    })
   }
   attempt(frames)
 }
@@ -99,20 +123,29 @@ export function BlockEditor({ source, target, commit, onCancel, caret, margins }
 
   // The caret goes into the block, where the click on it landed, so typing can start right away. A new block shows the `/` hint.
   useEffect(() => {
+    let stopTrailing = () => {}
+    let stopped = false
     const frame = requestAnimationFrame(() => {
       const node = surface.current
-      // Before the caret goes in: the editor would move it off the line it drops.
-      const content = node?.querySelector<HTMLElement>('.plan-editor-content')
-      if (inline && content) dropTrailingLine(content)
       loaded.current = editor.current?.getMarkdown() ?? null
       // Inline text with no click to follow (E) puts the caret at the end of its text.
       const at = caret ?? (inline ? { offset: Number.MAX_SAFE_INTEGER } : undefined)
-      editor.current?.focus(at && node ? () => placeOpeningCaret(node, at) : undefined, {
+      const opened = () => {
+        if (!node) return
+        const content = node.querySelector<HTMLElement>('.plan-editor-content')
+        if (inline && content && !stopped) stopTrailing = keepNoTrailingLine(content)
+        if (at) placeOpeningCaret(node, at)
+      }
+      editor.current?.focus(opened, {
         defaultSelection: 'rootEnd',
         preventScroll: true,
       })
     })
-    return () => cancelAnimationFrame(frame)
+    return () => {
+      cancelAnimationFrame(frame)
+      stopped = true
+      stopTrailing()
+    }
     // Once, when the editor opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -197,15 +230,38 @@ export function BlockEditor({ source, target, commit, onCancel, caret, margins }
   const doneRef = useRef(onDone)
   doneRef.current = onDone
 
+  // Ctrl or Cmd+Enter is Done, and in a cell, which is one line, so is Enter, as in a spreadsheet.
+  // Caught before the editor sees it, or it would split the line at the caret first.
+  useEffect(() => {
+    const node = surface.current
+    if (!node) return
+    const onEnter = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Enter' || event.isComposing) return
+      const chord = event.metaKey || event.ctrlKey
+      if (!chord && (target.kind !== 'cell' || event.shiftKey || document.querySelector('.plan-slash-menu'))) return
+      event.preventDefault()
+      event.stopPropagation()
+      doneRef.current()
+    }
+    node.addEventListener('keydown', onEnter, true)
+    return () => node.removeEventListener('keydown', onEnter, true)
+  }, [target.kind])
+
   // Inline text has no Done button: a click or a Tab out of it is Done. Menus it opens are still part of it.
   useEffect(() => {
     const node = surface.current
     if (!inline || !node) return
-    const onPointerDown = (event: PointerEvent) => {
-      if (insideEditor(node, event.target)) return
+    const outside = (event: MouseEvent) => {
+      if (insideEditor(node, event.target)) return false
       // The window's scrollbar is not the page.
-      if (event.target === document.documentElement && event.clientX >= document.documentElement.clientWidth) return
-      doneRef.current()
+      return !(event.target === document.documentElement && event.clientX >= document.documentElement.clientWidth)
+    }
+    // A mouse finishes at the press. A finger finishes at a tap: its press may start a scroll.
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.pointerType !== 'touch' && outside(event)) doneRef.current()
+    }
+    const onTap = (event: MouseEvent) => {
+      if ((event as PointerEvent).pointerType === 'touch' && outside(event)) doneRef.current()
     }
     const onFocusOut = (event: FocusEvent) => {
       const next = event.relatedTarget
@@ -213,9 +269,11 @@ export function BlockEditor({ source, target, commit, onCancel, caret, margins }
       doneRef.current()
     }
     document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('click', onTap, true)
     node.addEventListener('focusout', onFocusOut)
     return () => {
       document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('click', onTap, true)
       node.removeEventListener('focusout', onFocusOut)
     }
   }, [inline])
@@ -229,18 +287,6 @@ export function BlockEditor({ source, target, commit, onCancel, caret, margins }
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-      event.preventDefault()
-      onDone()
-      return
-    }
-    // A cell is one line: Enter is Done, as in a spreadsheet.
-    if (event.key === 'Enter' && target.kind === 'cell' && !event.shiftKey && !document.querySelector('.plan-slash-menu')) {
-      event.preventDefault()
-      event.stopPropagation()
-      onDone()
-      return
-    }
     // Escape closes menus first. With nothing typed, it also closes the editor; inline text keeps what was typed.
     if (event.key === 'Escape' && !event.defaultPrevented && !document.querySelector('.plan-slash-menu')) {
       if (!dirty) {

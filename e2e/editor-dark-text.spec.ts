@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { clickTextAt } from './fixtures/inlineEdit.ts'
 
 test.use({ colorScheme: 'dark' })
 
@@ -6,8 +7,9 @@ test.use({ colorScheme: 'dark' })
 // it, so in dark mode they nearly vanished. The editor's text should be the plan's ink.
 test('editor text uses the ink color in dark mode', async ({ page }) => {
   await page.goto('/')
-  await page.locator('[data-plan-rendered] > p[data-plan-block]').first().hover()
-  await page.locator('[data-plan-block-edit]').click()
+  await expect(page.locator('body')).toHaveAttribute('data-plan-editable', 'true')
+  // Text opens where it reads; a card opens with its Edit. Both are the same editor.
+  await clickTextAt(page, page.locator('[data-plan-rendered] > p[data-plan-block]').first(), 'sliding')
   const content = page.locator('[data-plan-block-editor] .plan-editor-content').first()
   await expect(content).toBeVisible()
 
@@ -22,6 +24,7 @@ test('editor text uses the ink color in dark mode', async ({ page }) => {
   expect(ink).toBe('rgb(237, 237, 237)')
   expect(text).toBe(ink)
 
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  // Nothing typed: Escape closes it.
+  await page.keyboard.press('Escape')
   await expect(page.locator('[data-plan-block-editor]')).toHaveCount(0)
 })

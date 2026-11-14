@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
 import { readFile, writeFile } from 'node:fs/promises'
+import { appendToText, clickTextAt } from './fixtures/inlineEdit.ts'
 
 // The agent writes the plan while the person has changes that are not applied yet. The changes
 // go on top of the agent's plan (src/planMdx/rebaseDraft.ts); a block both changed waits for the
@@ -67,16 +68,7 @@ async function editIntro(page: Page, text: string): Promise<void> {
   await page.goto('/')
   await expect(page.locator('[data-plan-rendered]')).toBeVisible()
   await expect(page.locator('body')).toHaveAttribute('data-plan-editable', 'true')
-  await intro(page).hover()
-  await page.locator('[data-plan-block-edit]').click()
-  const content = page.locator('[data-plan-block-editor="edit"] [contenteditable="true"].plan-editor-content')
-  await expect(content).toBeVisible()
-  await content.click()
-  await page.keyboard.press('End')
-  await page.keyboard.press('Control+End')
-  await page.keyboard.type(text)
-  await page.locator('[data-plan-block-done]').click()
-  await expect(page.locator('[data-plan-block-editor]')).toHaveCount(0)
+  await appendToText(page, intro(page), 'sliding', text)
   await expect(intro(page)).toContainText(text.trim())
   await expect(bar(page)).toContainText('1 change not applied')
 }
@@ -118,10 +110,7 @@ test('the agent changes another block: the page shows both, and Apply changes sa
 test('the agent writes while a block editor is open: Done keeps the edit, then it goes on top of the new plan', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('body')).toHaveAttribute('data-plan-editable', 'true')
-  await intro(page).hover()
-  await page.locator('[data-plan-block-edit]').click()
-  const content = page.locator('[data-plan-block-editor="edit"] [contenteditable="true"].plan-editor-content')
-  await expect(content).toBeVisible()
+  const content = await clickTextAt(page, intro(page), 'sliding')
 
   await agentWrites((source) =>
     source.replace('then alert on sustained 429 spikes.', 'then alert on sustained 429 spikes and Redis errors.'),
@@ -135,8 +124,9 @@ test('the agent writes while a block editor is open: Done keeps the edit, then i
   await content.click()
   await page.keyboard.press('Control+End')
   await page.keyboard.type(' Typed while the agent wrote.')
-  await page.locator('[data-plan-block-done]').click()
-  await expect(page.locator('[data-plan-block-editor]')).toHaveCount(0)
+  await page.keyboard.press('Control+Enter')
+  // The page checks the edit compiles, then draws it: two compiles of the whole plan.
+  await expect(page.locator('[data-plan-block-editor]')).toHaveCount(0, { timeout: 10_000 })
   await expect(page.getByText('sustained 429 spikes and Redis errors.')).toBeVisible()
   await expect(intro(page)).toContainText('Typed while the agent wrote.')
   await expect(bar(page).locator('[data-plan-apply-note]')).toHaveText('The agent updated the plan. Your changes are kept on top of it.')

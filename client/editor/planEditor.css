@@ -1163,6 +1163,9 @@
   margin-block: 0;
 }
 
+/* MDXEditor sets its own --font-body on its root; the page's goes through. */
+.plan-block-editor[data-inline] .mdxeditor { --font-body: inherit; }
+
 .plan-block-editor[data-inline] .plan-editor-surface,
 .plan-block-editor[data-inline] .mdxeditor-root-contenteditable {
   padding: 0;
@@ -1173,6 +1176,8 @@
 .plan-block-editor[data-inline] .plan-editor-content {
   min-height: 0;
   padding: 0;
+  /* The page's type, not the editor's system font: the same text wraps on the same words. */
+  font-family: var(--font-body);
 }
 
 /* The page passes the space the text keeps around it (its margins and its first and last child's,
