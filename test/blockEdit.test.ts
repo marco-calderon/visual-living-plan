@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { applyBlockEdit, blockEditorText, samePlanSource } from '../src/planMdx/blockEdit.ts'
+import { applyBlockEdit, applyCellEdit, blockEditorText, cellEditorText, cellMarkdown, samePlanSource } from '../src/planMdx/blockEdit.ts'
 import { compilePlanMdx } from '../src/planMdx/compilePlanMdx.ts'
-import { blockText, insertBlockAfter, mdxBodyOffset, parseBlockRange, spliceBlock } from '../src/planMdx/remarkBlockRanges.ts'
+import { blockText, insertBlockAfter, mdxBodyOffset, parseBlockRange, parseCellRange, spliceBlock } from '../src/planMdx/remarkBlockRanges.ts'
 import { planSourceToMdx } from '../src/planMdx/source.ts'
 
 const plan = `---
@@ -129,4 +129,66 @@ test('splice and insert work on raw ranges too', () => {
   assert.equal(spliceBlock(source, two, 'Deux.'), '---\na: 1\n---\n\nOne.\n\nDeux.\n')
   assert.equal(insertBlockAfter(source, { start: 0, end: 4 }, 'Half.'), '---\na: 1\n---\n\nOne.\n\nHalf.\n\nTwo.\n')
   assert.equal(samePlanSource('a\n', 'a\n\n'), true)
+})
+
+const table = `---
+title: Cells
+---
+
+Limits per route.
+
+| Route | Limit |
+| --- | :---: |
+| GET /health | none |
+| POST /api/keys |  |
+| a \\| b | \`code\` |
+`
+
+/** Every pipe table cell's place in the file, with the text it points at. */
+async function cells(source: string): Promise<Array<{ range: { start: number; end: number }; text: string }>> {
+  const compiled = String(await compilePlanMdx(planSourceToMdx(source)))
+  return [...compiled.matchAll(/"data-plan-cell-range": "(\d+-\d+)"/g)].map((match) => {
+    const range = parseCellRange(match[1])
+    assert.ok(range)
+    return { range, text: cellEditorText(source, range) }
+  })
+}
+
+test('each pipe table cell carries the place of its text, and an empty cell the place its text would go', async () => {
+  const found = await cells(table)
+  assert.deepEqual(
+    found.map((cell) => cell.text),
+    ['Route', 'Limit', 'GET /health', 'none', 'POST /api/keys', '', 'a \\| b', '`code`'],
+  )
+  const empty = found[5]
+  assert.equal(empty.range.start, empty.range.end)
+  assert.equal(parseCellRange('12-12')?.start, 12)
+  assert.equal(parseBlockRange('12-12'), null)
+})
+
+test('a cell edit changes only that cell, escapes its pipes, and keeps it on one line', async () => {
+  const found = await cells(table)
+  const none = found.find((cell) => cell.text === 'none')
+  assert.ok(none)
+  const next = applyCellEdit(table, none.range, 'none | yet\n')
+  assert.equal(next, table.replace('| GET /health | none |', '| GET /health | none \\| yet |'))
+
+  const route = found.find((cell) => cell.text === 'POST /api/keys')
+  assert.ok(route)
+  assert.equal(
+    applyCellEdit(table, route.range, 'POST /api/keys\n\nand more\n'),
+    table.replace('| POST /api/keys |  |', '| POST /api/keys and more |  |'),
+  )
+
+  const empty = found[5]
+  assert.equal(applyCellEdit(table, empty.range, '600\n'), table.replace('| POST /api/keys |  |', '| POST /api/keys | 600 |'))
+  // The new file still reads as the same table.
+  assert.equal((await cells(applyCellEdit(table, empty.range, '600\n'))).length, 8)
+})
+
+test('cell text keeps escapes it has, and a space kept at a line end joins as a space', () => {
+  assert.equal(cellMarkdown('a \\| b'), 'a \\| b')
+  assert.equal(cellMarkdown('`x|y`'), '`x\\|y`')
+  assert.equal(cellMarkdown('one&#x20;\n\ntwo\n'), 'one  two')
+  assert.equal(cellMarkdown('line\\\nbreak'), 'line break')
 })
