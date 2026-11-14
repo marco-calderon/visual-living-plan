@@ -20,6 +20,9 @@ A click on a card's title or on the text inside a card now puts the caret there 
 - The Move menu a grip opens no longer closes when the pointer moves onto the block's text or another block; it closes on a click outside it.
 - The bar of unapplied changes no longer disappears while a block is being edited. Apply changes keeps the open block's edit and applies it with the rest; Discard drops it.
 - Paragraphs inside a card in its editor (an update, a callout) are spaced as paragraphs on the page instead of touching.
+- Hovering text inside a phase showed the phase's Edit and +, so + added a block after the whole phase and Edit opened the phase. The text now shows + alone, which adds a block right below it inside the phase. The phase's own Edit is on its title row.
+- A block open in its editor showed two grips; it shows one.
+- Typing after / to filter the block menu no longer makes the menu look like it closed and opened again on each key.
 
 ### Improvements
 
@@ -29,6 +32,8 @@ A click on a card's title or on the text inside a card now puts the caret there 
 
 ### New features
 
+- The grip's menu has Delete. It asks once, then takes the block out as a change waiting to be applied. Locked blocks keep their place.
+- The / menu adds chips and pills inside the text: a Labels section with Chip and Pill.
 - Titles are edited where they read: phases, callouts, checklists, choices, forms, questions, approvals, and the workflow. Enter or a click elsewhere keeps the change; Escape with nothing typed closes it. Only the title's text changes in the file, and a phase's step number stays as written.
 
 ### Notes

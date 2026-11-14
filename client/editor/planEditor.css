@@ -529,6 +529,12 @@
   left: -26px;
 }
 
+/* A block open in its editor has the page's grip beside the editor (client/planBlockMove.ts), so the
+ * editor's own grip for that block would be a second one. Grips for the blocks inside a card stay. */
+.plan-block-editor[data-plan-edit-block] .plan-block-handles[data-level='root'] {
+  display: none;
+}
+
 .plan-block-button {
   display: inline-flex;
   align-items: center;
@@ -797,6 +803,11 @@
 
 .plan-block-menu[data-closing] {
   animation: plan-menu-out 120ms var(--ease-out) forwards;
+}
+
+/* The / menu grew in when it opened. Filtering puts it back on the page on each key; it does not grow in again. */
+.plan-slash-menu[data-shown] {
+  animation: none;
 }
 
 .plan-select-popup.plan-editor-select-popup[data-starting-style],

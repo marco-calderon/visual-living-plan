@@ -51,10 +51,16 @@ test('the toolbar has no Edit button; text shows no pill, and a component under 
   await page.locator('[data-plan-rendered] [data-entry="form"]').first().hover()
   await expect(tools(page)).not.toHaveAttribute('data-visible', '', { timeout: 2_000 })
 
-  // Text inside a phase shows the phase's Edit, beside the phase.
+  // Text inside a phase shows + alone, to add a block below it in the phase; it opens itself with a click.
   const phase = page.locator('[data-plan-rendered] [data-entry="phase"]').filter({ hasText: 'Ship dashboards and alerts' })
   await phase.getByText('Emit reject counts').hover()
   await expect(tools(page)).toHaveAttribute('data-visible', '')
+  await expect(tools(page)).toHaveAttribute('data-add-only', '')
+  await expect(page.locator('[data-plan-block-edit]')).toBeHidden()
+  // The phase's title row shows the phase's Edit, beside the phase.
+  await phase.locator('.plan-title').hover()
+  await expect(tools(page)).not.toHaveAttribute('data-add-only', '')
+  await expect(page.locator('[data-plan-block-edit]')).toBeVisible()
   const [pill, card] = [await tools(page).boundingBox(), await phase.boundingBox()]
   expect(pill && card && pill.x > card.x + card.width).toBe(true)
 })

@@ -100,6 +100,16 @@ Added in 2.28.0, in the same pull request.
 - The bar of unapplied changes shows whenever changes wait, an open block included. A press on it does not close the open block: Apply changes finishes it first, as a click outside it would, waits for the page to draw it, then applies everything; Discard (asked once) drops the open block with the rest.
 - Text inside a card in its editor (an update's or a callout's paragraphs, a tab's lists) keeps the page's spacing between its blocks (`.plan-rich p`); MDXEditor's nested editor set them flush.
 
+### Delete from the grip, + inside a phase, and labels from the / menu
+
+Added in 2.28.0, in the same pull request.
+
+- The grip's menu has Delete under Move up and Move down. It asks once ("Delete this block?"), finishes an open edit first, then takes the block out (`spliceBlock`) as one more unapplied change; Discard brings it back. A locked block, or one that holds a locked block, keeps Delete disabled: it moves but stays.
+- Text inside a phase used to show the phase's pill, so its + added a block after the whole phase and Edit opened the phase. It now shows + alone, for that text: + adds a block below it, inside the phase. The phase's own pill (Edit and +) shows on its title row. In a phase's own space beside its blocks (the rail, the padding on the way to the pill), the pill goes to the block level with the pointer, as the grip does.
+- A block open in its editor shows only the page's grip: the editor hides its own top-level grip for that block (`data-plan-edit-block`). Grips for blocks inside a card stay.
+- The / menu has a Labels section: Chip and Pill add an inline `<Chip>` or `<Pill>` where the / was, also inside a card's body and a data table's cell.
+- Lexical takes the / menu off the page and puts it back on each key typed after the /, which replayed its grow-in animation and reset its scroll, so filtering looked like the menu closed and opened. The menu grows in once when it opens (`data-shown`) and keeps where it was scrolled.
+
 ### Every block moves where it reads
 
 Added in 2.27.2. The whole-page editor had a grip on every block. Once each block opened its own editor, a grip was left only inside an open editor, so on the page nothing could be reordered.

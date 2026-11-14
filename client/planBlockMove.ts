@@ -26,6 +26,8 @@ export type BlockMoveActions = {
   move: (range: string, target: string, place: BlockPlace) => Promise<BlockMoved | null>
   /** Finish the open editor or title, keeping what was typed, so a move starts from the plan with that edit. */
   finishEditing: () => void
+  /** Take the block at `range` out of the plan, as one more unapplied change. False when it stayed. */
+  remove: (range: string) => Promise<boolean>
 }
 
 export type BlockMoveBinding = {
@@ -163,6 +165,9 @@ const GRIP =
 const ARROW_UP =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>'
 
+const TRASH =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>'
+
 const ARROW_DOWN =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>'
 
@@ -186,14 +191,18 @@ const RENDER_WAIT_MS = 4000
 /** A block's place in the plan file, and the file the page drew when it was read. */
 type Place = { range: string; source: string | null }
 
-function menuItem(step: 'up' | 'down', label: string, icon: string): HTMLButtonElement {
+function menuItem(step: 'up' | 'down' | 'delete', label: string, icon: string): HTMLButtonElement {
   const button = document.createElement('button')
   button.type = 'button'
   button.setAttribute('role', 'menuitem')
-  button.dataset.planBlockMoveStep = step
+  if (step === 'delete') button.dataset.planBlockMoveDelete = ''
+  else button.dataset.planBlockMoveStep = step
   button.innerHTML = `${icon}<span>${label}</span>`
   return button
 }
+
+const DELETE_LABEL = 'Delete'
+const DELETE_ASK = 'Delete this block?'
 
 export function bindBlockMove(options: BlockMoveActions): BlockMoveBinding {
   const grip = document.createElement('button')
@@ -216,7 +225,10 @@ export function bindBlockMove(options: BlockMoveActions): BlockMoveBinding {
   menu.hidden = true
   const up = menuItem('up', 'Move up', ARROW_UP)
   const down = menuItem('down', 'Move down', ARROW_DOWN)
-  menu.append(up, down)
+  // Delete asks once: the first press turns it into "Delete this block?".
+  const remove = menuItem('delete', DELETE_LABEL, TRASH)
+  const removeText = remove.querySelector('span')!
+  menu.append(up, down, remove)
   const line = document.createElement('div')
   line.className = 'plan-block-move-line'
   line.dataset.planBlockMoveLine = ''
@@ -294,10 +306,15 @@ export function bindBlockMove(options: BlockMoveActions): BlockMoveBinding {
     idleWaiters = []
     for (const waiter of waiting) waiter()
   }
+  const resetDelete = () => {
+    delete remove.dataset.confirm
+    removeText.textContent = DELETE_LABEL
+  }
   const closeMenu = () => {
     menuOpen = false
     menu.hidden = true
     grip.setAttribute('aria-expanded', 'false')
+    resetDelete()
   }
   const hide = () => {
     window.clearTimeout(hideTimer)
@@ -362,6 +379,10 @@ export function bindBlockMove(options: BlockMoveActions): BlockMoveBinding {
     const index = siblings.indexOf(block)
     up.disabled = index <= 0
     down.disabled = index < 0 || index >= siblings.length - 1
+    // A locked block, or one that holds a locked block, moves but stays in the plan.
+    remove.disabled = isEditLocked(block) || block.querySelector('[data-edit-locked="true"]') !== null
+    remove.title = remove.disabled ? 'A locked block stays in the plan' : ''
+    resetDelete()
     menuOpen = true
     menu.hidden = false
     grip.setAttribute('aria-expanded', 'true')
@@ -587,6 +608,26 @@ export function bindBlockMove(options: BlockMoveActions): BlockMoveBinding {
     // A press with a mouse leaves focus where it was; Enter or Space on the grip moves it into the menu.
     else if (usable()) openMenu(event.detail === 0)
   }
+  /** Delete, once asked: an open edit is finished first, then the block goes, as one more unapplied change. */
+  const onDelete = async () => {
+    if (!block || remove.disabled) return
+    if (remove.dataset.confirm === undefined) {
+      remove.dataset.confirm = ''
+      removeText.textContent = DELETE_ASK
+      return
+    }
+    const from = block.isConnected ? placeHere(block) : anchor
+    hide()
+    if (options.state().editing) {
+      options.finishEditing()
+      if (!(await whenIdle())) return
+    }
+    const current = blockAt(from)
+    const range = current?.dataset.planBlock
+    if (!range || !usable()) return
+    await options.remove(range)
+  }
+  const onRemove = () => void onDelete()
   const onUp = () => void step(block, -1, { menu: true, focus: document.activeElement === up })
   const onDown = () => void step(block, 1, { menu: true, focus: document.activeElement === down })
   const onKey = (event: KeyboardEvent) => {
@@ -624,6 +665,7 @@ export function bindBlockMove(options: BlockMoveActions): BlockMoveBinding {
   grip.addEventListener('click', onGripClick)
   up.addEventListener('click', onUp)
   down.addEventListener('click', onDown)
+  remove.addEventListener('click', onRemove)
   document.addEventListener('pointermove', onPointer, { passive: true })
   document.addEventListener('pointerup', onTap, { passive: true })
   document.addEventListener('pointerdown', onPress, { passive: true })
@@ -645,6 +687,7 @@ export function bindBlockMove(options: BlockMoveActions): BlockMoveBinding {
     grip.removeEventListener('click', onGripClick)
     up.removeEventListener('click', onUp)
     down.removeEventListener('click', onDown)
+    remove.removeEventListener('click', onRemove)
     document.removeEventListener('pointermove', onPointer)
     document.removeEventListener('pointerup', onTap)
     document.removeEventListener('pointerdown', onPress)

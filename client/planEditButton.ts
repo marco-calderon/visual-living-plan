@@ -76,15 +76,40 @@ export function isTextBlock(block: Element): boolean {
   return block.matches(TEXT_BLOCK)
 }
 
-/** The block the pill is for: the innermost block under `target` that is more than text, such as the phase a paragraph is in. */
-export function pillTargetOf(target: EventTarget | null): HTMLElement | null {
+/** The blocks directly inside `container` (a phase's paragraphs, code, and cards). */
+function innerBlocks(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>('[data-plan-block]')).filter(
+    (child) => child.parentElement?.closest('[data-plan-block]') === container && !child.closest('[data-plan-block-editor]'),
+  )
+}
+
+/** Of `blocks`, the one level with `y`. The gap under a block is its own, so the pointer keeps it on the way down. */
+function levelWith(blocks: HTMLElement[], y: number): HTMLElement | null {
+  for (const [index, block] of blocks.entries()) {
+    const rect = block.getBoundingClientRect()
+    const end = blocks[index + 1]?.getBoundingClientRect().top ?? rect.bottom
+    if (y >= rect.top && y < end) return block
+  }
+  return null
+}
+
+/** What the pill is for: a block, with Edit and +, or text inside a block with + alone (its text opens with a click). */
+export type PillTarget = { block: HTMLElement; addOnly: boolean }
+
+/**
+ * The block the pill is for with the pointer on `target` at `y`: the innermost block under it. In a
+ * block's own space beside the blocks it holds (a phase's rail and padding) that is the block level
+ * with the pointer, so the pill stays on the block the pointer left on its way to the pill. Text inside a
+ * block (a phase's paragraph) gets + alone, to add a block below it there; top-level text has no pill.
+ */
+export function pillTargetOf(target: EventTarget | null, y?: number): PillTarget | null {
   const root = article()
   let block = editTargetOf(target)
-  while (block && isTextBlock(block)) {
-    const outer = block.parentElement?.closest<HTMLElement>('[data-plan-block]') ?? null
-    block = outer && root?.contains(outer) ? outer : null
-  }
-  return block
+  if (!block) return null
+  if (y !== undefined && !isTextBlock(block)) block = levelWith(innerBlocks(block), y) ?? block
+  if (!isTextBlock(block)) return { block, addOnly: false }
+  const outer = block.parentElement?.closest<HTMLElement>('[data-plan-block]') ?? null
+  return outer && root?.contains(outer) ? { block, addOnly: true } : null
 }
 
 /** A block the plan marks `locked`, or one inside a locked block, or an answer card that keeps its default lock. */
@@ -359,9 +384,13 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     tools.style.top = `${top + window.scrollY}px`
     tools.style.left = `${left + window.scrollX}px`
   }
-  const show = (next: HTMLElement) => {
+  let addOnly = false
+  const show = (next: HTMLElement, onlyAdd = false) => {
     window.clearTimeout(hideTimer)
     block = next
+    addOnly = onlyAdd
+    // Text inside a block opens with a click, so its pill holds + alone.
+    tools.toggleAttribute('data-add-only', onlyAdd)
     tools.setAttribute('data-visible', '')
     place()
   }
@@ -370,7 +399,7 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     // In comment mode a click picks a part to comment on, so the pill stays away.
     return state.editable && !state.editing && !commenting()
   }
-  const track = (target: EventTarget | null) => {
+  const track = (target: EventTarget | null, y?: number) => {
     if (target instanceof Node && tools.contains(target)) {
       window.clearTimeout(hideTimer)
       return
@@ -379,11 +408,11 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     pointed = inner && !isEditLocked(inner) ? inner : null
     const text = inner && target instanceof Element ? target.closest<HTMLElement>('[data-plan-text]') : null
     pointedText = text && inner?.contains(text) && !isEditLocked(text) ? text : null
-    const next = inner ? pillTargetOf(target) : null
-    if (next && !isEditLocked(next)) {
+    const next = inner ? pillTargetOf(target, y) : null
+    if (next && !isEditLocked(next.block)) {
       // Back on the block after a trip to the pill: the hide that leaving it started is off.
       window.clearTimeout(hideTimer)
-      if (next !== block || !tools.hasAttribute('data-visible')) show(next)
+      if (next.block !== block || next.addOnly !== addOnly || !tools.hasAttribute('data-visible')) show(next.block, next.addOnly)
       return
     }
     if (!block) return
@@ -392,20 +421,21 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
   }
   const onPointer = (event: PointerEvent) => {
     if (event.pointerType === 'touch') return
-    const target = event.target
+    const { target, clientY } = event
     cancelAnimationFrame(frame)
-    frame = requestAnimationFrame(() => track(target))
+    frame = requestAnimationFrame(() => track(target, clientY))
   }
   // A touch screen has no hover: a tap on a block shows its pill.
   const onTap = (event: PointerEvent) => {
     if (event.pointerType !== 'touch') return
-    track(event.target)
+    track(event.target, event.clientY)
   }
   const onMove = () => {
     if (block) place()
   }
   const run = (action: 'edit' | 'add') => {
     const target = block
+    if (action === 'edit' && addOnly) return
     hide()
     const range = target?.dataset.planBlock
     if (!range || !usable()) return

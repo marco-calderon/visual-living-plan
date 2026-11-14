@@ -36,7 +36,7 @@ import { bindBlockEditButton, followEdit, type BlockEditBinding, type EditCaret,
 import { editTitleInPlace, typedTitle } from './titleEdit.ts'
 import { applyTitleEdit, titleRange } from '../src/planMdx/titleEdit.ts'
 import { bindBlockMove, type BlockMoveBinding, type BlockMoved } from './planBlockMove.ts'
-import { CELL_RANGE_ATTR, moveBlock, parseBlockRange, parseCellRange, type BlockPlace } from '../src/planMdx/remarkBlockRanges.ts'
+import { CELL_RANGE_ATTR, moveBlock, parseBlockRange, parseCellRange, spliceBlock, type BlockPlace } from '../src/planMdx/remarkBlockRanges.ts'
 import { Button } from './ui/button.tsx'
 import type { BlockTarget } from './editor/BlockEditor.tsx'
 
@@ -1075,6 +1075,7 @@ function PlanMdxApp() {
       move: (range, target, place) => moveRef.current(range, target, place),
       // A grip pressed while a block or a title is open finishes that edit first, as a click outside does.
       finishEditing,
+      remove: (range) => removeRef.current(range),
     })
     moveBinding.current = mover
     return () => {
@@ -1240,6 +1241,25 @@ function PlanMdxApp() {
     }
   }, [titleEditId])
   useEffect(() => () => titleEdit.current?.stop(), [])
+
+  // A block deleted from its grip's menu is one more unapplied change, like a Remove in its editor.
+  const removeRef = useRef<(range: string) => Promise<boolean>>(async () => false)
+  removeRef.current = async (rangeText) => {
+    const range = parseBlockRange(rangeText)
+    const from = pageSourceRef.current
+    // The blocks on screen carry places in the file the page shows.
+    if (!range || from !== shownSourceRef.current) return false
+    const next = spliceBlock(from, range, '')
+    if (samePlanSource(next, from)) return false
+    if (await planNotReadyReason(next)) {
+      window.showPlanToast?.('Deleting that block would leave the plan unable to render, so it stayed.', 'error')
+      return false
+    }
+    // The plan changed while the delete was checked, so its places are not this file's any more.
+    if (pageSourceRef.current !== from) return false
+    keepChange(next, draftRef.current?.base ?? from, draftRef.current)
+    return true
+  }
 
   // A block moved by its grip (client/planBlockMove.ts) is one more unapplied change, like an edit's Done.
   const moveRef = useRef<(range: string, target: string, place: BlockPlace) => Promise<BlockMoved | null>>(async () => null)

@@ -214,6 +214,32 @@ test('the grip menu stays open while the pointer crosses other blocks, until a p
   await expect(menu(page)).toBeHidden()
 })
 
+test('Delete in the grip menu asks once, then takes the block out as a change to apply; a locked block stays', async ({ page }) => {
+  await openPlan(page)
+  const intro = top(page).filter({ hasText: 'Every block on this page' })
+  await pointAt(page, intro)
+  await grip(page).click()
+  const remove = menu(page).locator('[data-plan-block-move-delete]')
+  await expect(remove).toHaveText('Delete')
+  await remove.click()
+  await expect(remove).toHaveText('Delete this block?')
+  await expect(intro).toHaveCount(1)
+  await remove.click()
+  await expect(intro).toHaveCount(0)
+  await expect(bar(page)).toContainText('1 change not applied')
+  await expect.poll(() => topOrder(page)).toEqual(['Block move', '#build', '#agreed', '#fail-mode', 'FileTree', 'workflow'])
+
+  // A locked phase moves, but stays in the plan.
+  await pointAt(page, phase(page, 'agreed').locator('.plan-title'))
+  await grip(page).click()
+  await expect(menu(page).locator('[data-plan-block-move-delete]')).toBeDisabled()
+  await page.mouse.click(5, 450)
+
+  await page.locator('[data-plan-apply]').click()
+  await expect(bar(page)).toHaveCount(0)
+  await expect.poll(() => planSource(page)).not.toContain('Every block on this page')
+})
+
 test('the grip menu on a block being edited keeps the edit and moves the block', async ({ page }) => {
   await openPlan(page)
   const intro = top(page).filter({ hasText: 'Every block on this page' })
