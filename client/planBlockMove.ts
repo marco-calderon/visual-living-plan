@@ -312,8 +312,21 @@ export function bindBlockMove(options: BlockMoveActions): BlockMoveBinding {
     menu.style.top = `${top + (grip.offsetHeight || 24) + 4}px`
     menu.style.left = `${Math.max(window.scrollX + 8, Math.min(left, window.scrollX + window.innerWidth - width - 8))}px`
   }
+  /**
+   * The block under the grip, found again when the page drew it anew: an editor it stood beside
+   * closed, kept or not. False when the block is gone.
+   */
+  const relink = (): boolean => {
+    if (!block) return false
+    if (block.isConnected) return true
+    const found = blockAt(anchor)
+    if (!found || !isMovable(found)) return false
+    block = found
+    anchor = placeHere(found)
+    return true
+  }
   const place = () => {
-    if (!block || !block.isConnected) return hide()
+    if (!block || !relink()) return hide()
     const rect = block.getBoundingClientRect()
     if (!drag && (rect.bottom < 0 || rect.top > window.innerHeight)) return hide()
     const width = grip.offsetWidth || GRIP_WIDTH
@@ -359,7 +372,8 @@ export function bindBlockMove(options: BlockMoveActions): BlockMoveBinding {
   }
 
   const track = (target: EventTarget | null, y: number) => {
-    if (drag) return
+    // An open menu stays on its block until a press outside it, Escape, or a choice.
+    if (drag || menuOpen) return
     if (inTools(target)) {
       window.clearTimeout(hideTimer)
       return
@@ -445,17 +459,9 @@ export function bindBlockMove(options: BlockMoveActions): BlockMoveBinding {
     const before = drawn
     drawn = source
     // An edit the grip finished is drawn: the grip and a drag follow their block to the element that draws it now.
+    if (anchor && anchor.source === null) anchor = { range: anchor.range, source: before }
+    follow()
     if (before !== source) {
-      if (block && !block.isConnected) {
-        const found = blockAt(anchor ? { range: anchor.range, source: anchor.source ?? before } : null)
-        if (found && isMovable(found)) {
-          block = found
-          anchor = placeHere(found)
-          place()
-          // A menu opened on the editor counts the block's neighbours again.
-          if (menuOpen) openMenu(false)
-        }
-      }
       if (drag && !drag.block.isConnected) {
         const found = blockAt(drag.from)
         if (found) {
@@ -475,8 +481,21 @@ export function bindBlockMove(options: BlockMoveActions): BlockMoveBinding {
     if (done.menu) openMenu(done.focus)
     else if (done.focus) grip.focus({ preventScroll: true })
   }
+  /** The grip, and a menu open on it, go to the element that draws their block now. */
+  function follow() {
+    if (!block || block.isConnected) return
+    if (!relink()) {
+      hide()
+      return
+    }
+    place()
+    // A menu opened beside an editor counts the block's neighbours again.
+    if (menuOpen) openMenu(false)
+  }
   const refresh = () => {
     if (!usable() && !pending) hide()
+    // An editor closed without a change: the page drew the same file, with the block where the editor was.
+    else follow()
     wake()
   }
 

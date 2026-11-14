@@ -193,6 +193,27 @@ test('while a block is edited its grip stays beside the editor, and a drag keeps
   ])
 })
 
+test('the grip menu stays open while the pointer crosses other blocks, until a press outside it', async ({ page }) => {
+  await openPlan(page)
+  const intro = top(page).filter({ hasText: 'Every block on this page' })
+  await pointAt(page, intro)
+  await grip(page).click()
+  await expect(menu(page)).toBeVisible()
+  // Over the block's own text, then over the next block, and back to the menu.
+  const box = await phase(page, 'build').boundingBox()
+  if (!box) throw new Error('no phase on screen')
+  await page.mouse.move(box.x + box.width / 2, box.y + 20, { steps: 8 })
+  await page.waitForTimeout(400)
+  await expect(menu(page)).toBeVisible()
+  await menu(page).getByRole('menuitem', { name: 'Move down' }).click()
+  await expect(bar(page)).toContainText('1 change not applied')
+  await expect.poll(() => topOrder(page)).toEqual(['Block move', '#build', 'Every block', '#agreed', '#fail-mode', 'FileTree', 'workflow'])
+  // A press outside closes it.
+  await expect(menu(page)).toBeVisible()
+  await page.mouse.click(5, 450)
+  await expect(menu(page)).toBeHidden()
+})
+
 test('the grip menu on a block being edited keeps the edit and moves the block', async ({ page }) => {
   await openPlan(page)
   const intro = top(page).filter({ hasText: 'Every block on this page' })
@@ -204,6 +225,12 @@ test('the grip menu on a block being edited keeps the edit and moves the block',
   await pointAt(page, editor)
   await grip(page).click()
   await expect(editor).toHaveCount(0)
+  // The menu stays on the block the page drew in the editor's place, with the pointer over its text.
+  const box = await intro.boundingBox()
+  if (!box) throw new Error('no block on screen')
+  await page.mouse.move(box.x + 40, box.y + box.height / 2, { steps: 6 })
+  await page.waitForTimeout(400)
+  await expect(menu(page)).toBeVisible()
   await menu(page).getByRole('menuitem', { name: 'Move down' }).click()
   await expect(bar(page)).toContainText('2 changes not applied')
   await expect.poll(() => topOrder(page)).toEqual(['Block move', '#build', 'Every block', '#agreed', '#fail-mode', 'FileTree', 'workflow'])

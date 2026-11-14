@@ -375,6 +375,16 @@
   outline: none;
 }
 
+/* Text inside a card keeps the page's spacing between its paragraphs and lists (.plan-rich p in
+ * client/entries/primitives.css), as text outside a card does. MDXEditor's nested editor sets them flush. */
+.plan-editor-body.plan-rich [contenteditable] > :is(p, ul, ol) {
+  margin: 0 0 var(--space-sm);
+}
+
+.plan-editor-body.plan-rich [contenteditable] > :is(p, ul, ol):last-child {
+  margin-bottom: 0;
+}
+
 /* A fence: a language picker, Pierre's code editor in the page's code frame, and a mermaid figure below. */
 .plan-editor-code {
   display: flex;

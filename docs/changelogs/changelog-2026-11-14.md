@@ -17,6 +17,9 @@ A click on a card's title or on the text inside a card now puts the caret there 
 - Text near the end of a plan scrolled to the bottom no longer jumps up when it opens for editing.
 - Enter in text no longer adds a second paragraph inside the same editor with wider spacing that jumped when the edit closed.
 - A block being edited, and every other block, can be dragged by its grip; the grip used to disappear while an editor was open.
+- The Move menu a grip opens no longer closes when the pointer moves onto the block's text or another block; it closes on a click outside it.
+- The bar of unapplied changes no longer disappears while a block is being edited. Apply changes keeps the open block's edit and applies it with the rest; Discard drops it.
+- Paragraphs inside a card in its editor (an update, a callout) are spaced as paragraphs on the page instead of touching.
 
 ### Improvements
 

@@ -984,8 +984,32 @@ function PlanMdxApp() {
   const draftRef = useRef(draft)
   draftRef.current = draft
   const moveBinding = useRef<BlockMoveBinding | null>(null)
-  // The open block editor's Done, so a block's grip can finish the edit before it moves a block.
+  // The open block editor's Done, so a block's grip or Apply changes can finish the edit first.
   const openDone = useRef<(() => void) | null>(null)
+  /** Finish the open editor or title, keeping what was typed, as a click outside it does. */
+  const finishEditing = () => {
+    openDone.current?.()
+    titleEdit.current?.finish()
+  }
+  // Apply changes pressed while a block is open waits for that edit to be drawn.
+  const idleWaiters = useRef<Array<() => void>>([])
+  /** Resolves once no editor is open: false when the open one does not close (an edit that does not render). */
+  const whenEditIdle = () =>
+    new Promise<boolean>((resolve) => {
+      if (!editState.current.editing) {
+        resolve(true)
+        return
+      }
+      const done = () => {
+        window.clearTimeout(timer)
+        resolve(true)
+      }
+      const timer = window.setTimeout(() => {
+        idleWaiters.current = idleWaiters.current.filter((waiter) => waiter !== done)
+        resolve(false)
+      }, 4000)
+      idleWaiters.current.push(done)
+    })
   // The open title edit (client/titleEdit.ts makes the title's text editable where it is), and how to put it back.
   const titleEdit = useRef<{ id: number; stop: () => void; finish: () => void } | null>(null)
   const [applying, setApplying] = useState(false)
@@ -1050,10 +1074,7 @@ function PlanMdxApp() {
       state: () => editState.current,
       move: (range, target, place) => moveRef.current(range, target, place),
       // A grip pressed while a block or a title is open finishes that edit first, as a click outside does.
-      finishEditing: () => {
-        openDone.current?.()
-        titleEdit.current?.finish()
-      },
+      finishEditing,
     })
     moveBinding.current = mover
     return () => {
@@ -1201,6 +1222,14 @@ function PlanMdxApp() {
       },
     }
   }, [openEdit, draft, planId])
+  // Apply changes waits for an open editor to close.
+  useEffect(() => {
+    if (openEdit) return
+    const waiting = idleWaiters.current
+    idleWaiters.current = []
+    for (const waiter of waiting) waiter()
+  }, [openEdit])
+
   // A title edit that closed some other way (the page stopped being editable) puts its text back as React drew it.
   const titleEditId = openEdit?.target.kind === 'title' ? openEdit.id : null
   useEffect(() => {
@@ -1240,6 +1269,16 @@ function PlanMdxApp() {
     setApplying(true)
     setApplyError(null)
     try {
+      // A block still open is part of the changes: it is finished first, as a click outside it would.
+      if (editState.current.editing) {
+        finishEditing()
+        if (!(await whenEditIdle())) {
+          setApplyError('Finish the block that is open, or cancel it, then apply.')
+          return
+        }
+      }
+      const draft = draftRef.current
+      if (!draft || draft.rebase) return
       const result = await saveEditedSource(draft.base, draft.source)
       if (!result.ok) {
         setApplyError(result.message)
@@ -1267,6 +1306,9 @@ function PlanMdxApp() {
       setConfirmDiscard(true)
       return
     }
+    // An open block goes too, with what was typed in it.
+    pendingFollow.current = null
+    setOpenEdit(null)
     clearDraft(planId)
     setDraft(null)
     setConfirmDiscard(false)
@@ -1353,7 +1395,8 @@ function PlanMdxApp() {
           <span aria-hidden="true">+</span> Add a block
         </button>
       ) : null}
-      {draft && canEdit && !openEdit ? (
+      {/* Shown while a block is edited too: changes wait to be applied whatever has focus. */}
+      {draft && canEdit ? (
         <div
           className="plan-apply-bar"
           role="region"

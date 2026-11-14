@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { clickTextAt, inlineEditor, pointAtWord } from './fixtures/inlineEdit.ts'
+import { appendToText, clickTextAt, inlineEditor, pointAtWord } from './fixtures/inlineEdit.ts'
 import { useOwnPlanServer } from './fixtures/ownServer.ts'
 
 // Text and table cells are edited where they read; cards, choices, endpoints, and diagrams keep the
@@ -308,6 +308,68 @@ test('Enter in the text of a card makes a new paragraph in that card', async ({ 
     'Staff get the flag for a week first.',
     'Then everyone.',
   ])
+})
+
+test('the bar of unapplied changes stays while a block is edited, and Apply keeps the open edit too', async ({ page }) => {
+  await openPlan(page)
+  const intro = rendered(page).locator('> p[data-plan-block]').first()
+  await appendToText(page, intro, 'gateway', ' First.')
+  const bar = page.locator('[data-plan-apply-bar]')
+  await expect(bar).toContainText('1 change not applied')
+
+  // Another block open: the bar stays where it is, and a press on it does not close the block.
+  const quote = rendered(page).locator('> blockquote')
+  await clickTextAt(page, quote, 'limiter')
+  await expect(bar).toBeVisible()
+  await page.keyboard.press('Control+End')
+  await page.keyboard.type(' Second.')
+  await page.locator('[data-plan-apply]').click()
+  await expect(editor(page)).toHaveCount(0)
+  await expect(bar).toHaveCount(0)
+  await expect.poll(() => planSource(page)).toContain('when it is full. See [the rollout](#rollout). First.')
+  expect(await planSource(page)).toContain('has run for a week. Second.')
+})
+
+test('Discard while a block is edited drops the open edit with the rest', async ({ page }) => {
+  await openPlan(page)
+  const before = await planSource(page)
+  const intro = rendered(page).locator('> p[data-plan-block]').first()
+  await appendToText(page, intro, 'gateway', ' First.')
+  await clickTextAt(page, rendered(page).locator('> blockquote'), 'limiter')
+  await page.keyboard.type('Typed ')
+  const discard = page.locator('[data-plan-discard]')
+  await discard.click()
+  // Asking once does not close the block.
+  await expect(discard).toHaveText('Discard changes?')
+  await expect(editor(page)).toHaveCount(1)
+  await discard.click()
+  await expect(editor(page)).toHaveCount(0)
+  await expect(page.locator('[data-plan-apply-bar]')).toHaveCount(0)
+  await expect(rendered(page).locator('> blockquote')).not.toContainText('Typed')
+  expect(await planSource(page)).toBe(before)
+})
+
+test("paragraphs in a card's editor are spaced as paragraphs on the page", async ({ page }) => {
+  await openPlan(page)
+  const pageGap = await page.evaluate(() => Number.parseFloat(getComputedStyle(document.querySelector('[data-plan-rendered] > p[data-plan-block]')!).marginBottom))
+  const callout = rendered(page).locator('[data-entry="callout"]')
+  await callout.scrollIntoViewIfNeeded()
+  await callout.hover({ position: { x: 12, y: 12 } })
+  await page.locator('[data-plan-block-edit]').click()
+  const body = editor(page).locator('.plan-editor-body [contenteditable]').first()
+  await expect(body).toContainText('Staff get the flag')
+  const point = await pointAtWord(body, 'first.')
+  await page.mouse.click(point.x, point.y)
+  await page.keyboard.press('End')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('Then everyone.')
+  const gap = await body.evaluate((node) => {
+    const [first, second] = Array.from(node.children)
+    return second!.getBoundingClientRect().top - first!.getBoundingClientRect().bottom
+  })
+  expect(Math.abs(gap - pageGap)).toBeLessThan(1)
+  await page.locator('[data-plan-block-cancel]').click()
+  await expect(editor(page)).toHaveCount(0)
 })
 
 test("a phase's step number still jumps to the workflow while its title is editable", async ({ page }) => {

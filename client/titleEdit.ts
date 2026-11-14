@@ -19,7 +19,9 @@ export type TitleEditOptions = {
   cancel: () => void
 }
 
+/** The title, or the bar of unapplied changes: Apply finishes the title itself, and Discard drops it. */
 function inside(element: HTMLElement, target: EventTarget | null): boolean {
+  if (target instanceof Element && target.closest('[data-plan-apply-bar]')) return true
   return target instanceof Node && element.contains(target)
 }
 
@@ -105,11 +107,12 @@ export function editTitleInPlace(element: HTMLElement, options: TitleEditOptions
     if (event.pointerType !== 'touch' && !inside(element, event.target)) finish(true)
   }
   const onClick = (event: MouseEvent) => {
-    if (inside(element, event.target)) {
+    if (event.target instanceof Node && element.contains(event.target)) {
       // A click that moves the caret in the title does not follow the link the title sits in.
       event.preventDefault()
       return
     }
+    if (inside(element, event.target)) return
     if ((event as PointerEvent).pointerType === 'touch') finish(true)
   }
   const onKeyDown = (event: KeyboardEvent) => {

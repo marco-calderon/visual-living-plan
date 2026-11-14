@@ -91,6 +91,14 @@ Added in 2.28.0. Enter in text edited as it reads used to make a second paragrap
 - The grip stays while a block or a title is edited. An open editor carries `data-plan-edit-block`, the place of the block it stands in for, so it has a grip of its own and counts as that block among its neighbours. Pressing the grip finishes the edit first (`finishEditing`), as a click outside does; a framed editor is finished the same way.
 - A move started that way waits for the page to draw the edit, then finds its blocks again: `remapBlockStart` (`src/planMdx/remarkBlockRanges.ts`) maps a block's start across the edit (unchanged before it, shifted after it, gone inside it), and the grip, a drag, and an open Move menu follow the block to the element that draws it now. The move binding hears each draw before the page paints, so a drop always reads places in the file on screen.
 
+### The Move menu, the Apply bar, and text in a card's editor
+
+Added in 2.28.0, in the same pull request.
+
+- The Move menu a grip opens stays open while the pointer crosses other blocks, and on the block when the page redraws it (an editor the grip stood beside closed, with or without a change). It closes on a press outside it, Escape, or a choice.
+- The bar of unapplied changes shows whenever changes wait, an open block included. A press on it does not close the open block: Apply changes finishes it first, as a click outside it would, waits for the page to draw it, then applies everything; Discard (asked once) drops the open block with the rest.
+- Text inside a card in its editor (an update's or a callout's paragraphs, a tab's lists) keeps the page's spacing between its blocks (`.plan-rich p`); MDXEditor's nested editor set them flush.
+
 ### Every block moves where it reads
 
 Added in 2.27.2. The whole-page editor had a grip on every block. Once each block opened its own editor, a grip was left only inside an open editor, so on the page nothing could be reordered.
