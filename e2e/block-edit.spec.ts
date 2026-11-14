@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { waitForCodeBlocks } from './fixtures/codeBlocks.ts'
 import { clickTextAt, inlineEditor, pointAtWord } from './fixtures/inlineEdit.ts'
 import { useOwnPlanServer } from './fixtures/ownServer.ts'
 
@@ -17,6 +18,8 @@ async function openPlan(page: Page): Promise<void> {
   await page.goto('/')
   await expect(page.locator('[data-plan-rendered]')).toBeVisible()
   await expect(page.locator('body')).toHaveAttribute('data-plan-editable', 'true')
+  // The specs click words by where they are on screen; code blocks that finish drawing later move them.
+  await waitForCodeBlocks(page)
 }
 
 async function planSource(page: Page): Promise<string> {
