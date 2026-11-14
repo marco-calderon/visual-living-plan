@@ -73,8 +73,9 @@
   color: var(--ink);
 }
 
-/* Further apart than on the page, so the + bar fits between blocks (BAR_ROOM). Beats the page's card and paragraph margins. */
-.plan-editor .plan-editor-content.plan-document > * + * {
+/* Further apart than on the page, so the + bar fits between blocks (BAR_ROOM). Beats the page's card and paragraph margins.
+ * Text edited as it reads has no + bars, so its blocks keep the page's own spacing and nothing moves when it closes. */
+.plan-editor:not([data-inline]) .plan-editor-content.plan-document > * + * {
   margin-top: var(--space-xl);
 }
 

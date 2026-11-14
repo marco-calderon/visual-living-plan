@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { applyBlockEdit, applyCellEdit, blockEditorText, cellEditorText, cellMarkdown, samePlanSource } from '../src/planMdx/blockEdit.ts'
 import { compilePlanMdx } from '../src/planMdx/compilePlanMdx.ts'
-import { blockText, insertBlockAfter, mdxBodyOffset, moveBlock, parseBlockRange, parseCellRange, spliceBlock } from '../src/planMdx/remarkBlockRanges.ts'
+import { blockText, insertBlockAfter, mdxBodyOffset, moveBlock, parseBlockRange, parseCellRange, remapBlockStart, spliceBlock } from '../src/planMdx/remarkBlockRanges.ts'
 import { planSourceToMdx } from '../src/planMdx/source.ts'
 
 const plan = `---
@@ -242,4 +242,26 @@ test('cell text keeps escapes it has, and a space kept at a line end joins as a 
   assert.equal(cellMarkdown('`x|y`'), '`x\\|y`')
   assert.equal(cellMarkdown('one&#x20;\n\ntwo\n'), 'one  two')
   assert.equal(cellMarkdown('line\\\nbreak'), 'line break')
+})
+
+test('a block is found again after an edit: before it it stays, after it it moves with the edit, inside it it is gone', async () => {
+  const intro = await rangeOf(plan, 'Ship the limiter')
+  const phase = await rangeOf(plan, '<phase')
+  const heading = await rangeOf(plan, '# Rollout')
+  // Enter split the intro into two blocks.
+  const split = applyBlockEdit(plan, { kind: 'replace', range: intro, edited: 'Ship the limiter\n\nbehind a flag.\n' })
+  assert.equal(remapBlockStart(plan, split, heading.start), heading.start)
+  assert.equal(remapBlockStart(plan, split, intro.start), intro.start)
+  const moved = remapBlockStart(plan, split, phase.start)
+  assert.ok(moved !== null)
+  assert.ok(blockText(split, { start: moved, end: moved + 6 }).startsWith('<phase'))
+  // A block added right before another: that one moves along with what came after it.
+  const added = applyBlockEdit(plan, { kind: 'insert', after: intro, edited: 'A new line.\n' })
+  const after = remapBlockStart(plan, added, phase.start)
+  assert.ok(after !== null)
+  assert.ok(blockText(added, { start: after, end: after + 6 }).startsWith('<phase'))
+  // A block the edit took out has no place.
+  const removed = applyBlockEdit(plan, { kind: 'replace', range: phase, edited: '' })
+  assert.equal(remapBlockStart(plan, removed, (await rangeOf(plan, 'First line of the phase')).start), null)
+  assert.equal(remapBlockStart(plan, plan, phase.start), phase.start)
 })

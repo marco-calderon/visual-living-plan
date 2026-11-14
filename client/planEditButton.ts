@@ -19,12 +19,21 @@ type EditState = { editable: boolean; editing: boolean }
 /** Where the caret goes when an editor opens: characters into the text, in a data table's cell when `row` is set. */
 export type EditCaret = { offset: number; row?: number; column?: number }
 
+/**
+ * What opens once an editor closes after Enter split its text: the block after the one at `start`
+ * (the text after the caret), or an empty new block after it. `start` is a place in the plan file the
+ * page draws next, where the edited block still starts.
+ */
+export type EditFollow = { open: 'next' | 'add'; start: number }
+
 /** How a block's editor opens. Text opens `inline`: it keeps its look and place, with no frame or bar. */
 export type EditHow = {
   inline?: boolean
   caret?: EditCaret
   /** The space the block keeps around its text, so the text does not move when it turns into the editor. */
   margins?: { top: string; bottom: string }
+  /** The height of the text it stands in for, held while the editor's own text comes in. */
+  height?: number
 }
 
 export type BlockEditActions = {
@@ -32,7 +41,7 @@ export type BlockEditActions = {
   /** Open the editor for the block at this range (its `data-plan-block`). */
   edit: (range: string, how?: EditHow) => void
   /** Open a new block's editor after the block at this range. */
-  add: (after: string) => void
+  add: (after: string, how?: EditHow) => void
   /** Edit one cell of a pipe table where it is (its `data-plan-cell-range`). */
   cell: (range: string, caret?: EditCaret) => void
   /** Edit a card's title where it reads: `element` is its text, `attr` the attribute it comes from, `block` the card's range. */
@@ -223,8 +232,70 @@ function collapsedMargin(element: Element, side: 'top' | 'bottom'): number {
   return value
 }
 
-function marginsOf(element: Element): { top: string; bottom: string } {
+export function marginsOf(element: Element): { top: string; bottom: string } {
   return { top: `${collapsedMargin(element, 'top')}px`, bottom: `${collapsedMargin(element, 'bottom')}px` }
+}
+
+/** The space and the height of a new, empty paragraph right after `block`, measured where it will be. */
+function paragraphAfter(block: Element): { margins: { top: string; bottom: string }; height: number } {
+  const probe = document.createElement('p')
+  probe.textContent = '\u200b'
+  probe.style.visibility = 'hidden'
+  block.after(probe)
+  const margins = marginsOf(probe)
+  const height = probe.getBoundingClientRect().height
+  probe.remove()
+  return { margins, height }
+}
+
+/** How text keeps its place when it turns into its editor: its margins and its height. */
+function textPlace(element: Element): Pick<EditHow, 'margins' | 'height'> {
+  return { margins: marginsOf(element), height: element.getBoundingClientRect().height }
+}
+
+function rangeStart(value: string | undefined): number | null {
+  const match = /^(\d+)-\d+$/.exec(value ?? '')
+  return match ? Number(match[1]) : null
+}
+
+/** The place of a block in the plan file: a card's text has its own (`data-plan-text`), any other block its block's. */
+function placeOf(element: HTMLElement): string | undefined {
+  return element.dataset.planText ?? element.dataset.planBlock
+}
+
+/** The block that starts at `start` in the plan the page draws, text first (a fence's frame and its code share one place). */
+function blockStartingAt(start: number): HTMLElement | null {
+  const root = article()
+  if (!root) return null
+  const found = Array.from(root.querySelectorAll<HTMLElement>('[data-plan-block], [data-plan-text]')).filter(
+    (element) => rangeStart(placeOf(element)) === start && !element.closest('[data-plan-block-editor]'),
+  )
+  return found.find(isTextBlock) ?? found[0] ?? null
+}
+
+/** The text block right after `block` at its level, skipping the plan header's eyebrow and facts. */
+function textBlockAfter(block: HTMLElement): HTMLElement | null {
+  const attribute = block.hasAttribute('data-plan-text') ? 'data-plan-text' : 'data-plan-block'
+  for (let next = block.nextElementSibling; next; next = next.nextElementSibling) {
+    if (!(next instanceof HTMLElement) || !next.hasAttribute(attribute)) continue
+    return isTextBlock(next) && !isEditLocked(next) ? next : null
+  }
+  return null
+}
+
+/**
+ * The editor that opens after Enter split a block's text (client/editor/BlockEditor.tsx), found on the
+ * page as it now draws the plan: the next block with the caret at its start, or an empty block after
+ * the edited one with a paragraph's spacing. Null when the page has no such block.
+ */
+export function followEdit(follow: EditFollow): ({ kind: 'edit' | 'add'; range: string } & EditHow) | null {
+  const block = blockStartingAt(follow.start)
+  const place = block ? placeOf(block) : undefined
+  if (!block || !place) return null
+  if (follow.open === 'add') return { kind: 'add', range: place, ...paragraphAfter(block) }
+  const next = textBlockAfter(block)
+  const range = next ? placeOf(next) : undefined
+  return next && range ? { kind: 'edit', range, caret: { offset: 0 }, ...textPlace(next) } : null
 }
 
 function toolButton(className: string, label: string, title: string, html: string): HTMLButtonElement {
@@ -353,9 +424,9 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     if (showPlanTab()) return
     if (pointedText?.isConnected && pointedText.dataset.planText) {
       const range = pointedText.dataset.planText
-      const margins = marginsOf(pointedText)
+      const place = textPlace(pointedText)
       hide()
-      options.edit(range, { inline: true, margins })
+      options.edit(range, { inline: true, ...place })
       return
     }
     const hovered = pointed?.isConnected ? pointed : null
@@ -365,7 +436,7 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     )
     hide()
     if (!next?.dataset.planBlock) return
-    options.edit(next.dataset.planBlock, isTextBlock(next) ? { inline: true, margins: marginsOf(next) } : undefined)
+    options.edit(next.dataset.planBlock, isTextBlock(next) ? { inline: true, ...textPlace(next) } : undefined)
   }
   /** Where the caret goes for a click at x, y on `direct`. */
   const caretFor = (direct: DirectEdit, x: number, y: number): EditCaret | undefined => {
@@ -388,7 +459,7 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     const range = direct.kind === 'grid' ? direct.block.dataset.planBlock : (direct.element.dataset.planText ?? direct.element.dataset.planBlock)
     if (!range) return
     if (direct.kind === 'grid') options.edit(range, { caret })
-    else options.edit(range, { inline: true, caret, margins: marginsOf(direct.element) })
+    else options.edit(range, { inline: true, caret, ...textPlace(direct.element) })
   }
   const plainPress = (event: MouseEvent) =>
     event.button === 0 && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey

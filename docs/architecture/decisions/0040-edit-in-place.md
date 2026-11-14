@@ -80,6 +80,17 @@ Added in 2.28.0. A click did nothing on most of what reads as text: a callout's 
 - Since the page now hears a click before the comment picker (`client/PlanSelector.tsx`), it reads comment mode the way the picker does: `html[data-comments="on"]`, set at once by the toggle, as well as the session's `comment` mode, which follows after the service answers and stays `review` in review. While comments are on, a click picks a part to comment on and nothing opens.
 - The Add a block button keeps its room, unseen, while an editor is open, so text near the end of a plan scrolled to the bottom does not jump when it opens.
 
+### Enter makes a block, and the grip stays while a block is edited
+
+Added in 2.28.0. Enter in text edited as it reads used to make a second paragraph inside the same editor, spaced as the whole-page editor spaces blocks (`--space-xl`), so the text moved when a click outside closed it and the page drew two blocks with its own spacing. While any editor was open, no block had a grip.
+
+- Enter in a paragraph or a heading (with nothing else in its editor) keeps the text before the caret in the block and makes the text after it the next block (`splitOnEnter` in `client/editor/BlockEditor.tsx`): the editor splits its text, keeps both as one edit, and the page opens the next block's editor with the caret at its start. Enter at the end keeps the text and opens an empty block below, inline like other text, with the `/` hint. The spaces at the split end neither block. Enter on an empty line, or before the first letter, does nothing. Lists, quotes, and code keep the editor's own Enter, and Shift+Enter is a line break.
+- `EditFollow` names that next block by where the edited block starts in the file the page draws next. The page finds it (`followEdit` in `client/planEditButton.ts`) and opens its editor in a layout effect, in the same frame it draws the edit, so no frame shows the blocks without an editor. An empty new block takes a paragraph's spacing, measured where it will be.
+- Nothing jumps. The inline editor keeps the page's spacing between its blocks (the whole-page editor's wider spacing is for its + bars, which inline text does not have). An editor whose edit was kept stays where it is, inert (`closing`), until the page draws that edit, so the old text never shows again between them. A new editor holds the height of the text it stands in for until its own text is in. Enter reads the caret from the page first, since the editor learns a caret moved by a key a moment later.
+- When an edit undid every unapplied change, the page draws the edit it kept rather than the file the editor opened on.
+- The grip stays while a block or a title is edited. An open editor carries `data-plan-edit-block`, the place of the block it stands in for, so it has a grip of its own and counts as that block among its neighbours. Pressing the grip finishes the edit first (`finishEditing`), as a click outside does; a framed editor is finished the same way.
+- A move started that way waits for the page to draw the edit, then finds its blocks again: `remapBlockStart` (`src/planMdx/remarkBlockRanges.ts`) maps a block's start across the edit (unchanged before it, shifted after it, gone inside it), and the grip, a drag, and an open Move menu follow the block to the element that draws it now. The move binding hears each draw before the page paints, so a drop always reads places in the file on screen.
+
 ### Every block moves where it reads
 
 Added in 2.27.2. The whole-page editor had a grip on every block. Once each block opened its own editor, a grip was left only inside an open editor, so on the page nothing could be reordered.
@@ -90,7 +101,7 @@ Added in 2.27.2. The whole-page editor had a grip on every block. Once each bloc
 - A click or a tap on the grip opens Move up and Move down, which stay open on the block after it moves. Alt+Up and Alt+Down move the block with focus (or the block of the focused grip).
 - `moveBlock` (`src/planMdx/remarkBlockRanges.ts`) cuts the block's text with one separator beside it and puts it before or after the target block, as written. Every other byte stays, and moving a block back where it was gives the file back. The result must compile before it is kept. A move is one more unapplied change, like Done, and Apply changes publishes it.
 - Blocks a component draws inside itself (a file tree's rows, a choice's options, an endpoint's fields, a diagram's nodes, a tab's panel) are not blocks of the plan and keep their order; that component's editor changes them. Blocks inside a locked block keep their order too, and nothing is dropped into one. The locked block itself moves, as a locked card does in the editor.
-- The grip is gone while an editor is open, in comment mode, and while the page merges an agent write.
+- The grip is gone in comment mode and while the page merges an agent write. It stays while a block is edited (changed in 2.28.0; it used to go then too): see below.
 
 ## Consequences
 

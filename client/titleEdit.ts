@@ -28,8 +28,11 @@ export function typedTitle(element: Element): string {
   return (element.textContent ?? '').replace(/ /g, ' ').replace(/\s*[\r\n]+\s*/g, ' ')
 }
 
-/** Make `element` editable where it is. Returns a stop that puts it back without reporting anything. */
-export function editTitleInPlace(element: HTMLElement, options: TitleEditOptions): () => void {
+/** An open title edit: `finish` keeps what was typed, as Enter does; `stop` puts the title back and reports nothing. */
+export type TitleEdit = { finish: () => void; stop: () => void }
+
+/** Make `element` editable where it is. */
+export function editTitleInPlace(element: HTMLElement, options: TitleEditOptions): TitleEdit {
   const nodes = Array.from(element.childNodes)
   const data = nodes.map((node) => (node instanceof Text ? node.data : null))
   const before = typedTitle(element)
@@ -150,9 +153,12 @@ export function editTitleInPlace(element: HTMLElement, options: TitleEditOptions
     selection?.collapseToEnd()
   }
 
-  return () => {
-    if (finished) return
-    finished = true
-    restore()
+  return {
+    finish: () => finish(true),
+    stop: () => {
+      if (finished) return
+      finished = true
+      restore()
+    },
   }
 }

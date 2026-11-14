@@ -221,6 +221,95 @@ test("text in a card and a card's title are edited where they read, and only the
   ])
 })
 
+/** Every top the element at `selector` takes, frame by frame, from now until `stop()`. */
+async function trackTops(page: Page, selector: string): Promise<() => Promise<number[]>> {
+  await page.evaluate((selector) => {
+    const tops: number[] = []
+    const state = window as unknown as { __tops: number[]; __tracking: boolean }
+    state.__tops = tops
+    state.__tracking = true
+    const tick = () => {
+      const top = Math.round(document.querySelector(selector)?.getBoundingClientRect().top ?? -1)
+      if (tops[tops.length - 1] !== top) tops.push(top)
+      if (state.__tracking) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  }, selector)
+  return () =>
+    page.evaluate(() => {
+      const state = window as unknown as { __tops: number[]; __tracking: boolean }
+      state.__tracking = false
+      return state.__tops
+    })
+}
+
+test('Enter makes a new block with the caret in it, and nothing on the page jumps', async ({ page }) => {
+  await openPlan(page)
+  const intro = rendered(page).locator('> p[data-plan-block]').first()
+  await clickTextAt(page, intro, 'gateway')
+  await page.keyboard.press('Control+End')
+
+  // Enter at the end: the text closes as it was, and an empty block opens below it with the caret.
+  // The heading under it moves down one line, once: no frame shows it anywhere else.
+  const heading = rendered(page).locator('> h2')
+  const start = (await heading.boundingBox())?.y ?? 0
+  const stop = await trackTops(page, '[data-plan-rendered] > h2')
+  await page.keyboard.press('Enter')
+  await expect(inlineEditor(page)).toHaveAttribute('data-plan-block-editor', 'add')
+  await expect(inlineEditor(page).locator('[contenteditable="true"]')).toBeFocused()
+  await page.waitForTimeout(300)
+  const down = (await heading.boundingBox())?.y ?? 0
+  expect(down).toBeGreaterThan(start + 20)
+  expect((await stop()).filter((top) => Math.abs(top - Math.round(start)) > 1 && Math.abs(top - Math.round(down)) > 1)).toEqual([])
+  await expect(editor(page)).toHaveCount(1)
+
+  // Enter in the middle: the text after the caret becomes the next block, with the caret at its start.
+  await page.keyboard.type('Staff first, then everyone.')
+  await page.keyboard.press('Home')
+  for (let step = 0; step < 'Staff first, '.length; step += 1) await page.keyboard.press('ArrowRight')
+  const tops = await trackTops(page, '[data-plan-rendered] > h2')
+  await page.keyboard.press('Enter')
+  await expect(inlineEditor(page)).toHaveAttribute('data-plan-block-editor', 'edit')
+  await expect(inlineEditor(page)).toHaveText('then everyone.')
+  await page.keyboard.type('>')
+  await expect(inlineEditor(page)).toHaveText('>then everyone.')
+  await page.keyboard.press('Control+z')
+  await page.waitForTimeout(300)
+  const lower = (await heading.boundingBox())?.y ?? 0
+  expect(lower).toBeGreaterThan(down + 20)
+  expect((await tops()).filter((top) => Math.abs(top - Math.round(down)) > 1 && Math.abs(top - Math.round(lower)) > 1)).toEqual([])
+
+  // A click outside closes it where it is.
+  const open = await inlineEditor(page).boundingBox()
+  await page.mouse.click(5, 450)
+  await expect(editor(page)).toHaveCount(0)
+  const last = rendered(page).locator('> p[data-plan-block]').nth(2)
+  await expect(last).toHaveText('then everyone.')
+  expect(Math.abs(((await last.boundingBox())?.y ?? 0) - (open?.y ?? 0))).toBeLessThan(1)
+
+  await page.locator('[data-plan-apply]').click()
+  await expect(page.locator('[data-plan-apply-bar]')).toHaveCount(0)
+  await expect
+    .poll(() => planSource(page))
+    .toContain('See [the rollout](#rollout).\n\nStaff first,\n\nthen everyone.\n\n## Rollout')
+})
+
+test('Enter in the text of a card makes a new paragraph in that card', async ({ page }) => {
+  await openPlan(page)
+  const note = rendered(page).locator('[data-entry="callout"] p[data-plan-text]')
+  await clickTextAt(page, note, 'week')
+  await page.keyboard.press('Control+End')
+  await page.keyboard.press('Enter')
+  await expect(inlineEditor(page)).toHaveAttribute('data-plan-block-editor', 'add')
+  await page.keyboard.type('Then everyone.')
+  await page.keyboard.press('Control+Enter')
+  await expect(editor(page)).toHaveCount(0)
+  await expect(rendered(page).locator('[data-entry="callout"] p[data-plan-text]')).toHaveText([
+    'Staff get the flag for a week first.',
+    'Then everyone.',
+  ])
+})
+
 test("a phase's step number still jumps to the workflow while its title is editable", async ({ page }) => {
   await openPlan(page)
   await rendered(page).locator('[data-entry="phase"] a.plan-step-number').click()

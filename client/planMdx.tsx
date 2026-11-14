@@ -32,7 +32,7 @@ import { sendPlanMutation, sharedQueryClient } from './queryClient.tsx'
 import { clearDraft, isLegacyDraft, readDraft, writeDraft, type PlanDraft } from './editor/draftStore.ts'
 import { planNotReadyReason } from '../src/planReady.ts'
 import type { DraftConflict, DraftSide } from '../src/planMdx/rebaseDraft.ts'
-import { bindBlockEditButton, type BlockEditBinding, type EditCaret, type EditHow } from './planEditButton.ts'
+import { bindBlockEditButton, followEdit, type BlockEditBinding, type EditCaret, type EditFollow, type EditHow } from './planEditButton.ts'
 import { editTitleInPlace, typedTitle } from './titleEdit.ts'
 import { applyTitleEdit, titleRange } from '../src/planMdx/titleEdit.ts'
 import { bindBlockMove, type BlockMoveBinding, type BlockMoved } from './planBlockMove.ts'
@@ -128,7 +128,7 @@ function PlanTitleHeading({ id, blockRange, children, editing }: { id?: string; 
         </p>
       ) : null}
       {/* The title edited as it reads keeps the eyebrow above it and the facts under it. */}
-      {editing ? <BlockEditSlot replaced={null} fallback={heading} /> : heading}
+      {editing ? <BlockEditSlot replaced={null} fallback={heading} blockRange={blockRange} /> : heading}
       {info && info.facts.length > 0 ? (
         <ul className="plan-head-facts" data-plan-head="" aria-label="Plan progress">
           {info.facts.map((fact) => (
@@ -192,7 +192,7 @@ function PlanMarkdownHeading({
     : level === 2 ? <h2 id={id} data-plan-block={blockRange} data-plan-text={textRange}>{children}</h2>
     : <h3 id={id} data-plan-block={blockRange} data-plan-text={textRange}>{children}</h3>
   // A heading open in the editor keeps its place in the contents, so the headings after it keep their ids.
-  return editing ? <BlockEditSlot replaced={null} fallback={heading} /> : heading
+  return editing ? <BlockEditSlot replaced={null} fallback={heading} blockRange={blockRange} /> : heading
 }
 
 function PlanH1(props: PlanHeadingProps) {
@@ -225,21 +225,26 @@ type OpenEdit = {
    */
   target:
     | { kind: 'edit'; range: string; inline?: boolean }
-    | { kind: 'add'; after: string | null }
+    | { kind: 'add'; after: string | null; inline?: boolean }
     | { kind: 'cell'; range: string }
     | { kind: 'title' }
-  /** Where the caret goes, and the margins inline text keeps. */
+  /** Where the caret goes, and the margins and height inline text keeps. */
   caret?: EditCaret
   margins?: EditHow['margins']
+  height?: number
   source: string
-  /** The plan file Done kept. The editor closes when the page shows it. */
+  /** The plan file Done kept. The editor stays, as it is, until the page shows it, then closes. */
   committed?: string
+  /** The block that opens in the same frame the page shows `committed`: Enter split the text. */
+  then?: EditFollow
 }
 
 type EditSlot = {
   open: OpenEdit
-  commit: (next: string) => Promise<string | null>
-  cancel: () => void
+  commit: (next: string, follow?: EditFollow) => Promise<string | null>
+  cancel: (follow?: EditFollow) => void
+  /** The open editor's Done, so a block's grip can finish the edit before it moves a block. */
+  register: (done: (() => void) | null) => void
 }
 
 /** The open block editor, for the plan body to draw in the block's place. */
@@ -258,7 +263,7 @@ function blockTarget(open: OpenEdit): BlockTarget | null {
   }
   if (open.target.after === null) return { kind: 'add', after: null }
   const after = parseBlockRange(open.target.after)
-  return after ? { kind: 'add', after } : null
+  return after ? { kind: 'add', after, inline: open.target.inline } : null
 }
 
 type SaveResult = { ok: true } | { ok: false; message: string; status?: number }
@@ -364,8 +369,9 @@ function PlanBody({ Content, components, source }: PlanBodyProps) {
   const slot = useContext(EditSlotContext)
   const tree = (Content as (props: { components: typeof planComponents }) => ReactNode)({ components })
   const blocks = keyedBlocks(tree)
-  // The editor's range is a place in the file it opened on. A newer file has other places.
-  if (!slot || slot.open.source !== source || slot.open.committed !== undefined) return <>{blocks}</>
+  // The editor's range is a place in the file it opened on. A newer file has other places. An editor
+  // whose edit was kept stays until the page draws that edit, so the old text never shows again between them.
+  if (!slot || slot.open.source !== source) return <>{blocks}</>
   return <>{placeEditSlot(blocks, slot.open)}</>
 }
 
@@ -374,9 +380,15 @@ function PlanBody({ Content, components, source }: PlanBodyProps) {
  * inside a card has the place of its text instead (`data-plan-text`); the two never name the same place.
  */
 function rangeOfElement(element: ReactElement): string | undefined {
-  const props = element.props as { 'data-plan-block'?: unknown; 'data-plan-text'?: unknown; children?: ReactNode }
-  if (typeof props['data-plan-block'] === 'string') return props['data-plan-block']
+  const props = element.props as { 'data-plan-text'?: unknown }
   if (typeof props['data-plan-text'] === 'string') return props['data-plan-text']
+  return blockRangeOfElement(element)
+}
+
+/** The place of a block that moves (`data-plan-block`), not of text inside a card. */
+function blockRangeOfElement(element: ReactElement): string | undefined {
+  const props = element.props as { 'data-plan-block'?: unknown; children?: ReactNode }
+  if (typeof props['data-plan-block'] === 'string') return props['data-plan-block']
   if (element.type !== PlanPre) return undefined
   const code = Children.toArray(props.children).find((node) => isValidElement(node))
   const inner = code && isValidElement<{ 'data-plan-block'?: unknown }>(code) ? code.props['data-plan-block'] : undefined
@@ -392,14 +404,14 @@ function countHeadings(node: ReactNode): number {
   return (PLAN_HEADINGS.has(node.type) ? 1 : 0) + countHeadings(node.props.children)
 }
 
-function BlockEditSlot({ replaced, fallback }: { replaced: ReactElement | null; fallback?: ReactNode }) {
+function BlockEditSlot({ replaced, fallback, blockRange }: { replaced: ReactElement | null; fallback?: ReactNode; blockRange?: string }) {
   const slot = useContext(EditSlotContext)
   const cursor = useContext(TocHeadingCursor)
   if (cursor && replaced) cursor.current.n += countHeadings(replaced)
   const target = slot ? blockTarget(slot.open) : null
   if (!slot || !target) return fallback ?? replaced
   // Text edited as it reads stays as it is while the editor's code loads, so nothing flickers.
-  const inline = target.kind === 'cell' || (target.kind === 'edit' && target.inline === true)
+  const inline = target.kind === 'cell' || ((target.kind === 'edit' || target.kind === 'add') && target.inline === true)
   return (
     <Suspense
       fallback={
@@ -420,6 +432,10 @@ function BlockEditSlot({ replaced, fallback }: { replaced: ReactElement | null; 
         onCancel={slot.cancel}
         caret={slot.open.caret}
         margins={slot.open.margins}
+        height={slot.open.height}
+        closing={slot.open.committed !== undefined}
+        registerDone={slot.register}
+        blockRange={target.kind === 'edit' ? (blockRange ?? (replaced ? blockRangeOfElement(replaced) : undefined)) : undefined}
       />
     </Suspense>
   )
@@ -698,8 +714,9 @@ function PlanMdxApp() {
   const [openEdit, setOpenEdit] = useState<OpenEdit | null>(null)
   const editIds = useRef(0)
   const editBinding = useRef<BlockEditBinding | null>(null)
-  // The plan file the page draws: the unapplied changes, else the file a block editor opened on, else the live plan.
-  const pageSource = draft?.source ?? openEdit?.source ?? boot.source
+  // The plan file the page draws: the unapplied changes, else the edit an editor kept (one that undid every
+  // change leaves no draft), else the file a block editor opened on, else the live plan.
+  const pageSource = draft?.source ?? openEdit?.committed ?? openEdit?.source ?? boot.source
   // The source on screen. It lags `pageSource` when the newest source does not compile.
   const [shownSource, setShownSource] = useState<string>(pageSource)
   const stale = shownSource !== pageSource
@@ -967,8 +984,10 @@ function PlanMdxApp() {
   const draftRef = useRef(draft)
   draftRef.current = draft
   const moveBinding = useRef<BlockMoveBinding | null>(null)
+  // The open block editor's Done, so a block's grip can finish the edit before it moves a block.
+  const openDone = useRef<(() => void) | null>(null)
   // The open title edit (client/titleEdit.ts makes the title's text editable where it is), and how to put it back.
-  const titleEdit = useRef<{ id: number; stop: () => void } | null>(null)
+  const titleEdit = useRef<{ id: number; stop: () => void; finish: () => void } | null>(null)
   const [applying, setApplying] = useState(false)
   const [applyError, setApplyError] = useState<string | null>(null)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
@@ -984,7 +1003,7 @@ function PlanMdxApp() {
     if (!canEdit) return
     const open = (target: OpenEdit['target'], how?: EditHow) => {
       editIds.current += 1
-      setOpenEdit({ id: editIds.current, target, caret: how?.caret, margins: how?.margins, source: pageSourceRef.current })
+      setOpenEdit({ id: editIds.current, target, caret: how?.caret, margins: how?.margins, height: how?.height, source: pageSourceRef.current })
     }
     // Load the editor while the reader looks at the page, so a click on text or Edit opens at once.
     const warm = () => void loadBlockEditor().catch(() => undefined)
@@ -992,7 +1011,7 @@ function PlanMdxApp() {
     const binding = bindBlockEditButton({
       state: () => editState.current,
       edit: (range, how) => open({ kind: 'edit', range, inline: how?.inline }, how),
-      add: (after) => open({ kind: 'add', after }),
+      add: (after, how) => open({ kind: 'add', after, inline: how?.inline }, how),
       cell: (range, caret) => open({ kind: 'cell', range }, { caret }),
       title: (element, block, attr, caret) => {
         const range = parseBlockRange(block)
@@ -1007,7 +1026,7 @@ function PlanMdxApp() {
         const id = editIds.current
         const close = () => setOpenEdit((current) => (current?.id === id ? null : current))
         // The title turns editable within the click, so a touch screen shows its keyboard.
-        const stop = editTitleInPlace(element, {
+        const edit = editTitleInPlace(element, {
           caret: caret?.offset,
           cancel: close,
           done: async (text) => {
@@ -1022,7 +1041,7 @@ function PlanMdxApp() {
             return true
           },
         })
-        titleEdit.current = { id, stop }
+        titleEdit.current = { id, ...edit }
       },
     })
     editBinding.current = binding
@@ -1030,6 +1049,11 @@ function PlanMdxApp() {
     const mover = bindBlockMove({
       state: () => editState.current,
       move: (range, target, place) => moveRef.current(range, target, place),
+      // A grip pressed while a block or a title is open finishes that edit first, as a click outside does.
+      finishEditing: () => {
+        openDone.current?.()
+        titleEdit.current?.finish()
+      },
     })
     moveBinding.current = mover
     return () => {
@@ -1047,7 +1071,8 @@ function PlanMdxApp() {
   }, [editable, openEdit])
 
   // A move waits for the page to draw it, so the grip follows the block and the next move has the new places.
-  useEffect(() => {
+  // Told before the page paints, so a drop always reads places in the file the page shows.
+  useLayoutEffect(() => {
     if (content) moveBinding.current?.rendered(shownSource)
   }, [content, shownSource])
 
@@ -1085,9 +1110,33 @@ function PlanMdxApp() {
     })
   }, [canEdit, planId])
 
-  // Done keeps the edit; the editor closes once the page shows it.
-  useEffect(() => {
-    if (openEdit?.committed !== undefined && samePlanSource(shownSource, openEdit.committed)) setOpenEdit(null)
+  // Enter split a block's text: the editor that opens next, found on the page as it draws now. Its
+  // source is the file on screen, so the page places it at once.
+  const followUp = (follow: EditFollow, source: string): OpenEdit | null => {
+    const found = followEdit(follow)
+    if (!found) return null
+    editIds.current += 1
+    const target: OpenEdit['target'] =
+      found.kind === 'edit' ? { kind: 'edit', range: found.range, inline: true } : { kind: 'add', after: found.range, inline: true }
+    return { id: editIds.current, target, caret: found.caret, margins: found.margins, height: found.height, source }
+  }
+  // Enter that changed nothing (at the end of untouched text) closes the editor; the new block opens on the next draw.
+  const pendingFollow = useRef<EditFollow | null>(null)
+
+  // Done keeps the edit; the editor stays until the page shows it, then closes. When Enter split the
+  // text, the next block opens in that same frame, before the page paints, so nothing moves or blinks.
+  useLayoutEffect(() => {
+    if (openEdit?.committed !== undefined && samePlanSource(shownSource, openEdit.committed)) {
+      setOpenEdit(openEdit.then ? followUp(openEdit.then, shownSource) : null)
+      return
+    }
+    const follow = pendingFollow.current
+    if (openEdit || !follow) return
+    pendingFollow.current = null
+    const next = followUp(follow, shownSource)
+    if (next) setOpenEdit(next)
+    // followUp reads only refs and the page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openEdit, shownSource])
 
   // The agent wrote after these changes started: put them on top of its plan. An open editor first
@@ -1138,11 +1187,17 @@ function PlanMdxApp() {
     if (!openEdit) return null
     return {
       open: openEdit,
-      cancel: () => setOpenEdit((current) => (current?.id === openEdit.id ? null : current)),
-      commit: async (next) => {
+      cancel: (follow) => {
+        if (follow) pendingFollow.current = follow
+        setOpenEdit((current) => (current?.id === openEdit.id ? null : current))
+      },
+      commit: async (next, follow) => {
         keepChange(next, draft?.base ?? openEdit.source, draft)
-        setOpenEdit((current) => (current?.id === openEdit.id ? { ...current, committed: next } : current))
+        setOpenEdit((current) => (current?.id === openEdit.id ? { ...current, committed: next, then: follow } : current))
         return null
+      },
+      register: (done) => {
+        openDone.current = done
       },
     }
   }, [openEdit, draft, planId])

@@ -258,6 +258,26 @@ export function moveBlock(
   return { source: next, range: { start: start - body, end: start - body + text.length } }
 }
 
+/**
+ * Where a block that started at `offset` in `before` (a place in its compiled MDX, as
+ * `data-plan-block` has it) starts in `after`, for two plan files that differ in one stretch, as an
+ * edit leaves them. A block before the stretch keeps its place, a block after it moves with it, and
+ * a block that started inside it is gone: null.
+ */
+export function remapBlockStart(before: string, after: string, offset: number): number | null {
+  if (before === after) return offset
+  const at = mdxBodyOffset(before) + offset
+  const shortest = Math.min(before.length, after.length)
+  let prefix = 0
+  while (prefix < shortest && before[prefix] === after[prefix]) prefix += 1
+  let suffix = 0
+  while (suffix < shortest - prefix && before[before.length - 1 - suffix] === after[after.length - 1 - suffix]) suffix += 1
+  // A block right where text was put in moves with the text after it.
+  if (at >= before.length - suffix) return at + after.length - before.length - mdxBodyOffset(after)
+  if (at <= prefix) return at - mdxBodyOffset(after)
+  return null
+}
+
 /** A block's text in the plan file. */
 export function blockText(source: string, range: { start: number; end: number }): string {
   const offset = mdxBodyOffset(source)
