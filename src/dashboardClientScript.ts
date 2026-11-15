@@ -1,5 +1,18 @@
 import { agentIconSvg } from './agentPresence'
-import { emptyPlansText } from './dashboardFormat'
+import { openQuestions } from './dashboard'
+import {
+  durationPhrase,
+  emptyPlansText,
+  filesText,
+  outcomeLabel,
+  planPlace,
+  progressDetail,
+  questionsText,
+  rangeText,
+  startedText,
+  statusSegments,
+} from './dashboardFormat'
+import { ACTIVITY_GLYPH_SVG, BRANCH_ICON_SVG, FOLDER_ICON_SVG, progressTone } from './dashboardOverview'
 import { rowSkeletonHtml, searchSkeletonHtml } from './dashboardLoading'
 import {
   highlightParts,
@@ -19,18 +32,32 @@ export function dashboardClientScript(apiPath: string): string {
       const apiPath = ${JSON.stringify(apiPath)};
       const agentIcons = ${JSON.stringify({ on: agentIconSvg(true), off: agentIconSvg(false) })};
       if (window.__livingPlanDashboardTimer) clearInterval(window.__livingPlanDashboardTimer);
+      const activityGlyphs = ${JSON.stringify(ACTIVITY_GLYPH_SVG)};
+      const placeIcons = ${JSON.stringify({ folder: FOLDER_ICON_SVG, branch: BRANCH_ICON_SVG })};
       const stats = document.getElementById('stats');
       const status = document.getElementById('status');
-      const rows = document.getElementById('rows');
+      const plansCount = document.getElementById('plans-count');
       const periodButtons = Array.from(document.querySelectorAll('[data-period]'));
       const filterButtons = Array.from(document.querySelectorAll('[data-filter]'));
       const tableWrap = document.querySelector('.table-wrap');
       const headRow = document.querySelector('.table-wrap thead tr');
+      const table = tableWrap.querySelector('table');
       const statusSpinner = document.getElementById('status-spinner');
       const refreshButton = document.getElementById('refresh');
       const refreshSpinner = document.getElementById('refresh-spinner');
       const refreshLabel = document.getElementById('refresh-label');
       const emptyPlansText = (${emptyPlansText.toString()});
+      const openQuestions = (${openQuestions.toString()});
+      const startedText = (${startedText.toString()});
+      const statusSegments = (${statusSegments.toString()});
+      const outcomeLabel = (${outcomeLabel.toString()});
+      const planPlace = (${planPlace.toString()});
+      const progressDetail = (${progressDetail.toString()});
+      const questionsText = (${questionsText.toString()});
+      const durationPhrase = (${durationPhrase.toString()});
+      const filesText = (${filesText.toString()});
+      const rangeText = (${rangeText.toString()});
+      const progressTone = (${progressTone.toString()});
       const rowSkeleton = ${JSON.stringify(rowSkeletonHtml())};
       const periodPhrase = { day: 'today', week: 'this week', month: 'this month' };
       let period = 'day';
@@ -97,12 +124,6 @@ export function dashboardClientScript(apiPath: string): string {
         return Math.floor(hours / 24) + 'd ' + (hours % 24) + 'h';
       }
 
-      function formatRange(summary) {
-        const start = formatWhen(summary.from);
-        const end = formatWhen(summary.to);
-        return start + ' – ' + end;
-      }
-
       const activityLabel = { active: 'Active', idle: 'Idle', executed: 'Executed', interrupted: 'Interrupted' };
 
       // Same rule as planActivity in src/dashboard.ts: an open plan is active only while an agent is connected.
@@ -111,53 +132,155 @@ export function dashboardClientScript(apiPath: string): string {
         return record.agentConnected ? 'active' : 'idle';
       }
 
+      // How long ago the agent was last seen, as agentSeenAgo in src/agentPresence.ts reads it.
+      function seenAgo(record) {
+        const seen = Number(record.agentSeenAt) || 0;
+        if (!seen) return '';
+        const seconds = Math.max(0, Math.round((Date.now() - seen) / 1000));
+        if (seconds < 60) return 'just now';
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        return minutes < 60 ? minutes + 'm ago' : hours < 48 ? hours + 'h ago' : Math.floor(hours / 24) + 'd ago';
+      }
+
       // Same text as agentPresenceText in src/agentPresence.ts.
       function agentText(record) {
         if (record.agentConnected) return 'Agent connected';
-        const seen = Number(record.agentSeenAt) || 0;
-        if (!seen) return 'No agent connected';
-        const seconds = Math.max(0, Math.round((Date.now() - seen) / 1000));
-        let ago = 'just now';
-        if (seconds >= 60) {
-          const minutes = Math.floor(seconds / 60);
-          const hours = Math.floor(minutes / 60);
-          ago = minutes < 60 ? minutes + 'm ago' : hours < 48 ? hours + 'h ago' : Math.floor(hours / 24) + 'd ago';
-        }
-        return 'No agent connected · last seen ' + ago;
+        const ago = seenAgo(record);
+        return ago ? 'No agent connected · last seen ' + ago : 'No agent connected';
       }
       const completionLabel = {
-        idle: 'Idle',
+        idle: 'Not started',
         in_progress: 'In progress',
         partial: 'Partial',
         complete: 'Complete',
       };
 
-      function statCard(label, value) {
-        const card = text('article', 'stat');
-        card.append(text('span', '', label), text('strong', '', value));
-        return card;
+      function count(value) {
+        return (Number(value) || 0).toLocaleString();
       }
 
-      function paintStats(summary, animate) {
-        stats.replaceChildren(
-          statCard('Active', String(summary.active ?? 0)),
-          statCard('Idle', String(summary.idle ?? summary.running ?? 0)),
-          statCard('Executed', String(summary.executed)),
-          statCard('Interrupted', String(summary.interrupted)),
-          statCard('Files modified', String(summary.filesModified)),
-          statCard('Execution time', formatDuration(summary.durationMs)),
-          statCard('Folders', String(summary.folders)),
+      function ofCount(done, total) {
+        return count(done) + ' of ' + count(total);
+      }
+
+      function card(label, className) {
+        const node = text('article', className ? 'dash-card ' + className : 'dash-card');
+        node.append(text('h2', 'dash-eyebrow', label));
+        return node;
+      }
+
+      function figure(value, caption, hero) {
+        const node = text('p', hero ? 'dash-figure hero' : 'dash-figure');
+        node.append(text('strong', '', value), text('span', '', caption));
+        return node;
+      }
+
+      // Label and value rows under a card's figure.
+      function facts(entries) {
+        const list = text('dl', 'dash-facts');
+        for (const entry of entries) {
+          const row = document.createElement('div');
+          row.append(text('dt', '', entry[0]), text('dd', '', entry[1]));
+          list.append(row);
+        }
+        return list;
+      }
+
+      // The period's plans split by status, one part per status with any plans. The legend under it
+      // carries the names and counts, so the bar itself is a picture of the split.
+      function statusBar(segments, total) {
+        const bar = text('div', 'dash-seg');
+        bar.setAttribute('role', 'img');
+        bar.setAttribute('aria-label', total
+          ? 'Plans by status: ' + segments.map((part) => part.label + ' ' + part.count).join(', ')
+          : 'No plans');
+        const parts = segments.filter((part) => part.count > 0);
+        if (parts.length === 0) {
+          bar.append(text('span', 'dash-seg-part empty'));
+          return bar;
+        }
+        for (const part of parts) {
+          const node = text('span', 'dash-seg-part');
+          node.dataset.activity = part.id;
+          node.style.setProperty('--dash-count', String(part.count));
+          node.title = part.label + ' · ' + part.count + ' of ' + total + ' (' + part.share + '%)';
+          bar.append(node);
+        }
+        return bar;
+      }
+
+      function legend(segments) {
+        const list = text('ul', 'dash-legend');
+        for (const part of segments) {
+          const item = document.createElement('li');
+          item.dataset.activity = part.id;
+          const swatch = text('span', 'dash-swatch');
+          swatch.setAttribute('aria-hidden', 'true');
+          item.append(swatch, part.label + ' ', text('strong', '', count(part.count)));
+          list.append(item);
+        }
+        return list;
+      }
+
+      // Three cards: the period's plans by status, what is open and waiting on the person now, and
+      // the work the runs did.
+      function paintSummary(summary, animate) {
+        const segments = statusSegments(summary);
+        const total = segments.reduce((sum, part) => sum + part.count, 0);
+        const plansCard = card('Plans', 'dash-card-plans');
+        plansCard.append(
+          figure(count(summary.plans ?? total), startedText(summary), true),
+          statusBar(segments, total),
+          legend(segments),
         );
+        const questions = Number(summary.questions) || 0;
+        const openCard = card('Open now');
+        openCard.append(
+          figure(count(questions), questions === 1 ? 'question waiting on you' : 'questions waiting on you'),
+          facts([
+            ['Open plans', count(summary.running)],
+            ['Plans waiting on you', count(summary.waiting)],
+            ['Agents connected', ofCount(summary.active, summary.running)],
+          ]),
+        );
+        const workCard = card('Work');
+        workCard.append(
+          figure(formatDuration(summary.durationMs), 'execution time'),
+          facts([
+            ['Phases done', ofCount(summary.phaseDone, summary.phaseTotal)],
+            ['Answers given', ofCount(summary.interactionDone, summary.interactionTotal)],
+            ['Files modified', count(summary.filesModified)],
+            ['Folders', count(summary.folders)],
+          ]),
+        );
+        stats.replaceChildren(plansCard, openCard, workCard);
         if (!animate) return;
-        const cards = stats.querySelectorAll('.stat');
+        const cards = stats.querySelectorAll('.dash-card');
         for (let index = 0; index < cards.length; index += 1) {
           cards[index].classList.add('enter');
           cards[index].style.animationDelay = Math.min(index, 6) * 40 + 'ms';
         }
       }
 
+      // A trusted icon string from src/dashboardOverview.ts in its own span.
+      function glyph(svg) {
+        const node = text('span', 'dash-glyph');
+        node.setAttribute('aria-hidden', 'true');
+        node.innerHTML = svg;
+        return node;
+      }
+
+      function iconText(className, svg, value, title) {
+        const node = text('span', className);
+        node.append(glyph(svg), text('span', '', value));
+        if (title) node.title = title;
+        return node;
+      }
+
+      // Title, then mode, folder, and branch, then the plan file inside its folder.
       function planCell(record) {
-        const cell = document.createElement('td');
+        const cell = text('td', 'plan-cell');
         const site = record.status === 'running' ? safeUrl(record.url || '') : '';
         if (site) {
           const link = text('a', 'title title-link', record.title || 'Untitled plan');
@@ -166,27 +289,76 @@ export function dashboardClientScript(apiPath: string): string {
         } else {
           cell.append(text('span', 'title', record.title || 'Untitled plan'));
         }
-        const bits = [record.mode || 'watch'];
-        if (record.executionStep) bits.push(record.executionStep);
-        if (record.outcome) bits.push(record.outcome);
-        cell.append(text('span', 'sub', bits.join(', ')));
-        if (record.planPath) cell.append(pathNode('sub path', record.planPath));
+        const meta = text('span', 'plan-meta');
+        meta.append(text('span', 'plan-mode', record.mode || 'watch'));
+        const place = planPlace(record);
+        if (place.folder) meta.append(iconText('plan-meta-item', placeIcons.folder, place.folder, record.directory));
+        const git = record.git || {};
+        if (git.isRepo && git.branch) meta.append(iconText('plan-meta-item mono', placeIcons.branch, git.branch, git.summary || 'Branch ' + git.branch));
+        cell.append(meta);
+        if (place.file) {
+          const file = pathNode('plan-file', place.file);
+          file.title = record.planPath;
+          cell.append(file);
+        }
         return cell;
       }
 
-      function completionCell(record) {
-        const cell = document.createElement('td');
-        const meter = text('div', 'meter');
-        const bar = document.createElement('span');
+      // The status pill, then what an open plan waits on or the verdict a finished run got.
+      function statusCell(record) {
+        const cell = text('td', 'plan-status-cell');
+        const activity = activityOf(record);
+        const line = text('span', 'status-line');
+        const pill = text('span', 'dash-pill');
+        pill.dataset.activity = activity;
+        pill.append(glyph(activityGlyphs[activity]), activityLabel[activity]);
+        line.append(pill);
+        if (record.status === 'running') {
+          // A robot while an agent is connected, a struck-through robot while not. The words are the tooltip.
+          const label = agentText(record);
+          const icon = text('span', record.agentConnected ? 'agent-icon on' : 'agent-icon');
+          icon.setAttribute('role', 'img');
+          icon.setAttribute('aria-label', label);
+          icon.title = label;
+          icon.innerHTML = record.agentConnected ? agentIcons.on : agentIcons.off;
+          line.append(icon);
+        }
+        cell.append(line);
+        if (record.status === 'running') {
+          const asking = openQuestions(record);
+          if (asking > 0) cell.append(text('span', 'sub plan-ask', questionsText(asking)));
+          const ago = seenAgo(record);
+          if (record.executionActive && record.executionStep) cell.append(text('span', 'sub', 'Step · ' + record.executionStep));
+          else if (!record.agentConnected && ago) cell.append(text('span', 'sub', 'Agent last seen ' + ago));
+        } else {
+          const verdict = outcomeLabel(record.outcome);
+          if (verdict) cell.append(text('span', 'sub', 'Review · ' + verdict));
+        }
+        return cell;
+      }
+
+      function progressCell(record) {
+        const cell = text('td', 'plan-progress-cell');
         const ratio = Math.max(0, Math.min(100, Number(record.completionRatio) || 0));
+        const row = text('span', 'plan-progress');
+        row.dataset.tone = progressTone(record);
+        const meter = text('span', 'plan-meter');
+        meter.setAttribute('aria-hidden', 'true');
+        const bar = document.createElement('span');
         bar.style.width = ratio + '%';
         meter.append(bar);
-        cell.append(meter);
-        const state = completionLabel[record.completionState] || 'Idle';
-        cell.append(text('span', 'sub', ratio + '% ' + state));
-        const phases = Number(record.phaseDone) + '/' + Number(record.phaseTotal) + ' phases';
-        const answers = Number(record.interactionDone) + '/' + Number(record.interactionTotal) + ' answers';
-        cell.append(text('span', 'sub', phases + ', ' + answers));
+        row.append(meter, text('span', 'plan-percent', ratio + '%'));
+        cell.append(row, text('span', 'sub', completionLabel[record.completionState] || 'Not started'), text('span', 'sub', progressDetail(record)));
+        return cell;
+      }
+
+      function timeCell(record) {
+        const cell = text('td', 'plan-time-cell');
+        const when = text('time', 'plan-time', formatWhen(record.startedAt));
+        if (record.startedAt) when.dateTime = new Date(Number(record.startedAt)).toISOString();
+        cell.append(when, text('span', 'sub', durationPhrase(record.status, formatDuration(record.durationMs))));
+        const files = Number(record.filesModified) || 0;
+        if (files > 0) cell.append(text('span', 'sub', filesText(files)));
         return cell;
       }
 
@@ -386,30 +558,39 @@ export function dashboardClientScript(apiPath: string): string {
 
       function renderRow(record) {
         const row = document.createElement('tr');
-        row.append(planCell(record));
-        const statusCell = document.createElement('td');
-        const activity = activityOf(record);
-        const line = text('span', 'status-line');
-        line.append(text('span', 'pill ' + activity, activityLabel[activity]));
-        if (record.status === 'running') {
-          // A robot while an agent is connected, a struck-through robot while not. The words are the tooltip.
-          const label = agentText(record);
-          const icon = text('span', record.agentConnected ? 'agent-icon on' : 'agent-icon');
-          icon.setAttribute('role', 'img');
-          icon.setAttribute('aria-label', label);
-          icon.title = label;
-          icon.innerHTML = record.agentConnected ? agentIcons.on : agentIcons.off;
-          line.append(icon);
-        }
-        statusCell.append(line);
-        if (typeof record.pendingCount === 'number' && record.status === 'running') {
-          statusCell.append(text('span', 'sub', record.pendingCount + ' pending'));
-        }
-        row.append(statusCell);
-        row.append(completionCell(record));
-        row.append(text('td', 'num', formatWhen(record.startedAt)));
-        row.append(actions(record));
+        row.dataset.activity = activityOf(record);
+        row.append(planCell(record), statusCell(record), progressCell(record), timeCell(record), actions(record));
         return row;
+      }
+
+      // A group heading row: Open or Finished, and how many plans are in it.
+      function groupRow(label, size) {
+        const row = text('tr', 'plan-group');
+        const head = text('th', '', label);
+        head.scope = 'rowgroup';
+        head.colSpan = 5;
+        head.append(text('span', '', String(size)));
+        row.append(head);
+        return row;
+      }
+
+      function bodyOf(rowList) {
+        const body = document.createElement('tbody');
+        body.append(...rowList);
+        return body;
+      }
+
+      // The table holds one body per group. The first keeps the rows id.
+      function setBodies(bodies) {
+        for (const body of Array.from(table.tBodies)) body.remove();
+        if (bodies[0]) bodies[0].id = 'rows';
+        table.append(...bodies);
+      }
+
+      function skeletonBody() {
+        const body = document.createElement('tbody');
+        body.innerHTML = rowSkeleton;
+        return body;
       }
 
       function visiblePlans(plans) {
@@ -446,7 +627,7 @@ export function dashboardClientScript(apiPath: string): string {
         const retry = text('button', 'plan-btn plan-btn-secondary dash-retry', 'Try again');
         retry.type = 'button';
         retry.addEventListener('click', () => {
-          rows.innerHTML = rowSkeleton;
+          setBodies([skeletonBody()]);
           stats.setAttribute('aria-busy', 'true');
           tableWrap.setAttribute('aria-busy', 'true');
           statusSpinner.hidden = false;
@@ -455,7 +636,7 @@ export function dashboardClientScript(apiPath: string): string {
         });
         cell.append(retry);
         row.append(cell);
-        rows.replaceChildren(row);
+        setBodies([bodyOf([row])]);
       }
 
       // reveal: the first rows rise in, staggered. fade: the new rows fade in place, all at once,
@@ -469,43 +650,42 @@ export function dashboardClientScript(apiPath: string): string {
         }
         const summary = payload.summary || {};
         const plans = Array.isArray(payload.plans) ? payload.plans : [];
-        paintStats(summary, reveal);
+        paintSummary(summary, reveal);
         const shown = visiblePlans(plans);
-        const range = summary.from ? formatRange(summary) : '';
-        const started = typeof summary.started === 'number' ? summary.started : 0;
-        status.textContent = (summary.label || 'Period')
-          + (range ? '. ' + range : '')
-          + '. '
-          + plans.length
-          + (plans.length === 1 ? ' plan' : ' plans')
-          + '. '
-          + (typeof summary.active === 'number' ? summary.active : 0)
-          + ' with an agent connected'
-          + '. '
-          + started
-          + ' started in this period'
-          + (filter === 'all' ? '' : '. showing ' + shown.length);
+        // Same text as dashboardStatusLine and plansCountText in src/dashboardFormat.ts.
+        const range = summary.from ? rangeText(summary.from, summary.to) : '';
+        status.textContent = (summary.label || 'Period') + (range ? ' · ' + range : '');
+        plansCount.textContent = filter === 'all' ? String(plans.length) : shown.length + ' of ' + plans.length;
         // The columns resize to fit the new rows, so the header fades with them rather than jump.
         if (fade) {
           for (const animation of headRow.getAnimations()) animation.cancel();
           headRow.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
         }
-        rows.replaceChildren();
         if (shown.length === 0) {
           const row = document.createElement('tr');
           const cell = text('td', 'empty', emptyPlansText(filter, period));
           cell.colSpan = 5;
           if (reveal || fade) row.classList.add('enter');
           row.append(cell);
-          rows.append(row);
+          setBodies([bodyOf([row])]);
           return;
         }
-        for (let index = 0; index < shown.length; index += 1) {
-          const row = renderRow(shown[index]);
-          if (reveal || fade) row.classList.add('enter');
-          if (reveal) row.style.animationDelay = Math.min(index, 8) * 30 + 'ms';
-          rows.append(row);
-        }
+        // Open plans first, then finished runs, each under its heading when both are shown.
+        const open = shown.filter((plan) => plan.status === 'running');
+        const finished = shown.filter((plan) => plan.status !== 'running');
+        const groups = open.length && finished.length ? [['Open', open], ['Finished', finished]] : [['', shown]];
+        let index = 0;
+        setBodies(groups.map((group) => {
+          const rowList = group[0] ? [groupRow(group[0], group[1].length)] : [];
+          for (const record of group[1]) {
+            const row = renderRow(record);
+            if (reveal || fade) row.classList.add('enter');
+            if (reveal) row.style.animationDelay = Math.min(index, 8) * 30 + 'ms';
+            index += 1;
+            rowList.push(row);
+          }
+          return bodyOf(rowList);
+        }));
       }
 
       // Nothing slides and nothing fades out first: the new rows replace the old ones in the same

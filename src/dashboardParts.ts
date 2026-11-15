@@ -1,4 +1,5 @@
-import { dashboardLoadingCss, rowSkeletonHtml, statSkeletonHtml } from './dashboardLoading'
+import { dashboardLoadingCss, rowSkeletonHtml } from './dashboardLoading'
+import { dashboardOverviewCss, overviewSkeletonHtml } from './dashboardOverview'
 import { dashboardSearchCss } from './dashboardSearchView'
 import { hostToolbarCss } from './hostToolbar'
 
@@ -82,6 +83,7 @@ export function dashboardDocumentCss(): string {
     ${hostToolbarCss}
     ${dashboardSearchCss()}
     ${dashboardLoadingCss()}
+    ${dashboardOverviewCss()}
     .dash-status-row { margin: 0 0 16px; }
     .titlebar-action:disabled { cursor: progress; opacity: 0.75; }
     .plan-btn-ghost { border-color: transparent; background: transparent; }
@@ -127,36 +129,6 @@ export function dashboardDocumentCss(): string {
       background: var(--primary);
       color: var(--on-primary);
     }
-    .lede {
-      margin: 0 0 8px;
-      color: var(--muted);
-      max-width: 72rem;
-      font-size: 14px;
-      line-height: 1.5;
-    }
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 16px;
-      margin: 0;
-    }
-    .stat {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 16px;
-      box-shadow: none;
-    }
-    .stat span { display: block; color: var(--muted); font-size: 13px; font-weight: 500; }
-    .stat strong {
-      display: block;
-      margin-top: 0.25rem;
-      font-family: var(--font-body);
-      font-weight: 600;
-      color: var(--ink);
-      font-size: 1.7rem;
-      font-variant-numeric: tabular-nums;
-    }
     .status { color: var(--muted); margin: 0 0 16px; font-size: 14px; line-height: 1.5; }
     .table-wrap {
       overflow: auto;
@@ -196,34 +168,11 @@ export function dashboardDocumentCss(): string {
       font-size: 0.75rem;
       overflow-wrap: break-word;
     }
-    .pill {
-      display: inline-flex;
-      border-radius: 999px;
-      padding: 0.15rem 0.5rem;
-      font-size: 0.78rem;
-      font-weight: 600;
-      background: var(--accent-soft);
-      color: var(--ink);
-    }
-    .pill.active { gap: 0.35rem; align-items: center; }
-    .pill.active::before { content: ""; width: 0.45rem; height: 0.45rem; border-radius: 50%; background: #04b54b; }
-    .pill.idle { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--muted) 40%, transparent); }
-    .pill.executed { background: var(--good-soft); color: var(--good); }
     .status-line { display: inline-flex; align-items: center; gap: 0.4rem; }
-    .status-line + .sub { white-space: nowrap; }
+    .status-line + .sub { margin-top: 6px; }
     .agent-icon { display: inline-flex; color: var(--muted); }
     .agent-icon svg { width: 15px; height: 15px; display: block; }
     .agent-icon.on { color: #04b54b; }
-    .pill.interrupted { background: var(--warn-soft); color: var(--warn); }
-    .meter {
-      width: 7.5rem;
-      height: 0.4rem;
-      border-radius: 999px;
-      background: var(--line);
-      overflow: hidden;
-      margin-bottom: 0.3rem;
-    }
-    .meter span { display: block; height: 100%; background: var(--accent); }
     .tab-label {
       transition: transform 160ms var(--ease-out), background-color 150ms ease, color 150ms ease, border-color 150ms ease;
     }
@@ -245,7 +194,7 @@ export function dashboardDocumentCss(): string {
         animation: enter 200ms var(--ease-out) both;
       }
       .dash-section:nth-child(2) { animation-delay: 80ms; }
-      .stat.enter { animation: enter 200ms var(--ease-out) both; }
+      .dash-card.enter { animation: enter 200ms var(--ease-out) both; }
       tbody tr.enter { animation: row-in 150ms var(--ease-out) both; }
     }
     .num { font-variant-numeric: tabular-nums; }
@@ -351,17 +300,16 @@ const searchGlassSvg =
 export function dashboardMainHtml(lede: string): string {
   return `  <main>
     <section class="dash-section" aria-label="Summary">
-      <div class="section-bar">
+      <div class="period-bar">
         <div class="tabs" role="group" aria-label="Summary period">
           <button type="button" class="tab-label" data-period="day" aria-pressed="true">Today</button>
           <button type="button" class="tab-label" data-period="week" aria-pressed="false" aria-label="This week">Week</button>
           <button type="button" class="tab-label" data-period="month" aria-pressed="false" aria-label="This month">Month</button>
         </div>
+        <div class="dash-status-row"><p class="status" id="status">Loading plans…</p><span class="dash-spinner" id="status-spinner" aria-hidden="true"></span></div>
         <button type="button" class="titlebar-action" id="refresh"><span class="dash-spinner" id="refresh-spinner" aria-hidden="true" hidden></span><span id="refresh-label">Refresh</span></button>
       </div>
-      <section class="stats" id="stats" aria-live="polite" aria-busy="true">${statSkeletonHtml()}</section>
-      <p class="lede">${lede}</p>
-      <div class="dash-status-row"><p class="status" id="status">Loading plans…</p><span class="dash-spinner" id="status-spinner" aria-hidden="true"></span></div>
+      <section class="dash-overview" id="stats" aria-label="Summary for the period" aria-live="polite" aria-busy="true">${overviewSkeletonHtml()}</section>
     </section>
     <section class="dash-section" aria-label="Plans">
       <div class="section-bar">
@@ -393,20 +341,21 @@ export function dashboardMainHtml(lede: string): string {
       </div>
       <div class="table-wrap" aria-busy="true">
       <table>
-        <caption>Plans</caption>
+        <caption>Plans<span class="caption-count" id="plans-count"></span></caption>
         <thead>
           <tr>
             <th scope="col">Plan</th>
             <th scope="col">Status</th>
-            <th scope="col">Completion</th>
+            <th scope="col">Progress</th>
             <th scope="col">Started</th>
-            <th scope="col"></th>
+            <th scope="col"><span class="dash-sr">Actions</span></th>
           </tr>
         </thead>
         <tbody id="rows">${rowSkeletonHtml()}</tbody>
       </table>
       </div>
     </section>
+    <p class="lede dash-footnote">${lede}</p>
     <dialog id="delete-dialog" class="plan-alert-content" aria-labelledby="delete-dialog-title" aria-describedby="delete-dialog-text">
       <div class="plan-alert-header">
         <h2 class="plan-alert-title" id="delete-dialog-title">Delete this plan?</h2>

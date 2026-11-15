@@ -385,6 +385,8 @@ After an approve verdict, or an approve gate answered yes, the run's `follow` is
 
 `/dashboard` summarizes running, executed, and interrupted plans for the local day, week, or month. The page is `src/dashboardPage.ts`. The grouping is `src/dashboard.ts`. `live-plan tui` is that registry in the terminal: the running-plan list from `GET /api/processes`, and the same `GET /api/dashboard` payload with running plans listed first. Starting it starts the service when none is running. Quitting the terminal leaves the service up.
 
+Both web dashboards draw the same page from `src/dashboardOverview.ts` (classes, icons, CSS) and `src/dashboardFormat.ts` (text). Three summary cards come first. **Plans** leads with the period's plan count and a thin bar that splits it by status (Active, Idle, Executed, Interrupted), with a legend of counts. **Open now** counts the questions waiting on the person. For an open plan that is the larger of `pendingCount` and its unanswered interactions, because a hosted row keeps only the answer counts (`openQuestions` in `src/dashboard.ts`). **Work** sums execution time, phases, and answers, plus files modified and folders on the local service. The table lists open plans, then finished runs, each under a heading when both are shown. A row names its mode, folder, branch, and plan file, then the questions it waits on or its review verdict, its progress, and how long it has been open or ran. Below 720px each row reads as a card. The local page builds all of this with DOM calls in `src/dashboardClientScript.ts` and inlines the shared helpers with `toString()`, so a helper it uses must not call anything outside itself.
+
 ```mermaid
 flowchart LR
   Sessions["Open hosted sessions"] --> Running["status running"]
