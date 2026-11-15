@@ -1,5 +1,48 @@
 # Changelog — 2026-11-14
 
+## 2.28.0
+
+**PR:** [#196](https://github.com/marco-calderon/visual-living-plan/pull/196)
+
+**Bump:** minor
+
+### Summary
+
+A click on a card's title or on the text inside a card now puts the caret there and edits it where it reads, as paragraphs and headings already did. No Edit button is needed for text. Enter makes a new block and moves the caret into it, and blocks can be dragged while one is being edited.
+
+### Bugs fixed
+
+- A click on a phase's title jumped to the Workflow tab instead of editing it. Where the plan can be edited, the title now takes the caret; the step number still jumps to the workflow.
+- A click on the text inside a callout, an update, a tab, a compare pane, a box, an approval, or a choice did nothing. It now opens that text in place, in its own font and spacing.
+- Text near the end of a plan scrolled to the bottom no longer jumps up when it opens for editing.
+- Enter in text no longer adds a second paragraph inside the same editor with wider spacing that jumped when the edit closed.
+- A block being edited, and every other block, can be dragged by its grip; the grip used to disappear while an editor was open.
+- The Move menu a grip opens no longer closes when the pointer moves onto the block's text or another block; it closes on a click outside it.
+- The bar of unapplied changes no longer disappears while a block is being edited. Apply changes keeps the open block's edit and applies it with the rest; Discard drops it.
+- Paragraphs inside a card in its editor (an update, a callout) are spaced as paragraphs on the page instead of touching.
+- Hovering text inside a phase showed the phase's Edit and +, so + added a block after the whole phase and Edit opened the phase. The text now shows + alone, which adds a block right below it inside the phase. The phase's own Edit is on its title row.
+- A block open in its editor showed two grips; it shows one.
+- Typing after / to filter the block menu no longer makes the menu look like it closed and opened again on each key.
+- With a card open in its editor, a click or tap on another block did nothing: the editor kept the focus. It now keeps the edit, closes, and the focus goes where you pressed: that text opens, or that card shows its Edit. A press on the page's margin or the toolbar still leaves the editor open.
+- A card's Edit was hidden while its text or title was open, so on an iPad or a phone it could not be reached. A tap or a click on text, in a card too, now edits it at once, and the card's Edit stays beside the card while its text is open: Edit keeps what was typed, then opens the card's editor. A tap on a card where it has no text shows its Edit, over its top right corner on an iPad. Taps with a pen count too, and a tap outside open text keeps the edit in Safari.
+- On an iPad a tap on text could open it without bringing up the keyboard. The tap now takes the focus at once and hands it to the text's editor.
+
+### Improvements
+
+- Enter in a paragraph or a heading makes a new block: the text after the caret becomes the next block and the caret moves to its start. Enter at the end opens an empty block below. The page keeps its spacing throughout, and nothing moves when the edit closes.
+- Pressing a grip while a block is open keeps what was typed, then moves the block. Move up and Move down work the same way.
+- Backspace in an empty block removes it and puts the caret at the end of the block above, or at the start of the block below when it was the first. It used to do nothing.
+
+### New features
+
+- The grip's menu has Delete. It asks once, then takes the block out as a change waiting to be applied. Locked blocks keep their place.
+- The / menu adds chips and pills inside the text: a Labels section with Chip and Pill. The caret goes right after the label, so you keep typing the sentence.
+- Titles are edited where they read: phases, callouts, checklists, choices, forms, questions, approvals, and the workflow. Enter or a click elsewhere keeps the change; Escape with nothing typed closes it. Only the title's text changes in the file, and a phase's step number stays as written.
+
+### Notes
+
+Locked cards, and forms and questions (locked by default), keep their text and titles as written. `SHELL_CACHE_VERSION` moves to 2.28.0. No registry restart needed.
+
 ## 2.27.2
 
 **PR:** [#195](https://github.com/marco-calderon/visual-living-plan/pull/195)

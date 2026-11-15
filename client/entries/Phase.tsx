@@ -72,12 +72,13 @@ export function Phase({ id, title, status, children, className, locked, 'data-pl
             )}
             <div className="plan-step-copy">
               <h3 className="plan-title">
+                {/* The title's text is edited where it reads (client/titleEdit.ts); the number still jumps. */}
                 {jump ? (
                   <a className="plan-step-label" href={jump} data-workflow-jump={id}>
-                    {label}
+                    <span data-plan-title="title">{label}</span>
                   </a>
                 ) : (
-                  label
+                  <span data-plan-title="title">{label}</span>
                 )}
                 {/* A word joiner: the status glyph wraps with the title's last word, never alone. */}
                 {'\u2060'}

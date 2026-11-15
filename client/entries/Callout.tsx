@@ -24,7 +24,14 @@ export type CalloutProps = {
 
 export function Callout({ id, kind, title, icon, color, children, className, locked, 'data-plan-block': blockRange }: CalloutProps) {
   const normalized = calloutKind(kind)
-  const label = title ? `${normalized} · ${title}` : normalized
+  // The title's text is edited where it reads (client/titleEdit.ts); the kind before it is not.
+  const label = title ? (
+    <>
+      {normalized} · <span data-plan-title="title">{title}</span>
+    </>
+  ) : (
+    normalized
+  )
   return (
     <Box
       as="section"

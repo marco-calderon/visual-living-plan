@@ -212,7 +212,7 @@ export function Form({ id, prompt, fields, values, locked, lockedState, children
             {immediate ? (
               <div className="plan-check-list-head">
                 <h3 className="plan-title" id={titleId}>
-                  {prompt}
+                  <span data-plan-title="prompt">{prompt}</span>
                 </h3>
                 {progress ? (
                   <span className="plan-check-count" data-check-count>
@@ -225,7 +225,9 @@ export function Form({ id, prompt, fields, values, locked, lockedState, children
                 <CardLabel icon={icon} color={color}>
                   {locked ? 'Locked' : editing ? 'Editing' : submitted ? 'Saved' : 'Needs input'}
                 </CardLabel>
-                <h3 className="plan-title">{prompt}</h3>
+                <h3 className="plan-title">
+                  <span data-plan-title="prompt">{prompt}</span>
+                </h3>
               </>
             )}
             {fields?.map((field) => (

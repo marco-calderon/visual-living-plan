@@ -65,7 +65,11 @@ export function Checklist({ id, title, items, children, className, locked, 'data
       <ItemContext.Provider value={{ mode: 'checklist', disabled: true }}>
         <VStack gap="sm">
           <div className="plan-checklist-head">
-            {title ? <h3 className="plan-title plan-checklist-title">{title}</h3> : null}
+            {title ? (
+              <h3 className="plan-title plan-checklist-title">
+                <span data-plan-title="title">{title}</span>
+              </h3>
+            ) : null}
             <Progress states={states} />
           </div>
           <VStack as="ul" gap="sm" className="plan-checklist-items">

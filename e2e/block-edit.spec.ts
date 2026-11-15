@@ -51,10 +51,16 @@ test('the toolbar has no Edit button; text shows no pill, and a component under 
   await page.locator('[data-plan-rendered] [data-entry="form"]').first().hover()
   await expect(tools(page)).not.toHaveAttribute('data-visible', '', { timeout: 2_000 })
 
-  // Text inside a phase shows the phase's Edit, beside the phase.
+  // Text inside a phase shows + alone, to add a block below it in the phase; it opens itself with a click.
   const phase = page.locator('[data-plan-rendered] [data-entry="phase"]').filter({ hasText: 'Ship dashboards and alerts' })
   await phase.getByText('Emit reject counts').hover()
   await expect(tools(page)).toHaveAttribute('data-visible', '')
+  await expect(tools(page)).toHaveAttribute('data-add-only', '')
+  await expect(page.locator('[data-plan-block-edit]')).toBeHidden()
+  // The phase's title row shows the phase's Edit, beside the phase.
+  await phase.locator('.plan-title').hover()
+  await expect(tools(page)).not.toHaveAttribute('data-add-only', '')
+  await expect(page.locator('[data-plan-block-edit]')).toBeVisible()
   const [pill, card] = [await tools(page).boundingBox(), await phase.boundingBox()]
   expect(pill && card && pill.x > card.x + card.width).toBe(true)
 })
@@ -245,14 +251,58 @@ test('E edits the block with focus, or the text under the pointer, and typing an
 test.describe('on a touch screen', () => {
   test.use({ hasTouch: true, viewport: { width: 390, height: 800 } })
 
-  test('a tap on text edits it, and a tap on a component shows its Edit', async ({ page }) => {
+  test('on an iPad, a tap on any card shows its Edit over its top right corner', async ({ page }) => {
+    await page.setViewportSize({ width: 834, height: 1194 })
+    await openPlan(page)
+    for (const card of [choice(page), page.locator('[data-plan-rendered] [data-entry="callout"]').first(), page.locator('[data-plan-rendered] .code-host').first()]) {
+      await card.scrollIntoViewIfNeeded()
+      const box = await card.boundingBox()
+      if (!box) throw new Error('no card on screen')
+      await page.touchscreen.tap(box.x + box.width * 0.35, box.y + Math.min(box.height / 2, 60))
+      // Whether the tap opened the card's text or not, the card's Edit is there.
+      await expect(tools(page)).toHaveAttribute('data-visible', '')
+      await expect(page.locator('[data-plan-block-edit]')).toBeVisible()
+      const pill = await tools(page).boundingBox()
+      expect(pill && pill.x + pill.width).toBeLessThanOrEqual(box.x + box.width + 1)
+      expect(pill && pill.x + pill.width).toBeGreaterThan(box.x + box.width - 4)
+      await page.keyboard.press('Escape')
+      await expect(editor(page)).toHaveCount(0)
+    }
+  })
+
+  test("a tap on text edits it at once, in a card too, and the card's Edit shows beside it", async ({ page }) => {
     await openPlan(page)
     await intro(page).tap()
     await expect(inlineEditor(page).locator('[contenteditable="true"]')).toBeFocused()
     await page.keyboard.press('Escape')
     await expect(editor(page)).toHaveCount(0)
 
-    await choice(page).getByText('If Redis is unreachable').tap()
+    // A card's title takes the caret at the tap, and the card's Edit shows while it is open.
+    const prompt = choice(page).locator('[data-plan-title]')
+    await prompt.tap()
+    await expect(prompt).toBeFocused()
+    await expect(tools(page)).toHaveAttribute('data-visible', '')
+    await expect(page.locator('[data-plan-block-edit]')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.locator('[data-plan-title-editing]')).toHaveCount(0)
+
+    // Text inside a card the same way.
+    const note = page.locator('[data-plan-rendered] [data-entry="callout"] p[data-plan-text]').first()
+    await note.scrollIntoViewIfNeeded()
+    await note.tap()
+    await expect(inlineEditor(page).locator('[contenteditable="true"]')).toBeFocused()
+    await expect(tools(page)).toHaveAttribute('data-visible', '')
+    await expect(page.locator('[data-plan-block-edit]')).toBeVisible()
+    // Its Edit keeps what was typed, then opens the card's own editor.
+    await page.keyboard.press('Control+End')
+    await page.keyboard.type(' Typed.')
+    await page.locator('[data-plan-block-edit]').tap()
+    await expect(page.locator('[data-plan-block-editor="edit"]:not([data-inline])')).toBeVisible()
+    await expect(page.locator('[data-plan-block-editor] .plan-editor-body')).toContainText('Typed.')
+    await page.locator('[data-plan-block-cancel]').tap()
+    await expect(editor(page)).toHaveCount(0)
+
+    await choice(page).getByText('Needs your choice').tap()
     await expect(tools(page)).toHaveAttribute('data-visible', '')
     await page.locator('[data-plan-block-edit]').tap()
     await expect(page.locator('[data-plan-block-editor="edit"]')).toBeVisible()

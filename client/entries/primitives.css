@@ -529,6 +529,21 @@ a.plan-step-label:hover {
   text-underline-offset: 0.16em;
 }
 
+/* A card's title, where the plan can be edited, reads as text to click into (ADR 0040). The step
+ * number still jumps to the workflow. */
+html:not([data-comments="on"]) body[data-plan-editable="true"]:not([data-plan-mode="comment"]) [data-plan-title]:not([data-edit-locked="true"] [data-plan-title]) { cursor: text; }
+html:not([data-comments="on"]) body[data-plan-editable="true"]:not([data-plan-mode="comment"]) a.plan-step-label:hover { text-decoration: none; }
+
+/* A title being edited where it reads (client/titleEdit.ts): the faint wash text has in its
+ * editor (client/editor/planEditor.css), and no ring. The wash spreads past the text, so it does not move. */
+[data-plan-title-editing] {
+  --inline-wash: color-mix(in srgb, var(--accent) 7%, transparent);
+  outline: none;
+  border-radius: 2px;
+  background: var(--inline-wash);
+  box-shadow: 0 0 0 4px var(--inline-wash);
+}
+
 .rf-progress-icon {
   width: 12px;
   height: 12px;
@@ -1998,6 +2013,10 @@ body.plan-live .block.plan-changed {
 
 .plan-block-tools .plan-block-add-below { padding: 0 8px; color: var(--muted); }
 
+/* Text inside a block (a phase's paragraph) opens with a click: its pill holds + alone. */
+.plan-block-tools[data-add-only] .plan-block-edit { display: none; }
+.plan-block-tools[data-add-only] button + button { border-left: 0; }
+
 .plan-block-tools svg { width: 13px; height: 13px; }
 
 .plan-block-tools button:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
@@ -2104,6 +2123,16 @@ body[data-plan-block-moving] { user-select: none; }
 
 .plan-block-move-menu button:disabled { color: var(--muted); cursor: default; }
 
+/* Delete sits apart from the moves, in the danger color. */
+.plan-block-move-menu button[data-plan-block-move-delete] {
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 6px 6px;
+  color: var(--danger);
+}
+
+.plan-block-move-menu button[data-plan-block-move-delete]:disabled { color: var(--muted); }
+
 /* Where the dragged block will go: as wide as the level it goes into, the top level or a phase. */
 .plan-block-move-line {
   position: absolute;
@@ -2148,6 +2177,7 @@ body:not([data-plan-editable="true"]) :is(.plan-block-move, .plan-block-move-men
 .plan-add-block:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 body[data-plan-mode="comment"] .plan-add-block { display: none; }
+.plan-add-block[data-editing] { visibility: hidden; }
 
 /* Changes not applied yet: a bar that stays at the bottom of the window over the plan column. */
 .plan-apply-bar {

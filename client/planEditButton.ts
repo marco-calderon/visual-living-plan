@@ -1,14 +1,16 @@
 /* ----------------------------------------------------------------------------------------------
  * Edit a block where it sits (ADR 0040). The page is both the reader and the editor: while the
- * plan can be edited, a click on text (a paragraph, a heading, a list, a quote, a table cell) puts
- * the caret there and the text is edited as it reads. A block that is more than text (a card, a
- * choice, an endpoint, a diagram, code, a table) shows a small pill with Edit and + while it is
+ * plan can be edited, a click on text (a paragraph, a heading, a list, a quote, a table cell, the
+ * text inside a card, or a card's title) puts the caret there and the text is edited as it reads.
+ * A block that is more than text (a card, a choice, an endpoint, a diagram, code, a table) shows
+ * a small pill with Edit and + while it is
  * under the pointer, has focus, or is tapped. Edit opens that block's editor in its place; + opens
  * a new block below it. E edits the block under the pointer or with focus, or the one at the
  * reading line. One pill follows the pointer, so the page's blocks stay as React drew them.
  * ------------------------------------------------------------------------------------------- */
 
 import { textOffsetAt } from './caretSpot.ts'
+import { isTap, isTouchPointer } from './pointerKind.ts'
 
 /** The key that edits the block with focus. */
 export const BLOCK_EDIT_KEY = 'E'
@@ -18,12 +20,22 @@ type EditState = { editable: boolean; editing: boolean }
 /** Where the caret goes when an editor opens: characters into the text, in a data table's cell when `row` is set. */
 export type EditCaret = { offset: number; row?: number; column?: number }
 
+/**
+ * What opens once an editor closes, found by a block's `start` in the plan file the page draws next.
+ * After Enter: the block after the one at `start` (the text after the caret), or an empty new block
+ * after it. After Backspace removed an empty block: the block at `start`, with the caret at its end
+ * (the block above) or at its start (the block below, when there was none above).
+ */
+export type EditFollow = { open: 'next' | 'add' | 'end' | 'start'; start: number }
+
 /** How a block's editor opens. Text opens `inline`: it keeps its look and place, with no frame or bar. */
 export type EditHow = {
   inline?: boolean
   caret?: EditCaret
   /** The space the block keeps around its text, so the text does not move when it turns into the editor. */
   margins?: { top: string; bottom: string }
+  /** The height of the text it stands in for, held while the editor's own text comes in. */
+  height?: number
 }
 
 export type BlockEditActions = {
@@ -31,9 +43,13 @@ export type BlockEditActions = {
   /** Open the editor for the block at this range (its `data-plan-block`). */
   edit: (range: string, how?: EditHow) => void
   /** Open a new block's editor after the block at this range. */
-  add: (after: string) => void
+  add: (after: string, how?: EditHow) => void
   /** Edit one cell of a pipe table where it is (its `data-plan-cell-range`). */
   cell: (range: string, caret?: EditCaret) => void
+  /** Edit a card's title where it reads: `element` is its text, `attr` the attribute it comes from, `block` the card's range. */
+  title: (element: HTMLElement, block: string, attr: string, caret?: EditCaret) => void
+  /** Finish the open editor or title, keeping what was typed: the pill's Edit or + was pressed while it was open. */
+  finish: () => void
 }
 
 /** What `bindBlockEditButton` returns: stop listening, and tell it the open editor closed. */
@@ -41,6 +57,58 @@ export type BlockEditBinding = {
   stop: () => void
   /** A click on other text while an editor was open finishes that editor first; this opens the text it hit. */
   closed: () => void
+  /** An editor opened or closed: the card whose text or title is open keeps its pill beside it. */
+  refresh: () => void
+}
+
+/**
+ * The card whose text or title is open on the page: a callout, an update, a choice. Its pill stays
+ * beside it while the text is edited, so its Edit is there. A phase is the card of its title, not
+ * of the text inside it, whose own pill is + alone.
+ */
+function cardOfOpenText(): HTMLElement | null {
+  const root = article()
+  const title = root?.querySelector<HTMLElement>('[data-plan-title-editing]')
+  const text = title ? null : root?.querySelector<HTMLElement>('[data-plan-block-editor][data-inline]:not([data-plan-block-editor="cell"])')
+  const open = title ?? text
+  const card = open?.parentElement?.closest<HTMLElement>('[data-plan-block]') ?? null
+  if (!root || !card || !root.contains(card) || isTextBlock(card) || isEditLocked(card)) return null
+  if (text && card.matches('[data-entry="phase"]')) return null
+  return card
+}
+
+/**
+ * iOS shows the keyboard only for a focus taken inside the tap, and the text's editor mounts a
+ * moment later. A stand-in takes the focus within the tap and hands it to the editor when it focuses.
+ */
+function holdKeyboard(x: number, y: number): void {
+  const stand = document.createElement('div')
+  stand.contentEditable = 'true'
+  stand.dataset.planFocusStandIn = ''
+  stand.setAttribute('aria-hidden', 'true')
+  Object.assign(stand.style, {
+    position: 'fixed',
+    left: `${Math.max(0, x)}px`,
+    top: `${Math.max(0, y)}px`,
+    width: '1px',
+    height: '1px',
+    opacity: '0',
+    overflow: 'hidden',
+    fontSize: '16px',
+    pointerEvents: 'none',
+  })
+  document.body.append(stand)
+  stand.focus({ preventScroll: true })
+  const drop = () => {
+    window.clearTimeout(timer)
+    document.removeEventListener('focusin', handedOver, true)
+    stand.remove()
+  }
+  const handedOver = (event: FocusEvent) => {
+    if (event.target !== stand) drop()
+  }
+  const timer = window.setTimeout(drop, 2000)
+  document.addEventListener('focusin', handedOver, true)
 }
 
 function article(): HTMLElement | null {
@@ -63,15 +131,40 @@ export function isTextBlock(block: Element): boolean {
   return block.matches(TEXT_BLOCK)
 }
 
-/** The block the pill is for: the innermost block under `target` that is more than text, such as the phase a paragraph is in. */
-export function pillTargetOf(target: EventTarget | null): HTMLElement | null {
+/** The blocks directly inside `container` (a phase's paragraphs, code, and cards). */
+function innerBlocks(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>('[data-plan-block]')).filter(
+    (child) => child.parentElement?.closest('[data-plan-block]') === container && !child.closest('[data-plan-block-editor]'),
+  )
+}
+
+/** Of `blocks`, the one level with `y`. The gap under a block is its own, so the pointer keeps it on the way down. */
+function levelWith(blocks: HTMLElement[], y: number): HTMLElement | null {
+  for (const [index, block] of blocks.entries()) {
+    const rect = block.getBoundingClientRect()
+    const end = blocks[index + 1]?.getBoundingClientRect().top ?? rect.bottom
+    if (y >= rect.top && y < end) return block
+  }
+  return null
+}
+
+/** What the pill is for: a block, with Edit and +, or text inside a block with + alone (its text opens with a click). */
+export type PillTarget = { block: HTMLElement; addOnly: boolean }
+
+/**
+ * The block the pill is for with the pointer on `target` at `y`: the innermost block under it. In a
+ * block's own space beside the blocks it holds (a phase's rail and padding) that is the block level
+ * with the pointer, so the pill stays on the block the pointer left on its way to the pill. Text inside a
+ * block (a phase's paragraph) gets + alone, to add a block below it there; top-level text has no pill.
+ */
+export function pillTargetOf(target: EventTarget | null, y?: number): PillTarget | null {
   const root = article()
   let block = editTargetOf(target)
-  while (block && isTextBlock(block)) {
-    const outer = block.parentElement?.closest<HTMLElement>('[data-plan-block]') ?? null
-    block = outer && root?.contains(outer) ? outer : null
-  }
-  return block
+  if (!block) return null
+  if (y !== undefined && !isTextBlock(block)) block = levelWith(innerBlocks(block), y) ?? block
+  if (!isTextBlock(block)) return { block, addOnly: false }
+  const outer = block.parentElement?.closest<HTMLElement>('[data-plan-block]') ?? null
+  return outer && root?.contains(outer) ? { block, addOnly: true } : null
 }
 
 /** A block the plan marks `locked`, or one inside a locked block, or an answer card that keeps its default lock. */
@@ -83,14 +176,46 @@ export function isEditLocked(block: Element): boolean {
 const OWN_CLICK =
   'a[href], button, input, select, textarea, label, summary, [contenteditable="true"], [role="button"], [role="link"], [role="checkbox"], [role="radio"], [role="switch"], [role="tab"], [role="menuitem"], [role="option"]'
 
-/** What a click on `target` edits where it is: text, a pipe table's cell, or a data table's cell. */
+/** What a click on `target` edits where it is: text, a card's title, a pipe table's cell, or a data table's cell. */
 export type DirectEdit =
   | { kind: 'text'; element: HTMLElement }
+  | { kind: 'title'; element: HTMLElement; block: HTMLElement; attr: string }
   | { kind: 'cell'; element: HTMLElement }
   | { kind: 'grid'; element: HTMLElement; block: HTMLElement; row: number; column: number }
 
+/** The card a title belongs to: a plan entry, or the workflow. */
+const TITLE_OWNER = '[data-entry], .vlp-workflow'
+
+/**
+ * A card's title under `target` (its text carries `data-plan-title`, the attribute it comes from),
+ * when the card has its own place in the file: the card is that block, or the one thing inside it.
+ * A card drawn inside another block without a place of its own is edited with that block.
+ */
+function titleEditOf(target: Element, root: HTMLElement): DirectEdit | null {
+  const title = target.closest<HTMLElement>('[data-plan-title]')
+  if (!title || !root.contains(title) || title.closest('[data-plan-block-editor]')) return null
+  // The title's own link (a phase's, to the workflow) gives way to editing; a control inside a title keeps its click.
+  const own = target.closest(OWN_CLICK)
+  if (own && title.contains(own) && own !== title) return null
+  const attr = title.dataset.planTitle
+  const block = title.closest<HTMLElement>('[data-plan-block]')
+  const owner = title.closest<HTMLElement>(TITLE_OWNER)
+  if (!attr || !block || !owner || !root.contains(block)) return null
+  if (owner !== block && owner.parentElement !== block && owner.parentElement?.parentElement !== block) return null
+  if (isEditLocked(title) || isEditLocked(block) || !(title.textContent ?? '').trim()) return null
+  return { kind: 'title', element: title, block, attr }
+}
+
 export function directEditOf(target: EventTarget | null): DirectEdit | null {
-  if (!(target instanceof Element) || target.closest(OWN_CLICK)) return null
+  if (!(target instanceof Element)) return null
+  const root = article()
+  if (!root || !root.contains(target) || target.closest('[data-plan-block-editor], [data-plan-title-editing]')) return null
+  const title = titleEditOf(target, root)
+  if (title) return title
+  if (target.closest('[data-plan-title]') || target.closest(OWN_CLICK)) return null
+  // Text a card draws inside itself (a callout's paragraph, a tab's list) has the place of its text.
+  const text = target.closest<HTMLElement>('[data-plan-text]')
+  if (text && root.contains(text)) return isEditLocked(text) ? null : { kind: 'text', element: text }
   const block = editTargetOf(target)
   if (!block || isEditLocked(block)) return null
   if (isTextBlock(block)) return { kind: 'text', element: block }
@@ -106,6 +231,15 @@ export function directEditOf(target: EventTarget | null): DirectEdit | null {
     return { kind: 'grid', element: cell, block, row: Number(row[1]) - 1, column }
   }
   return null
+}
+
+/**
+ * True while a click picks a part to comment on. The comment toggle marks the page at once
+ * (`html[data-comments]`, client/PlanSelector.tsx); the session's mode follows after the service
+ * answers, and in review it stays `review`. This page hears clicks before the comment picker does.
+ */
+export function commenting(): boolean {
+  return document.documentElement.dataset.comments === 'on' || document.body.dataset.planMode === 'comment'
 }
 
 /** True while the reader has text selected: a drag over text selects it rather than editing it. */
@@ -179,8 +313,74 @@ function collapsedMargin(element: Element, side: 'top' | 'bottom'): number {
   return value
 }
 
-function marginsOf(element: Element): { top: string; bottom: string } {
+export function marginsOf(element: Element): { top: string; bottom: string } {
   return { top: `${collapsedMargin(element, 'top')}px`, bottom: `${collapsedMargin(element, 'bottom')}px` }
+}
+
+/** The space and the height of a new, empty paragraph right after `block`, measured where it will be. */
+function paragraphAfter(block: Element): { margins: { top: string; bottom: string }; height: number } {
+  const probe = document.createElement('p')
+  probe.textContent = '\u200b'
+  probe.style.visibility = 'hidden'
+  block.after(probe)
+  const margins = marginsOf(probe)
+  const height = probe.getBoundingClientRect().height
+  probe.remove()
+  return { margins, height }
+}
+
+/** How text keeps its place when it turns into its editor: its margins and its height. */
+function textPlace(element: Element): Pick<EditHow, 'margins' | 'height'> {
+  return { margins: marginsOf(element), height: element.getBoundingClientRect().height }
+}
+
+function rangeStart(value: string | undefined): number | null {
+  const match = /^(\d+)-\d+$/.exec(value ?? '')
+  return match ? Number(match[1]) : null
+}
+
+/** The place of a block in the plan file: a card's text has its own (`data-plan-text`), any other block its block's. */
+function placeOf(element: HTMLElement): string | undefined {
+  return element.dataset.planText ?? element.dataset.planBlock
+}
+
+/** The block that starts at `start` in the plan the page draws, text first (a fence's frame and its code share one place). */
+function blockStartingAt(start: number): HTMLElement | null {
+  const root = article()
+  if (!root) return null
+  const found = Array.from(root.querySelectorAll<HTMLElement>('[data-plan-block], [data-plan-text]')).filter(
+    (element) => rangeStart(placeOf(element)) === start && !element.closest('[data-plan-block-editor]'),
+  )
+  return found.find(isTextBlock) ?? found[0] ?? null
+}
+
+/** The text block right after `block` at its level, skipping the plan header's eyebrow and facts. */
+function textBlockAfter(block: HTMLElement): HTMLElement | null {
+  const attribute = block.hasAttribute('data-plan-text') ? 'data-plan-text' : 'data-plan-block'
+  for (let next = block.nextElementSibling; next; next = next.nextElementSibling) {
+    if (!(next instanceof HTMLElement) || !next.hasAttribute(attribute)) continue
+    return isTextBlock(next) && !isEditLocked(next) ? next : null
+  }
+  return null
+}
+
+/**
+ * The editor that opens after Enter split a block's text (client/editor/BlockEditor.tsx), found on the
+ * page as it now draws the plan: the next block with the caret at its start, or an empty block after
+ * the edited one with a paragraph's spacing. Null when the page has no such block.
+ */
+export function followEdit(follow: EditFollow): ({ kind: 'edit' | 'add'; range: string } & EditHow) | null {
+  const block = blockStartingAt(follow.start)
+  const place = block ? placeOf(block) : undefined
+  if (!block || !place) return null
+  if (follow.open === 'add') return { kind: 'add', range: place, ...paragraphAfter(block) }
+  if (follow.open === 'end' || follow.open === 'start') {
+    if (!isTextBlock(block) || isEditLocked(block)) return null
+    return { kind: 'edit', range: place, caret: { offset: follow.open === 'end' ? Number.MAX_SAFE_INTEGER : 0 }, ...textPlace(block) }
+  }
+  const next = textBlockAfter(block)
+  const range = next ? placeOf(next) : undefined
+  return next && range ? { kind: 'edit', range, caret: { offset: 0 }, ...textPlace(next) } : null
 }
 
 function toolButton(className: string, label: string, title: string, html: string): HTMLButtonElement {
@@ -211,6 +411,8 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
   let block: HTMLElement | null = null
   // The innermost block under the pointer, with focus, or tapped, text included: what E edits.
   let pointed: HTMLElement | null = null
+  // Text inside a card under the pointer: E edits it before the card.
+  let pointedText: HTMLElement | null = null
   let frame = 0
   let hideTimer = 0
 
@@ -237,29 +439,63 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     tools.style.top = `${top + window.scrollY}px`
     tools.style.left = `${left + window.scrollX}px`
   }
-  const show = (next: HTMLElement) => {
+  let addOnly = false
+  const show = (next: HTMLElement, onlyAdd = false) => {
     window.clearTimeout(hideTimer)
     block = next
+    addOnly = onlyAdd
+    // Text inside a block opens with a click, so its pill holds + alone.
+    tools.toggleAttribute('data-add-only', onlyAdd)
     tools.setAttribute('data-visible', '')
     place()
   }
   const usable = () => {
     const state = options.state()
     // In comment mode a click picks a part to comment on, so the pill stays away.
-    return state.editable && !state.editing && document.body.dataset.planMode !== 'comment'
+    return state.editable && !state.editing && !commenting()
   }
-  const track = (target: EventTarget | null) => {
+  // The card whose text or title is open: its pill stays beside it while the text is edited.
+  let pinned: HTMLElement | null = null
+  let pinFrame = 0
+  const refresh = (frames = 12) => {
+    cancelAnimationFrame(pinFrame)
+    const state = options.state()
+    if (!state.editable || !state.editing || commenting()) {
+      if (pinned) {
+        pinned = null
+        hide()
+      }
+      return
+    }
+    const card = cardOfOpenText()
+    if (card) {
+      pinned = card
+      if (card !== block || addOnly || !tools.hasAttribute('data-visible')) show(card)
+      return
+    }
+    if (pinned) {
+      pinned = null
+      hide()
+    }
+    // The text's editor can take a frame or two to appear.
+    if (frames > 0) pinFrame = requestAnimationFrame(() => refresh(frames - 1))
+  }
+  const track = (target: EventTarget | null, y?: number) => {
     if (target instanceof Node && tools.contains(target)) {
       window.clearTimeout(hideTimer)
       return
     }
+    // While a card's text is edited, its pill stays with it.
+    if (pinned && options.state().editing) return
     const inner = usable() ? editTargetOf(target) : null
     pointed = inner && !isEditLocked(inner) ? inner : null
-    const next = inner ? pillTargetOf(target) : null
-    if (next && !isEditLocked(next)) {
+    const text = inner && target instanceof Element ? target.closest<HTMLElement>('[data-plan-text]') : null
+    pointedText = text && inner?.contains(text) && !isEditLocked(text) ? text : null
+    const next = inner ? pillTargetOf(target, y) : null
+    if (next && !isEditLocked(next.block)) {
       // Back on the block after a trip to the pill: the hide that leaving it started is off.
       window.clearTimeout(hideTimer)
-      if (next !== block || !tools.hasAttribute('data-visible')) show(next)
+      if (next.block !== block || next.addOnly !== addOnly || !tools.hasAttribute('data-visible')) show(next.block, next.addOnly)
       return
     }
     if (!block) return
@@ -267,21 +503,31 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     hideTimer = window.setTimeout(hide, HIDE_DELAY_MS)
   }
   const onPointer = (event: PointerEvent) => {
-    if (event.pointerType === 'touch') return
-    const target = event.target
+    if (isTouchPointer(event)) return
+    const { target, clientY } = event
     cancelAnimationFrame(frame)
-    frame = requestAnimationFrame(() => track(target))
+    frame = requestAnimationFrame(() => track(target, clientY))
   }
   // A touch screen has no hover: a tap on a block shows its pill.
   const onTap = (event: PointerEvent) => {
-    if (event.pointerType !== 'touch') return
-    track(event.target)
+    if (!isTouchPointer(event)) return
+    track(event.target, event.clientY)
   }
   const onMove = () => {
     if (block) place()
   }
+  // Edit or + pressed while the card's text was open: the text keeps its edit first, then this runs.
+  let pending: { action: 'edit' | 'add'; block: HTMLElement; at: number } | null = null
   const run = (action: 'edit' | 'add') => {
     const target = block
+    if (action === 'edit' && addOnly) return
+    if (target && options.state().editing) {
+      pending = { action, block: target, at: Date.now() }
+      pinned = null
+      hide()
+      options.finish()
+      return
+    }
     hide()
     const range = target?.dataset.planBlock
     if (!range || !usable()) return
@@ -303,6 +549,13 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     event.preventDefault()
     // From Workflow or Settings, E shows the plan first.
     if (showPlanTab()) return
+    if (pointedText?.isConnected && pointedText.dataset.planText) {
+      const range = pointedText.dataset.planText
+      const place = textPlace(pointedText)
+      hide()
+      options.edit(range, { inline: true, ...place })
+      return
+    }
     const hovered = pointed?.isConnected ? pointed : null
     const focused = editTargetOf(document.activeElement)
     const next = [hovered, focused && !isEditLocked(focused) ? focused : null, blockAtReadingLine()].find(
@@ -310,7 +563,7 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     )
     hide()
     if (!next?.dataset.planBlock) return
-    options.edit(next.dataset.planBlock, isTextBlock(next) ? { inline: true, margins: marginsOf(next) } : undefined)
+    options.edit(next.dataset.planBlock, isTextBlock(next) ? { inline: true, ...textPlace(next) } : undefined)
   }
   /** Where the caret goes for a click at x, y on `direct`. */
   const caretFor = (direct: DirectEdit, x: number, y: number): EditCaret | undefined => {
@@ -324,41 +577,86 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
       if (range) options.cell(range, caret)
       return
     }
-    const range = (direct.kind === 'grid' ? direct.block : direct.element).dataset.planBlock
+    if (direct.kind === 'title') {
+      const range = direct.block.dataset.planBlock
+      if (range) options.title(direct.element, range, direct.attr, caret)
+      return
+    }
+    // Text in a card has the place of its text; other text is a block of its own.
+    const range = direct.kind === 'grid' ? direct.block.dataset.planBlock : (direct.element.dataset.planText ?? direct.element.dataset.planBlock)
     if (!range) return
     if (direct.kind === 'grid') options.edit(range, { caret })
-    else options.edit(range, { inline: true, caret, margins: marginsOf(direct.element) })
+    else options.edit(range, { inline: true, caret, ...textPlace(direct.element) })
   }
   const plainPress = (event: MouseEvent) =>
     event.button === 0 && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
-  // A press on other text while an editor is open finishes that editor (client/editor/BlockEditor.tsx);
-  // that text opens once the page shows the edit. A mouse is taken at the press, since the page can
-  // move before the release; a finger at the tap, since a press may start a scroll.
-  let queued: { direct: DirectEdit; caret: EditCaret | undefined; text: string; at: number } | null = null
+  // A press on another block while an editor is open finishes that editor (client/editor/BlockEditor.tsx);
+  // once the page shows the edit, the focus goes where the press went: that text opens with the caret
+  // there, or that card shows its pill. A mouse is taken at the press, since the page can move before
+  // the release; a finger at the tap, since a press may start a scroll.
+  let queued:
+    | { direct: DirectEdit; caret: EditCaret | undefined; text: string; at: number }
+    | { pill: PillTarget; at: number }
+    | null = null
   const queue = (event: MouseEvent): boolean => {
     const state = options.state()
-    if (!state.editable || !state.editing || document.body.dataset.planMode === 'comment') return false
+    if (!state.editable || !state.editing || commenting()) return false
     const direct = directEditOf(event.target)
+    const pill = direct ? null : pillTargetOf(event.target, event.clientY)
     if (direct) queued = { direct, caret: caretFor(direct, event.clientX, event.clientY), text: direct.element.textContent ?? '', at: Date.now() }
+    else if (pill && !isEditLocked(pill.block)) queued = { pill, at: Date.now() }
     return true
   }
   const onPress = (event: PointerEvent) => {
-    if (event.pointerType === 'touch') return
+    if (isTouchPointer(event)) return
     queued = null
     if (plainPress(event)) queue(event)
   }
+  // The page hears a click first, on the window as it goes down: a card that keeps clicks to itself
+  // (a choice, an approval) still has text and a title to edit. The handlers on the way run before
+  // the text opens, so a control that takes the click (it prevents the default) keeps it.
   const onClick = (event: MouseEvent) => {
     if (!plainPress(event) || event.defaultPrevented) return
-    if ((event as PointerEvent).pointerType === 'touch' && queue(event)) return
-    if (!usable()) return
-    const direct = directEditOf(event.target)
-    if (!direct || selecting()) return
-    openDirect(direct, caretFor(direct, event.clientX, event.clientY))
+    const state = options.state()
+    const direct = state.editable && !commenting() ? directEditOf(event.target) : null
+    // A title's click is its own while the plan can be edited: the link it sits in (a phase's, to the
+    // workflow) does not follow, even when the click finishes another edit first.
+    if (direct?.kind === 'title') event.preventDefault()
+    const tap = isTap(event)
+    if (tap && queue(event)) return
+    if (!usable() || !direct || selecting()) return
+    const caret = caretFor(direct, event.clientX, event.clientY)
+    // A title opens within the click, so a touch screen shows its keyboard.
+    if (direct.kind === 'title') {
+      openDirect(direct, caret)
+      return
+    }
+    // Text opens a moment after the tap: a stand-in holds the keyboard on iOS until its editor focuses.
+    if (tap && direct.kind !== 'grid') holdKeyboard(event.clientX, event.clientY)
+    window.setTimeout(() => {
+      if (event.defaultPrevented || !usable() || selecting()) return
+      openDirect(direct, caret)
+    }, 0)
   }
   const closed = () => {
+    const action = pending
+    pending = null
+    if (action && Date.now() - action.at <= QUEUE_MS && usable() && action.block.isConnected) {
+      // The card keeps its element when its text changes; its place is the one the page shows now.
+      queued = null
+      const range = action.block.dataset.planBlock
+      if (!range) return
+      if (action.action === 'edit') options.edit(range)
+      else options.add(range)
+      return
+    }
     const next = queued
     queued = null
     if (!next || Date.now() - next.at > QUEUE_MS || !usable() || selecting()) return
+    if ('pill' in next) {
+      if (next.pill.block.isConnected) show(next.pill.block, next.pill.addOnly)
+      return
+    }
     // The text pressed on is still there, unless the edit changed it.
     if (!next.direct.element.isConnected || (next.direct.element.textContent ?? '') !== next.text) return
     openDirect(next.direct, next.caret)
@@ -366,33 +664,37 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
   // Focus moving into a block (a folder, a tab, a link) shows its pill too, and E edits it.
   const onFocus = (event: FocusEvent) => {
     if (event.target instanceof Node && tools.contains(event.target)) return
+    if (event.target instanceof HTMLElement && event.target.dataset.planFocusStandIn !== undefined) return
     track(event.target)
   }
   edit.addEventListener('click', onEdit)
   add.addEventListener('click', onAdd)
-  document.addEventListener('click', onClick)
+  window.addEventListener('click', onClick, true)
   document.addEventListener('pointerdown', onPress, { passive: true })
   document.addEventListener('pointerover', onPointer, { passive: true })
-  document.addEventListener('pointerup', onTap, { passive: true })
+  // Heard on the window as it goes down, so a component that keeps its pointer events still shows its pill.
+  window.addEventListener('pointerup', onTap, { capture: true, passive: true })
   document.addEventListener('focusin', onFocus)
   document.addEventListener('keydown', onKey)
   window.addEventListener('scroll', onMove, { passive: true })
   window.addEventListener('resize', onMove)
   const stop = () => {
     cancelAnimationFrame(frame)
+    cancelAnimationFrame(pinFrame)
     window.clearTimeout(hideTimer)
     queued = null
+    pending = null
     edit.removeEventListener('click', onEdit)
     add.removeEventListener('click', onAdd)
-    document.removeEventListener('click', onClick)
+    window.removeEventListener('click', onClick, true)
     document.removeEventListener('pointerdown', onPress)
     document.removeEventListener('pointerover', onPointer)
-    document.removeEventListener('pointerup', onTap)
+    window.removeEventListener('pointerup', onTap, { capture: true })
     document.removeEventListener('focusin', onFocus)
     document.removeEventListener('keydown', onKey)
     window.removeEventListener('scroll', onMove)
     window.removeEventListener('resize', onMove)
     tools.remove()
   }
-  return { stop, closed }
+  return { stop, closed, refresh: () => refresh() }
 }

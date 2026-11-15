@@ -55,6 +55,10 @@ Set the request limit for one key.
 </Row>
 </DataTable>
 
+<callout kind="note" title="Rollout note">
+Staff get the flag for a week first.
+</callout>
+
 <workflow id="flow" title="Expected execution">
 ```workflow
 build | Build the limiter | build

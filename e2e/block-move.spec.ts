@@ -159,12 +159,106 @@ test('the grip menu moves a block up and down, stays open on the block, and putt
   await expect(grip(page)).toBeFocused()
 })
 
-test('while an editor is open, there is no grip', async ({ page }) => {
+test('while a block is edited its grip stays beside the editor, and a drag keeps the edit and moves the block', async ({ page }) => {
   await openPlan(page)
   const intro = top(page).filter({ hasText: 'Every block on this page' })
   await intro.click()
-  await expect(page.locator('[data-plan-block-editor]')).toHaveCount(1)
-  await choice(page).hover()
-  await page.waitForTimeout(300)
-  await expect(grip(page)).not.toHaveAttribute('data-visible', '')
+  const editor = page.locator('[data-plan-block-editor]')
+  await expect(editor).toHaveCount(1)
+  await page.keyboard.press('Control+End')
+  await page.keyboard.type(' Edited.')
+
+  // Other blocks keep their grips while the text is open, and so does the text, beside its editor.
+  await pointAt(page, choice(page))
+  await expectGripBeside(page, choice(page))
+  await pointAt(page, editor)
+  await expectGripBeside(page, editor)
+
+  // Dragging it keeps what was typed, then moves the block, as written, between the blocks of a phase.
+  const handle = await grip(page).boundingBox()
+  const second = await phase(page, 'build').locator('[data-plan-block]').filter({ hasText: 'Count rejects' }).boundingBox()
+  if (!handle || !second) throw new Error('no grip or target on screen')
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
+  await page.mouse.down()
+  await expect(editor).toHaveCount(0)
+  await page.mouse.move(handle.x + 4, second.y - 4, { steps: 12 })
+  await page.mouse.up()
+
+  await expect(bar(page)).toContainText('2 changes not applied')
+  await expect(phase(page, 'build').locator('[data-plan-block]')).toHaveText([
+    /^Wire the limiter/,
+    /^Every block on this page moves with its grip\. Edited\.$/,
+    /^Count rejects/,
+    /Redis can go away/,
+  ])
+})
+
+test('the grip menu stays open while the pointer crosses other blocks, until a press outside it', async ({ page }) => {
+  await openPlan(page)
+  const intro = top(page).filter({ hasText: 'Every block on this page' })
+  await pointAt(page, intro)
+  await grip(page).click()
+  await expect(menu(page)).toBeVisible()
+  // Over the block's own text, then over the next block, and back to the menu.
+  const box = await phase(page, 'build').boundingBox()
+  if (!box) throw new Error('no phase on screen')
+  await page.mouse.move(box.x + box.width / 2, box.y + 20, { steps: 8 })
+  await page.waitForTimeout(400)
+  await expect(menu(page)).toBeVisible()
+  await menu(page).getByRole('menuitem', { name: 'Move down' }).click()
+  await expect(bar(page)).toContainText('1 change not applied')
+  await expect.poll(() => topOrder(page)).toEqual(['Block move', '#build', 'Every block', '#agreed', '#fail-mode', 'FileTree', 'workflow'])
+  // A press outside closes it.
+  await expect(menu(page)).toBeVisible()
+  await page.mouse.click(5, 450)
+  await expect(menu(page)).toBeHidden()
+})
+
+test('Delete in the grip menu asks once, then takes the block out as a change to apply; a locked block stays', async ({ page }) => {
+  await openPlan(page)
+  const intro = top(page).filter({ hasText: 'Every block on this page' })
+  await pointAt(page, intro)
+  await grip(page).click()
+  const remove = menu(page).locator('[data-plan-block-move-delete]')
+  await expect(remove).toHaveText('Delete')
+  await remove.click()
+  await expect(remove).toHaveText('Delete this block?')
+  await expect(intro).toHaveCount(1)
+  await remove.click()
+  await expect(intro).toHaveCount(0)
+  await expect(bar(page)).toContainText('1 change not applied')
+  await expect.poll(() => topOrder(page)).toEqual(['Block move', '#build', '#agreed', '#fail-mode', 'FileTree', 'workflow'])
+
+  // A locked phase moves, but stays in the plan.
+  await pointAt(page, phase(page, 'agreed').locator('.plan-title'))
+  await grip(page).click()
+  await expect(menu(page).locator('[data-plan-block-move-delete]')).toBeDisabled()
+  await page.mouse.click(5, 450)
+
+  await page.locator('[data-plan-apply]').click()
+  await expect(bar(page)).toHaveCount(0)
+  await expect.poll(() => planSource(page)).not.toContain('Every block on this page')
+})
+
+test('the grip menu on a block being edited keeps the edit and moves the block', async ({ page }) => {
+  await openPlan(page)
+  const intro = top(page).filter({ hasText: 'Every block on this page' })
+  await intro.click()
+  const editor = page.locator('[data-plan-block-editor]')
+  await expect(editor.locator('[contenteditable="true"]')).toBeFocused()
+  await page.keyboard.press('Control+End')
+  await page.keyboard.type(' Edited.')
+  await pointAt(page, editor)
+  await grip(page).click()
+  await expect(editor).toHaveCount(0)
+  // The menu stays on the block the page drew in the editor's place, with the pointer over its text.
+  const box = await intro.boundingBox()
+  if (!box) throw new Error('no block on screen')
+  await page.mouse.move(box.x + 40, box.y + box.height / 2, { steps: 6 })
+  await page.waitForTimeout(400)
+  await expect(menu(page)).toBeVisible()
+  await menu(page).getByRole('menuitem', { name: 'Move down' }).click()
+  await expect(bar(page)).toContainText('2 changes not applied')
+  await expect.poll(() => topOrder(page)).toEqual(['Block move', '#build', 'Every block', '#agreed', '#fail-mode', 'FileTree', 'workflow'])
+  await expect(top(page).filter({ hasText: 'Every block' })).toHaveText('Every block on this page moves with its grip. Edited.')
 })

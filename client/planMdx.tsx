@@ -32,9 +32,11 @@ import { sendPlanMutation, sharedQueryClient } from './queryClient.tsx'
 import { clearDraft, isLegacyDraft, readDraft, writeDraft, type PlanDraft } from './editor/draftStore.ts'
 import { planNotReadyReason } from '../src/planReady.ts'
 import type { DraftConflict, DraftSide } from '../src/planMdx/rebaseDraft.ts'
-import { bindBlockEditButton, type BlockEditBinding, type EditCaret, type EditHow } from './planEditButton.ts'
+import { bindBlockEditButton, followEdit, type BlockEditBinding, type EditCaret, type EditFollow, type EditHow } from './planEditButton.ts'
+import { editTitleInPlace, typedTitle } from './titleEdit.ts'
+import { applyTitleEdit, titleRange } from '../src/planMdx/titleEdit.ts'
 import { bindBlockMove, type BlockMoveBinding, type BlockMoved } from './planBlockMove.ts'
-import { CELL_RANGE_ATTR, moveBlock, parseBlockRange, parseCellRange, type BlockPlace } from '../src/planMdx/remarkBlockRanges.ts'
+import { CELL_RANGE_ATTR, moveBlock, parseBlockRange, parseCellRange, spliceBlock, type BlockPlace } from '../src/planMdx/remarkBlockRanges.ts'
 import { Button } from './ui/button.tsx'
 import type { BlockTarget } from './editor/BlockEditor.tsx'
 
@@ -126,7 +128,7 @@ function PlanTitleHeading({ id, blockRange, children, editing }: { id?: string; 
         </p>
       ) : null}
       {/* The title edited as it reads keeps the eyebrow above it and the facts under it. */}
-      {editing ? <BlockEditSlot replaced={null} fallback={heading} /> : heading}
+      {editing ? <BlockEditSlot replaced={null} fallback={heading} blockRange={blockRange} /> : heading}
       {info && info.facts.length > 0 ? (
         <ul className="plan-head-facts" data-plan-head="" aria-label="Plan progress">
           {info.facts.map((fact) => (
@@ -166,9 +168,15 @@ function useBodyMode(): string | undefined {
   return mode
 }
 
-type PlanHeadingProps = { children?: ReactNode; 'data-plan-block'?: string; 'data-plan-editing'?: boolean }
+type PlanHeadingProps = { children?: ReactNode; 'data-plan-block'?: string; 'data-plan-text'?: string; 'data-plan-editing'?: boolean }
 
-function PlanMarkdownHeading({ level, children, 'data-plan-block': blockRange, 'data-plan-editing': editing }: PlanHeadingProps & { level: 1 | 2 | 3 }) {
+function PlanMarkdownHeading({
+  level,
+  children,
+  'data-plan-block': blockRange,
+  'data-plan-text': textRange,
+  'data-plan-editing': editing,
+}: PlanHeadingProps & { level: 1 | 2 | 3 }) {
   const cursor = useContext(TocHeadingCursor)
   let id: string | undefined
   // The plan's opening heading: the first heading of the document, when it is a `#` heading.
@@ -177,13 +185,14 @@ function PlanMarkdownHeading({ level, children, 'data-plan-block': blockRange, '
     id = cursor.current.ids[cursor.current.n]
     cursor.current.n += 1
   }
-  if (level === 1 && first) return <PlanTitleHeading id={id} blockRange={blockRange} editing={editing}>{children}</PlanTitleHeading>
+  if (level === 1 && first && !textRange) return <PlanTitleHeading id={id} blockRange={blockRange} editing={editing}>{children}</PlanTitleHeading>
+  // A heading in a card carries the place of its text (data-plan-text) rather than a block's.
   const heading =
-    level === 1 ? <h1 id={id} data-plan-block={blockRange}>{children}</h1>
-    : level === 2 ? <h2 id={id} data-plan-block={blockRange}>{children}</h2>
-    : <h3 id={id} data-plan-block={blockRange}>{children}</h3>
+    level === 1 ? <h1 id={id} data-plan-block={blockRange} data-plan-text={textRange}>{children}</h1>
+    : level === 2 ? <h2 id={id} data-plan-block={blockRange} data-plan-text={textRange}>{children}</h2>
+    : <h3 id={id} data-plan-block={blockRange} data-plan-text={textRange}>{children}</h3>
   // A heading open in the editor keeps its place in the contents, so the headings after it keep their ids.
-  return editing ? <BlockEditSlot replaced={null} fallback={heading} /> : heading
+  return editing ? <BlockEditSlot replaced={null} fallback={heading} blockRange={blockRange} /> : heading
 }
 
 function PlanH1(props: PlanHeadingProps) {
@@ -211,27 +220,39 @@ type OpenEdit = {
   id: number
   /**
    * `data-plan-block` of the block to edit (`inline` for text, edited as it reads), of the block to
-   * add after (null: after the last), or `data-plan-cell-range` of a pipe table cell.
+   * add after (null: after the last), `data-plan-cell-range` of a pipe table cell, or a card's title,
+   * which client/titleEdit.ts edits in its own text, with no editor.
    */
-  target: { kind: 'edit'; range: string; inline?: boolean } | { kind: 'add'; after: string | null } | { kind: 'cell'; range: string }
-  /** Where the caret goes, and the margins inline text keeps. */
+  target:
+    | { kind: 'edit'; range: string; inline?: boolean }
+    | { kind: 'add'; after: string | null; inline?: boolean }
+    | { kind: 'cell'; range: string }
+    | { kind: 'title' }
+  /** Where the caret goes, and the margins and height inline text keeps. */
   caret?: EditCaret
   margins?: EditHow['margins']
+  height?: number
   source: string
-  /** The plan file Done kept. The editor closes when the page shows it. */
+  /** The plan file Done kept. The editor stays, as it is, until the page shows it, then closes. */
   committed?: string
+  /** The block that opens in the same frame the page shows `committed`: Enter split the text. */
+  then?: EditFollow
 }
 
 type EditSlot = {
   open: OpenEdit
-  commit: (next: string) => Promise<string | null>
-  cancel: () => void
+  commit: (next: string, follow?: EditFollow) => Promise<string | null>
+  cancel: (follow?: EditFollow) => void
+  /** The open editor's Done, so a block's grip can finish the edit before it moves a block. */
+  register: (done: (() => void) | null) => void
 }
 
 /** The open block editor, for the plan body to draw in the block's place. */
 const EditSlotContext = createContext<EditSlot | null>(null)
 
 function blockTarget(open: OpenEdit): BlockTarget | null {
+  // A title is edited in its own text, not in a block editor.
+  if (open.target.kind === 'title') return null
   if (open.target.kind === 'edit') {
     const range = parseBlockRange(open.target.range)
     return range ? { kind: 'edit', range, inline: open.target.inline } : null
@@ -242,7 +263,7 @@ function blockTarget(open: OpenEdit): BlockTarget | null {
   }
   if (open.target.after === null) return { kind: 'add', after: null }
   const after = parseBlockRange(open.target.after)
-  return after ? { kind: 'add', after } : null
+  return after ? { kind: 'add', after, inline: open.target.inline } : null
 }
 
 type SaveResult = { ok: true } | { ok: false; message: string; status?: number }
@@ -348,13 +369,24 @@ function PlanBody({ Content, components, source }: PlanBodyProps) {
   const slot = useContext(EditSlotContext)
   const tree = (Content as (props: { components: typeof planComponents }) => ReactNode)({ components })
   const blocks = keyedBlocks(tree)
-  // The editor's range is a place in the file it opened on. A newer file has other places.
-  if (!slot || slot.open.source !== source || slot.open.committed !== undefined) return <>{blocks}</>
+  // The editor's range is a place in the file it opened on. A newer file has other places. An editor
+  // whose edit was kept stays until the page draws that edit, so the old text never shows again between them.
+  if (!slot || slot.open.source !== source) return <>{blocks}</>
   return <>{placeEditSlot(blocks, slot.open)}</>
 }
 
-/** The block's place in the plan file: its own `data-plan-block`, or a fence's on its `<code>`. */
+/**
+ * The block's place in the plan file: its own `data-plan-block`, or a fence's on its `<code>`. Text
+ * inside a card has the place of its text instead (`data-plan-text`); the two never name the same place.
+ */
 function rangeOfElement(element: ReactElement): string | undefined {
+  const props = element.props as { 'data-plan-text'?: unknown }
+  if (typeof props['data-plan-text'] === 'string') return props['data-plan-text']
+  return blockRangeOfElement(element)
+}
+
+/** The place of a block that moves (`data-plan-block`), not of text inside a card. */
+function blockRangeOfElement(element: ReactElement): string | undefined {
   const props = element.props as { 'data-plan-block'?: unknown; children?: ReactNode }
   if (typeof props['data-plan-block'] === 'string') return props['data-plan-block']
   if (element.type !== PlanPre) return undefined
@@ -372,14 +404,14 @@ function countHeadings(node: ReactNode): number {
   return (PLAN_HEADINGS.has(node.type) ? 1 : 0) + countHeadings(node.props.children)
 }
 
-function BlockEditSlot({ replaced, fallback }: { replaced: ReactElement | null; fallback?: ReactNode }) {
+function BlockEditSlot({ replaced, fallback, blockRange }: { replaced: ReactElement | null; fallback?: ReactNode; blockRange?: string }) {
   const slot = useContext(EditSlotContext)
   const cursor = useContext(TocHeadingCursor)
   if (cursor && replaced) cursor.current.n += countHeadings(replaced)
   const target = slot ? blockTarget(slot.open) : null
   if (!slot || !target) return fallback ?? replaced
   // Text edited as it reads stays as it is while the editor's code loads, so nothing flickers.
-  const inline = target.kind === 'cell' || (target.kind === 'edit' && target.inline === true)
+  const inline = target.kind === 'cell' || ((target.kind === 'edit' || target.kind === 'add') && target.inline === true)
   return (
     <Suspense
       fallback={
@@ -400,6 +432,10 @@ function BlockEditSlot({ replaced, fallback }: { replaced: ReactElement | null; 
         onCancel={slot.cancel}
         caret={slot.open.caret}
         margins={slot.open.margins}
+        height={slot.open.height}
+        closing={slot.open.committed !== undefined}
+        registerDone={slot.register}
+        blockRange={target.kind === 'edit' ? (blockRange ?? (replaced ? blockRangeOfElement(replaced) : undefined)) : undefined}
       />
     </Suspense>
   )
@@ -678,8 +714,9 @@ function PlanMdxApp() {
   const [openEdit, setOpenEdit] = useState<OpenEdit | null>(null)
   const editIds = useRef(0)
   const editBinding = useRef<BlockEditBinding | null>(null)
-  // The plan file the page draws: the unapplied changes, else the file a block editor opened on, else the live plan.
-  const pageSource = draft?.source ?? openEdit?.source ?? boot.source
+  // The plan file the page draws: the unapplied changes, else the edit an editor kept (one that undid every
+  // change leaves no draft), else the file a block editor opened on, else the live plan.
+  const pageSource = draft?.source ?? openEdit?.committed ?? openEdit?.source ?? boot.source
   // The source on screen. It lags `pageSource` when the newest source does not compile.
   const [shownSource, setShownSource] = useState<string>(pageSource)
   const stale = shownSource !== pageSource
@@ -947,6 +984,34 @@ function PlanMdxApp() {
   const draftRef = useRef(draft)
   draftRef.current = draft
   const moveBinding = useRef<BlockMoveBinding | null>(null)
+  // The open block editor's Done, so a block's grip or Apply changes can finish the edit first.
+  const openDone = useRef<(() => void) | null>(null)
+  /** Finish the open editor or title, keeping what was typed, as a click outside it does. */
+  const finishEditing = () => {
+    openDone.current?.()
+    titleEdit.current?.finish()
+  }
+  // Apply changes pressed while a block is open waits for that edit to be drawn.
+  const idleWaiters = useRef<Array<() => void>>([])
+  /** Resolves once no editor is open: false when the open one does not close (an edit that does not render). */
+  const whenEditIdle = () =>
+    new Promise<boolean>((resolve) => {
+      if (!editState.current.editing) {
+        resolve(true)
+        return
+      }
+      const done = () => {
+        window.clearTimeout(timer)
+        resolve(true)
+      }
+      const timer = window.setTimeout(() => {
+        idleWaiters.current = idleWaiters.current.filter((waiter) => waiter !== done)
+        resolve(false)
+      }, 4000)
+      idleWaiters.current.push(done)
+    })
+  // The open title edit (client/titleEdit.ts makes the title's text editable where it is), and how to put it back.
+  const titleEdit = useRef<{ id: number; stop: () => void; finish: () => void } | null>(null)
   const [applying, setApplying] = useState(false)
   const [applyError, setApplyError] = useState<string | null>(null)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
@@ -962,7 +1027,7 @@ function PlanMdxApp() {
     if (!canEdit) return
     const open = (target: OpenEdit['target'], how?: EditHow) => {
       editIds.current += 1
-      setOpenEdit({ id: editIds.current, target, caret: how?.caret, margins: how?.margins, source: pageSourceRef.current })
+      setOpenEdit({ id: editIds.current, target, caret: how?.caret, margins: how?.margins, height: how?.height, source: pageSourceRef.current })
     }
     // Load the editor while the reader looks at the page, so a click on text or Edit opens at once.
     const warm = () => void loadBlockEditor().catch(() => undefined)
@@ -970,14 +1035,49 @@ function PlanMdxApp() {
     const binding = bindBlockEditButton({
       state: () => editState.current,
       edit: (range, how) => open({ kind: 'edit', range, inline: how?.inline }, how),
-      add: (after) => open({ kind: 'add', after }),
+      add: (after, how) => open({ kind: 'add', after, inline: how?.inline }, how),
       cell: (range, caret) => open({ kind: 'cell', range }, { caret }),
+      // The pill's Edit or + pressed while a card's text is open keeps that text's edit first.
+      finish: finishEditing,
+      title: (element, block, attr, caret) => {
+        const range = parseBlockRange(block)
+        const place = range ? titleRange(pageSourceRef.current, range, attr, typedTitle(element)) : null
+        // A title the file does not hold as plain text (a character reference, an expression) opens the card's editor.
+        if (!place) {
+          open({ kind: 'edit', range: block })
+          return
+        }
+        const source = pageSourceRef.current
+        open({ kind: 'title' }, { caret })
+        const id = editIds.current
+        const close = () => setOpenEdit((current) => (current?.id === id ? null : current))
+        // The title turns editable within the click, so a touch screen shows its keyboard.
+        const edit = editTitleInPlace(element, {
+          caret: caret?.offset,
+          cancel: close,
+          done: async (text) => {
+            const next = applyTitleEdit(source, place, text)
+            if (samePlanSource(next, source) || (await planNotReadyReason(next))) {
+              close()
+              return false
+            }
+            // One more unapplied change, like an editor's Done. The page draws the file the edit opened on until it shows this one.
+            keepChange(next, draftRef.current?.base ?? source, draftRef.current)
+            setOpenEdit((current) => (current?.id === id ? { ...current, committed: next } : current))
+            return true
+          },
+        })
+        titleEdit.current = { id, ...edit }
+      },
     })
     editBinding.current = binding
     // Every block moves where it reads: its grip drags it, or opens Move up and Move down.
     const mover = bindBlockMove({
       state: () => editState.current,
       move: (range, target, place) => moveRef.current(range, target, place),
+      // A grip pressed while a block or a title is open finishes that edit first, as a click outside does.
+      finishEditing,
+      remove: (range) => removeRef.current(range),
     })
     moveBinding.current = mover
     return () => {
@@ -989,13 +1089,16 @@ function PlanMdxApp() {
     }
   }, [canEdit])
 
-  // An editor opened, or the plan stopped being editable: the move grip goes.
+  // An editor opened or closed, or the plan stopped being editable: the move grip follows, and the
+  // card whose text or title is open keeps its pill beside it.
   useEffect(() => {
     moveBinding.current?.refresh()
+    editBinding.current?.refresh()
   }, [editable, openEdit])
 
   // A move waits for the page to draw it, so the grip follows the block and the next move has the new places.
-  useEffect(() => {
+  // Told before the page paints, so a drop always reads places in the file the page shows.
+  useLayoutEffect(() => {
     if (content) moveBinding.current?.rendered(shownSource)
   }, [content, shownSource])
 
@@ -1033,9 +1136,33 @@ function PlanMdxApp() {
     })
   }, [canEdit, planId])
 
-  // Done keeps the edit; the editor closes once the page shows it.
-  useEffect(() => {
-    if (openEdit?.committed !== undefined && samePlanSource(shownSource, openEdit.committed)) setOpenEdit(null)
+  // Enter split a block's text: the editor that opens next, found on the page as it draws now. Its
+  // source is the file on screen, so the page places it at once.
+  const followUp = (follow: EditFollow, source: string): OpenEdit | null => {
+    const found = followEdit(follow)
+    if (!found) return null
+    editIds.current += 1
+    const target: OpenEdit['target'] =
+      found.kind === 'edit' ? { kind: 'edit', range: found.range, inline: true } : { kind: 'add', after: found.range, inline: true }
+    return { id: editIds.current, target, caret: found.caret, margins: found.margins, height: found.height, source }
+  }
+  // Enter that changed nothing (at the end of untouched text) closes the editor; the new block opens on the next draw.
+  const pendingFollow = useRef<EditFollow | null>(null)
+
+  // Done keeps the edit; the editor stays until the page shows it, then closes. When Enter split the
+  // text, the next block opens in that same frame, before the page paints, so nothing moves or blinks.
+  useLayoutEffect(() => {
+    if (openEdit?.committed !== undefined && samePlanSource(shownSource, openEdit.committed)) {
+      setOpenEdit(openEdit.then ? followUp(openEdit.then, shownSource) : null)
+      return
+    }
+    const follow = pendingFollow.current
+    if (openEdit || !follow) return
+    pendingFollow.current = null
+    const next = followUp(follow, shownSource)
+    if (next) setOpenEdit(next)
+    // followUp reads only refs and the page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openEdit, shownSource])
 
   // The agent wrote after these changes started: put them on top of its plan. An open editor first
@@ -1086,14 +1213,59 @@ function PlanMdxApp() {
     if (!openEdit) return null
     return {
       open: openEdit,
-      cancel: () => setOpenEdit((current) => (current?.id === openEdit.id ? null : current)),
-      commit: async (next) => {
+      cancel: (follow) => {
+        if (follow) pendingFollow.current = follow
+        setOpenEdit((current) => (current?.id === openEdit.id ? null : current))
+      },
+      commit: async (next, follow) => {
         keepChange(next, draft?.base ?? openEdit.source, draft)
-        setOpenEdit((current) => (current?.id === openEdit.id ? { ...current, committed: next } : current))
+        setOpenEdit((current) => (current?.id === openEdit.id ? { ...current, committed: next, then: follow } : current))
         return null
+      },
+      register: (done) => {
+        openDone.current = done
+        // The editor is on the page now: the card whose text it holds shows its pill beside it.
+        if (done) editBinding.current?.refresh()
       },
     }
   }, [openEdit, draft, planId])
+  // Apply changes waits for an open editor to close.
+  useEffect(() => {
+    if (openEdit) return
+    const waiting = idleWaiters.current
+    idleWaiters.current = []
+    for (const waiter of waiting) waiter()
+  }, [openEdit])
+
+  // A title edit that closed some other way (the page stopped being editable) puts its text back as React drew it.
+  const titleEditId = openEdit?.target.kind === 'title' ? openEdit.id : null
+  useEffect(() => {
+    const open = titleEdit.current
+    if (open && open.id !== titleEditId) {
+      open.stop()
+      titleEdit.current = null
+    }
+  }, [titleEditId])
+  useEffect(() => () => titleEdit.current?.stop(), [])
+
+  // A block deleted from its grip's menu is one more unapplied change, like a Remove in its editor.
+  const removeRef = useRef<(range: string) => Promise<boolean>>(async () => false)
+  removeRef.current = async (rangeText) => {
+    const range = parseBlockRange(rangeText)
+    const from = pageSourceRef.current
+    // The blocks on screen carry places in the file the page shows.
+    if (!range || from !== shownSourceRef.current) return false
+    const next = spliceBlock(from, range, '')
+    if (samePlanSource(next, from)) return false
+    if (await planNotReadyReason(next)) {
+      window.showPlanToast?.('Deleting that block would leave the plan unable to render, so it stayed.', 'error')
+      return false
+    }
+    // The plan changed while the delete was checked, so its places are not this file's any more.
+    if (pageSourceRef.current !== from) return false
+    keepChange(next, draftRef.current?.base ?? from, draftRef.current)
+    return true
+  }
 
   // A block moved by its grip (client/planBlockMove.ts) is one more unapplied change, like an edit's Done.
   const moveRef = useRef<(range: string, target: string, place: BlockPlace) => Promise<BlockMoved | null>>(async () => null)
@@ -1123,6 +1295,16 @@ function PlanMdxApp() {
     setApplying(true)
     setApplyError(null)
     try {
+      // A block still open is part of the changes: it is finished first, as a click outside it would.
+      if (editState.current.editing) {
+        finishEditing()
+        if (!(await whenEditIdle())) {
+          setApplyError('Finish the block that is open, or cancel it, then apply.')
+          return
+        }
+      }
+      const draft = draftRef.current
+      if (!draft || draft.rebase) return
       const result = await saveEditedSource(draft.base, draft.source)
       if (!result.ok) {
         setApplyError(result.message)
@@ -1150,6 +1332,9 @@ function PlanMdxApp() {
       setConfirmDiscard(true)
       return
     }
+    // An open block goes too, with what was typed in it.
+    pendingFollow.current = null
+    setOpenEdit(null)
     clearDraft(planId)
     setDraft(null)
     setConfirmDiscard(false)
@@ -1217,11 +1402,17 @@ function PlanMdxApp() {
       ) : error ? null : (
         <p data-plan-rendering="">Rendering plan…</p>
       )}
-      {editable && !openEdit ? (
+      {/* While an editor is open the button keeps its room, unseen: the page keeps its height, so text
+          near the end of a plan scrolled to the bottom does not jump when it opens. */}
+      {editable ? (
         <button
           type="button"
           className="plan-add-block"
           data-plan-add-block=""
+          data-editing={openEdit ? '' : undefined}
+          aria-hidden={openEdit ? true : undefined}
+          tabIndex={openEdit ? -1 : undefined}
+          disabled={openEdit !== null}
           onClick={() => {
             editIds.current += 1
             setOpenEdit({ id: editIds.current, target: { kind: 'add', after: null }, source: pageSource })
@@ -1230,7 +1421,8 @@ function PlanMdxApp() {
           <span aria-hidden="true">+</span> Add a block
         </button>
       ) : null}
-      {draft && canEdit && !openEdit ? (
+      {/* Shown while a block is edited too: changes wait to be applied whatever has focus. */}
+      {draft && canEdit ? (
         <div
           className="plan-apply-bar"
           role="region"

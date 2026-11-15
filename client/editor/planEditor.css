@@ -73,8 +73,9 @@
   color: var(--ink);
 }
 
-/* Further apart than on the page, so the + bar fits between blocks (BAR_ROOM). Beats the page's card and paragraph margins. */
-.plan-editor .plan-editor-content.plan-document > * + * {
+/* Further apart than on the page, so the + bar fits between blocks (BAR_ROOM). Beats the page's card and paragraph margins.
+ * Text edited as it reads has no + bars, so its blocks keep the page's own spacing and nothing moves when it closes. */
+.plan-editor:not([data-inline]) .plan-editor-content.plan-document > * + * {
   margin-top: var(--space-xl);
 }
 
@@ -374,6 +375,16 @@
   outline: none;
 }
 
+/* Text inside a card keeps the page's spacing between its paragraphs and lists (.plan-rich p in
+ * client/entries/primitives.css), as text outside a card does. MDXEditor's nested editor sets them flush. */
+.plan-editor-body.plan-rich [contenteditable] > :is(p, ul, ol) {
+  margin: 0 0 var(--space-sm);
+}
+
+.plan-editor-body.plan-rich [contenteditable] > :is(p, ul, ol):last-child {
+  margin-bottom: 0;
+}
+
 /* A fence: a language picker, Pierre's code editor in the page's code frame, and a mermaid figure below. */
 .plan-editor-code {
   display: flex;
@@ -516,6 +527,12 @@
 
 .plan-block-handles[data-level='nested'] {
   left: -26px;
+}
+
+/* A block open in its editor has the page's grip beside the editor (client/planBlockMove.ts), so the
+ * editor's own grip for that block would be a second one. Grips for the blocks inside a card stay. */
+.plan-block-editor[data-plan-edit-block] .plan-block-handles[data-level='root'] {
+  display: none;
 }
 
 .plan-block-button {
@@ -786,6 +803,11 @@
 
 .plan-block-menu[data-closing] {
   animation: plan-menu-out 120ms var(--ease-out) forwards;
+}
+
+/* The / menu grew in when it opened. Filtering puts it back on the page on each key; it does not grow in again. */
+.plan-slash-menu[data-shown] {
+  animation: none;
 }
 
 .plan-select-popup.plan-editor-select-popup[data-starting-style],

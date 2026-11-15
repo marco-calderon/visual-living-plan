@@ -49,8 +49,10 @@ import {
   Heading6,
   Image as ImageIcon,
   Link as LinkIcon,
+  CircleDot,
   Quote,
   Table2,
+  Tag,
   Type,
   Workflow,
   type LucideIcon,
@@ -63,7 +65,7 @@ import { newDataTable } from './dataTableMdast.ts'
 import { InsertPrompt, type InsertKind, type InsertValues } from './insertPrompt.tsx'
 
 /** The menu's sections, in the order it shows them. */
-const SECTIONS = ['Text', 'Links and media', 'Code', 'Cards', 'Data', 'Layout', 'In this card'] as const
+const SECTIONS = ['Text', 'Links and media', 'Labels', 'Code', 'Cards', 'Data', 'Layout', 'In this card'] as const
 type Section = (typeof SECTIONS)[number]
 
 type Card = {
@@ -93,6 +95,8 @@ type Card = {
   prompt?: InsertKind
   /** Adds a markdown table of this size where the "/" was. */
   table?: { rows: number; columns: number }
+  /** Adds a label inside the line, where the "/" was: a chip or a pill, as on the page. */
+  inline?: { name: 'Chip' | 'Pill'; props: Record<string, string>; text: string }
 }
 
 function shortId(prefix: string): string {
@@ -191,6 +195,24 @@ export const SLASH_CARDS: Card[] = [
     icon: glyph(ImageIcon),
     keywords: ['image', 'picture', 'photo', 'img', 'screenshot'],
     prompt: 'image',
+  },
+  {
+    key: 'chip',
+    section: 'Labels',
+    label: 'Chip',
+    hint: 'A small label inside a sentence',
+    icon: glyph(Tag),
+    keywords: ['chip', 'label', 'tag', 'inline'],
+    inline: { name: 'Chip', props: {}, text: 'label' },
+  },
+  {
+    key: 'pill',
+    section: 'Labels',
+    label: 'Pill',
+    hint: 'A status label; its dot changes the tone',
+    icon: glyph(CircleDot),
+    keywords: ['pill', 'label', 'status', 'badge', 'tone', 'inline'],
+    inline: { name: 'Pill', props: { tone: 'success' }, text: 'status' },
   },
   {
     key: 'code',
@@ -606,7 +628,7 @@ const DATA_PARENTS = new Set([
   'Prop',
 ])
 
-const PLAIN_SECTIONS: readonly Section[] = ['Text', 'Links and media', 'Code', 'In this card']
+const PLAIN_SECTIONS: readonly Section[] = ['Text', 'Links and media', 'Labels', 'Code', 'In this card']
 
 function menuOptions(nested: boolean, query: string, parent?: string | null): CardOption[] {
   const inData = parent != null && DATA_PARENTS.has(parent)
@@ -651,6 +673,19 @@ function SlashMenu({ nested, parent }: { nested: boolean; parent?: string | null
   const highlighted = useRef(0)
   const shownQuery = useRef<string | null>(null)
   const selectAndClose = useRef<((option: CardOption) => void) | null>(null)
+  // Lexical takes the menu off the page and puts it back on each key typed after the "/". The menu
+  // grows in once, when it opens, and keeps where it was scrolled, so filtering never looks like it
+  // closed and opened again.
+  const menuShown = useRef(false)
+  const menuScroll = useRef(0)
+  const menuNode = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const node = menuNode.current
+      if (node?.isConnected && node.scrollTop !== menuScroll.current) node.scrollTop = menuScroll.current
+    })
+    return () => cancelAnimationFrame(frame)
+  })
   const [prompt, setPrompt] = useState<{ kind: InsertKind; point: Point | null; line: string | null; anchor: DOMRect } | null>(null)
   const trigger = useBasicTypeaheadTriggerMatch('/', { minLength: 0, maxLength: 24 })
   const options = useMemo(() => menuOptions(nested, query ?? '', parent), [nested, query, parent])
@@ -701,6 +736,33 @@ function SlashMenu({ nested, parent }: { nested: boolean; parent?: string | null
     [editor],
   )
 
+  // A label goes into the line where the "/" was. The caret goes right after it, in this editor, so
+  // the sentence goes on; the label's own text is edited with a click on it.
+  const caretAfterNewLabel = useCallback(
+    (line: () => string | null) => {
+      const labelsIn = (node: ReturnType<typeof $getNodeByKey>) =>
+        $isElementNode(node) ? node.getChildren().filter((child) => $isDecoratorNode(child)).map((child) => child.getKey()) : []
+      const known = new Set(editor.getEditorState().read(() => labelsIn(line() ? $getNodeByKey(line()!) : null)))
+      const stop = editor.registerUpdateListener(({ editorState }) => {
+        const added = editorState.read(() => labelsIn(line() ? $getNodeByKey(line()!) : null).find((key) => !known.has(key)) ?? null)
+        if (!added) return
+        stop()
+        clearTimeout(timer)
+        // MDXEditor puts the caret in a new element's own text on a timer of its own; this comes after it.
+        setTimeout(() =>
+          requestAnimationFrame(() => {
+            editor.update(() => {
+              $getNodeByKey(added)?.selectNext()
+            })
+            editor.focus()
+          }),
+        )
+      })
+      const timer = setTimeout(stop, 1000)
+    },
+    [editor],
+  )
+
   const pick = useRef<(option: CardOption, typed: string) => void>(() => {})
 
   // The menu takes Enter and Tab itself. Inside a card's body the editor would otherwise also start
@@ -729,7 +791,7 @@ function SlashMenu({ nested, parent }: { nested: boolean; parent?: string | null
 
   const onSelect = useCallback(
     (option: CardOption, typed: { remove: () => void } | null, close: () => void) => {
-      const { build, fence, block, prompt: ask, table } = option.card
+      const { build, fence, block, prompt: ask, table, inline } = option.card
       let line: string | null = null
       let point: Point | null = null
       editor.update(
@@ -761,6 +823,14 @@ function SlashMenu({ nested, parent }: { nested: boolean; parent?: string | null
         removeEmptiedLine(() => line)
         return
       }
+      if (inline) {
+        // A label sits in the line where the "/" was, in the editor it was typed in, a card's body too.
+        setActiveEditor(editor)
+        caretAfterNewLabel(() => line)
+        insertJsx({ kind: 'text', name: inline.name, props: inline.props, children: [{ type: 'text', value: inline.text }] })
+        if (parent !== undefined) editor.dispatchCommand(NESTED_EDITOR_UPDATED_COMMAND, undefined)
+        return
+      }
       if (fence || !build) return
       const node = build()
       // The card goes into the editor the "/" was typed in, also a card's body.
@@ -777,7 +847,7 @@ function SlashMenu({ nested, parent }: { nested: boolean; parent?: string | null
       })
       removeEmptiedLine(() => line)
     },
-    [editor, insertJsx, insertTable, removeEmptiedLine, setActiveEditor],
+    [editor, insertJsx, insertTable, removeEmptiedLine, setActiveEditor, parent, caretAfterNewLabel],
   )
   // Picked with Enter or Tab: through the menu, so it closes too. A key typed just before may not be on
   // screen yet, so wait a frame or two for the menu to show it.
@@ -816,7 +886,11 @@ function SlashMenu({ nested, parent }: { nested: boolean; parent?: string | null
     <LexicalTypeaheadMenuPlugin<CardOption>
       onQueryChange={(next) => {
         open.current = next !== null
-        if (next === null) selectAndClose.current = null
+        if (next === null) {
+          selectAndClose.current = null
+          menuShown.current = false
+          menuScroll.current = 0
+        }
         setQuery(next)
       }}
       onSelectOption={onSelect}
@@ -829,7 +903,22 @@ function SlashMenu({ nested, parent }: { nested: boolean; parent?: string | null
         return (
         anchor.current && options.length > 0
           ? createPortal(
-              <div className="plan-slash-menu" role="listbox" aria-label="Add a block" data-plan-grab-ignore="">
+              <div
+                className="plan-slash-menu"
+                role="listbox"
+                aria-label="Add a block"
+                data-plan-grab-ignore=""
+                data-shown={menuShown.current ? '' : undefined}
+                ref={menuNode}
+                onAnimationEnd={(event) => {
+                  if (event.target !== event.currentTarget) return
+                  menuShown.current = true
+                  event.currentTarget.setAttribute('data-shown', '')
+                }}
+                onScroll={(event) => {
+                  if (event.currentTarget.isConnected) menuScroll.current = event.currentTarget.scrollTop
+                }}
+              >
                 {options.map((option, index) => (
                   <Fragment key={option.key}>
                     {option.card.section !== options[index - 1]?.card.section ? (

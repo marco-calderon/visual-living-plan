@@ -66,7 +66,9 @@ export function Approve({ id, prompt, children, note, approved, locked, lockedSt
     >
       <VStack gap="sm">
         <CardLabel icon={icon} color={color}>Approval gate</CardLabel>
-        <h3 className="plan-title">{prompt}</h3>
+        <h3 className="plan-title">
+          <span data-plan-title="prompt">{prompt}</span>
+        </h3>
         {children ? <div className="plan-rich">{children}</div> : null}
         <label className="plan-field">
           <VStack gap="xs">

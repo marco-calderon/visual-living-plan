@@ -25,7 +25,9 @@ export function Workflow({ id, title = 'Expected execution', nodes, edges, child
 
   return (
     <section id={id} className="vlp-workflow plan-panel" aria-label={title}>
-      <h3 className="plan-title">{title}</h3>
+      <h3 className="plan-title">
+        <span data-plan-title="title">{title}</span>
+      </h3>
       <p className="workflow-note">
         These steps are the execution plan before the run is laid down. The Workflow tab draws the same path. Select a
         step there to jump to the matching place in this plan.

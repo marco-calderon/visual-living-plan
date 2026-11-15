@@ -67,6 +67,60 @@ Added the next day (2.27.0).
 - The pill no longer hides when the pointer goes to it and back onto its block: coming back cancels the hide that leaving started.
 - Ctrl or Cmd+Enter is caught before the editor sees it; it used to split the line at the caret before Done read the text.
 
+### Text in a card, and a card's title, are edited as they read
+
+Added in 2.28.0. A click did nothing on most of what reads as text: a callout's paragraph, an update's note, a tab or a pane, a box, an approval's or a choice's note, and every card's title. A phase's title was a link, so a click left for the Workflow tab. Only the Edit pill reached them.
+
+- `remarkBlockRanges` stamps text (a paragraph, a heading, a list, a quote) inside a component that draws its children as prose with `data-plan-text`, the place of that text: `callout`, `approve`, `choice`, `questions`, `Update`, `Tabs`, `Tab`, `Compare`, `Pane`, and the layout blocks (`Box`, the stacks, `Row`), at any depth among them, top-level or in a phase. As in a phase, only text that starts at column 1. Components that read their children as data (a data table, a file tree, an endpoint, a choice's options, a form's fields, a checklist's items) are not on the list; their editor changes them.
+- `data-plan-text` is not `data-plan-block`: the text has no grip, keeps its place in its card, and does not turn the card into a level blocks can be dropped into. A click opens it `inline` like other text, and Done splices its range as it splices a block's. The card keeps its pill.
+- A card's title text carries `data-plan-title`, the attribute it comes from (`title` on a phase, a callout, a checklist, and the workflow; `prompt` on a choice, a form, questions, and an approval). A click makes that text editable where it reads (`client/titleEdit.ts`), with the caret where the click landed and the same faint wash as text in its editor. Enter, a press outside, or a Tab out keeps it; Escape keeps what was typed and closes it when nothing was. A title is one line, and an emptied title keeps the one it had.
+- `titleRange` (`src/planMdx/titleEdit.ts`) finds the title in its card's opening tag: the part of the attribute's value the page shows, so a phase's leading step number (`3. `) stays out of it. `applyTitleEdit` writes only those bytes, with the attribute's quote and anything that would read as a character reference escaped. A title the file does not hold as plain text opens the card's editor instead.
+- The browser edits React's own text nodes while a title is open. The edit puts those nodes back, holding the typed text until the page draws the new file, so React never finds a node it did not make. The edit is one more unapplied change, like Done, and the page draws the file it opened on until it shows the change.
+- The page hears clicks on the window as they go down (capture), so a card that keeps clicks to itself (a choice, an approval) still has text and a title to edit. Text opens after the click has gone through, and not when a control on the way prevented its default. A title takes its click at once: where the plan can be edited, the link a phase's title sits in does not follow, and the title turns editable within the click, so a touch screen shows its keyboard. The step number still jumps to the workflow, and a plan that cannot be edited keeps the title's jump.
+- Since the page now hears a click before the comment picker (`client/PlanSelector.tsx`), it reads comment mode the way the picker does: `html[data-comments="on"]`, set at once by the toggle, as well as the session's `comment` mode, which follows after the service answers and stays `review` in review. While comments are on, a click picks a part to comment on and nothing opens.
+- The Add a block button keeps its room, unseen, while an editor is open, so text near the end of a plan scrolled to the bottom does not jump when it opens.
+
+### Enter makes a block, and the grip stays while a block is edited
+
+Added in 2.28.0. Enter in text edited as it reads used to make a second paragraph inside the same editor, spaced as the whole-page editor spaces blocks (`--space-xl`), so the text moved when a click outside closed it and the page drew two blocks with its own spacing. While any editor was open, no block had a grip.
+
+- Enter in a paragraph or a heading (with nothing else in its editor) keeps the text before the caret in the block and makes the text after it the next block (`splitOnEnter` in `client/editor/BlockEditor.tsx`): the editor splits its text, keeps both as one edit, and the page opens the next block's editor with the caret at its start. Enter at the end keeps the text and opens an empty block below, inline like other text, with the `/` hint. The spaces at the split end neither block. Enter on an empty line, or before the first letter, does nothing. Lists, quotes, and code keep the editor's own Enter, and Shift+Enter is a line break.
+- Backspace in an empty paragraph or heading removes the block (an empty new block just closes) and the caret goes to the end of the block above, at its level; when the block was the first, to the start of the block below (`removeOnBackspace`). A block above or below that is not text gets no caret. Backspace anywhere else is the editor's own.
+- `EditFollow` names that next block by where the edited block starts in the file the page draws next (or, after Backspace, where the block above or below starts, mapped across the removal with `remapBlockStart`). The page finds it (`followEdit` in `client/planEditButton.ts`) and opens its editor in a layout effect, in the same frame it draws the edit, so no frame shows the blocks without an editor. An empty new block takes a paragraph's spacing, measured where it will be.
+- Nothing jumps. The inline editor keeps the page's spacing between its blocks (the whole-page editor's wider spacing is for its + bars, which inline text does not have). An editor whose edit was kept stays where it is, inert (`closing`), until the page draws that edit, so the old text never shows again between them. A new editor holds the height of the text it stands in for until its own text is in. Enter reads the caret from the page first, since the editor learns a caret moved by a key a moment later.
+- When an edit undid every unapplied change, the page draws the edit it kept rather than the file the editor opened on.
+- The grip stays while a block or a title is edited. An open editor carries `data-plan-edit-block`, the place of the block it stands in for, so it has a grip of its own and counts as that block among its neighbours. Pressing the grip finishes the edit first (`finishEditing`), as a click outside does; a framed editor is finished the same way.
+- A move started that way waits for the page to draw the edit, then finds its blocks again: `remapBlockStart` (`src/planMdx/remarkBlockRanges.ts`) maps a block's start across the edit (unchanged before it, shifted after it, gone inside it), and the grip, a drag, and an open Move menu follow the block to the element that draws it now. The move binding hears each draw before the page paints, so a drop always reads places in the file on screen.
+
+### The Move menu, the Apply bar, and text in a card's editor
+
+Added in 2.28.0, in the same pull request.
+
+- The Move menu a grip opens stays open while the pointer crosses other blocks, and on the block when the page redraws it (an editor the grip stood beside closed, with or without a change). It closes on a press outside it, Escape, or a choice.
+- The bar of unapplied changes shows whenever changes wait, an open block included. A press on it does not close the open block: Apply changes finishes it first, as a click outside it would, waits for the page to draw it, then applies everything; Discard (asked once) drops the open block with the rest.
+- Text inside a card in its editor (an update's or a callout's paragraphs, a tab's lists) keeps the page's spacing between its blocks (`.plan-rich p`); MDXEditor's nested editor set them flush.
+
+### Delete from the grip, + inside a phase, and labels from the / menu
+
+Added in 2.28.0, in the same pull request.
+
+- The grip's menu has Delete under Move up and Move down. It asks once ("Delete this block?"), finishes an open edit first, then takes the block out (`spliceBlock`) as one more unapplied change; Discard brings it back. A locked block, or one that holds a locked block, keeps Delete disabled: it moves but stays.
+- Text inside a phase used to show the phase's pill, so its + added a block after the whole phase and Edit opened the phase. It now shows + alone, for that text: + adds a block below it, inside the phase. The phase's own pill (Edit and +) shows on its title row. In a phase's own space beside its blocks (the rail, the padding on the way to the pill), the pill goes to the block level with the pointer, as the grip does.
+- A block open in its editor shows only the page's grip: the editor hides its own top-level grip for that block (`data-plan-edit-block`). Grips for blocks inside a card stay.
+- The / menu has a Labels section: Chip and Pill add an inline `<Chip>` or `<Pill>` where the / was, also inside a card's body and a data table's cell. The caret goes right after the label, so the sentence goes on (MDXEditor would put it in the label's own text, on a timer; the menu moves it after that). A click on the label edits its text.
+- Lexical takes the / menu off the page and puts it back on each key typed after the /, which replayed its grow-in animation and reset its scroll, so filtering looked like the menu closed and opened. The menu grows in once when it opens (`data-shown`) and keeps where it was scrolled.
+
+### Taps on a touch screen
+
+Added in 2.28.0, in the same pull request. A touch screen has no hover, so a tap had to show a card's pill. A tap on the frame of a card did, but a tap on its text or title opened that text and hid the pill: on an iPad most of a callout, an update, a tab, or a choice could not reach its Edit.
+
+- A tap or a click on text edits it at once, with the caret there, text inside a card and a card's title included. A tap on a card where it has no text (its frame, a diagram, code) shows its pill, as pointing at it does with a mouse. Where the column leaves no room on the right, as on an iPad, the pill sits over the card's top right corner.
+- While a card's text or title is open, the card's pill stays beside the card (`refresh` in `client/planEditButton.ts`, called when an editor opens, closes, or mounts), so its Edit is there on a touch screen too. A press on the pill counts as part of the open edit, as the editor's own menus do: its Edit and + keep what was typed first, wait for the page to draw it, then open the card's editor or a new block below the card. A phase is the card of its title, not of the text inside it.
+- iOS shows the keyboard only for a focus taken inside the tap, and the text's editor mounts a moment later. A tap that opens text gives the focus to a hidden stand-in at once, which hands it to the editor when it focuses (`holdKeyboard`). A title is made editable within the tap and needs no stand-in.
+- A pen counts as a finger (`client/pointerKind.ts`). The `click` after a tap may carry no `pointerType` in Safari, so the kind of the last press stands in for it: a tap outside open text or a title finishes it there too.
+- The pill and the grip hear a tap on the window as it goes down, so a component that keeps its pointer events (a diagram's pan and zoom) still shows them.
+- A click or a tap on another block moves the focus there. Open text already closed at a press outside it; a card's framed editor stayed open for every press. Now a press on another block of the plan (text, a card, a title) finishes the framed editor too, keeping what was typed, as Done would. A press on its menus, the toolbar, or the page's margin leaves it open. Once the page shows the edit, the press goes where it went: text opens with the caret there, and a card shows its pill (`queue` and `closed` in `client/planEditButton.ts`).
+
 ### Every block moves where it reads
 
 Added in 2.27.2. The whole-page editor had a grip on every block. Once each block opened its own editor, a grip was left only inside an open editor, so on the page nothing could be reordered.
@@ -77,10 +131,10 @@ Added in 2.27.2. The whole-page editor had a grip on every block. Once each bloc
 - A click or a tap on the grip opens Move up and Move down, which stay open on the block after it moves. Alt+Up and Alt+Down move the block with focus (or the block of the focused grip).
 - `moveBlock` (`src/planMdx/remarkBlockRanges.ts`) cuts the block's text with one separator beside it and puts it before or after the target block, as written. Every other byte stays, and moving a block back where it was gives the file back. The result must compile before it is kept. A move is one more unapplied change, like Done, and Apply changes publishes it.
 - Blocks a component draws inside itself (a file tree's rows, a choice's options, an endpoint's fields, a diagram's nodes, a tab's panel) are not blocks of the plan and keep their order; that component's editor changes them. Blocks inside a locked block keep their order too, and nothing is dropped into one. The locked block itself moves, as a locked card does in the editor.
-- The grip is gone while an editor is open, in comment mode, and while the page merges an agent write.
+- The grip is gone in comment mode and while the page merges an agent write. It stays while a block is edited (changed in 2.28.0; it used to go then too): see below.
 
 ## Consequences
 
 - Reading and editing are the same page. Nothing jumps when a block opens, and the blocks around it stay rendered.
 - An edit touches only its block's bytes in the file, so the agent's formatting survives.
-- The e2e specs drive the block pill (`e2e/block-edit.spec.ts`), text and cells edited where they read (`e2e/inline-edit.spec.ts`), and the move grip (`e2e/block-move.spec.ts`); the checklist and dark-text specs open a block's editor instead of the toolbar's.
+- The e2e specs drive the block pill (`e2e/block-edit.spec.ts`), text, cells, text in a card, and titles edited where they read (`e2e/inline-edit.spec.ts`), and the move grip (`e2e/block-move.spec.ts`); the checklist and dark-text specs open a block's editor instead of the toolbar's.
