@@ -59,10 +59,11 @@ export type BlockEditorProps = {
 
 /**
  * Menus and dialogs the editor opens outside its own box. A click in one is still editing. So is a
- * press on the bar of unapplied changes: Apply finishes the edit itself, and Discard drops it.
+ * press on the bar of unapplied changes (Apply finishes the edit itself, and Discard drops it) and on
+ * the card's pill beside open text: its Edit and + finish the edit themselves, then act.
  */
 const EDITOR_POPUPS =
-  '.plan-slash-menu, .plan-block-handles, .plan-block-menu, .plan-insert-prompt, .mdxeditor-popup-container, [role="dialog"], [role="listbox"], [role="menu"], [data-plan-apply-bar]'
+  '.plan-slash-menu, .plan-block-handles, .plan-block-menu, .plan-insert-prompt, .mdxeditor-popup-container, [role="dialog"], [role="listbox"], [role="menu"], [data-plan-apply-bar], [data-plan-block-tools]'
 
 function insideEditor(surface: HTMLElement, target: EventTarget | null): boolean {
   return target instanceof Node && (surface.contains(target) || (target instanceof Element && target.closest(EDITOR_POPUPS) !== null))

@@ -24,7 +24,8 @@ A click on a card's title or on the text inside a card now puts the caret there 
 - A block open in its editor showed two grips; it shows one.
 - Typing after / to filter the block menu no longer makes the menu look like it closed and opened again on each key.
 - With a card open in its editor, a click or tap on another block did nothing: the editor kept the focus. It now keeps the edit, closes, and the focus goes where you pressed: that text opens, or that card shows its Edit. A press on the page's margin or the toolbar still leaves the editor open.
-- On an iPad or a phone, a tap on a card's text or title opened the text and never showed the card's Edit. The first tap on a card now shows its Edit, over its top right corner; the next tap on its text or title edits it. Taps with a pen count too, and a tap outside open text keeps the edit in Safari.
+- A card's Edit was hidden while its text or title was open, so on an iPad or a phone it could not be reached. A tap or a click on text, in a card too, now edits it at once, and the card's Edit stays beside the card while its text is open: Edit keeps what was typed, then opens the card's editor. A tap on a card where it has no text shows its Edit, over its top right corner on an iPad. Taps with a pen count too, and a tap outside open text keeps the edit in Safari.
+- On an iPad a tap on text could open it without bringing up the keyboard. The tap now takes the focus at once and hands it to the text's editor.
 
 ### Improvements
 

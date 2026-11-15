@@ -532,6 +532,25 @@ test('a tap on another block moves the focus there: text opens, and a card shows
   }
 })
 
+test("a card's Edit shows beside it while its text is open, and keeps that text's edit", async ({ page }) => {
+  await openPlan(page)
+  const note = rendered(page).locator('[data-entry="callout"] p[data-plan-text]')
+  await clickTextAt(page, note, 'week')
+  await expect(tools(page)).toHaveAttribute('data-visible', '')
+  // It stays with the card while the pointer goes elsewhere.
+  await page.mouse.move(5, 450, { steps: 4 })
+  await page.waitForTimeout(400)
+  await expect(tools(page)).toHaveAttribute('data-visible', '')
+  await page.keyboard.press('Control+End')
+  await page.keyboard.type(' Typed.')
+  await page.locator('[data-plan-block-edit]').click()
+  await expect(page.locator('[data-plan-block-editor="edit"]:not([data-inline])')).toBeVisible()
+  await expect(editor(page).locator('.plan-editor-body')).toContainText('Typed.')
+  await page.locator('[data-plan-block-cancel]').click()
+  await expect(editor(page)).toHaveCount(0)
+  await expect(note).toHaveText('Staff get the flag for a week first. Typed.')
+})
+
 test("a phase's step number still jumps to the workflow while its title is editable", async ({ page }) => {
   await openPlan(page)
   await rendered(page).locator('[data-entry="phase"] a.plan-step-number').click()

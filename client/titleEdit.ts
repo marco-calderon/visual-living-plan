@@ -20,9 +20,12 @@ export type TitleEditOptions = {
   cancel: () => void
 }
 
-/** The title, or the bar of unapplied changes: Apply finishes the title itself, and Discard drops it. */
+/**
+ * The title, the bar of unapplied changes (Apply finishes the title itself, and Discard drops it), or
+ * the card's pill beside it (its Edit and + finish the title themselves, then act).
+ */
 function inside(element: HTMLElement, target: EventTarget | null): boolean {
-  if (target instanceof Element && target.closest('[data-plan-apply-bar]')) return true
+  if (target instanceof Element && target.closest('[data-plan-apply-bar], [data-plan-block-tools]')) return true
   return target instanceof Node && element.contains(target)
 }
 

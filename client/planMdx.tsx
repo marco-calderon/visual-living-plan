@@ -1037,6 +1037,8 @@ function PlanMdxApp() {
       edit: (range, how) => open({ kind: 'edit', range, inline: how?.inline }, how),
       add: (after, how) => open({ kind: 'add', after, inline: how?.inline }, how),
       cell: (range, caret) => open({ kind: 'cell', range }, { caret }),
+      // The pill's Edit or + pressed while a card's text is open keeps that text's edit first.
+      finish: finishEditing,
       title: (element, block, attr, caret) => {
         const range = parseBlockRange(block)
         const place = range ? titleRange(pageSourceRef.current, range, attr, typedTitle(element)) : null
@@ -1087,9 +1089,11 @@ function PlanMdxApp() {
     }
   }, [canEdit])
 
-  // An editor opened, or the plan stopped being editable: the move grip goes.
+  // An editor opened or closed, or the plan stopped being editable: the move grip follows, and the
+  // card whose text or title is open keeps its pill beside it.
   useEffect(() => {
     moveBinding.current?.refresh()
+    editBinding.current?.refresh()
   }, [editable, openEdit])
 
   // A move waits for the page to draw it, so the grip follows the block and the next move has the new places.
@@ -1220,6 +1224,8 @@ function PlanMdxApp() {
       },
       register: (done) => {
         openDone.current = done
+        // The editor is on the page now: the card whose text it holds shows its pill beside it.
+        if (done) editBinding.current?.refresh()
       },
     }
   }, [openEdit, draft, planId])

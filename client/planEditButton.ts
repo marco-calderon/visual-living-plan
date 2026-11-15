@@ -48,6 +48,8 @@ export type BlockEditActions = {
   cell: (range: string, caret?: EditCaret) => void
   /** Edit a card's title where it reads: `element` is its text, `attr` the attribute it comes from, `block` the card's range. */
   title: (element: HTMLElement, block: string, attr: string, caret?: EditCaret) => void
+  /** Finish the open editor or title, keeping what was typed: the pill's Edit or + was pressed while it was open. */
+  finish: () => void
 }
 
 /** What `bindBlockEditButton` returns: stop listening, and tell it the open editor closed. */
@@ -55,6 +57,58 @@ export type BlockEditBinding = {
   stop: () => void
   /** A click on other text while an editor was open finishes that editor first; this opens the text it hit. */
   closed: () => void
+  /** An editor opened or closed: the card whose text or title is open keeps its pill beside it. */
+  refresh: () => void
+}
+
+/**
+ * The card whose text or title is open on the page: a callout, an update, a choice. Its pill stays
+ * beside it while the text is edited, so its Edit is there. A phase is the card of its title, not
+ * of the text inside it, whose own pill is + alone.
+ */
+function cardOfOpenText(): HTMLElement | null {
+  const root = article()
+  const title = root?.querySelector<HTMLElement>('[data-plan-title-editing]')
+  const text = title ? null : root?.querySelector<HTMLElement>('[data-plan-block-editor][data-inline]:not([data-plan-block-editor="cell"])')
+  const open = title ?? text
+  const card = open?.parentElement?.closest<HTMLElement>('[data-plan-block]') ?? null
+  if (!root || !card || !root.contains(card) || isTextBlock(card) || isEditLocked(card)) return null
+  if (text && card.matches('[data-entry="phase"]')) return null
+  return card
+}
+
+/**
+ * iOS shows the keyboard only for a focus taken inside the tap, and the text's editor mounts a
+ * moment later. A stand-in takes the focus within the tap and hands it to the editor when it focuses.
+ */
+function holdKeyboard(x: number, y: number): void {
+  const stand = document.createElement('div')
+  stand.contentEditable = 'true'
+  stand.dataset.planFocusStandIn = ''
+  stand.setAttribute('aria-hidden', 'true')
+  Object.assign(stand.style, {
+    position: 'fixed',
+    left: `${Math.max(0, x)}px`,
+    top: `${Math.max(0, y)}px`,
+    width: '1px',
+    height: '1px',
+    opacity: '0',
+    overflow: 'hidden',
+    fontSize: '16px',
+    pointerEvents: 'none',
+  })
+  document.body.append(stand)
+  stand.focus({ preventScroll: true })
+  const drop = () => {
+    window.clearTimeout(timer)
+    document.removeEventListener('focusin', handedOver, true)
+    stand.remove()
+  }
+  const handedOver = (event: FocusEvent) => {
+    if (event.target !== stand) drop()
+  }
+  const timer = window.setTimeout(drop, 2000)
+  document.addEventListener('focusin', handedOver, true)
 }
 
 function article(): HTMLElement | null {
@@ -400,11 +454,39 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     // In comment mode a click picks a part to comment on, so the pill stays away.
     return state.editable && !state.editing && !commenting()
   }
+  // The card whose text or title is open: its pill stays beside it while the text is edited.
+  let pinned: HTMLElement | null = null
+  let pinFrame = 0
+  const refresh = (frames = 12) => {
+    cancelAnimationFrame(pinFrame)
+    const state = options.state()
+    if (!state.editable || !state.editing || commenting()) {
+      if (pinned) {
+        pinned = null
+        hide()
+      }
+      return
+    }
+    const card = cardOfOpenText()
+    if (card) {
+      pinned = card
+      if (card !== block || addOnly || !tools.hasAttribute('data-visible')) show(card)
+      return
+    }
+    if (pinned) {
+      pinned = null
+      hide()
+    }
+    // The text's editor can take a frame or two to appear.
+    if (frames > 0) pinFrame = requestAnimationFrame(() => refresh(frames - 1))
+  }
   const track = (target: EventTarget | null, y?: number) => {
     if (target instanceof Node && tools.contains(target)) {
       window.clearTimeout(hideTimer)
       return
     }
+    // While a card's text is edited, its pill stays with it.
+    if (pinned && options.state().editing) return
     const inner = usable() ? editTargetOf(target) : null
     pointed = inner && !isEditLocked(inner) ? inner : null
     const text = inner && target instanceof Element ? target.closest<HTMLElement>('[data-plan-text]') : null
@@ -434,9 +516,18 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
   const onMove = () => {
     if (block) place()
   }
+  // Edit or + pressed while the card's text was open: the text keeps its edit first, then this runs.
+  let pending: { action: 'edit' | 'add'; block: HTMLElement; at: number } | null = null
   const run = (action: 'edit' | 'add') => {
     const target = block
     if (action === 'edit' && addOnly) return
+    if (target && options.state().editing) {
+      pending = { action, block: target, at: Date.now() }
+      pinned = null
+      hide()
+      options.finish()
+      return
+    }
     hide()
     const range = target?.dataset.planBlock
     if (!range || !usable()) return
@@ -516,13 +607,8 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     else if (pill && !isEditLocked(pill.block)) queued = { pill, at: Date.now() }
     return true
   }
-  // The block whose pill was showing when a finger touched: a tap on its text or title then edits it.
-  let pillAtPress: HTMLElement | null = null
   const onPress = (event: PointerEvent) => {
-    if (isTouchPointer(event)) {
-      pillAtPress = tools.hasAttribute('data-visible') ? block : null
-      return
-    }
+    if (isTouchPointer(event)) return
     queued = null
     if (plainPress(event)) queue(event)
   }
@@ -539,29 +625,31 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     const tap = isTap(event)
     if (tap && queue(event)) return
     if (!usable() || !direct || selecting()) return
-    // A touch screen has no hover: the first tap on a card shows its pill, as pointing at it does with
-    // a mouse, so its Edit is there to tap. A tap on its text or title once the pill shows edits that.
-    // Text that is a block of its own (top level, or in a phase) and a data table's cells edit at once.
-    if (tap && direct.kind !== 'grid') {
-      const pill = pillTargetOf(event.target, event.clientY)
-      const card = pill && !pill.addOnly && !isEditLocked(pill.block) ? pill.block : null
-      if (card && card !== direct.element && card !== pillAtPress) {
-        if (card !== block || !tools.hasAttribute('data-visible')) show(card)
-        return
-      }
-    }
     const caret = caretFor(direct, event.clientX, event.clientY)
     // A title opens within the click, so a touch screen shows its keyboard.
     if (direct.kind === 'title') {
       openDirect(direct, caret)
       return
     }
+    // Text opens a moment after the tap: a stand-in holds the keyboard on iOS until its editor focuses.
+    if (tap && direct.kind !== 'grid') holdKeyboard(event.clientX, event.clientY)
     window.setTimeout(() => {
       if (event.defaultPrevented || !usable() || selecting()) return
       openDirect(direct, caret)
     }, 0)
   }
   const closed = () => {
+    const action = pending
+    pending = null
+    if (action && Date.now() - action.at <= QUEUE_MS && usable() && action.block.isConnected) {
+      // The card keeps its element when its text changes; its place is the one the page shows now.
+      queued = null
+      const range = action.block.dataset.planBlock
+      if (!range) return
+      if (action.action === 'edit') options.edit(range)
+      else options.add(range)
+      return
+    }
     const next = queued
     queued = null
     if (!next || Date.now() - next.at > QUEUE_MS || !usable() || selecting()) return
@@ -576,6 +664,7 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
   // Focus moving into a block (a folder, a tab, a link) shows its pill too, and E edits it.
   const onFocus = (event: FocusEvent) => {
     if (event.target instanceof Node && tools.contains(event.target)) return
+    if (event.target instanceof HTMLElement && event.target.dataset.planFocusStandIn !== undefined) return
     track(event.target)
   }
   edit.addEventListener('click', onEdit)
@@ -591,8 +680,10 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
   window.addEventListener('resize', onMove)
   const stop = () => {
     cancelAnimationFrame(frame)
+    cancelAnimationFrame(pinFrame)
     window.clearTimeout(hideTimer)
     queued = null
+    pending = null
     edit.removeEventListener('click', onEdit)
     add.removeEventListener('click', onAdd)
     window.removeEventListener('click', onClick, true)
@@ -605,5 +696,5 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     window.removeEventListener('resize', onMove)
     tools.remove()
   }
-  return { stop, closed }
+  return { stop, closed, refresh: () => refresh() }
 }
