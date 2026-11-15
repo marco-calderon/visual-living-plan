@@ -23,6 +23,7 @@ A click on a card's title or on the text inside a card now puts the caret there 
 - Hovering text inside a phase showed the phase's Edit and +, so + added a block after the whole phase and Edit opened the phase. The text now shows + alone, which adds a block right below it inside the phase. The phase's own Edit is on its title row.
 - A block open in its editor showed two grips; it shows one.
 - Typing after / to filter the block menu no longer makes the menu look like it closed and opened again on each key.
+- With a card open in its editor, a click or tap on another block did nothing: the editor kept the focus. It now keeps the edit, closes, and the focus goes where you pressed: that text opens, or that card shows its Edit. A press on the page's margin or the toolbar still leaves the editor open.
 - On an iPad or a phone, a tap on a card's text or title opened the text and never showed the card's Edit. The first tap on a card now shows its Edit, over its top right corner; the next tap on its text or title edits it. Taps with a pen count too, and a tap outside open text keeps the edit in Safari.
 
 ### Improvements

@@ -499,15 +499,21 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
   }
   const plainPress = (event: MouseEvent) =>
     event.button === 0 && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
-  // A press on other text while an editor is open finishes that editor (client/editor/BlockEditor.tsx);
-  // that text opens once the page shows the edit. A mouse is taken at the press, since the page can
-  // move before the release; a finger at the tap, since a press may start a scroll.
-  let queued: { direct: DirectEdit; caret: EditCaret | undefined; text: string; at: number } | null = null
+  // A press on another block while an editor is open finishes that editor (client/editor/BlockEditor.tsx);
+  // once the page shows the edit, the focus goes where the press went: that text opens with the caret
+  // there, or that card shows its pill. A mouse is taken at the press, since the page can move before
+  // the release; a finger at the tap, since a press may start a scroll.
+  let queued:
+    | { direct: DirectEdit; caret: EditCaret | undefined; text: string; at: number }
+    | { pill: PillTarget; at: number }
+    | null = null
   const queue = (event: MouseEvent): boolean => {
     const state = options.state()
     if (!state.editable || !state.editing || commenting()) return false
     const direct = directEditOf(event.target)
+    const pill = direct ? null : pillTargetOf(event.target, event.clientY)
     if (direct) queued = { direct, caret: caretFor(direct, event.clientX, event.clientY), text: direct.element.textContent ?? '', at: Date.now() }
+    else if (pill && !isEditLocked(pill.block)) queued = { pill, at: Date.now() }
     return true
   }
   // The block whose pill was showing when a finger touched: a tap on its text or title then edits it.
@@ -559,6 +565,10 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     const next = queued
     queued = null
     if (!next || Date.now() - next.at > QUEUE_MS || !usable() || selecting()) return
+    if ('pill' in next) {
+      if (next.pill.block.isConnected) show(next.pill.block, next.pill.addOnly)
+      return
+    }
     // The text pressed on is still there, unless the edit changed it.
     if (!next.direct.element.isConnected || (next.direct.element.textContent ?? '') !== next.text) return
     openDirect(next.direct, next.caret)

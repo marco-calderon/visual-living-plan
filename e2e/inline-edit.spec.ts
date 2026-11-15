@@ -483,6 +483,55 @@ test('the / menu adds a chip and a pill inside the text, and filtering does not 
   await expect(intro.locator('.plan-pill')).toHaveText('status')
 })
 
+test("a click on other text while a card's editor is open closes the editor and opens that text", async ({ page }) => {
+  await openPlan(page)
+  const callout = rendered(page).locator('[data-entry="callout"]')
+  await callout.scrollIntoViewIfNeeded()
+  await callout.hover({ position: { x: 12, y: 12 } })
+  await page.locator('[data-plan-block-edit]').click()
+  await expect(editor(page)).toHaveAttribute('data-plan-block-editor', 'edit')
+  await expect(editor(page)).not.toHaveAttribute('data-inline', '')
+  // A press outside the editor but not on a block (the page's margin) leaves it open.
+  await page.mouse.click(5, 450)
+  await expect(editor(page)).toHaveCount(1)
+
+  const quote = rendered(page).locator('> blockquote')
+  await quote.evaluate((node) => node.scrollIntoView({ block: 'center' }))
+  const point = await pointAtWord(quote, 'limiter')
+  await page.mouse.click(point.x, point.y)
+  await expect(inlineEditor(page)).toContainText('Keep the old limiter')
+  await expect(inlineEditor(page).locator('[contenteditable="true"]')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(editor(page)).toHaveCount(0)
+})
+
+test('a tap on another block moves the focus there: text opens, and a card shows its Edit', async ({ browser }) => {
+  const context = await browser.newContext({ baseURL: 'http://127.0.0.1:9492', hasTouch: true, viewport: { width: 834, height: 1194 } })
+  const page = await context.newPage()
+  try {
+    await openPlan(page)
+    const intro = rendered(page).locator('> p[data-plan-block]').first()
+    await intro.tap()
+    await expect(inlineEditor(page).locator('[contenteditable="true"]')).toBeFocused()
+    // Another paragraph: the open one closes, and the caret goes to the one tapped.
+    const quote = rendered(page).locator('> blockquote')
+    await quote.tap()
+    await expect(inlineEditor(page)).toContainText('Keep the old limiter')
+    await expect(inlineEditor(page).locator('[contenteditable="true"]')).toBeFocused()
+    // A card: the open text closes, and the card shows its Edit.
+    const endpoint = rendered(page).locator('[data-doc-block="Endpoint"]')
+    await endpoint.evaluate((node) => node.scrollIntoView({ block: 'center' }))
+    const box = await endpoint.boundingBox()
+    if (!box) throw new Error('no endpoint on screen')
+    await page.touchscreen.tap(box.x + box.width * 0.35, box.y + 12)
+    await expect(editor(page)).toHaveCount(0)
+    await expect(tools(page)).toHaveAttribute('data-visible', '')
+    await expect(page.locator('[data-plan-block-edit]')).toBeVisible()
+  } finally {
+    await context.close()
+  }
+})
+
 test("a phase's step number still jumps to the workflow while its title is editable", async ({ page }) => {
   await openPlan(page)
   await rendered(page).locator('[data-entry="phase"] a.plan-step-number').click()

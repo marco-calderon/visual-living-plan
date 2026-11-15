@@ -451,6 +451,31 @@ export function BlockEditor({ source, target, commit, onCancel, caret, margins, 
     }
   }, [inline, closing])
 
+  // A framed editor (a card's) keeps its place for presses on its menus, the toolbar, or the page
+  // around it, but a press on another block of the plan finishes it, as a click outside text does:
+  // the focus goes where the press went, and that text opens or that card shows its Edit.
+  useEffect(() => {
+    const node = surface.current
+    if (inline || !node || closing) return
+    const onAnotherBlock = (event: MouseEvent) => {
+      const target = event.target
+      if (!(target instanceof Element) || insideEditor(node, target) || !target.closest('[data-plan-rendered]')) return false
+      return target.closest('[data-plan-block], [data-plan-text], [data-plan-title]') !== null
+    }
+    const onPointerDown = (event: PointerEvent) => {
+      if (!isTouchPointer(event) && onAnotherBlock(event)) doneRef.current()
+    }
+    const onTap = (event: MouseEvent) => {
+      if (isTap(event) && onAnotherBlock(event)) doneRef.current()
+    }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('click', onTap, true)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('click', onTap, true)
+    }
+  }, [inline, closing])
+
   function onRemove() {
     if (!confirmRemove) {
       setConfirmRemove(true)

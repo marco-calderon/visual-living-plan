@@ -117,6 +117,7 @@ Added in 2.28.0, in the same pull request. A touch screen has no hover, so a tap
 - The first tap on a card (anywhere in it, its text and title included) shows its pill, as pointing at it does with a mouse. Where the column leaves no room on the right, as on an iPad, the pill sits over the card's top right corner. A tap on the card's text or title while its pill shows edits that text. Text that is a block of its own (top level, or in a phase) and a data table's cells still open on the first tap.
 - A pen counts as a finger (`client/pointerKind.ts`). The `click` after a tap may carry no `pointerType` in Safari, so the kind of the last press stands in for it: a tap outside open text or a title finishes it there too.
 - The pill and the grip hear a tap on the window as it goes down, so a component that keeps its pointer events (a diagram's pan and zoom) still shows them.
+- A click or a tap on another block moves the focus there. Open text already closed at a press outside it; a card's framed editor stayed open for every press. Now a press on another block of the plan (text, a card, a title) finishes the framed editor too, keeping what was typed, as Done would. A press on its menus, the toolbar, or the page's margin leaves it open. Once the page shows the edit, the press goes where it went: text opens with the caret there, and a card shows its pill (`queue` and `closed` in `client/planEditButton.ts`).
 
 ### Every block moves where it reads
 
