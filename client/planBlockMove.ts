@@ -14,6 +14,7 @@
 
 import { remapBlockStart, type BlockPlace } from '../src/planMdx/remarkBlockRanges.ts'
 import { editTargetOf, isEditLocked } from './planEditButton.ts'
+import { isTouchPointer } from './pointerKind.ts'
 
 type MoveState = { editable: boolean; editing: boolean }
 
@@ -410,14 +411,14 @@ export function bindBlockMove(options: BlockMoveActions): BlockMoveBinding {
     hideTimer = window.setTimeout(hide, HIDE_DELAY_MS)
   }
   const onPointer = (event: PointerEvent) => {
-    if (event.pointerType === 'touch') return
+    if (isTouchPointer(event)) return
     const { target, clientY } = event
     cancelAnimationFrame(frame)
     frame = requestAnimationFrame(() => track(target, clientY))
   }
   // A touch screen has no hover: a tap on a block shows its grip.
   const onTap = (event: PointerEvent) => {
-    if (event.pointerType !== 'touch' || inTools(event.target)) return
+    if (!isTouchPointer(event) || inTools(event.target)) return
     track(event.target, event.clientY)
   }
   const onFocus = (event: FocusEvent) => {
@@ -667,7 +668,8 @@ export function bindBlockMove(options: BlockMoveActions): BlockMoveBinding {
   down.addEventListener('click', onDown)
   remove.addEventListener('click', onRemove)
   document.addEventListener('pointermove', onPointer, { passive: true })
-  document.addEventListener('pointerup', onTap, { passive: true })
+  // Heard on the window as it goes down, so a component that keeps its pointer events still shows its grip.
+  window.addEventListener('pointerup', onTap, { capture: true, passive: true })
   document.addEventListener('pointerdown', onPress, { passive: true })
   document.addEventListener('focusin', onFocus)
   document.addEventListener('keydown', onKey)
@@ -689,7 +691,7 @@ export function bindBlockMove(options: BlockMoveActions): BlockMoveBinding {
     down.removeEventListener('click', onDown)
     remove.removeEventListener('click', onRemove)
     document.removeEventListener('pointermove', onPointer)
-    document.removeEventListener('pointerup', onTap)
+    window.removeEventListener('pointerup', onTap, { capture: true })
     document.removeEventListener('pointerdown', onPress)
     document.removeEventListener('focusin', onFocus)
     document.removeEventListener('keydown', onKey)

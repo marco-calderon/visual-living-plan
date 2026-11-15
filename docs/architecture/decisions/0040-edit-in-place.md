@@ -107,8 +107,16 @@ Added in 2.28.0, in the same pull request.
 - The grip's menu has Delete under Move up and Move down. It asks once ("Delete this block?"), finishes an open edit first, then takes the block out (`spliceBlock`) as one more unapplied change; Discard brings it back. A locked block, or one that holds a locked block, keeps Delete disabled: it moves but stays.
 - Text inside a phase used to show the phase's pill, so its + added a block after the whole phase and Edit opened the phase. It now shows + alone, for that text: + adds a block below it, inside the phase. The phase's own pill (Edit and +) shows on its title row. In a phase's own space beside its blocks (the rail, the padding on the way to the pill), the pill goes to the block level with the pointer, as the grip does.
 - A block open in its editor shows only the page's grip: the editor hides its own top-level grip for that block (`data-plan-edit-block`). Grips for blocks inside a card stay.
-- The / menu has a Labels section: Chip and Pill add an inline `<Chip>` or `<Pill>` where the / was, also inside a card's body and a data table's cell.
+- The / menu has a Labels section: Chip and Pill add an inline `<Chip>` or `<Pill>` where the / was, also inside a card's body and a data table's cell. The caret goes right after the label, so the sentence goes on (MDXEditor would put it in the label's own text, on a timer; the menu moves it after that). A click on the label edits its text.
 - Lexical takes the / menu off the page and puts it back on each key typed after the /, which replayed its grow-in animation and reset its scroll, so filtering looked like the menu closed and opened. The menu grows in once when it opens (`data-shown`) and keeps where it was scrolled.
+
+### Taps on a touch screen
+
+Added in 2.28.0, in the same pull request. A touch screen has no hover, so a tap had to show a card's pill. A tap on the frame of a card did, but a tap on its text or title opened that text and hid the pill: on an iPad most of a callout, an update, a tab, or a choice could not reach its Edit.
+
+- The first tap on a card (anywhere in it, its text and title included) shows its pill, as pointing at it does with a mouse. Where the column leaves no room on the right, as on an iPad, the pill sits over the card's top right corner. A tap on the card's text or title while its pill shows edits that text. Text that is a block of its own (top level, or in a phase) and a data table's cells still open on the first tap.
+- A pen counts as a finger (`client/pointerKind.ts`). The `click` after a tap may carry no `pointerType` in Safari, so the kind of the last press stands in for it: a tap outside open text or a title finishes it there too.
+- The pill and the grip hear a tap on the window as it goes down, so a component that keeps its pointer events (a diagram's pan and zoom) still shows them.
 
 ### Every block moves where it reads
 

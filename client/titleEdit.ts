@@ -9,6 +9,7 @@
  * ------------------------------------------------------------------------------------------- */
 
 import { placeCaret } from './caretSpot.ts'
+import { isTap, isTouchPointer } from './pointerKind.ts'
 
 export type TitleEditOptions = {
   /** Characters into the title where the caret goes. At the end when not given. */
@@ -104,7 +105,7 @@ export function editTitleInPlace(element: HTMLElement, options: TitleEditOptions
 
   // A mouse finishes at the press outside. A finger finishes at the tap: its press may start a scroll.
   const onPointerDown = (event: PointerEvent) => {
-    if (event.pointerType !== 'touch' && !inside(element, event.target)) finish(true)
+    if (!isTouchPointer(event) && !inside(element, event.target)) finish(true)
   }
   const onClick = (event: MouseEvent) => {
     if (event.target instanceof Node && element.contains(event.target)) {
@@ -113,7 +114,7 @@ export function editTitleInPlace(element: HTMLElement, options: TitleEditOptions
       return
     }
     if (inside(element, event.target)) return
-    if ((event as PointerEvent).pointerType === 'touch') finish(true)
+    if (isTap(event)) finish(true)
   }
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.isComposing) return

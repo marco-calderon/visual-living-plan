@@ -472,7 +472,7 @@ test('the / menu adds a chip and a pill inside the text, and filtering does not 
   await page.keyboard.type('ip')
   await page.keyboard.press('Enter')
   await expect(inlineEditor(page).locator('[data-editor-label="chip"]')).toHaveText('label')
-  await page.keyboard.press('End')
+  // The caret is right after the chip, so the sentence goes on.
   await page.keyboard.type(' /pill')
   await expect(page.locator('.plan-slash-menu [data-slash-card="pill"]')).toBeVisible()
   await page.keyboard.press('Enter')

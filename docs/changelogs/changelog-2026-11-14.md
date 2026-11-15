@@ -23,6 +23,7 @@ A click on a card's title or on the text inside a card now puts the caret there 
 - Hovering text inside a phase showed the phase's Edit and +, so + added a block after the whole phase and Edit opened the phase. The text now shows + alone, which adds a block right below it inside the phase. The phase's own Edit is on its title row.
 - A block open in its editor showed two grips; it shows one.
 - Typing after / to filter the block menu no longer makes the menu look like it closed and opened again on each key.
+- On an iPad or a phone, a tap on a card's text or title opened the text and never showed the card's Edit. The first tap on a card now shows its Edit, over its top right corner; the next tap on its text or title edits it. Taps with a pen count too, and a tap outside open text keeps the edit in Safari.
 
 ### Improvements
 
@@ -33,7 +34,7 @@ A click on a card's title or on the text inside a card now puts the caret there 
 ### New features
 
 - The grip's menu has Delete. It asks once, then takes the block out as a change waiting to be applied. Locked blocks keep their place.
-- The / menu adds chips and pills inside the text: a Labels section with Chip and Pill.
+- The / menu adds chips and pills inside the text: a Labels section with Chip and Pill. The caret goes right after the label, so you keep typing the sentence.
 - Titles are edited where they read: phases, callouts, checklists, choices, forms, questions, approvals, and the workflow. Enter or a click elsewhere keeps the change; Escape with nothing typed closes it. Only the title's text changes in the file, and a phase's step number stays as written.
 
 ### Notes

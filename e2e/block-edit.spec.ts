@@ -251,19 +251,51 @@ test('E edits the block with focus, or the text under the pointer, and typing an
 test.describe('on a touch screen', () => {
   test.use({ hasTouch: true, viewport: { width: 390, height: 800 } })
 
-  test('a tap on text or a title edits it, and a tap on a component shows its Edit', async ({ page }) => {
+  test('on an iPad, a tap on any card shows its Edit over its top right corner', async ({ page }) => {
+    await page.setViewportSize({ width: 834, height: 1194 })
+    await openPlan(page)
+    for (const card of [choice(page), page.locator('[data-plan-rendered] [data-entry="callout"]').first(), page.locator('[data-plan-rendered] .code-host').first()]) {
+      await card.scrollIntoViewIfNeeded()
+      const box = await card.boundingBox()
+      if (!box) throw new Error('no card on screen')
+      await page.touchscreen.tap(box.x + box.width * 0.35, box.y + Math.min(box.height / 2, 60))
+      await expect(tools(page)).toHaveAttribute('data-visible', '')
+      await expect(editor(page)).toHaveCount(0)
+      const pill = await tools(page).boundingBox()
+      expect(pill && pill.x + pill.width).toBeLessThanOrEqual(box.x + box.width + 1)
+      expect(pill && pill.x + pill.width).toBeGreaterThan(box.x + box.width - 4)
+    }
+  })
+
+  test('a tap on text edits it; a first tap on a card shows its Edit, and the next tap edits what it touches', async ({ page }) => {
     await openPlan(page)
     await intro(page).tap()
     await expect(inlineEditor(page).locator('[contenteditable="true"]')).toBeFocused()
     await page.keyboard.press('Escape')
     await expect(editor(page)).toHaveCount(0)
 
-    // A card's title takes the caret where it was tapped.
+    // No hover on a touch screen: the first tap on a card's title shows the card's Edit, beside it.
     const prompt = choice(page).locator('[data-plan-title]')
+    await prompt.tap()
+    await expect(tools(page)).toHaveAttribute('data-visible', '')
+    await expect(page.locator('[data-plan-block-edit]')).toBeVisible()
+    await expect(page.locator('[data-plan-title-editing]')).toHaveCount(0)
+    // The next tap takes the caret into the title.
     await prompt.tap()
     await expect(prompt).toBeFocused()
     await page.keyboard.press('Escape')
     await expect(page.locator('[data-plan-title-editing]')).toHaveCount(0)
+
+    // Text inside a card the same way: its card's Edit first, then the text.
+    const note = page.locator('[data-plan-rendered] [data-entry="callout"] p[data-plan-text]').first()
+    await note.scrollIntoViewIfNeeded()
+    await note.tap()
+    await expect(tools(page)).toHaveAttribute('data-visible', '')
+    await expect(editor(page)).toHaveCount(0)
+    await note.tap()
+    await expect(inlineEditor(page).locator('[contenteditable="true"]')).toBeFocused()
+    await page.keyboard.press('Escape')
+    await expect(editor(page)).toHaveCount(0)
 
     await choice(page).getByText('Needs your choice').tap()
     await expect(tools(page)).toHaveAttribute('data-visible', '')

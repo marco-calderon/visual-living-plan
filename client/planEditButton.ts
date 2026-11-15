@@ -10,6 +10,7 @@
  * ------------------------------------------------------------------------------------------- */
 
 import { textOffsetAt } from './caretSpot.ts'
+import { isTap, isTouchPointer } from './pointerKind.ts'
 
 /** The key that edits the block with focus. */
 export const BLOCK_EDIT_KEY = 'E'
@@ -420,14 +421,14 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     hideTimer = window.setTimeout(hide, HIDE_DELAY_MS)
   }
   const onPointer = (event: PointerEvent) => {
-    if (event.pointerType === 'touch') return
+    if (isTouchPointer(event)) return
     const { target, clientY } = event
     cancelAnimationFrame(frame)
     frame = requestAnimationFrame(() => track(target, clientY))
   }
   // A touch screen has no hover: a tap on a block shows its pill.
   const onTap = (event: PointerEvent) => {
-    if (event.pointerType !== 'touch') return
+    if (!isTouchPointer(event)) return
     track(event.target, event.clientY)
   }
   const onMove = () => {
@@ -509,8 +510,13 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     if (direct) queued = { direct, caret: caretFor(direct, event.clientX, event.clientY), text: direct.element.textContent ?? '', at: Date.now() }
     return true
   }
+  // The block whose pill was showing when a finger touched: a tap on its text or title then edits it.
+  let pillAtPress: HTMLElement | null = null
   const onPress = (event: PointerEvent) => {
-    if (event.pointerType === 'touch') return
+    if (isTouchPointer(event)) {
+      pillAtPress = tools.hasAttribute('data-visible') ? block : null
+      return
+    }
     queued = null
     if (plainPress(event)) queue(event)
   }
@@ -524,8 +530,20 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     // A title's click is its own while the plan can be edited: the link it sits in (a phase's, to the
     // workflow) does not follow, even when the click finishes another edit first.
     if (direct?.kind === 'title') event.preventDefault()
-    if ((event as PointerEvent).pointerType === 'touch' && queue(event)) return
+    const tap = isTap(event)
+    if (tap && queue(event)) return
     if (!usable() || !direct || selecting()) return
+    // A touch screen has no hover: the first tap on a card shows its pill, as pointing at it does with
+    // a mouse, so its Edit is there to tap. A tap on its text or title once the pill shows edits that.
+    // Text that is a block of its own (top level, or in a phase) and a data table's cells edit at once.
+    if (tap && direct.kind !== 'grid') {
+      const pill = pillTargetOf(event.target, event.clientY)
+      const card = pill && !pill.addOnly && !isEditLocked(pill.block) ? pill.block : null
+      if (card && card !== direct.element && card !== pillAtPress) {
+        if (card !== block || !tools.hasAttribute('data-visible')) show(card)
+        return
+      }
+    }
     const caret = caretFor(direct, event.clientX, event.clientY)
     // A title opens within the click, so a touch screen shows its keyboard.
     if (direct.kind === 'title') {
@@ -555,7 +573,8 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
   window.addEventListener('click', onClick, true)
   document.addEventListener('pointerdown', onPress, { passive: true })
   document.addEventListener('pointerover', onPointer, { passive: true })
-  document.addEventListener('pointerup', onTap, { passive: true })
+  // Heard on the window as it goes down, so a component that keeps its pointer events still shows its pill.
+  window.addEventListener('pointerup', onTap, { capture: true, passive: true })
   document.addEventListener('focusin', onFocus)
   document.addEventListener('keydown', onKey)
   window.addEventListener('scroll', onMove, { passive: true })
@@ -569,7 +588,7 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     window.removeEventListener('click', onClick, true)
     document.removeEventListener('pointerdown', onPress)
     document.removeEventListener('pointerover', onPointer)
-    document.removeEventListener('pointerup', onTap)
+    window.removeEventListener('pointerup', onTap, { capture: true })
     document.removeEventListener('focusin', onFocus)
     document.removeEventListener('keydown', onKey)
     window.removeEventListener('scroll', onMove)

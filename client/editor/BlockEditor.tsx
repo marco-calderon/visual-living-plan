@@ -16,6 +16,7 @@ import { applyBlockEdit, applyCellEdit, blockEditorText, cellEditorText, samePla
 import { remapBlockStart } from '../../src/planMdx/remarkBlockRanges.ts'
 import { planNotReadyReason } from '../../src/planReady.ts'
 import { placeCaret } from '../caretSpot.ts'
+import { isTap, isTouchPointer } from '../pointerKind.ts'
 import type { EditCaret, EditFollow } from '../planEditButton.ts'
 import { Button } from '../ui/button.tsx'
 import { releaseOuterCarets, syncFocusedNestedEditor } from './blockHandles.tsx'
@@ -430,10 +431,10 @@ export function BlockEditor({ source, target, commit, onCancel, caret, margins, 
     }
     // A mouse finishes at the press. A finger finishes at a tap: its press may start a scroll.
     const onPointerDown = (event: PointerEvent) => {
-      if (event.pointerType !== 'touch' && outside(event)) doneRef.current()
+      if (!isTouchPointer(event) && outside(event)) doneRef.current()
     }
     const onTap = (event: MouseEvent) => {
-      if ((event as PointerEvent).pointerType === 'touch' && outside(event)) doneRef.current()
+      if (isTap(event) && outside(event)) doneRef.current()
     }
     const onFocusOut = (event: FocusEvent) => {
       const next = event.relatedTarget

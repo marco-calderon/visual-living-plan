@@ -736,6 +736,33 @@ function SlashMenu({ nested, parent }: { nested: boolean; parent?: string | null
     [editor],
   )
 
+  // A label goes into the line where the "/" was. The caret goes right after it, in this editor, so
+  // the sentence goes on; the label's own text is edited with a click on it.
+  const caretAfterNewLabel = useCallback(
+    (line: () => string | null) => {
+      const labelsIn = (node: ReturnType<typeof $getNodeByKey>) =>
+        $isElementNode(node) ? node.getChildren().filter((child) => $isDecoratorNode(child)).map((child) => child.getKey()) : []
+      const known = new Set(editor.getEditorState().read(() => labelsIn(line() ? $getNodeByKey(line()!) : null)))
+      const stop = editor.registerUpdateListener(({ editorState }) => {
+        const added = editorState.read(() => labelsIn(line() ? $getNodeByKey(line()!) : null).find((key) => !known.has(key)) ?? null)
+        if (!added) return
+        stop()
+        clearTimeout(timer)
+        // MDXEditor puts the caret in a new element's own text on a timer of its own; this comes after it.
+        setTimeout(() =>
+          requestAnimationFrame(() => {
+            editor.update(() => {
+              $getNodeByKey(added)?.selectNext()
+            })
+            editor.focus()
+          }),
+        )
+      })
+      const timer = setTimeout(stop, 1000)
+    },
+    [editor],
+  )
+
   const pick = useRef<(option: CardOption, typed: string) => void>(() => {})
 
   // The menu takes Enter and Tab itself. Inside a card's body the editor would otherwise also start
@@ -799,6 +826,7 @@ function SlashMenu({ nested, parent }: { nested: boolean; parent?: string | null
       if (inline) {
         // A label sits in the line where the "/" was, in the editor it was typed in, a card's body too.
         setActiveEditor(editor)
+        caretAfterNewLabel(() => line)
         insertJsx({ kind: 'text', name: inline.name, props: inline.props, children: [{ type: 'text', value: inline.text }] })
         if (parent !== undefined) editor.dispatchCommand(NESTED_EDITOR_UPDATED_COMMAND, undefined)
         return
@@ -819,7 +847,7 @@ function SlashMenu({ nested, parent }: { nested: boolean; parent?: string | null
       })
       removeEmptiedLine(() => line)
     },
-    [editor, insertJsx, insertTable, removeEmptiedLine, setActiveEditor, parent],
+    [editor, insertJsx, insertTable, removeEmptiedLine, setActiveEditor, parent, caretAfterNewLabel],
   )
   // Picked with Enter or Tab: through the menu, so it closes too. A key typed just before may not be on
   // screen yet, so wait a frame or two for the menu to show it.
