@@ -69,10 +69,25 @@ async function openTable(page: Page): Promise<void> {
   await expect(tableEditor(page)).toBeVisible()
 }
 
-test('a data table opens as a grid, and Done with no change leaves the plan as it was', async ({ page }) => {
+test('a data table opens as a grid, and a press outside with no change leaves the plan as it was', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))
-  await openTable(page)
+  await page.goto('/')
+  await expect(page.locator('body')).toHaveAttribute('data-plan-editable', 'true')
+  const frame = page.locator('[data-plan-rendered] .plan-block-frame').filter({ has: page.locator('[data-plan-data-table]') }).first()
+  await expect(frame.locator('tbody tr')).toHaveCount(2)
+  // Where the table starts in the page, whatever the scroll.
+  const readTop = await frame.evaluate((node) => node.getBoundingClientRect().top + window.scrollY)
+  await page.locator('[data-plan-rendered] [data-plan-data-table]').first().hover()
+  await page.locator('[data-plan-block-edit]').click()
+  await expect(tableEditor(page)).toBeVisible()
+  // It opens where it reads, with no room over it, and + for a row and a column show the whole time.
+  const openedTop = await editor(page).evaluate((node) => node.getBoundingClientRect().top + window.scrollY)
+  expect(Math.abs(openedTop - readTop)).toBeLessThan(1)
+  await page.mouse.move(5, 450)
+  for (const bar of await tableEditor(page).locator('[data-dt-add-row], [data-dt-add-column]').all()) {
+    expect(await bar.evaluate((node) => getComputedStyle(node).opacity)).toBe('1')
+  }
   const before = await planSource(page)
   expect(before).toContain(OPERATIONS)
 
@@ -92,7 +107,7 @@ test('a data table opens as a grid, and Done with no change leaves the plan as i
   // Looking around a cell changes nothing either.
   await cell(page, 0, 0).click()
   await table.locator('[data-dt-label]').click()
-  await page.locator('[data-plan-block-done]').click()
+  await page.mouse.click(5, 450)
   await expect(editor(page)).toHaveCount(0)
   await expect(page.locator('[data-plan-apply-bar]')).toHaveCount(0)
   expect(await planSource(page)).toBe(before)
@@ -112,7 +127,7 @@ test('a locked data table shows as it is and cannot be changed', async ({ page }
   await expect(locked.locator('[data-dt-add-row], [data-dt-add-column]')).toHaveCount(0)
   await expect(locked.locator('[data-dt-cell="0:0"] .plan-dt-cell-content')).toHaveAttribute('contenteditable', 'false')
   await expect(locked.locator('[data-dt-cell="0:0"]')).toHaveText('Keep as is')
-  await page.locator('[data-plan-block-cancel]').click()
+  await page.keyboard.press('Escape')
   await expect(editor(page)).toHaveCount(0)
 })
 
@@ -193,7 +208,8 @@ test('a column turns search on, a column goes, and a new one takes its id from i
   await cell(page, 0, 2).click()
   await page.keyboard.type('Friday')
 
-  await page.locator('[data-plan-block-done]').click()
+  // A press outside keeps the table's changes as one change to apply.
+  await page.mouse.click(5, 450)
   await expect(editor(page)).toHaveCount(0)
   await page.locator('[data-plan-apply]').click()
   await expect.poll(() => planSource(page)).toContain('id="due-date"')
@@ -231,7 +247,9 @@ test('the / menu adds a data table with two columns and one row', async ({ page 
   await expect(added).toBeVisible()
   await expect(added.locator('[data-dt-header]')).toHaveCount(2)
   await expect(added.locator('tbody tr[data-dt-row]')).toHaveCount(1)
-  await page.locator('[data-plan-block-done]').click()
+  // The caret waits on the line under the new table, which shows, so typing is never lost.
+  await expect(editor(page).locator('.plan-editor-content > p:last-child')).toBeVisible()
+  await page.mouse.click(5, 450)
   await expect(editor(page)).toHaveCount(0)
   await expect(page.locator('[data-plan-rendered] [data-plan-data-table]')).toHaveCount(before + 1)
   await expect(page.locator('[data-plan-rendered] [data-plan-data-table]').last()).toContainText('What this row holds.')

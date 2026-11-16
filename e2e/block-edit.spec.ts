@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 import { waitForCodeBlocks, waitForDiagrams } from './fixtures/codeBlocks.ts'
 import { clickTextAt, inlineEditor, pointAtWord } from './fixtures/inlineEdit.ts'
 import { useOwnPlanServer } from './fixtures/ownServer.ts'
@@ -13,6 +13,19 @@ const intro = (page: Page) => page.locator('[data-plan-rendered] > p[data-plan-b
 const choice = (page: Page) => page.locator('[data-plan-rendered] [data-entry="choice"]').first()
 const tools = (page: Page) => page.locator('[data-plan-block-tools]')
 const editor = (page: Page) => page.locator('[data-plan-block-editor]')
+/** + under the block under the pointer, and under the phase that holds it. */
+const addBar = (page: Page) => page.locator('[data-plan-block-add]')
+const holderBar = (page: Page) => page.locator('[data-plan-holder-add]')
+
+/** The bar sits under the block, in the gap before the next one, as wide as the block. */
+async function expectBarUnder(bar: Locator, block: Locator): Promise<void> {
+  const [at, box] = [await bar.boundingBox(), await block.boundingBox()]
+  if (!at || !box) throw new Error('no bar or block on screen')
+  expect(at.y).toBeGreaterThanOrEqual(box.y + box.height - 1)
+  expect(at.y).toBeLessThan(box.y + box.height + 32)
+  expect(Math.abs(at.x - box.x)).toBeLessThan(1)
+  expect(Math.abs(at.width - box.width)).toBeLessThan(1)
+}
 
 async function openPlan(page: Page): Promise<void> {
   await page.goto('/')
@@ -33,37 +46,55 @@ async function gutter(page: Page, y: number): Promise<{ x: number; y: number }> 
   return { x: right + 160, y }
 }
 
-test('the toolbar has no Edit button; text shows no pill, and a component under the pointer shows Edit and +', async ({ page }) => {
+test('the toolbar has no Edit button; text shows no pill, a card shows Edit, and every block has + under it', async ({ page }) => {
   await openPlan(page)
   await expect(page.locator('.titlebar [data-plan-edit], .plan-edit-btn')).toHaveCount(0)
   const top = await page.locator('[data-plan-rendered]').evaluate((node) => Math.round(node.getBoundingClientRect().top))
   expect(top).toBe(PLAN_TOP)
 
-  // Plain text is edited as it reads: no Edit button on it.
+  // Plain text is edited as it reads: no Edit button on it, and + under it.
   await intro(page).hover()
   await page.waitForTimeout(400)
   await expect(tools(page)).not.toHaveAttribute('data-visible', '')
+  await expect(addBar(page)).toHaveAttribute('data-visible', '')
+  await expectBarUnder(addBar(page), intro(page))
 
   await choice(page).hover()
   await expect(tools(page)).toHaveAttribute('data-visible', '')
   await expect(page.locator('[data-plan-block-edit]')).toHaveAccessibleName('Edit this block')
-  await expect(page.locator('[data-plan-block-add]')).toHaveAccessibleName('Add a block below')
-  // A form keeps its default lock, so it offers no Edit.
+  // + is not beside the card: it is under it.
+  await expect(tools(page).locator('button')).toHaveCount(1)
+  await expect(addBar(page)).toHaveAccessibleName('Add a block below')
+  const card = page.locator('[data-plan-rendered] [data-plan-block]').filter({ has: page.locator('[data-entry="choice"]') }).first()
+  await expectBarUnder(addBar(page), card)
+  // A form keeps its default lock, so it offers no Edit; a block still goes after it.
   await page.locator('[data-plan-rendered] [data-entry="form"]').first().hover()
   await expect(tools(page)).not.toHaveAttribute('data-visible', '', { timeout: 2_000 })
+  await expect(addBar(page)).toHaveAttribute('data-visible', '')
 
-  // Text inside a phase shows + alone, to add a block below it in the phase; it opens itself with a click.
+  // Text inside a phase opens itself with a click: no pill. + under it adds in the phase, and the
+  // phase's + under the whole phase adds after it.
   const phase = page.locator('[data-plan-rendered] [data-entry="phase"]').filter({ hasText: 'Ship dashboards and alerts' })
-  await phase.getByText('Emit reject counts').hover()
-  await expect(tools(page)).toHaveAttribute('data-visible', '')
-  await expect(tools(page)).toHaveAttribute('data-add-only', '')
-  await expect(page.locator('[data-plan-block-edit]')).toBeHidden()
-  // The phase's title row shows the phase's Edit, beside the phase.
+  const text = phase.locator('p[data-plan-block]')
+  await text.hover()
+  await expect(tools(page)).not.toHaveAttribute('data-visible', '', { timeout: 2_000 })
+  await expect(addBar(page)).toHaveAttribute('data-visible', '')
+  await expect(holderBar(page)).toHaveAttribute('data-visible', '')
+  await expect(holderBar(page)).toHaveAccessibleName('Add a block below the phase')
+  // The phase's bar says where it adds, so it reads apart from the bar above it.
+  await expect(holderBar(page)).toContainText('After phase')
+  const [inner, outer, box] = [await addBar(page).boundingBox(), await holderBar(page).boundingBox(), await phase.boundingBox()]
+  if (!inner || !outer || !box) throw new Error('no bars or phase on screen')
+  expect(outer.y).toBeGreaterThanOrEqual(box.y + box.height - 1)
+  expect(inner.y + inner.height).toBeLessThan(outer.y)
+  expect(Math.abs(outer.width - box.width)).toBeLessThan(1)
+  // The phase's title row shows the phase's Edit beside it, and its + under it.
   await phase.locator('.plan-title').hover()
-  await expect(tools(page)).not.toHaveAttribute('data-add-only', '')
   await expect(page.locator('[data-plan-block-edit]')).toBeVisible()
-  const [pill, card] = [await tools(page).boundingBox(), await phase.boundingBox()]
-  expect(pill && card && pill.x > card.x + card.width).toBe(true)
+  await expect(holderBar(page)).not.toHaveAttribute('data-visible', '')
+  await expectBarUnder(addBar(page), phase)
+  const pill = await tools(page).boundingBox()
+  expect(pill && pill.x > box.x + box.width).toBe(true)
 })
 
 test('the pill stays while the pointer goes to it and back onto the block', async ({ page }) => {
@@ -174,28 +205,47 @@ test('dragging over text selects it and opens no editor', async ({ page }) => {
   await expect(editor(page)).toHaveCount(0)
 })
 
-test('+ on a component opens an empty block below with the / hint, and Cancel leaves the plan as it was', async ({ page }) => {
+test('+ under a card opens an empty line below it, as text reads, with the / hint; Escape leaves the plan as it was', async ({ page }) => {
   await openPlan(page)
+  const card = page.locator('[data-plan-rendered] [data-plan-block]').filter({ has: page.locator('[data-entry="choice"]') }).first()
   await choice(page).hover()
-  await page.locator('[data-plan-block-add]').click()
-  await expect(page.locator('[data-plan-block-editor="add"] [contenteditable="true"].plan-editor-content')).toBeVisible()
-  const hint = page.locator('[data-plan-block-editor="add"] [data-slash-hint]')
+  await addBar(page).click()
+  const added = page.locator('[data-plan-block-editor="add"]')
+  await expect(added).toHaveAttribute('data-inline', '')
+  await expect(added.locator('[contenteditable="true"].plan-editor-content')).toBeFocused()
+  // No frame and no bar: a new line of the page, right under the card.
+  await expect(page.locator('.plan-block-editor-bar')).toHaveCount(0)
+  expect(await added.evaluate((node) => getComputedStyle(node).borderTopWidth)).toBe('0px')
+  const [above, line] = [await card.boundingBox(), await added.boundingBox()]
+  expect(line && above && line.y >= above.y + above.height - 1).toBe(true)
+  const hint = added.locator('[data-slash-hint]')
   await expect(hint).toHaveCount(1)
   expect(await hint.evaluate((node) => getComputedStyle(node, '::before').content)).toBe('"Type / to add a block"')
-  // A line with text has no hint.
-  await page.keyboard.type('New')
-  await expect(hint).toHaveCount(0)
-  await page.locator('[data-plan-block-cancel]').click()
+  // Nothing typed: Escape closes it, and nothing waits to be applied.
+  await page.keyboard.press('Escape')
   await expect(editor(page)).toHaveCount(0)
   await expect(page.locator('[data-plan-apply-bar]')).toHaveCount(0)
+
+  // A line with text has no hint, and the first key counts as a change to apply. Escape keeps it.
+  await choice(page).hover()
+  await addBar(page).click()
+  await page.keyboard.type('New')
+  await expect(hint).toHaveCount(0)
+  await expect(page.locator('[data-plan-apply-bar]')).toContainText('1 change not applied')
+  await page.keyboard.press('Escape')
+  await expect(editor(page)).toHaveCount(0)
+  await expect(card.locator('xpath=following-sibling::*[1]')).toHaveText('New')
+  await expect(page.locator('[data-plan-apply-bar]')).toContainText('1 change not applied')
 })
 
-test('Add a block at the end, clearing a paragraph takes it out, and Remove takes a diagram out', async ({ page }) => {
+test('Add a block at the end opens an empty line there, clearing a paragraph takes it out, and the grip deletes a diagram', async ({ page }) => {
   await openPlan(page)
+  // The end of the plan keeps room under Add a block.
+  expect(await page.locator('[data-plan-add-block]').evaluate((node) => getComputedStyle(node).marginBottom)).toBe('32px')
   await page.locator('[data-plan-add-block]').click()
-  await expect(page.locator('[data-plan-block-editor="add"]')).toBeVisible()
+  await expect(page.locator('[data-plan-block-editor="add"]')).toHaveAttribute('data-inline', '')
   await page.keyboard.type('A closing note.')
-  await page.locator('[data-plan-block-done]').click()
+  await page.keyboard.press('Control+Enter')
   await expect(page.locator('[data-plan-rendered] > p', { hasText: 'A closing note.' })).toBeVisible()
 
   const text = (await intro(page).innerText()).slice(0, 40)
@@ -209,11 +259,11 @@ test('Add a block at the end, clearing a paragraph takes it out, and Remove take
   const diagrams = page.locator('[data-plan-rendered] > .plan-block-frame')
   const count = await diagrams.count()
   await diagrams.first().hover()
-  await page.locator('[data-plan-block-edit]').click()
-  await page.locator('[data-plan-block-remove]').click()
-  await expect(page.locator('[data-plan-block-remove]')).toHaveText('Remove this block?')
-  await page.locator('[data-plan-block-remove]').click()
-  await expect(editor(page)).toHaveCount(0)
+  await page.locator('[data-plan-block-move]').click()
+  const remove = page.locator('[data-plan-block-move-delete]')
+  await remove.click()
+  await expect(remove).toHaveText('Delete this block?')
+  await remove.click()
   await expect(diagrams).toHaveCount(count - 1)
   await expect(page.locator('[data-plan-apply-bar]')).toContainText('3 changes not applied')
 
@@ -237,6 +287,21 @@ test('E edits the block with focus, or the text under the pointer, and typing an
   const open = page.locator('[data-plan-block-editor="edit"]')
   await expect(open).toBeVisible()
   await expect(open.locator('[data-editor-entry="choice"]')).toBeVisible()
+  // Only the card's own editor: no frame, no bar, no line under it, and the caret in its first field,
+  // with no focus ring. The card's own delete is small and red, inside its top right corner; its
+  // options keep their quiet ones.
+  await expect(open.getByLabel('Prompt')).toBeFocused()
+  expect(await open.getByLabel('Prompt').evaluate((node) => getComputedStyle(node).outlineStyle)).toBe('none')
+  await expect(open.locator('.plan-block-editor-bar')).toHaveCount(0)
+  expect(await open.evaluate((node) => getComputedStyle(node).borderTopWidth)).toBe('0px')
+  await expect(open.locator('[data-slash-hint]')).toHaveCount(0)
+  const remove = open.getByLabel('Remove choice')
+  await expect(remove).toBeVisible()
+  expect(await remove.evaluate((node) => getComputedStyle(node).color)).toBe('rgb(239, 77, 62)')
+  const [trash, frame] = [await remove.boundingBox(), await open.locator('[data-editor-entry="choice"]').boundingBox()]
+  expect(trash && frame && trash.x + trash.width <= frame.x + frame.width && trash.x + trash.width > frame.x + frame.width - 60).toBe(true)
+  expect(trash && frame && trash.y >= frame.y && trash.y < frame.y + 40).toBe(true)
+  await expect(open.getByLabel('Remove option').first()).toBeVisible()
   // Nothing typed yet: Escape closes it.
   await page.keyboard.press('Escape')
   await expect(editor(page)).toHaveCount(0)
@@ -246,6 +311,42 @@ test('E edits the block with focus, or the text under the pointer, and typing an
   await page.keyboard.press('e')
   await expect(inlineEditor(page).locator('[contenteditable="true"]')).toBeFocused()
   await page.keyboard.press('Escape')
+  await expect(editor(page)).toHaveCount(0)
+})
+
+test('A adds an empty line below the block under the pointer, as + does', async ({ page }) => {
+  await openPlan(page)
+  await intro(page).hover()
+  await page.keyboard.press('a')
+  const added = page.locator('[data-plan-block-editor="add"]')
+  await expect(added).toHaveAttribute('data-inline', '')
+  await expect(added.locator('[contenteditable="true"]')).toBeFocused()
+  const before = (await intro(page).innerText()).slice(0, 30)
+  expect(await added.evaluate((node) => (node.previousElementSibling?.textContent ?? '').slice(0, 30))).toBe(before)
+  await page.keyboard.press('Escape')
+  await expect(editor(page)).toHaveCount(0)
+})
+
+test('Edit on a code block puts the caret in its code, not on its language', async ({ page }) => {
+  await openPlan(page)
+  const code = page.locator('[data-plan-rendered] .code-host').first()
+  await code.scrollIntoViewIfNeeded()
+  await code.hover({ position: { x: 300, y: 20 } })
+  await page.locator('[data-plan-block-edit]').click()
+  const fence = page.locator('[data-plan-block-editor] [data-code-fence]')
+  await expect(fence).toBeVisible()
+  // The code editor types in a shadow root of its own.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        let active = document.activeElement
+        while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement
+        const host = (active?.getRootNode() as ShadowRoot | Document | undefined) instanceof ShadowRoot ? (active!.getRootNode() as ShadowRoot).host : active
+        return Boolean(host?.closest('[data-code-fence]')) && active?.getAttribute('contenteditable') === 'true'
+      }),
+    )
+    .toBe(true)
+  await page.mouse.click(5, 450)
   await expect(editor(page)).toHaveCount(0)
 })
 
@@ -300,17 +401,19 @@ test.describe('on a touch screen', () => {
     await page.locator('[data-plan-block-edit]').tap()
     await expect(page.locator('[data-plan-block-editor="edit"]:not([data-inline])')).toBeVisible()
     await expect(page.locator('[data-plan-block-editor] .plan-editor-body')).toContainText('Typed.')
-    await page.locator('[data-plan-block-cancel]').tap()
+    await page.keyboard.press('Escape')
     await expect(editor(page)).toHaveCount(0)
 
     await choice(page).getByText('Needs your choice').tap()
     await expect(tools(page)).toHaveAttribute('data-visible', '')
+    // A tap shows + under the card too.
+    await expect(addBar(page)).toHaveAttribute('data-visible', '')
     await page.locator('[data-plan-block-edit]').tap()
-    await expect(page.locator('[data-plan-block-editor="edit"]')).toBeVisible()
-    // Every control of the editor's bar fits on the phone.
-    const right = await page.locator('.plan-block-editor-bar').evaluate((bar) =>
-      Math.max(...[...bar.querySelectorAll('button')].map((button) => button.getBoundingClientRect().right)),
-    )
+    const open = page.locator('[data-plan-block-editor="edit"]')
+    await expect(open).toBeVisible()
+    // The card's editor fits the phone, with no bar of its own.
+    await expect(open.locator('.plan-block-editor-bar')).toHaveCount(0)
+    const right = await open.evaluate((node) => node.getBoundingClientRect().right)
     expect(right).toBeLessThanOrEqual(390)
   })
 

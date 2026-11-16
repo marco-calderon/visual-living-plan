@@ -49,6 +49,16 @@ export function focusFenceWhenReady(key: string): void {
   focusOnMount.add(key)
 }
 
+/** The code editors on the page, by their node's key: each puts the caret in its code once it is ready. */
+const focusers = new Map<string, () => void>()
+
+/** Put the caret in a code block's editor: now if it is on the page, or once it mounts. */
+export function focusFence(key: string): void {
+  const focus = focusers.get(key)
+  if (focus) focus()
+  else focusFenceWhenReady(key)
+}
+
 /** Put the caret at the end of the code. A click or a DOM focus alone leaves an empty document without one. */
 function caretAtEnd(editor: FenceEditor): void {
   const lines = editor.getText().split('\n')
@@ -131,17 +141,26 @@ function CodeFenceEditor({ code, language }: CodeBlockEditorProps) {
   // Pierre attaches its editor a frame or two after mount.
   useEffect(() => {
     const key = lexicalNode.getKey()
-    if (!focusOnMount.has(key)) return
-    focusOnMount.delete(key)
     let frame = 0
-    let tries = 0
-    const attempt = () => {
-      const editor = pierre.current
-      if (editor?.getFile()) caretAtEnd(editor)
-      else if (tries++ < 60) frame = requestAnimationFrame(attempt)
+    const focus = () => {
+      let tries = 0
+      const attempt = () => {
+        const editor = pierre.current
+        if (editor?.getFile()) caretAtEnd(editor)
+        else if (tries++ < 60) frame = requestAnimationFrame(attempt)
+      }
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(attempt)
     }
-    frame = requestAnimationFrame(attempt)
-    return () => cancelAnimationFrame(frame)
+    focusers.set(key, focus)
+    if (focusOnMount.has(key)) {
+      focusOnMount.delete(key)
+      focus()
+    }
+    return () => {
+      cancelAnimationFrame(frame)
+      if (focusers.get(key) === focus) focusers.delete(key)
+    }
   }, [lexicalNode])
   const theme = useDiffsThemePair()
   const wrap = useWrapCode()

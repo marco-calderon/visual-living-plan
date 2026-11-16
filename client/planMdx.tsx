@@ -32,7 +32,7 @@ import { sendPlanMutation, sharedQueryClient } from './queryClient.tsx'
 import { clearDraft, isLegacyDraft, readDraft, writeDraft, type PlanDraft } from './editor/draftStore.ts'
 import { planNotReadyReason } from '../src/planReady.ts'
 import type { DraftConflict, DraftSide } from '../src/planMdx/rebaseDraft.ts'
-import { bindBlockEditButton, followEdit, type BlockEditBinding, type EditCaret, type EditFollow, type EditHow } from './planEditButton.ts'
+import { bindBlockEditButton, followEdit, paragraphAfter, type BlockEditBinding, type EditCaret, type EditFollow, type EditHow } from './planEditButton.ts'
 import { editTitleInPlace, typedTitle } from './titleEdit.ts'
 import { applyTitleEdit, titleRange } from '../src/planMdx/titleEdit.ts'
 import { bindBlockMove, type BlockMoveBinding, type BlockMoved } from './planBlockMove.ts'
@@ -210,6 +210,13 @@ function PlanH3(props: PlanHeadingProps) {
 const loadBlockEditor = () => import('./editor/BlockEditor.tsx')
 const LazyBlockEditor = lazy(() => loadBlockEditor().then((module) => ({ default: module.BlockEditor })))
 
+/** The plan's last top-level block, which the Add a block button adds after. */
+function lastTopLevelBlock(): HTMLElement | null {
+  const root = document.querySelector('[data-plan-rendered]')
+  const blocks = root ? Array.from(root.children).filter((child): child is HTMLElement => child instanceof HTMLElement && child.hasAttribute('data-plan-block')) : []
+  return blocks.at(-1) ?? null
+}
+
 /** True when two plan files differ only in the spacing at their ends. */
 function samePlanSource(a: string, b: string): boolean {
   return a.trimEnd() === b.trimEnd()
@@ -245,6 +252,8 @@ type EditSlot = {
   cancel: (follow?: EditFollow) => void
   /** The open editor's Done, so a block's grip can finish the edit before it moves a block. */
   register: (done: (() => void) | null) => void
+  /** The open editor holds typing not kept yet: the Apply bar counts it. */
+  dirty: (dirty: boolean) => void
 }
 
 /** The open block editor, for the plan body to draw in the block's place. */
@@ -407,37 +416,49 @@ function countHeadings(node: ReactNode): number {
 function BlockEditSlot({ replaced, fallback, blockRange }: { replaced: ReactElement | null; fallback?: ReactNode; blockRange?: string }) {
   const slot = useContext(EditSlotContext)
   const cursor = useContext(TocHeadingCursor)
-  if (cursor && replaced) cursor.current.n += countHeadings(replaced)
+  // The editor whose text is in. Until then the page keeps drawing the block, so opening never blanks it.
+  const [shown, setShown] = useState<number | null>(null)
   const target = slot ? blockTarget(slot.open) : null
+  const standIn = slot && target && target.kind !== 'add' && shown !== slot.open.id ? (fallback ?? replaced ?? null) : null
+  // The headings of a block the page still draws count themselves; an editor's are counted here.
+  if (cursor && replaced && standIn !== replaced) cursor.current.n += countHeadings(replaced)
   if (!slot || !target) return fallback ?? replaced
-  // Text edited as it reads stays as it is while the editor's code loads, so nothing flickers.
-  const inline = target.kind === 'cell' || ((target.kind === 'edit' || target.kind === 'add') && target.inline === true)
+  const id = slot.open.id
+  const staged = standIn !== null
   return (
-    <Suspense
-      fallback={
-        inline ? (
-          (fallback ?? replaced)
-        ) : (
-          <div className="plan-block-editor-loading" data-plan-block-editor="loading" role="status">
-            Opening the editor…
-          </div>
-        )
-      }
-    >
-      <LazyBlockEditor
-        key={slot.open.id}
-        source={slot.open.source}
-        target={target}
-        commit={slot.commit}
-        onCancel={slot.cancel}
-        caret={slot.open.caret}
-        margins={slot.open.margins}
-        height={slot.open.height}
-        closing={slot.open.committed !== undefined}
-        registerDone={slot.register}
-        blockRange={target.kind === 'edit' ? (blockRange ?? (replaced ? blockRangeOfElement(replaced) : undefined)) : undefined}
-      />
-    </Suspense>
+    <>
+      {standIn}
+      <Suspense
+        fallback={
+          // A new block keeps its room while the editor's code loads.
+          staged ? null : (
+            <div
+              className="plan-block-editor-hold"
+              data-plan-block-editor="loading"
+              aria-hidden="true"
+              style={{ marginTop: slot.open.margins?.top, marginBottom: slot.open.margins?.bottom, minHeight: slot.open.height }}
+            />
+          )
+        }
+      >
+        <LazyBlockEditor
+          key={id}
+          source={slot.open.source}
+          target={target}
+          commit={slot.commit}
+          onCancel={slot.cancel}
+          caret={slot.open.caret}
+          margins={slot.open.margins}
+          height={slot.open.height}
+          closing={slot.open.committed !== undefined}
+          registerDone={slot.register}
+          staged={staged}
+          onShown={() => setShown(id)}
+          onDirty={slot.dirty}
+          blockRange={target.kind === 'edit' ? (blockRange ?? (replaced ? blockRangeOfElement(replaced) : undefined)) : undefined}
+        />
+      </Suspense>
+    </>
   )
 }
 
@@ -1013,6 +1034,8 @@ function PlanMdxApp() {
   // The open title edit (client/titleEdit.ts makes the title's text editable where it is), and how to put it back.
   const titleEdit = useRef<{ id: number; stop: () => void; finish: () => void } | null>(null)
   const [applying, setApplying] = useState(false)
+  // The open editor's id while it holds typing not kept yet: the Apply bar counts it as a change.
+  const [dirtyEdit, setDirtyEdit] = useState<number | null>(null)
   const [applyError, setApplyError] = useState<string | null>(null)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [draftKept, setDraftKept] = useState(true)
@@ -1029,9 +1052,11 @@ function PlanMdxApp() {
       editIds.current += 1
       setOpenEdit({ id: editIds.current, target, caret: how?.caret, margins: how?.margins, height: how?.height, source: pageSourceRef.current })
     }
-    // Load the editor while the reader looks at the page, so a click on text or Edit opens at once.
+    // Load the editor while the reader looks at the page, so a click on text or Edit opens at once:
+    // when the page is idle, or at the first pointer over it, whichever comes first.
     const warm = () => void loadBlockEditor().catch(() => undefined)
     document.addEventListener('pointerover', warm, { once: true, passive: true })
+    const idle = typeof window.requestIdleCallback === 'function' ? window.requestIdleCallback(warm, { timeout: 2000 }) : window.setTimeout(warm, 1000)
     const binding = bindBlockEditButton({
       state: () => editState.current,
       edit: (range, how) => open({ kind: 'edit', range, inline: how?.inline }, how),
@@ -1078,10 +1103,14 @@ function PlanMdxApp() {
       // A grip pressed while a block or a title is open finishes that edit first, as a click outside does.
       finishEditing,
       remove: (range) => removeRef.current(range),
+      // Add below in the grip's menu opens a new, empty line under the block, as + under it does.
+      add: (range, block) => open({ kind: 'add', after: range, inline: true }, { inline: true, ...paragraphAfter(block) }),
     })
     moveBinding.current = mover
     return () => {
       document.removeEventListener('pointerover', warm)
+      if (typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(idle)
+      else window.clearTimeout(idle)
       editBinding.current = null
       moveBinding.current = null
       binding.stop()
@@ -1227,8 +1256,12 @@ function PlanMdxApp() {
         // The editor is on the page now: the card whose text it holds shows its pill beside it.
         if (done) editBinding.current?.refresh()
       },
+      dirty: (dirty) => setDirtyEdit((current) => (dirty ? openEdit.id : current === openEdit.id ? null : current)),
     }
   }, [openEdit, draft, planId])
+  // Typing in the open editor is a change to apply from the first key; it counts once, until Done keeps it.
+  const editPending = dirtyEdit !== null && openEdit?.id === dirtyEdit && openEdit.committed === undefined
+  const changeCount = (draft?.edits ?? 0) + (editPending ? 1 : 0)
   // Apply changes waits for an open editor to close.
   useEffect(() => {
     if (openEdit) return
@@ -1291,7 +1324,7 @@ function PlanMdxApp() {
   }
 
   async function applyChanges() {
-    if (!draft || applying || draft.rebase) return
+    if ((!draft && !editPending) || applying || draft?.rebase) return
     setApplying(true)
     setApplyError(null)
     try {
@@ -1335,6 +1368,7 @@ function PlanMdxApp() {
     // An open block goes too, with what was typed in it.
     pendingFollow.current = null
     setOpenEdit(null)
+    setDirtyEdit(null)
     clearDraft(planId)
     setDraft(null)
     setConfirmDiscard(false)
@@ -1414,15 +1448,22 @@ function PlanMdxApp() {
           tabIndex={openEdit ? -1 : undefined}
           disabled={openEdit !== null}
           onClick={() => {
+            // A new line after the plan's last block, as + under that block opens it.
+            const last = lastTopLevelBlock()
+            const after = last?.dataset.planBlock
             editIds.current += 1
-            setOpenEdit({ id: editIds.current, target: { kind: 'add', after: null }, source: pageSource })
+            setOpenEdit(
+              last && after
+                ? { id: editIds.current, target: { kind: 'add', after, inline: true }, ...paragraphAfter(last), source: pageSource }
+                : { id: editIds.current, target: { kind: 'add', after: null }, source: pageSource },
+            )
           }}
         >
           <span aria-hidden="true">+</span> Add a block
         </button>
       ) : null}
-      {/* Shown while a block is edited too: changes wait to be applied whatever has focus. */}
-      {draft && canEdit ? (
+      {/* Shown while a block is edited too, from its first key: changes wait to be applied whatever has focus. */}
+      {(draft || editPending) && canEdit ? (
         <div
           className="plan-apply-bar"
           role="region"
@@ -1436,9 +1477,9 @@ function PlanMdxApp() {
                 ? "1 of your changes overlaps the agent's"
                 : conflicts.length > 1
                   ? `${conflicts.length} of your changes overlap the agent's`
-                  : draft.edits === 1
+                  : changeCount === 1
                     ? '1 change not applied'
-                    : `${draft.edits} changes not applied`}
+                    : `${changeCount} changes not applied`}
             </span>
             <span className="plan-apply-note" data-plan-apply-note="">
               {applyError
@@ -1455,9 +1496,11 @@ function PlanMdxApp() {
                         ? 'This browser did not keep the changes. Apply them before you close the page.'
                         : rebased
                           ? 'The agent updated the plan. Your changes are kept on top of it.'
-                          : !online
-                            ? 'Kept on this device. Apply them when you are back online.'
-                            : 'Kept on this device. Apply to save a new version of the plan.'}
+                          : !draft
+                            ? 'Kept when you leave the block. Apply to save a new version of the plan.'
+                            : !online
+                              ? 'Kept on this device. Apply them when you are back online.'
+                              : 'Kept on this device. Apply to save a new version of the plan.'}
             </span>
           </div>
           <div className="plan-apply-actions">

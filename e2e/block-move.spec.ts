@@ -240,6 +240,31 @@ test('Delete in the grip menu asks once, then takes the block out as a change to
   await expect.poll(() => planSource(page)).not.toContain('Every block on this page')
 })
 
+test('Add below in the grip menu opens an empty line under the block, in its phase too', async ({ page }) => {
+  await openPlan(page)
+  const intro = top(page).filter({ hasText: 'Every block on this page' })
+  await pointAt(page, intro)
+  await grip(page).click()
+  await expect(menu(page).getByRole('menuitem')).toHaveText(['Add below', 'Move up', 'Move down', 'Delete'])
+  await menu(page).getByRole('menuitem', { name: 'Add below' }).click()
+  const added = page.locator('[data-plan-block-editor="add"]')
+  await expect(added).toHaveAttribute('data-inline', '')
+  await expect(added.locator('[contenteditable="true"]')).toBeFocused()
+  await page.keyboard.type('Right under it.')
+  await page.mouse.click(5, 450)
+  await expect(page.locator('[data-plan-block-editor]')).toHaveCount(0)
+  await expect.poll(() => topOrder(page)).toEqual(['Block move', 'Every block', 'Right under', '#build', '#agreed', '#fail-mode', 'FileTree', 'workflow'])
+  await expect(bar(page)).toContainText('1 change not applied')
+
+  // A block in a phase gets its new line in the phase.
+  await pointAt(page, phase(page, 'build').locator('[data-plan-block]').first())
+  await grip(page).click()
+  await menu(page).getByRole('menuitem', { name: 'Add below' }).click()
+  await expect(phase(page, 'build').locator('[data-plan-block-editor="add"]')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-plan-block-editor]')).toHaveCount(0)
+})
+
 test('the grip menu on a block being edited keeps the edit and moves the block', async ({ page }) => {
   await openPlan(page)
   const intro = top(page).filter({ hasText: 'Every block on this page' })

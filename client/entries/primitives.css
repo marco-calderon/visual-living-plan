@@ -534,14 +534,10 @@ a.plan-step-label:hover {
 html:not([data-comments="on"]) body[data-plan-editable="true"]:not([data-plan-mode="comment"]) [data-plan-title]:not([data-edit-locked="true"] [data-plan-title]) { cursor: text; }
 html:not([data-comments="on"]) body[data-plan-editable="true"]:not([data-plan-mode="comment"]) a.plan-step-label:hover { text-decoration: none; }
 
-/* A title being edited where it reads (client/titleEdit.ts): the faint wash text has in its
- * editor (client/editor/planEditor.css), and no ring. The wash spreads past the text, so it does not move. */
+/* A title being edited where it reads (client/titleEdit.ts): no ring and no wash, like text in its
+ * editor (client/editor/planEditor.css). The caret says where typing goes. */
 [data-plan-title-editing] {
-  --inline-wash: color-mix(in srgb, var(--accent) 7%, transparent);
   outline: none;
-  border-radius: 2px;
-  background: var(--inline-wash);
-  box-shadow: 0 0 0 4px var(--inline-wash);
 }
 
 .rf-progress-icon {
@@ -1965,8 +1961,8 @@ body.plan-live .block.plan-changed {
   font-variant-numeric: tabular-nums;
 }
 
-/* Block tools (ADR 0040): one pill with Edit and + follows the block under the pointer, with focus,
- * or tapped, while the plan can be edited (client/planEditButton.ts sets its place). */
+/* Block tools (ADR 0040): an Edit pill follows the card under the pointer, with focus, or tapped,
+ * while the plan can be edited (client/planEditButton.ts sets its place). */
 .plan-block-tools {
   position: absolute;
   z-index: 30;
@@ -2009,14 +2005,6 @@ body.plan-live .block.plan-changed {
   cursor: pointer;
 }
 
-.plan-block-tools button + button { border-left: 1px solid var(--hairline-strong); }
-
-.plan-block-tools .plan-block-add-below { padding: 0 8px; color: var(--muted); }
-
-/* Text inside a block (a phase's paragraph) opens with a click: its pill holds + alone. */
-.plan-block-tools[data-add-only] .plan-block-edit { display: none; }
-.plan-block-tools[data-add-only] button + button { border-left: 0; }
-
 .plan-block-tools svg { width: 13px; height: 13px; }
 
 .plan-block-tools button:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
@@ -2028,8 +2016,76 @@ body.plan-live .block.plan-changed {
 
 body:not([data-plan-editable="true"]) .plan-block-tools { display: none; }
 
+/* + under a block (client/planEditButton.ts): a slim gray bar in the gap under the block under the
+ * pointer, as wide as it, and one under the phase that holds it. The same bar adds a block in the
+ * editor (client/editor/planEditor.css .plan-block-add). Its height matches BAR_HEIGHT. */
+.plan-add-bar {
+  position: absolute;
+  z-index: 30;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 120ms var(--ease-out),
+    color 120ms var(--ease-out),
+    background-color 120ms var(--ease-out);
+}
+
+/* A taller target than the bar, still inside the gap. Every bar has the same size, the size of a
+ * table's add-row bar; in a narrow gap it takes no clicks past its own edges. */
+.plan-add-bar::before {
+  content: '';
+  position: absolute;
+  inset: -4px 0;
+}
+
+.plan-add-bar[data-tight]::before { inset: 0; }
+
+.plan-add-bar svg { flex: none; width: 12px; height: 12px; }
+
+/* The phase's bar says where it adds, so it reads apart from the bar of the block above it. */
+.plan-add-bar-label {
+  margin-left: 4px;
+  font-family: var(--font-body);
+  font-size: 11px;
+  line-height: 1;
+}
+
+/* A finger gets more room to hit the bar, where the gap has it. */
+@media (pointer: coarse) {
+  .plan-add-bar:not([data-tight])::before { inset: -8px 0; }
+}
+
+.plan-add-bar[data-visible] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.plan-add-bar:hover,
+.plan-add-bar:active {
+  background: color-mix(in srgb, var(--ink) 13%, transparent);
+  color: var(--ink);
+}
+
+body:not([data-plan-editable="true"]) .plan-add-bar,
+body[data-plan-mode="comment"] .plan-add-bar,
+html[data-comments="on"] .plan-add-bar { display: none; }
+
 @media (prefers-reduced-motion: reduce) {
-  .plan-block-tools { transition: none; }
+  .plan-block-tools,
+  .plan-add-bar { transition: none; }
 }
 
 /* Move a block (client/planBlockMove.ts): a grip left of the block under the pointer, with focus, or
@@ -2123,6 +2179,13 @@ body[data-plan-block-moving] { user-select: none; }
 
 .plan-block-move-menu button:disabled { color: var(--muted); cursor: default; }
 
+/* Add below sits apart from the moves, above them. */
+.plan-block-move-menu button[data-plan-block-move-add] {
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+  border-radius: 6px 6px 0 0;
+}
+
 /* Delete sits apart from the moves, in the danger color. */
 .plan-block-move-menu button[data-plan-block-move-delete] {
   margin-top: 4px;
@@ -2160,6 +2223,8 @@ body:not([data-plan-editable="true"]) :is(.plan-block-move, .plan-block-move-men
   gap: var(--space-xs);
   width: 100%;
   margin-top: var(--space-xl);
+  /* Room under it, so the end of the plan does not sit on the window's edge. */
+  margin-bottom: var(--space-xxl);
   padding: var(--space-xs) var(--space-sm);
   border: 1px dashed var(--hairline-strong);
   border-radius: var(--radius);
@@ -2255,17 +2320,12 @@ body[data-plan-mode="comment"] .plan-add-block { display: none; }
   .plan-apply-bar { bottom: calc(16px + 40px + var(--space-xs)); }
 }
 
-/* The editor's own frame while its code loads, so the page does not jump. */
-.plan-block-editor-loading {
-  padding: var(--space-md);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
-  color: var(--muted);
-  font-size: 14px;
-}
+/* A new block keeps its room while the editor's code loads, so the page does not jump. */
+.plan-block-editor-hold { min-height: 1.5em; }
 
 @media print {
   .plan-block-tools,
+  .plan-add-bar,
   .plan-add-block,
   .plan-apply-bar { display: none; }
 }

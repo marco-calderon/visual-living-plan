@@ -68,7 +68,7 @@ test('the checklist opens in its editor, one item per line, and Apply changes sa
   await status.nth(1).click()
   await page.locator('[data-status-picker-popup] [data-status-option="done"]').click()
   await expect(status.nth(1)).toHaveAccessibleName('Status Done. Change status')
-  await page.locator('[data-plan-block-done]').click()
+  // The change waits to be applied as soon as it is made: Apply keeps the open editor's edit first.
   await page.getByRole('button', { name: 'Apply changes', exact: true }).click()
 
   const planPath = serverLog.match(/^e2e plan (.+)$/m)?.[1]?.trim() ?? ''

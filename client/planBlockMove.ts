@@ -2,8 +2,8 @@
  * Move a block where it reads (ADR 0040). While the plan can be edited, a grip sits left of the
  * block under the pointer, with focus, or tapped: text, cards, choices, endpoints, diagrams, code,
  * tables, phases, and the blocks inside a phase. Dragging it puts the block before or after another
- * one, at the top level or inside a phase; a click or a tap opens Move up and Move down, and
- * Alt+Up or Alt+Down moves the block with focus. The parts of a component (a file tree's rows, a
+ * one, at the top level or inside a phase; a click or a tap opens its menu (Add below, Move up,
+ * Move down, Delete), and Alt+Up or Alt+Down moves the block with focus. The parts of a component (a file tree's rows, a
  * choice's options, a diagram's nodes) are not blocks of the plan, so they keep their order. So do
  * the blocks inside a locked block; the locked block itself moves, as a locked card does in the editor.
  *
@@ -29,6 +29,8 @@ export type BlockMoveActions = {
   finishEditing: () => void
   /** Take the block at `range` out of the plan, as one more unapplied change. False when it stayed. */
   remove: (range: string) => Promise<boolean>
+  /** Open a new, empty block right after `block` (its place is `range`), as + under it does. */
+  add: (range: string, block: HTMLElement) => void
 }
 
 export type BlockMoveBinding = {
@@ -169,6 +171,9 @@ const ARROW_UP =
 const TRASH =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>'
 
+const PLUS =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>'
+
 const ARROW_DOWN =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>'
 
@@ -192,11 +197,12 @@ const RENDER_WAIT_MS = 4000
 /** A block's place in the plan file, and the file the page drew when it was read. */
 type Place = { range: string; source: string | null }
 
-function menuItem(step: 'up' | 'down' | 'delete', label: string, icon: string): HTMLButtonElement {
+function menuItem(step: 'add' | 'up' | 'down' | 'delete', label: string, icon: string): HTMLButtonElement {
   const button = document.createElement('button')
   button.type = 'button'
   button.setAttribute('role', 'menuitem')
   if (step === 'delete') button.dataset.planBlockMoveDelete = ''
+  else if (step === 'add') button.dataset.planBlockMoveAdd = ''
   else button.dataset.planBlockMoveStep = step
   button.innerHTML = `${icon}<span>${label}</span>`
   return button
@@ -213,7 +219,7 @@ export function bindBlockMove(options: BlockMoveActions): BlockMoveBinding {
   // The keyboard's way in is Alt+Up and Alt+Down on the block with focus.
   grip.tabIndex = -1
   grip.setAttribute('aria-label', 'Move this block')
-  grip.title = 'Drag to move · click for Move up and Move down'
+  grip.title = 'Drag to move · click for Add below, Move up, Move down, and Delete'
   grip.setAttribute('aria-haspopup', 'menu')
   grip.setAttribute('aria-expanded', 'false')
   grip.setAttribute('aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown')
@@ -222,14 +228,16 @@ export function bindBlockMove(options: BlockMoveActions): BlockMoveBinding {
   menu.className = 'plan-block-move-menu'
   menu.dataset.planBlockMoveMenu = ''
   menu.setAttribute('role', 'menu')
-  menu.setAttribute('aria-label', 'Move block')
+  menu.setAttribute('aria-label', 'Block actions')
   menu.hidden = true
+  // Add below opens a new, empty block under this one, as the + bar under it does.
+  const addBelow = menuItem('add', 'Add below', PLUS)
   const up = menuItem('up', 'Move up', ARROW_UP)
   const down = menuItem('down', 'Move down', ARROW_DOWN)
   // Delete asks once: the first press turns it into "Delete this block?".
   const remove = menuItem('delete', DELETE_LABEL, TRASH)
   const removeText = remove.querySelector('span')!
-  menu.append(up, down, remove)
+  menu.append(addBelow, up, down, remove)
   const line = document.createElement('div')
   line.className = 'plan-block-move-line'
   line.dataset.planBlockMoveLine = ''
@@ -389,7 +397,7 @@ export function bindBlockMove(options: BlockMoveActions): BlockMoveBinding {
     grip.setAttribute('aria-expanded', 'true')
     placeMenu()
     if (!focus) return
-    const first = [up, down].find((item) => !item.disabled)
+    const first = [addBelow, up, down].find((item) => !item.disabled)
     first?.focus({ preventScroll: true })
   }
 
@@ -629,6 +637,21 @@ export function bindBlockMove(options: BlockMoveActions): BlockMoveBinding {
     await options.remove(range)
   }
   const onRemove = () => void onDelete()
+  /** Add below: an open edit is finished first, then a new, empty block opens right under this one. */
+  const onAddBelow = async () => {
+    if (!block) return
+    const from = block.isConnected ? placeHere(block) : anchor
+    hide()
+    if (options.state().editing) {
+      options.finishEditing()
+      if (!(await whenIdle())) return
+    }
+    const current = blockAt(from)
+    const range = current?.dataset.planBlock
+    if (!current || !range || !usable()) return
+    options.add(range, current)
+  }
+  const onAdd = () => void onAddBelow()
   const onUp = () => void step(block, -1, { menu: true, focus: document.activeElement === up })
   const onDown = () => void step(block, 1, { menu: true, focus: document.activeElement === down })
   const onKey = (event: KeyboardEvent) => {
@@ -664,6 +687,7 @@ export function bindBlockMove(options: BlockMoveActions): BlockMoveBinding {
   grip.addEventListener('pointercancel', onGripCancel)
   grip.addEventListener('lostpointercapture', onGripCancel)
   grip.addEventListener('click', onGripClick)
+  addBelow.addEventListener('click', onAdd)
   up.addEventListener('click', onUp)
   down.addEventListener('click', onDown)
   remove.addEventListener('click', onRemove)
@@ -687,6 +711,7 @@ export function bindBlockMove(options: BlockMoveActions): BlockMoveBinding {
     grip.removeEventListener('pointercancel', onGripCancel)
     grip.removeEventListener('lostpointercapture', onGripCancel)
     grip.removeEventListener('click', onGripClick)
+    addBelow.removeEventListener('click', onAdd)
     up.removeEventListener('click', onUp)
     down.removeEventListener('click', onDown)
     remove.removeEventListener('click', onRemove)
