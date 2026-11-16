@@ -20,7 +20,7 @@ This plan is here to be edited. Nothing you do reaches the file until you press 
 | Where | What to try |
 | --- | --- |
 | A table cell | Click it and type. Enter keeps it. |
-| The heading above the list | Point at it. The + bar stays inside the narrow gap and never covers the list. |
+| This table | Press its Edit. It opens as the same card, with a small red delete in its top right corner. |
 | An empty new line | Type / for a card: a note, a tip, a data table, a checklist. |
 
 <phase id="text" title="Text inside a phase" status="done">
