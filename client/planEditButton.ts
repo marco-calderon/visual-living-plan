@@ -443,9 +443,8 @@ function toolButton(className: string, label: string, title: string, html: strin
   return button
 }
 
-/** The + bar's height, its least height in a narrow gap, and the room the last block leaves under it. Match .plan-add-bar in client/entries/primitives.css. */
+/** The + bar's height and the room the last block leaves under it. Match .plan-add-bar in client/entries/primitives.css. */
 const BAR_HEIGHT = 16
-const BAR_MIN = 8
 const BAR_ROOM = 24
 /** Room between a phase's bar and the bar of its last block, just above it. */
 const BAR_GAP = 6
@@ -457,13 +456,13 @@ function addBar(label: string, title: string, text?: string): HTMLButtonElement 
   return bar
 }
 
-type BarPlace = { top: number; left: number; width: number; height: number }
+type BarPlace = { top: number; left: number; width: number; height: number; tight: boolean }
 
 /**
  * Where `block`'s + bar goes: in the middle of the gap under it, before the next block at its level,
  * or the end of the phase that holds it. The plan's title draws its facts under it: the gap is under
- * those. The bar stays inside the gap, thinner in a narrow one, so it never covers the next block's
- * first line or takes its clicks.
+ * those. Every bar has the same size, a table's add-row bar's; in a gap narrower than the bar it is
+ * `tight` and takes no clicks past its own edges.
  */
 function barPlace(block: HTMLElement): BarPlace {
   const rect = block.getBoundingClientRect()
@@ -476,9 +475,8 @@ function barPlace(block: HTMLElement): BarPlace {
   const holder = block.parentElement?.closest('[data-plan-block]')
   const end = next ? next.getBoundingClientRect().top : holder ? holder.getBoundingClientRect().bottom - (Number.parseFloat(getComputedStyle(holder).borderBottomWidth) || 0) : bottom + BAR_ROOM
   const gap = end - bottom
-  const height = Math.min(BAR_HEIGHT, Math.max(BAR_MIN, gap - 6))
-  const top = bottom + (gap - height) / 2
-  return { top: top + window.scrollY, left: rect.left + window.scrollX, width: rect.width, height }
+  const top = bottom + (gap - BAR_HEIGHT) / 2
+  return { top: top + window.scrollY, left: rect.left + window.scrollX, width: rect.width, height: BAR_HEIGHT, tight: gap < BAR_HEIGHT + 8 }
 }
 
 /** True when `block` is the plan's last top-level block: Add a block, right under it, adds after it. */
@@ -554,9 +552,8 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
       bar.style.top = `${at.top}px`
       bar.style.left = `${at.left}px`
       bar.style.width = `${at.width}px`
-      bar.style.height = `${at.height}px`
-      // In a narrow gap the bar is thinner, and takes no clicks past its own edges.
-      bar.toggleAttribute('data-tight', at.height < BAR_HEIGHT)
+      // In a narrow gap the bar takes no clicks past its own edges.
+      bar.toggleAttribute('data-tight', at.tight)
       bar.setAttribute('data-visible', '')
     }
   }

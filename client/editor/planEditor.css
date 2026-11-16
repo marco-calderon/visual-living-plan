@@ -1155,10 +1155,116 @@
 /* A card's editor shows no "Type / to add a block": + under the block adds the next one. */
 .plan-block-editor:not([data-inline]) [data-slash-hint]::before { content: none; }
 
-/* A card's own Remove: the grip's Delete takes a block out (it asks once). Options and other parts
- * inside the card keep theirs. */
+/* The block's own delete: small, red, in the card's top right corner, inside the card. Options and
+ * other parts inside the card keep their quiet remove buttons. The red is the danger border's, which
+ * stays red on the dark canvas (--danger turns pale there, for text on a tinted fill). */
+.plan-block-editor { --delete-red: #ef4d3e; }
+
 .plan-block-editor .plan-editor-content > * > [data-editor-entry] > .plan-editor-head > .plan-editor-remove,
-.plan-block-editor .plan-editor-content > * > [data-editor-entry] > .plan-dt-card > .plan-dt-head > .plan-editor-remove { display: none; }
+.plan-block-editor .plan-editor-content > * > [data-editor-entry] > .plan-dt-card > .plan-dt-head > .plan-editor-remove,
+.plan-block-editor [class*='_tableEditor_'] > thead th[class*='_tableToolsColumn_'] > [class*='_iconButton_'] {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--delete-red);
+  opacity: 1;
+}
+
+.plan-block-editor .plan-editor-content > * > [data-editor-entry] > .plan-editor-head > .plan-editor-remove svg,
+.plan-block-editor .plan-editor-content > * > [data-editor-entry] > .plan-dt-card > .plan-dt-head > .plan-editor-remove svg,
+.plan-block-editor [class*='_tableEditor_'] > thead th[class*='_tableToolsColumn_'] > [class*='_iconButton_'] svg {
+  width: 14px;
+  height: 14px;
+}
+
+.plan-block-editor .plan-editor-content > * > [data-editor-entry] > .plan-editor-head > .plan-editor-remove:hover:not(:disabled),
+.plan-block-editor .plan-editor-content > * > [data-editor-entry] > .plan-dt-card > .plan-dt-head > .plan-editor-remove:hover:not(:disabled),
+.plan-block-editor [class*='_tableEditor_'] > thead th[class*='_tableToolsColumn_'] > [class*='_iconButton_']:hover {
+  background: color-mix(in srgb, var(--delete-red) 14%, transparent);
+  color: var(--delete-red);
+}
+
+.plan-block-editor .plan-editor-content > * > [data-editor-entry] > :is(.plan-editor-head, .plan-dt-card > .plan-dt-head) > .plan-editor-remove:disabled { color: var(--muted); }
+
+/*
+ * A markdown table open in its editor reads as the page draws it (.rich-table): a card with a
+ * hairline edge and a 12px radius, a tinted header row in steel, rules between rows only, and the
+ * page's type. Its row and column handles and its + bars sit outside the card.
+ */
+.plan-block-editor { --page-font: var(--font-body); }
+
+.plan-block-editor [class*='_tableEditor_'] {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.plan-block-editor .plan-editor-content [class*='_tableEditor_'] > tbody > tr > :is(td, th):not([data-tool-cell]):not([class*='_toolCell_']) {
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--page-font);
+  font-weight: 400;
+  outline: none;
+}
+
+.plan-block-editor .plan-editor-content [class*='_tableEditor_'] > tbody > tr > :is(td, th):nth-child(1 of :not([data-tool-cell]):not([class*='_toolCell_'])) {
+  border-left: 1px solid var(--hairline);
+}
+
+.plan-block-editor .plan-editor-content [class*='_tableEditor_'] > tbody > tr > :is(td, th):nth-last-child(1 of :not([data-tool-cell]):not([class*='_toolCell_'])) {
+  border-right: 1px solid var(--hairline);
+}
+
+.plan-block-editor .plan-editor-content [class*='_tableEditor_'] > tbody > tr:first-child > :is(td, th):not([data-tool-cell]):not([class*='_toolCell_']) {
+  border-top: 1px solid var(--hairline);
+  background: var(--data-head-bg);
+  color: var(--steel);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Room for the delete in the header row's last cell. */
+.plan-block-editor .plan-editor-content [class*='_tableEditor_'] > tbody > tr:first-child > :is(td, th):nth-last-child(1 of :not([data-tool-cell]):not([class*='_toolCell_'])) {
+  padding-right: 40px;
+}
+
+.plan-block-editor .plan-editor-content [class*='_tableEditor_'] > tbody > tr:last-child > :is(td, th):not([data-tool-cell]):not([class*='_toolCell_']) {
+  border-bottom-color: var(--hairline);
+}
+
+.plan-block-editor .plan-editor-content [class*='_tableEditor_'] > tbody > tr:first-child > :is(td, th):nth-child(1 of :not([data-tool-cell]):not([class*='_toolCell_'])) { border-top-left-radius: 12px; }
+.plan-block-editor .plan-editor-content [class*='_tableEditor_'] > tbody > tr:first-child > :is(td, th):nth-last-child(1 of :not([data-tool-cell]):not([class*='_toolCell_'])) { border-top-right-radius: 12px; }
+.plan-block-editor .plan-editor-content [class*='_tableEditor_'] > tbody > tr:last-child > :is(td, th):nth-child(1 of :not([data-tool-cell]):not([class*='_toolCell_'])) { border-bottom-left-radius: 12px; }
+.plan-block-editor .plan-editor-content [class*='_tableEditor_'] > tbody > tr:last-child > :is(td, th):nth-last-child(1 of :not([data-tool-cell]):not([class*='_toolCell_'])) { border-bottom-right-radius: 12px; }
+
+/* Where the column has room beside it, the row handles and the add-column bar move out into it, so
+ * the card takes the table's own place and width, as on the page. */
+@media (min-width: 1100px) {
+  .plan-block-editor .plan-editor-content > * > [class*='_tableEditor_'] {
+    width: calc(100% + 64px);
+    max-width: none;
+    margin-left: -32px;
+  }
+}
+
+/* The table's delete sits in the tool cell over its last column, whose bottom left corner is the
+ * card's top right corner: it moves just inside that corner. */
+.plan-block-editor [class*='_tableEditor_'] > thead th[class*='_tableToolsColumn_'] { position: relative; }
+
+.plan-block-editor [class*='_tableEditor_'] > thead th[class*='_tableToolsColumn_'] > [class*='_iconButton_'] {
+  position: absolute;
+  z-index: 1;
+  top: calc(100% + 8px);
+  right: calc(100% + 8px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
 
 /* No focus ring in a block's editor for now: a field with the caret shows it by its border alone. */
 .plan-block-editor :is(input, textarea, select, .plan-editor-input):is(:focus, :focus-visible) { outline: none; }

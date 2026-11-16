@@ -458,16 +458,24 @@ test('text in a phase has + under it, which adds a block below it in the phase w
   await expect(editor(page)).toHaveCount(0)
 })
 
-test('+ stays inside a narrow gap, and the gap under open text shows no bar', async ({ page }) => {
+test('every + bar has the same size, a narrow gap included, and the gap under open text shows no bar', async ({ page }) => {
   await openPlan(page)
-  // A heading sits close over its list: the bar is thinner there and never covers the list.
+  // A heading sits close over its list: the bar keeps its size, centered on the gap, and takes no
+  // clicks past its own edges there.
   const heading = rendered(page).locator('> h2')
   await heading.hover()
   await expect(addBar(page)).toHaveAttribute('data-visible', '')
+  await expect(addBar(page)).toHaveAttribute('data-tight', '')
   const [bar, above, below] = [await addBar(page).boundingBox(), await heading.boundingBox(), await rendered(page).locator('> h2 + *').boundingBox()]
   if (!bar || !above || !below) throw new Error('no bar or blocks on screen')
-  expect(bar.y).toBeGreaterThanOrEqual(above.y + above.height - 0.5)
-  expect(bar.y + bar.height).toBeLessThanOrEqual(below.y + 0.5)
+  expect(bar.height).toBe(16)
+  const gapMiddle = (above.y + above.height + below.y) / 2
+  expect(Math.abs(bar.y + bar.height / 2 - gapMiddle)).toBeLessThan(1)
+  // Under a table, where there is room, the same 16px bar.
+  const table = rendered(page).locator('.rich-table')
+  await table.hover({ position: { x: 20, y: 10 } })
+  await expect(addBar(page)).not.toHaveAttribute('data-tight', '')
+  expect((await addBar(page).boundingBox())?.height).toBe(16)
 
   // Text open in its editor: the gap under it is its own, with no bar for the block above it.
   const intro = rendered(page).locator('> p[data-plan-block]').first()
@@ -477,6 +485,33 @@ test('+ stays inside a narrow gap, and the gap under open text shows no bar', as
   await page.mouse.move(open.x + 100, open.y + open.height + 3)
   await page.waitForTimeout(400)
   await expect(addBar(page)).not.toHaveAttribute('data-visible', '')
+  await page.keyboard.press('Escape')
+  await expect(editor(page)).toHaveCount(0)
+})
+
+test("a pipe table open in its editor is a card like the page's, with a small red delete inside its top right corner", async ({ page }) => {
+  await openPlan(page)
+  const table = rendered(page).locator('.rich-table')
+  await table.scrollIntoViewIfNeeded()
+  const read = await table.boundingBox()
+  await table.hover({ position: { x: 20, y: 10 } })
+  await page.locator('[data-plan-block-edit]').click()
+  const open = editor(page).locator('[class*="_tableEditor_"]')
+  await expect(open).toBeVisible()
+  const cells = open.locator('tbody > tr:first-child > :is(td, th):not([data-tool-cell]):not([class*="_toolCell_"])')
+  const [first, last] = [await cells.first().boundingBox(), await cells.last().boundingBox()]
+  if (!read || !first || !last) throw new Error('no table on screen')
+  // The card takes the table's own place and width; its handles sit outside it.
+  expect(Math.abs(first.x - read.x)).toBeLessThan(1)
+  expect(Math.abs(last.x + last.width - (read.x + read.width))).toBeLessThan(1)
+  const style = await cells.first().evaluate((node) => ({ radius: getComputedStyle(node).borderTopLeftRadius, family: getComputedStyle(node).fontFamily }))
+  expect(style.radius).toBe('12px')
+  expect(style.family).toContain('DM Sans')
+  const remove = open.getByTitle('Delete table')
+  await expect(remove).toBeVisible()
+  expect(await remove.evaluate((node) => [getComputedStyle(node).color, getComputedStyle(node).opacity])).toEqual(['rgb(239, 77, 62)', '1'])
+  const trash = await remove.boundingBox()
+  expect(trash && trash.x + trash.width <= last.x + last.width && trash.y >= last.y && trash.y + trash.height <= last.y + last.height).toBe(true)
   await page.keyboard.press('Escape')
   await expect(editor(page)).toHaveCount(0)
 })

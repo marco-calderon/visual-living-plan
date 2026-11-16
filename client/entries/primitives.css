@@ -2043,8 +2043,8 @@ body:not([data-plan-editable="true"]) .plan-block-tools { display: none; }
     background-color 120ms var(--ease-out);
 }
 
-/* A taller target than the bar, still inside the gap. In a narrow gap the bar is thinner (its
- * height is set with its place) and takes no clicks past its edges, so the next block keeps them. */
+/* A taller target than the bar, still inside the gap. Every bar has the same size, the size of a
+ * table's add-row bar; in a narrow gap it takes no clicks past its own edges. */
 .plan-add-bar::before {
   content: '';
   position: absolute;
@@ -2054,7 +2054,6 @@ body:not([data-plan-editable="true"]) .plan-block-tools { display: none; }
 .plan-add-bar[data-tight]::before { inset: 0; }
 
 .plan-add-bar svg { flex: none; width: 12px; height: 12px; }
-.plan-add-bar[data-tight] svg { width: 8px; height: 8px; }
 
 /* The phase's bar says where it adds, so it reads apart from the bar of the block above it. */
 .plan-add-bar-label {
@@ -2063,8 +2062,6 @@ body:not([data-plan-editable="true"]) .plan-block-tools { display: none; }
   font-size: 11px;
   line-height: 1;
 }
-
-.plan-add-bar[data-tight] .plan-add-bar-label { display: none; }
 
 /* A finger gets more room to hit the bar, where the gap has it. */
 @media (pointer: coarse) {
@@ -2226,6 +2223,8 @@ body:not([data-plan-editable="true"]) :is(.plan-block-move, .plan-block-move-men
   gap: var(--space-xs);
   width: 100%;
   margin-top: var(--space-xl);
+  /* Room under it, so the end of the plan does not sit on the window's edge. */
+  margin-bottom: var(--space-xxl);
   padding: var(--space-xs) var(--space-sm);
   border: 1px dashed var(--hairline-strong);
   border-radius: var(--radius);

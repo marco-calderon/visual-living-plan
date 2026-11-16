@@ -240,6 +240,8 @@ test('+ under a card opens an empty line below it, as text reads, with the / hin
 
 test('Add a block at the end opens an empty line there, clearing a paragraph takes it out, and the grip deletes a diagram', async ({ page }) => {
   await openPlan(page)
+  // The end of the plan keeps room under Add a block.
+  expect(await page.locator('[data-plan-add-block]').evaluate((node) => getComputedStyle(node).marginBottom)).toBe('32px')
   await page.locator('[data-plan-add-block]').click()
   await expect(page.locator('[data-plan-block-editor="add"]')).toHaveAttribute('data-inline', '')
   await page.keyboard.type('A closing note.')
@@ -286,13 +288,19 @@ test('E edits the block with focus, or the text under the pointer, and typing an
   await expect(open).toBeVisible()
   await expect(open.locator('[data-editor-entry="choice"]')).toBeVisible()
   // Only the card's own editor: no frame, no bar, no line under it, and the caret in its first field,
-  // with no focus ring. The card's own Remove is the grip's Delete; its options keep theirs.
+  // with no focus ring. The card's own delete is small and red, inside its top right corner; its
+  // options keep their quiet ones.
   await expect(open.getByLabel('Prompt')).toBeFocused()
   expect(await open.getByLabel('Prompt').evaluate((node) => getComputedStyle(node).outlineStyle)).toBe('none')
   await expect(open.locator('.plan-block-editor-bar')).toHaveCount(0)
   expect(await open.evaluate((node) => getComputedStyle(node).borderTopWidth)).toBe('0px')
   await expect(open.locator('[data-slash-hint]')).toHaveCount(0)
-  await expect(open.getByLabel('Remove choice')).toBeHidden()
+  const remove = open.getByLabel('Remove choice')
+  await expect(remove).toBeVisible()
+  expect(await remove.evaluate((node) => getComputedStyle(node).color)).toBe('rgb(239, 77, 62)')
+  const [trash, frame] = [await remove.boundingBox(), await open.locator('[data-editor-entry="choice"]').boundingBox()]
+  expect(trash && frame && trash.x + trash.width <= frame.x + frame.width && trash.x + trash.width > frame.x + frame.width - 60).toBe(true)
+  expect(trash && frame && trash.y >= frame.y && trash.y < frame.y + 40).toBe(true)
   await expect(open.getByLabel('Remove option').first()).toBeVisible()
   // Nothing typed yet: Escape closes it.
   await page.keyboard.press('Escape')

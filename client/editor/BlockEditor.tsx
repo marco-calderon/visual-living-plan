@@ -625,6 +625,33 @@ export function BlockEditor({
     return () => node.removeEventListener('keydown', onEscape, true)
   }, [])
 
+  // The editor itself renders once. MDXEditor updates every plugin on each of its renders, which hands
+  // a card's field with the caret its old value back, so a render of this wrapper (the editor shows,
+  // an error, busy) must not reach it. Its handlers read the latest state through refs.
+  const changedRef = useRef((value: string) => {
+    if (loaded.current === null || value === loaded.current) return
+    markDirty()
+  })
+  changedRef.current = (value: string) => {
+    if (loaded.current === null || value === loaded.current) return
+    markDirty()
+  }
+  const surfaceEditor = useMemo(
+    () => (
+      <MDXEditor
+        ref={editor}
+        className="plan-editor-surface"
+        contentEditableClassName="plan-document plan-ui plan-editor-content"
+        markdown={markdown}
+        plugins={plugins}
+        iconComponentFor={iconFor}
+        onChange={(value) => changedRef.current(value)}
+        onError={({ error }) => setMessage(`The editor could not read part of this block: ${error}`)}
+      />
+    ),
+    [markdown, plugins],
+  )
+
   const label = target.kind === 'cell' ? 'Edit cell' : target.kind === 'edit' ? 'Edit block' : 'New block'
   // The space the block keeps around it, so nothing moves when it opens. A new block holds a paragraph's height until its line is in.
   const place = margins ? { marginTop: margins.top, marginBottom: margins.bottom } : {}
@@ -645,19 +672,7 @@ export function BlockEditor({
       aria-busy={busy || undefined}
       style={{ ...place, minHeight: filled || staged ? undefined : height }}
     >
-      <MDXEditor
-        ref={editor}
-        className="plan-editor-surface"
-        contentEditableClassName="plan-document plan-ui plan-editor-content"
-        markdown={markdown}
-        plugins={plugins}
-        iconComponentFor={iconFor}
-        onChange={(value) => {
-          if (loaded.current === null || value === loaded.current) return
-          markDirty()
-        }}
-        onError={({ error }) => setMessage(`The editor could not read part of this block: ${error}`)}
-      />
+      {surfaceEditor}
       {/* The bar shows only when the edit cannot be kept as it is, so there is a way back. */}
       {message ? (
         <>
