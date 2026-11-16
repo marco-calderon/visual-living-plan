@@ -10,6 +10,13 @@ useOwnPlanServer(9492, 'watch', 'e2e/fixtures/inline-edit.plan.md')
 const rendered = (page: Page) => page.locator('[data-plan-rendered]')
 const tools = (page: Page) => page.locator('[data-plan-block-tools]')
 const editor = (page: Page) => page.locator('[data-plan-block-editor]')
+const addBar = (page: Page) => page.locator('[data-plan-block-add]')
+
+/** Discard asks once; the open editor goes with the rest. */
+async function discard(page: Page): Promise<void> {
+  await page.locator('[data-plan-discard]').click()
+  await page.locator('[data-plan-discard]').click()
+}
 
 async function openPlan(page: Page): Promise<void> {
   await page.goto('/')
@@ -127,7 +134,9 @@ test("a data table cell opens the table's editor with the caret in that cell", a
   await expect(content).toBeFocused()
   await page.keyboard.type('@')
   await expect(content).toHaveText('L@imits')
-  await page.locator('[data-plan-block-cancel]').click()
+  // The first key counts as a change to apply. Discard drops it, open table and all.
+  await expect(page.locator('[data-plan-apply-bar]')).toContainText('1 change not applied')
+  await discard(page)
   await expect(editor(page)).toHaveCount(0)
   await expect(page.locator('[data-plan-apply-bar]')).toHaveCount(0)
 })
@@ -423,26 +432,29 @@ test("paragraphs in a card's editor are spaced as paragraphs on the page", async
     return second!.getBoundingClientRect().top - first!.getBoundingClientRect().bottom
   })
   expect(Math.abs(gap - pageGap)).toBeLessThan(1)
-  await page.locator('[data-plan-block-cancel]').click()
+  await discard(page)
   await expect(editor(page)).toHaveCount(0)
 })
 
-test("text in a phase shows + alone, which adds a block below it in the phase without opening the phase", async ({ page }) => {
+test('text in a phase has + under it, which adds a block below it in the phase without opening the phase', async ({ page }) => {
   await openPlan(page)
   const phase = rendered(page).locator('[data-entry="phase"]')
   const text = phase.locator('p[data-plan-block]')
   await text.hover()
-  await expect(tools(page)).toHaveAttribute('data-add-only', '')
-  // On the way to the pill the pointer crosses the phase's own space: the pill stays the text's.
-  const pill = await tools(page).boundingBox()
-  if (!pill) throw new Error('no pill')
-  await page.mouse.move(pill.x + pill.width - 6, pill.y + pill.height / 2, { steps: 12 })
-  await expect(tools(page)).toHaveAttribute('data-add-only', '')
-  await page.locator('[data-plan-block-add]').click()
+  await expect(addBar(page)).toHaveAttribute('data-visible', '')
+  await expect(tools(page)).not.toHaveAttribute('data-visible', '', { timeout: 2_000 })
+  // On the way down to the bar the pointer crosses the phase's own space: the bar stays the text's.
+  const bar = await addBar(page).boundingBox()
+  if (!bar) throw new Error('no bar')
+  await page.mouse.move(bar.x + 40, bar.y + bar.height / 2, { steps: 8 })
+  await page.waitForTimeout(400)
+  expect(await addBar(page).boundingBox()).toEqual(bar)
+  await addBar(page).click()
   const added = phase.locator('[data-plan-block-editor="add"]')
   await expect(added).toBeVisible()
+  await expect(added).toHaveAttribute('data-inline', '')
   await expect(page.locator('[data-plan-block-editor]')).toHaveCount(1)
-  await page.locator('[data-plan-block-cancel]').click()
+  await page.keyboard.press('Escape')
   await expect(editor(page)).toHaveCount(0)
 })
 
@@ -457,7 +469,8 @@ test('a block open in its editor has one grip, the page\'s', async ({ page }) =>
   await page.waitForTimeout(300)
   await expect(open.locator(".plan-block-handles[data-level='root']")).toBeHidden()
   await expect(page.locator('[data-plan-block-move]')).toHaveAttribute('data-visible', '')
-  await page.locator('[data-plan-block-cancel]').click()
+  await page.keyboard.press('Escape')
+  await expect(editor(page)).toHaveCount(0)
 })
 
 test('the / menu adds a chip and a pill inside the text, and filtering does not open it again', async ({ page }) => {
@@ -487,7 +500,7 @@ test('the / menu adds a chip and a pill inside the text, and filtering does not 
   await expect(intro.locator('.plan-pill')).toHaveText('status')
 })
 
-test("a click on other text while a card's editor is open closes the editor and opens that text", async ({ page }) => {
+test("a press outside a card's editor closes it, and a click on other text opens that text", async ({ page }) => {
   await openPlan(page)
   const callout = rendered(page).locator('[data-entry="callout"]')
   await callout.scrollIntoViewIfNeeded()
@@ -495,9 +508,13 @@ test("a click on other text while a card's editor is open closes the editor and 
   await page.locator('[data-plan-block-edit]').click()
   await expect(editor(page)).toHaveAttribute('data-plan-block-editor', 'edit')
   await expect(editor(page)).not.toHaveAttribute('data-inline', '')
-  // A press outside the editor but not on a block (the page's margin) leaves it open.
+  // The card's editor has no Done: a press outside it, on the page's margin too, closes it.
   await page.mouse.click(5, 450)
-  await expect(editor(page)).toHaveCount(1)
+  await expect(editor(page)).toHaveCount(0)
+  await expect(page.locator('[data-plan-apply-bar]')).toHaveCount(0)
+  await callout.hover({ position: { x: 12, y: 12 } })
+  await page.locator('[data-plan-block-edit]').click()
+  await expect(editor(page)).toHaveAttribute('data-plan-block-editor', 'edit')
 
   const quote = rendered(page).locator('> blockquote')
   await quote.evaluate((node) => node.scrollIntoView({ block: 'center' }))
@@ -550,7 +567,7 @@ test("a card's Edit shows beside it while its text is open, and keeps that text'
   await page.locator('[data-plan-block-edit]').click()
   await expect(page.locator('[data-plan-block-editor="edit"]:not([data-inline])')).toBeVisible()
   await expect(editor(page).locator('.plan-editor-body')).toContainText('Typed.')
-  await page.locator('[data-plan-block-cancel]').click()
+  await page.keyboard.press('Escape')
   await expect(editor(page)).toHaveCount(0)
   await expect(note).toHaveText('Staff get the flag for a week first. Typed.')
 })

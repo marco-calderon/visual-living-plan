@@ -178,7 +178,7 @@ test('Keep the agent\'s drops the overlapping change and keeps the rest', async 
   await page.locator('[data-plan-add-block]').click()
   await expect(page.locator('[data-plan-block-editor="add"] [contenteditable="true"].plan-editor-content')).toBeFocused()
   await page.keyboard.type('A closing note from the person.')
-  await page.locator('[data-plan-block-done]').click()
+  await page.keyboard.press('Control+Enter')
   await expect(bar(page)).toContainText('2 changes not applied')
 
   await agentWrites((source) => source.replace("This living plan is the agent's status surface", 'This plan is where the agent reports'))

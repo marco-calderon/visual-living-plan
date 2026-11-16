@@ -69,7 +69,7 @@ async function openTable(page: Page): Promise<void> {
   await expect(tableEditor(page)).toBeVisible()
 }
 
-test('a data table opens as a grid, and Done with no change leaves the plan as it was', async ({ page }) => {
+test('a data table opens as a grid, and a press outside with no change leaves the plan as it was', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))
   await openTable(page)
@@ -92,7 +92,7 @@ test('a data table opens as a grid, and Done with no change leaves the plan as i
   // Looking around a cell changes nothing either.
   await cell(page, 0, 0).click()
   await table.locator('[data-dt-label]').click()
-  await page.locator('[data-plan-block-done]').click()
+  await page.mouse.click(5, 450)
   await expect(editor(page)).toHaveCount(0)
   await expect(page.locator('[data-plan-apply-bar]')).toHaveCount(0)
   expect(await planSource(page)).toBe(before)
@@ -112,7 +112,7 @@ test('a locked data table shows as it is and cannot be changed', async ({ page }
   await expect(locked.locator('[data-dt-add-row], [data-dt-add-column]')).toHaveCount(0)
   await expect(locked.locator('[data-dt-cell="0:0"] .plan-dt-cell-content')).toHaveAttribute('contenteditable', 'false')
   await expect(locked.locator('[data-dt-cell="0:0"]')).toHaveText('Keep as is')
-  await page.locator('[data-plan-block-cancel]').click()
+  await page.keyboard.press('Escape')
   await expect(editor(page)).toHaveCount(0)
 })
 
@@ -193,7 +193,8 @@ test('a column turns search on, a column goes, and a new one takes its id from i
   await cell(page, 0, 2).click()
   await page.keyboard.type('Friday')
 
-  await page.locator('[data-plan-block-done]').click()
+  // A press outside keeps the table's changes as one change to apply.
+  await page.mouse.click(5, 450)
   await expect(editor(page)).toHaveCount(0)
   await page.locator('[data-plan-apply]').click()
   await expect.poll(() => planSource(page)).toContain('id="due-date"')
@@ -231,7 +232,9 @@ test('the / menu adds a data table with two columns and one row', async ({ page 
   await expect(added).toBeVisible()
   await expect(added.locator('[data-dt-header]')).toHaveCount(2)
   await expect(added.locator('tbody tr[data-dt-row]')).toHaveCount(1)
-  await page.locator('[data-plan-block-done]').click()
+  // The line the editor keeps under the new table does not show, nor its / hint.
+  await expect(editor(page).locator('.plan-editor-content > p:last-child')).toBeHidden()
+  await page.mouse.click(5, 450)
   await expect(editor(page)).toHaveCount(0)
   await expect(page.locator('[data-plan-rendered] [data-plan-data-table]')).toHaveCount(before + 1)
   await expect(page.locator('[data-plan-rendered] [data-plan-data-table]').last()).toContainText('What this row holds.')

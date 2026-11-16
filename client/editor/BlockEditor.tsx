@@ -3,6 +3,7 @@ import {
   $createRangeSelectionFromDom,
   $getRoot,
   $getSelection,
+  $isDecoratorNode,
   $isParagraphNode,
   $isRangeSelection,
   $isTextNode,
@@ -11,7 +12,7 @@ import {
 } from 'lexical'
 import '@mdxeditor/editor/style.css'
 import { $isHeadingNode } from '@lexical/rich-text'
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { applyBlockEdit, applyCellEdit, blockEditorText, cellEditorText, samePlanSource, type BlockRange } from '../../src/planMdx/blockEdit.ts'
 import { remapBlockStart } from '../../src/planMdx/remarkBlockRanges.ts'
 import { planNotReadyReason } from '../../src/planReady.ts'
@@ -26,6 +27,7 @@ import './planEditor.css'
 /**
  * What the editor changes: one block of the plan, a new block after one (after the last when null),
  * or the text of one pipe table cell. Text opens `inline`: it keeps its look and place on the page.
+ * Every editor opens where its block sits with no frame and no bar: a card shows only its own editor.
  */
 export type BlockTarget =
   | { kind: 'edit'; range: BlockRange; inline?: boolean }
@@ -55,6 +57,15 @@ export type BlockEditorProps = {
   margins?: { top: string; bottom: string }
   /** The height of the text it stands in for, held until the editor's own text is in, so the page does not jump. */
   height?: number
+  /**
+   * The page still draws the block, right before this editor, until the editor's own text is in. The
+   * editor waits over it unseen (it takes the caret meanwhile), so opening a block never blanks it.
+   */
+  staged?: boolean
+  /** The editor's text is in: the page takes the block it stood over away, and the editor shows in its place. */
+  onShown?: () => void
+  /** Something was typed that is not kept yet: the page counts it among the changes to apply. */
+  onDirty?: (dirty: boolean) => void
 }
 
 /**
@@ -63,16 +74,17 @@ export type BlockEditorProps = {
  * the card's pill beside open text: its Edit and + finish the edit themselves, then act.
  */
 const EDITOR_POPUPS =
-  '.plan-slash-menu, .plan-block-handles, .plan-block-menu, .plan-insert-prompt, .mdxeditor-popup-container, [role="dialog"], [role="listbox"], [role="menu"], [data-plan-apply-bar], [data-plan-block-tools]'
+  '.plan-slash-menu, .plan-block-handles, .plan-block-menu, .plan-insert-prompt, .mdxeditor-popup-container, [role="dialog"], [role="listbox"], [role="menu"], [data-plan-apply-bar], [data-plan-block-tools], [data-plan-add-bar]'
 
 function insideEditor(surface: HTMLElement, target: EventTarget | null): boolean {
   return target instanceof Node && (surface.contains(target) || (target instanceof Element && target.closest(EDITOR_POPUPS) !== null))
 }
 
 /**
- * The editor adds an empty line after a heading, a list, or a quote, to type below it. Text edited
- * as it reads keeps no such line unless the caret is on it (Enter at the end made it), so the
- * blocks under the text stay where they were. Returns the cleanup.
+ * The editor adds an empty line after a heading, a list, or a quote, to type below it. A block edited
+ * where it sits keeps no such line unless the caret is on it (Enter at the end made it), so the
+ * blocks under it stay where they were. The line after a card stays (the editor puts it back), and
+ * planEditor.css hides it. Returns the cleanup.
  */
 function keepNoTrailingLine(content: HTMLElement): () => void {
   const editor = getNearestEditorFromDOMNode(content)
@@ -82,6 +94,7 @@ function keepNoTrailingLine(content: HTMLElement): () => void {
       const root = $getRoot()
       const last = root.getLastChild()
       if (root.getChildrenSize() < 2 || !$isParagraphNode(last) || last.getChildrenSize() > 0) return false
+      if ($isDecoratorNode(last.getPreviousSibling())) return false
       const selection = $getSelection()
       return !($isRangeSelection(selection) && selection.anchor.getNode().is(last))
     })
@@ -118,11 +131,64 @@ function placeOpeningCaret(surface: HTMLElement, caret: EditCaret, frames = 12):
   attempt(frames)
 }
 
+/** The fields a card's editor opens with the caret in: its first text field or nested editor. */
+const CARD_FIELDS =
+  'input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([disabled]), textarea:not([disabled]), [contenteditable="true"]'
+
+/** A card opens with the caret in its first field, so typing changes the card. Fields can appear a frame or two late. */
+function focusFirstField(surface: HTMLElement, frames = 12): void {
+  const content = surface.querySelector<HTMLElement>('.plan-editor-content')
+  const field = content
+    ? Array.from(content.querySelectorAll<HTMLElement>(CARD_FIELDS)).find((element) => element !== content && element.getClientRects().length > 0)
+    : undefined
+  if (!field) {
+    if (frames > 0) requestAnimationFrame(() => focusFirstField(surface, frames - 1))
+    else content?.focus({ preventScroll: true })
+    return
+  }
+  field.focus({ preventScroll: true })
+  if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+    const end = field.value.length
+    field.setSelectionRange(end, end)
+  }
+}
+
+/**
+ * Where the block an editor waits over is drawn: the element right before it, or for a table cell
+ * the cell's own box. The editor takes the width it will have in its place, its parent's.
+ */
+function standInBox(node: HTMLElement, cell: boolean): { top: number; left: number; width: number } | null {
+  const parent = node.parentElement
+  if (!parent) return null
+  const style = getComputedStyle(parent)
+  const box = parent.getBoundingClientRect()
+  const px = (value: string) => Number.parseFloat(value) || 0
+  const left = box.left + px(style.borderLeftWidth) + px(style.paddingLeft)
+  const width = parent.clientWidth - px(style.paddingLeft) - px(style.paddingRight)
+  if (cell) return { top: box.top + px(style.borderTopWidth) + px(style.paddingTop), left, width }
+  const before = node.previousElementSibling
+  return before ? { top: before.getBoundingClientRect().top, left, width } : null
+}
+
 /**
  * One block of the plan, open for editing where it sits on the page (ADR 0040). Done keeps the edit
  * on this device and shows it on the page; nothing reaches the plan until Apply changes.
  */
-export function BlockEditor({ source, target, commit, onCancel, caret, margins, height, closing = false, registerDone, blockRange }: BlockEditorProps) {
+export function BlockEditor({
+  source,
+  target,
+  commit,
+  onCancel,
+  caret,
+  margins,
+  height,
+  closing = false,
+  registerDone,
+  blockRange,
+  staged = false,
+  onShown,
+  onDirty,
+}: BlockEditorProps) {
   const editor = useRef<MDXEditorMethods>(null)
   const surface = useRef<HTMLDivElement>(null)
   // Text and table cells are edited as they read: no frame, no bar, and a click elsewhere is Done.
@@ -134,27 +200,66 @@ export function BlockEditor({ source, target, commit, onCancel, caret, margins, 
   const plugins = useMemo(planEditorPlugins, [])
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
-  const [confirmRemove, setConfirmRemove] = useState(false)
   const loaded = useRef<string | null>(null)
-  const [dirty, setDirty] = useState(false)
-  // The editor draws its text a frame or two after it mounts. Until then it holds the text's height.
-  const [filled, setFilled] = useState(height === undefined)
+  // Something was typed. Kept out of React state on purpose: a render of the editor while a card's
+  // field has the caret would hand that field its old value back (MDXEditor updates its plugins on
+  // every render), so a change is noted without one.
+  const dirty = useRef(false)
+  const onDirtyRef = useRef(onDirty)
+  onDirtyRef.current = onDirty
+  const closingNow = useRef(closing)
+  closingNow.current = closing
+  const markDirty = () => {
+    if (dirty.current || closingNow.current) return
+    dirty.current = true
+    // What was typed counts among the changes to apply from the first key, as the page shows it.
+    onDirtyRef.current?.(true)
+  }
+  const markDirtyRef = useRef(markDirty)
+  markDirtyRef.current = markDirty
+  // The editor draws its text a frame or two after it mounts (a card's fields a frame later still).
+  // Until then the page draws the block under it (`staged`), or the editor holds the text's height.
+  const [filled, setFilled] = useState(false)
   useEffect(() => {
     if (filled) return
     let frame = 0
-    let left = 12
+    let left = 20
+    let last = -1
     const check = () => {
-      const content = surface.current?.querySelector('.plan-editor-content')
-      if ((content && content.childElementCount > 0) || left <= 0) {
+      const content = surface.current?.querySelector<HTMLElement>('.plan-editor-content')
+      const tall = content && content.childElementCount > 0 ? content.getBoundingClientRect().height : -1
+      // Its text is in once it is drawn and kept its height for a frame.
+      if ((tall > 0 && tall === last) || left <= 0) {
         setFilled(true)
         return
       }
+      last = tall
       left -= 1
       frame = requestAnimationFrame(check)
     }
     frame = requestAnimationFrame(check)
     return () => cancelAnimationFrame(frame)
   }, [filled])
+  const shownRef = useRef(onShown)
+  shownRef.current = onShown
+  useEffect(() => {
+    if (filled && staged) shownRef.current?.()
+  }, [filled, staged])
+
+  // Waiting unseen over the block it stands in for: right where that block's text is, so the caret
+  // it takes is in view and the browser does not scroll to it.
+  useLayoutEffect(() => {
+    const node = surface.current
+    if (!staged || !node) return
+    node.style.removeProperty('--stage-top')
+    node.style.removeProperty('--stage-left')
+    const box = standInBox(node, target.kind === 'cell')
+    if (!box) return
+    const at = node.getBoundingClientRect()
+    node.style.setProperty('--stage-width', `${box.width}px`)
+    node.style.setProperty('--stage-top', `${box.top - at.top}px`)
+    node.style.setProperty('--stage-left', `${box.left - at.left}px`)
+  }, [staged, target.kind])
 
   useKeepTypingInView(surface)
 
@@ -162,6 +267,7 @@ export function BlockEditor({ source, target, commit, onCancel, caret, margins, 
   useEffect(() => {
     let stopTrailing = () => {}
     let stopped = false
+    let wait = 0
     const frame = requestAnimationFrame(() => {
       const node = surface.current
       loaded.current = editor.current?.getMarkdown() ?? null
@@ -170,8 +276,24 @@ export function BlockEditor({ source, target, commit, onCancel, caret, margins, 
       const opened = () => {
         if (!node) return
         const content = node.querySelector<HTMLElement>('.plan-editor-content')
-        if (inline && content && !stopped) stopTrailing = keepNoTrailingLine(content)
+        if (content && !stopped) stopTrailing = keepNoTrailingLine(content)
         if (at) placeOpeningCaret(node, at)
+      }
+      // A card opens with the caret in its first field, not on the line under it. Its editor draws a frame or two late.
+      if (!at) {
+        let left = 20
+        const card = () => {
+          const content = node?.querySelector<HTMLElement>('.plan-editor-content')
+          if (!node || stopped) return
+          if (!content) {
+            if (left-- > 0) wait = requestAnimationFrame(card)
+            return
+          }
+          stopTrailing = keepNoTrailingLine(content)
+          focusFirstField(node)
+        }
+        card()
+        return
       }
       editor.current?.focus(opened, {
         defaultSelection: 'rootEnd',
@@ -180,6 +302,7 @@ export function BlockEditor({ source, target, commit, onCancel, caret, margins, 
     })
     return () => {
       cancelAnimationFrame(frame)
+      cancelAnimationFrame(wait)
       stopped = true
       stopTrailing()
     }
@@ -190,29 +313,35 @@ export function BlockEditor({ source, target, commit, onCancel, caret, margins, 
   useEffect(() => {
     const node = surface.current
     if (!node) return
-    const changed = () => {
-      setConfirmRemove(false)
-      setDirty(true)
-    }
+    // Heard on the way down: a card's fields and cells keep their own events to themselves.
+    const changed = () => markDirtyRef.current()
     const focused = (event: FocusEvent) => releaseOuterCarets(event.target)
-    node.addEventListener('input', changed)
+    node.addEventListener('input', changed, true)
+    node.addEventListener('change', changed, true)
     node.addEventListener('focusin', focused)
     return () => {
-      node.removeEventListener('input', changed)
+      node.removeEventListener('input', changed, true)
+      node.removeEventListener('change', changed, true)
       node.removeEventListener('focusin', focused)
     }
   }, [])
 
+  // Kept or closed: nothing typed waits in this editor any more.
+  useEffect(() => {
+    if (closing && dirty.current) onDirtyRef.current?.(false)
+  }, [closing])
+  useEffect(() => () => onDirtyRef.current?.(false), [])
+
   // Typing that is not Done yet lives only in this editor. Leaving the page asks first.
   useEffect(() => {
-    if (!dirty) return
     const warn = (event: BeforeUnloadEvent) => {
+      if (!dirty.current || closingNow.current) return
       event.preventDefault()
       event.returnValue = ''
     }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
-  }, [dirty])
+  }, [])
 
   async function finish(edited: string, follow?: EditFollow) {
     setMessage(null)
@@ -364,9 +493,10 @@ export function BlockEditor({ source, target, commit, onCancel, caret, margins, 
       return root.getChildrenSize() === 1 && ($isParagraphNode(first) || $isHeadingNode(first)) && first.getChildrenSize() === 0
     })
     if (!empty) return false
-    // The blocks beside this one, as the page draws them now.
-    const above = blockBeside(node, -1)
-    const below = above ? null : blockBeside(node, 1)
+    // The blocks beside this one, as the page draws them now (not the block it still waits over).
+    const own = target.kind === 'edit' ? `${target.range.start}-${target.range.end}` : null
+    const above = blockBeside(node, -1, own)
+    const below = above ? null : blockBeside(node, 1, own)
     const next = target.kind === 'edit' ? applyBlockEdit(source, { kind: 'replace', range: target.range, edited: '' }) : source
     const neighbour = above ?? below
     const start = neighbour ? Number(/^(\d+)-/.exec(neighbour.dataset.planBlock ?? neighbour.dataset.planText ?? '')?.[1]) : Number.NaN
@@ -421,10 +551,11 @@ export function BlockEditor({ source, target, commit, onCancel, caret, margins, 
     return () => node.removeEventListener('keydown', onEnter, true)
   }, [target.kind, inline])
 
-  // Inline text has no Done button: a click or a Tab out of it is Done. Menus it opens are still part of it.
+  // No editor has a Done button: a press or a Tab out of it is Done, and keeps what was typed as one
+  // more change to apply. Menus it opens are still part of it.
   useEffect(() => {
     const node = surface.current
-    if (!inline || !node || closing) return
+    if (!node || closing) return
     const outside = (event: MouseEvent) => {
       if (insideEditor(node, event.target)) return false
       // The window's scrollbar is not the page.
@@ -450,55 +581,32 @@ export function BlockEditor({ source, target, commit, onCancel, caret, margins, 
       document.removeEventListener('click', onTap, true)
       node.removeEventListener('focusout', onFocusOut)
     }
-  }, [inline, closing])
+  }, [closing])
 
-  // A framed editor (a card's) keeps its place for presses on its menus, the toolbar, or the page
-  // around it, but a press on another block of the plan finishes it, as a click outside text does:
-  // the focus goes where the press went, and that text opens or that card shows its Edit.
+  // Escape closes menus first. With nothing typed, it also closes the editor; otherwise it keeps what
+  // was typed. Heard on the way down, since a card's fields keep their keys to themselves, and acted
+  // on once the key has gone through, so a menu inside that took it keeps it.
+  const escapeRef = useRef(() => {})
+  escapeRef.current = () => {
+    if (!dirty.current) onCancel()
+    else onDone()
+  }
   useEffect(() => {
     const node = surface.current
-    if (inline || !node || closing) return
-    const onAnotherBlock = (event: MouseEvent) => {
-      const target = event.target
-      if (!(target instanceof Element) || insideEditor(node, target) || !target.closest('[data-plan-rendered]')) return false
-      return target.closest('[data-plan-block], [data-plan-text], [data-plan-title]') !== null
+    if (!node) return
+    const onEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.isComposing || document.querySelector('.plan-slash-menu')) return
+      window.setTimeout(() => {
+        if (!event.defaultPrevented && node.isConnected) escapeRef.current()
+      }, 0)
     }
-    const onPointerDown = (event: PointerEvent) => {
-      if (!isTouchPointer(event) && onAnotherBlock(event)) doneRef.current()
-    }
-    const onTap = (event: MouseEvent) => {
-      if (isTap(event) && onAnotherBlock(event)) doneRef.current()
-    }
-    document.addEventListener('pointerdown', onPointerDown, true)
-    document.addEventListener('click', onTap, true)
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown, true)
-      document.removeEventListener('click', onTap, true)
-    }
-  }, [inline, closing])
-
-  function onRemove() {
-    if (!confirmRemove) {
-      setConfirmRemove(true)
-      return
-    }
-    void finish('')
-  }
-
-  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    // Escape closes menus first. With nothing typed, it also closes the editor; inline text keeps what was typed.
-    if (event.key === 'Escape' && !event.defaultPrevented && !document.querySelector('.plan-slash-menu')) {
-      if (!dirty) {
-        event.preventDefault()
-        onCancel()
-      } else if (inline) {
-        event.preventDefault()
-        onDone()
-      }
-    }
-  }
+    node.addEventListener('keydown', onEscape, true)
+    return () => node.removeEventListener('keydown', onEscape, true)
+  }, [])
 
   const label = target.kind === 'cell' ? 'Edit cell' : target.kind === 'edit' ? 'Edit block' : 'New block'
+  // The space the block keeps around it, so nothing moves when it opens. A new block holds a paragraph's height until its line is in.
+  const place = margins ? { marginTop: margins.top, marginBottom: margins.bottom } : {}
 
   return (
     <div
@@ -506,6 +614,7 @@ export function BlockEditor({ source, target, commit, onCancel, caret, margins, 
       data-plan-block-editor={target.kind}
       data-inline={inline ? '' : undefined}
       data-closing={closing ? '' : undefined}
+      data-staged={staged ? '' : undefined}
       data-plan-edit-block={blockRange}
       // Kept on screen as it is until the page draws the edit, with nothing left to type into.
       inert={closing || undefined}
@@ -513,12 +622,7 @@ export function BlockEditor({ source, target, commit, onCancel, caret, margins, 
       role="group"
       aria-label={label}
       aria-busy={busy || undefined}
-      onKeyDown={onKeyDown}
-      style={
-        inline && margins
-          ? { marginTop: margins.top, marginBottom: margins.bottom, minHeight: filled ? undefined : height }
-          : undefined
-      }
+      style={{ ...place, minHeight: filled || staged ? undefined : height }}
     >
       <MDXEditor
         ref={editor}
@@ -529,53 +633,45 @@ export function BlockEditor({ source, target, commit, onCancel, caret, margins, 
         iconComponentFor={iconFor}
         onChange={(value) => {
           if (loaded.current === null || value === loaded.current) return
-          setConfirmRemove(false)
-          setDirty(true)
+          markDirty()
         }}
         onError={({ error }) => setMessage(`The editor could not read part of this block: ${error}`)}
       />
+      {/* The bar shows only when the edit cannot be kept as it is, so there is a way back. */}
       {message ? (
-        <p className="host-error" role="alert">
-          {message}
-        </p>
+        <>
+          <p className="host-error" role="alert">
+            {message}
+          </p>
+          <div className="plan-block-editor-bar" role="toolbar" aria-label={label}>
+            <span className="plan-editor-actions">
+              <Button variant="secondary" onClick={() => onCancel()} disabled={busy} data-plan-block-cancel="">
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={onDone} disabled={busy} data-plan-block-done="">
+                {busy ? 'Saving…' : 'Done'}
+              </Button>
+            </span>
+          </div>
+        </>
       ) : null}
-      {/* Inline text shows its bar only when the edit cannot be kept as it is, so there is a way back. */}
-      {inline && !message ? null : (
-      <div className="plan-block-editor-bar" role="toolbar" aria-label={label}>
-        <span className="plan-block-editor-hint">
-          <kbd>/</kbd> adds a block · <kbd>{isMac() ? '⌘' : 'Ctrl'}</kbd>
-          <kbd>↵</kbd> Done
-        </span>
-        <span className="plan-editor-actions">
-          {target.kind === 'edit' && !inline ? (
-            <Button variant="ghost" className="plan-block-editor-remove" onClick={onRemove} disabled={busy} data-plan-block-remove="">
-              {confirmRemove ? 'Remove this block?' : 'Remove'}
-            </Button>
-          ) : null}
-          <Button variant="secondary" onClick={() => onCancel()} disabled={busy} data-plan-block-cancel="">
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={onDone} disabled={busy} data-plan-block-done="">
-            {busy ? 'Saving…' : 'Done'}
-          </Button>
-        </span>
-      </div>
-      )}
     </div>
   )
 }
 
 /**
  * The block drawn right above (`-1`) or below (`1`) an editor that stands in for one, at its level:
- * a block of the plan or text in a card. The plan header's eyebrow and facts are not blocks.
+ * a block of the plan or text in a card. The plan header's eyebrow and facts are not blocks, nor is
+ * the block at `own`, which the page still draws while the editor opens over it.
  */
-function blockBeside(editor: HTMLElement, direction: -1 | 1): HTMLElement | null {
+function blockBeside(editor: HTMLElement, direction: -1 | 1, own: string | null): HTMLElement | null {
   for (
     let next = direction < 0 ? editor.previousElementSibling : editor.nextElementSibling;
     next;
     next = direction < 0 ? next.previousElementSibling : next.nextElementSibling
   ) {
     if (!(next instanceof HTMLElement) || next.matches('[data-plan-head]')) continue
+    if (own !== null && (next.dataset.planBlock ?? next.dataset.planText) === own) continue
     if (next.matches('[data-plan-block], [data-plan-text]')) return next
   }
   return null
@@ -593,8 +689,4 @@ function caretAtStart(content: HTMLElement): boolean {
     return false
   }
   return range.toString().trim() === ''
-}
-
-function isMac(): boolean {
-  return typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
 }

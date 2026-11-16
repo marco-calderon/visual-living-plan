@@ -1128,64 +1128,54 @@
 
 .plan-block-editor {
   position: relative;
-  gap: var(--space-xs);
-  margin-block: var(--space-sm);
-  padding: var(--space-sm) var(--space-sm) var(--space-xs);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
-  background: var(--canvas);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+  /* No frame and no ring: a block opens as its own editor where it sits. The page passes its margins. */
+  margin-block: 0;
 }
 
-/* A block is short: no room held for a page, and less room under the last + bar. */
+/* No gutter for a grip (the page's grip stands beside the block) and no room held under it. */
 .plan-block-editor .plan-editor-content {
-  min-height: 2.5rem;
-  padding-bottom: var(--space-lg);
+  min-height: 0;
+  padding: 0;
 }
 
-/* Done stays in reach on a tall block: the bar sticks to the bottom of the window. */
+.plan-block-editor .plan-editor-content > :first-child,
+.plan-block-editor .plan-editor-content > :first-child > :first-child { margin-top: 0; }
+.plan-block-editor .plan-editor-content > :last-child,
+.plan-block-editor .plan-editor-content > :last-child > :last-child { margin-bottom: 0; }
+
+/* The editor keeps a line after a card to type below it. A block edited where it sits does not show
+ * it, nor its "Type / to add a block": + under the block adds the next one. */
+.plan-block-editor .plan-editor-content > :not(p) + p:last-child:has(> br:only-child) { display: none; }
+.plan-block-editor .plan-editor-content > :nth-last-child(2):not(p) { margin-bottom: 0; }
+.plan-block-editor .plan-block-add { display: none !important; }
+
+/* Opening: the page still draws the block, and the editor waits over it unseen until its own text is
+ * in (client/editor/BlockEditor.tsx sets the place), so the block never blanks for a frame. */
+.plan-block-editor[data-staged] {
+  position: absolute;
+  width: var(--stage-width, 100%);
+  margin: var(--stage-top, 0) 0 0 var(--stage-left, 0) !important;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Only an edit that does not render shows a bar under the block, so there is a way back. */
 .plan-block-editor-bar {
-  position: sticky;
-  z-index: 7;
-  bottom: var(--space-xs);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: var(--space-xs);
-  padding: var(--space-xs) 0 0;
-  border-top: 1px solid var(--line);
-  background: var(--canvas);
+  margin-top: var(--space-xs);
 }
-
-.plan-block-editor-hint {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.plan-block-editor-hint kbd {
-  padding: 0 5px;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  font-family: inherit;
-  font-size: 11px;
-}
-
-.plan-block-editor-hint kbd + kbd { margin-left: 2px; }
-
-.plan-block-editor .plan-block-editor-remove { color: var(--danger); }
 
 /* Text edited as it reads (a paragraph, a heading, a list, a quote, a table cell): the editor takes
- * the text's own place and look. No frame, no gutter, no bar; a faint wash says it is being edited.
- * The wash spreads past the text with a shadow, so the text itself does not move. */
+ * the text's own place and look. No frame, no gutter, no bar, and no wash: it reads as the page. */
 .plan-block-editor[data-inline] {
-  --inline-wash: color-mix(in srgb, var(--accent) 7%, transparent);
   gap: 0;
   padding: 0;
   border: 0;
-  border-radius: 2px;
-  background: var(--inline-wash);
-  box-shadow: 0 0 0 4px var(--inline-wash);
+  background: transparent;
   /* The page passes the text's own margins; a table cell has none. */
   margin-block: 0;
 }
@@ -1209,16 +1199,10 @@
 
 /* The page passes the space the text keeps around it (its margins and its first and last child's,
  * collapsed), so the editor's own outer margins are off. Lists and quotes read as the page draws them. */
-.plan-block-editor[data-inline] .plan-editor-content > :first-child,
-.plan-block-editor[data-inline] .plan-editor-content > :first-child > :first-child { margin-top: 0; }
-.plan-block-editor[data-inline] .plan-editor-content > :last-child,
-.plan-block-editor[data-inline] .plan-editor-content > :last-child > :last-child { margin-bottom: 0; }
 .plan-block-editor[data-inline] .plan-editor-content li { margin-block: 0; }
 .plan-block-editor[data-inline] .plan-editor-content blockquote { padding-left: 0; border-left: 0; }
 
 .plan-block-editor[data-inline] :is(.plan-block-handles, .plan-block-add) { display: none !important; }
-
-.plan-block-editor[data-inline] .plan-block-editor-bar { margin-top: var(--space-xs); }
 
 /* A table cell's editor keeps its text's line. */
 :is(td, th) > .plan-block-editor[data-inline],
@@ -1232,7 +1216,6 @@
 }
 
 @media (max-width: 600px) {
-  .plan-block-editor-hint { display: none; }
   .plan-block-editor-bar .plan-editor-actions { width: 100%; }
 }
 
