@@ -21,7 +21,9 @@ Adding and editing blocks feels like writing on the page. + sits under every blo
 
 - Text and titles open with no blue wash: they read exactly as the page draws them.
 - A card's Edit opens only the card's editor where the card was, with the caret in its first field and no focus ring. The frame, its focus ring, the "Type / to add a block" line under the card, and the bar with Remove, Cancel, and Done are gone. The card's delete is a small red trash inside its top right corner. A press or a Tab outside keeps the edit; Escape closes it.
-- A table opens in its editor as the same card it reads as on the page: rounded edge, tinted header, rules between rows, the page's font, and its delete as a small red trash inside the top right corner.
+- A table opens in its editor as the same card it reads as on the page, in the same place with no space over it: rounded edge, tinted header, rules between rows, the same column widths, the page's font, and its delete as a small red trash inside the top right corner. A column's menu shows over its header on hover.
+- While a table or a data table is open, + to add a row and + to add a column show the whole time, the same size as + under a block.
+- Opening a card no longer pulls the block under it up.
 - Add a block at the end of the plan keeps room under it.
 - The first change in an open editor shows in the bar of unapplied changes at once ("1 change not applied"). Apply changes saves it with the rest; Discard drops it.
 - The Edit pill holds Edit alone. Text has no pill; a click opens it.

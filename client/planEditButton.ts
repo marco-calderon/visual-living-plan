@@ -377,6 +377,22 @@ export function paragraphAfter(block: Element): { margins: { top: string; bottom
   return { margins, height }
 }
 
+/**
+ * The space a card's editor keeps around it, so the blocks around it stay where they are while it is
+ * open: the card's own top margin, and the gap down to the block after it. That block's own margin can
+ * come from what precedes it (a heading after a card sits lower), which the editor in the card's place
+ * does not give it, so the editor holds the whole gap itself.
+ */
+export function cardMargins(block: Element): { top: string; bottom: string } {
+  const margins = marginsOf(block)
+  const next = block.nextElementSibling
+  if (next) {
+    const gap = next.getBoundingClientRect().top - block.getBoundingClientRect().bottom
+    if (gap >= 0) margins.bottom = `${gap}px`
+  }
+  return margins
+}
+
 /** How text keeps its place when it turns into its editor: its margins and its height. */
 function textPlace(element: Element): Pick<EditHow, 'margins' | 'height'> {
   return { margins: marginsOf(element), height: element.getBoundingClientRect().height }
@@ -706,7 +722,7 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     const range = target?.dataset.planBlock
     if (!target || !range || !barsUsable()) return
     if (action === 'edit') {
-      if (usable()) options.edit(range, { margins: marginsOf(target) })
+      if (usable()) options.edit(range, { margins: cardMargins(target) })
     } else options.add(range, addHow(target))
   }
   const onEdit = () => run('edit', block)
@@ -761,7 +777,7 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     )
     hide()
     if (!next?.dataset.planBlock) return
-    options.edit(next.dataset.planBlock, isTextBlock(next) ? { inline: true, ...textPlace(next) } : { margins: marginsOf(next) })
+    options.edit(next.dataset.planBlock, isTextBlock(next) ? { inline: true, ...textPlace(next) } : { margins: cardMargins(next) })
   }
   /** Where the caret goes for a click at x, y on `direct`. */
   const caretFor = (direct: DirectEdit, x: number, y: number): EditCaret | undefined => {
@@ -783,7 +799,7 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     // Text in a card has the place of its text; other text is a block of its own.
     const range = direct.kind === 'grid' ? direct.block.dataset.planBlock : (direct.element.dataset.planText ?? direct.element.dataset.planBlock)
     if (!range) return
-    if (direct.kind === 'grid') options.edit(range, { caret, margins: marginsOf(direct.block) })
+    if (direct.kind === 'grid') options.edit(range, { caret, margins: cardMargins(direct.block) })
     else options.edit(range, { inline: true, caret, ...textPlace(direct.element) })
   }
   const plainPress = (event: MouseEvent) =>
@@ -846,7 +862,7 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
       const range = action.block.dataset.planBlock
       if (!range) return
       if (action.action === 'edit') {
-        if (usable()) options.edit(range, { margins: marginsOf(action.block) })
+        if (usable()) options.edit(range, { margins: cardMargins(action.block) })
       } else options.add(range, addHow(action.block))
       return
     }

@@ -494,6 +494,8 @@ test("a pipe table open in its editor is a card like the page's, with a small re
   const table = rendered(page).locator('.rich-table')
   await table.scrollIntoViewIfNeeded()
   const read = await table.boundingBox()
+  // Where the table starts in the page, whatever the scroll.
+  const readTop = await table.evaluate((node) => node.getBoundingClientRect().top + window.scrollY)
   await table.hover({ position: { x: 20, y: 10 } })
   await page.locator('[data-plan-block-edit]').click()
   const open = editor(page).locator('[class*="_tableEditor_"]')
@@ -501,9 +503,11 @@ test("a pipe table open in its editor is a card like the page's, with a small re
   const cells = open.locator('tbody > tr:first-child > :is(td, th):not([data-tool-cell]):not([class*="_toolCell_"])')
   const [first, last] = [await cells.first().boundingBox(), await cells.last().boundingBox()]
   if (!read || !first || !last) throw new Error('no table on screen')
-  // The card takes the table's own place and width; its handles sit outside it.
+  // The card takes the table's own place and width, with no room over it; its handles sit outside it.
   expect(Math.abs(first.x - read.x)).toBeLessThan(1)
   expect(Math.abs(last.x + last.width - (read.x + read.width))).toBeLessThan(1)
+  const cardTop = await cells.first().evaluate((node) => node.getBoundingClientRect().top + window.scrollY)
+  expect(Math.abs(cardTop - readTop)).toBeLessThan(1)
   const style = await cells.first().evaluate((node) => ({ radius: getComputedStyle(node).borderTopLeftRadius, family: getComputedStyle(node).fontFamily }))
   expect(style.radius).toBe('12px')
   expect(style.family).toContain('DM Sans')
@@ -512,7 +516,23 @@ test("a pipe table open in its editor is a card like the page's, with a small re
   expect(await remove.evaluate((node) => [getComputedStyle(node).color, getComputedStyle(node).opacity])).toEqual(['rgb(239, 77, 62)', '1'])
   const trash = await remove.boundingBox()
   expect(trash && trash.x + trash.width <= last.x + last.width && trash.y >= last.y && trash.y + trash.height <= last.y + last.height).toBe(true)
-  await page.keyboard.press('Escape')
+
+  // + for a row under the card and + for a column right of it show the whole time, and add them.
+  await page.mouse.move(5, 450)
+  const addRow = open.locator('[class*="_addRowButton_"]')
+  const addColumn = open.locator('[class*="_addColumnButton_"]')
+  for (const bar of [addRow, addColumn]) expect(await bar.evaluate((node) => getComputedStyle(node).opacity)).toBe('1')
+  const row = await addRow.boundingBox()
+  expect(row && row.y >= last.y + last.height).toBe(true)
+  const rows = await open.locator(':scope > tbody > tr').count()
+  await addRow.click()
+  await expect(open.locator(':scope > tbody > tr')).toHaveCount(rows + 1)
+  const columns = await cells.count()
+  await addColumn.click()
+  await expect(cells).toHaveCount(columns + 1)
+  // A new, empty column still has room to type in.
+  expect((await cells.last().boundingBox())?.width ?? 0).toBeGreaterThan(60)
+  await discard(page)
   await expect(editor(page)).toHaveCount(0)
 })
 

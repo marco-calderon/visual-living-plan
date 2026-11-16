@@ -1224,9 +1224,78 @@
   font-weight: 600;
 }
 
-/* Room for the delete in the header row's last cell. */
+/* Columns take the widths the page gives them (MDXEditor fixes them equal), and a word is never split,
+ * as on the page: the same text wraps on the same words. The handle columns stay 32px either side. */
+.plan-block-editor .plan-editor-content > * > [class*='_tableEditor_'] { table-layout: auto; }
+.plan-block-editor .plan-editor-content > * > [class*='_tableEditor_'] > colgroup > col:is(:first-child, :last-child) { width: 32px; }
+.plan-block-editor .plan-editor-content > * > [class*='_tableEditor_'] > tbody > tr > [class*='_toolCell_'] { padding: 0; }
+.plan-block-editor .plan-editor-content [class*='_tableEditor_'] > tbody > tr > :is(td, th):not([data-tool-cell]):not([class*='_toolCell_']) [contenteditable] {
+  /* A new, empty column still has room to type in. */
+  min-width: 4em;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+/* The text in a cell takes its cell's type, so the header reads at 13px as on the page. */
+.plan-block-editor .plan-editor-content [class*='_tableEditor_'] > tbody > tr > :is(td, th):not([data-tool-cell]):not([class*='_toolCell_']) :is(div, p) {
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+}
+
+/* Room in the header row's last cell for the delete. A column's menu shows over its header cell's
+ * right end only while the table is pointed at, so the columns keep the widths they have on the page. */
 .plan-block-editor .plan-editor-content [class*='_tableEditor_'] > tbody > tr:first-child > :is(td, th):nth-last-child(1 of :not([data-tool-cell]):not([class*='_toolCell_'])) {
   padding-right: 40px;
+}
+
+/* The table opens where it reads: the row of column menus over the card and the row of the add-row
+ * bar under it take no room. Each column's menu sits in its header cell, at the right, while the
+ * table is pointed at or holds the caret; the add-row bar sits in the gap under the card, as + under
+ * a block does. */
+.plan-block-editor .plan-editor-content > * > [class*='_tableEditor_'] > :is(thead, tfoot) > tr > :is(th, td) {
+  position: relative;
+  height: 0;
+  padding: 0;
+  border: 0;
+  line-height: 0;
+}
+
+.plan-block-editor .plan-editor-content > * > [class*='_tableEditor_'] > thead [class*='_tableColumnEditorTrigger_'] {
+  position: absolute;
+  z-index: 1;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.plan-block-editor .plan-editor-content > * > [class*='_tableEditor_'] > thead [class*='_tableColumnEditorTrigger_'] svg { width: 18px; height: 18px; }
+
+.plan-block-editor .plan-editor-content > * > [class*='_tableEditor_']:is(:hover, :focus-within) > thead [class*='_tableColumnEditorTrigger_'],
+.plan-block-editor .plan-editor-content > * > [class*='_tableEditor_'] > thead [class*='_tableColumnEditorTrigger_']:is(:focus-visible, [data-state='open']) {
+  opacity: 1;
+}
+
+/* The last column's menu keeps clear of the table's delete. */
+.plan-block-editor .plan-editor-content > * > [class*='_tableEditor_'] > thead > tr > th:nth-last-child(2) > [class*='_tableColumnEditorTrigger_'] { right: 38px; }
+
+.plan-block-editor .plan-editor-content > * > [class*='_tableEditor_'] > tfoot [class*='_addRowButton_'] {
+  position: absolute;
+  top: 4px;
+  left: 0;
+  width: 100%;
+  margin: 0;
+}
+
+@media (hover: none) {
+  .plan-block-editor .plan-editor-content > * > [class*='_tableEditor_'] > thead [class*='_tableColumnEditorTrigger_'] { opacity: 1; }
 }
 
 .plan-block-editor .plan-editor-content [class*='_tableEditor_'] > tbody > tr:last-child > :is(td, th):not([data-tool-cell]):not([class*='_toolCell_']) {
@@ -1239,7 +1308,11 @@
 .plan-block-editor .plan-editor-content [class*='_tableEditor_'] > tbody > tr:last-child > :is(td, th):nth-last-child(1 of :not([data-tool-cell]):not([class*='_toolCell_'])) { border-bottom-right-radius: 12px; }
 
 /* Where the column has room beside it, the row handles and the add-column bar move out into it, so
- * the card takes the table's own place and width, as on the page. */
+ * the card takes the table's own place and width, as on the page. The plan column clips what reaches
+ * past it; while a block is open it does not, so those handles stay seen and pressable. The page
+ * itself still clips at the window's edges. */
+.shell:has([data-plan-block-editor]) { overflow-x: visible; }
+
 @media (min-width: 1100px) {
   .plan-block-editor .plan-editor-content > * > [class*='_tableEditor_'] {
     width: calc(100% + 64px);
@@ -1255,7 +1328,7 @@
 .plan-block-editor [class*='_tableEditor_'] > thead th[class*='_tableToolsColumn_'] > [class*='_iconButton_'] {
   position: absolute;
   z-index: 1;
-  top: calc(100% + 8px);
+  top: 6px;
   right: calc(100% + 8px);
   display: inline-flex;
   align-items: center;
@@ -1267,7 +1340,13 @@
 }
 
 /* No focus ring in a block's editor for now: a field with the caret shows it by its border alone. */
-.plan-block-editor :is(input, textarea, select, .plan-editor-input):is(:focus, :focus-visible) { outline: none; }
+.plan-block-editor .plan-editor-content :is(input, textarea, select, .plan-editor-input):is(:focus, :focus-visible) { outline: none; }
+.plan-block-editor .plan-editor-content .plan-dt-label:is(:focus, :focus-visible) { border-color: var(--focus); }
+
+/* + to add a row or a column shows the whole time a table is open, the same 16px bars as + under a
+ * block: a markdown table's under its card and right of it, a data table's inside its card. */
+.plan-block-editor .plan-dt-add,
+.plan-block-editor [class*='_tableEditor_'] :is([class*='_addRowButton_'], [class*='_addColumnButton_']) { opacity: 1; }
 
 /* Opening: the page still draws the block, and the editor waits over it unseen until its own text is
  * in (client/editor/BlockEditor.tsx sets the place), so the block never blanks for a frame. */

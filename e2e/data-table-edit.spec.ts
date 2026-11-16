@@ -72,7 +72,22 @@ async function openTable(page: Page): Promise<void> {
 test('a data table opens as a grid, and a press outside with no change leaves the plan as it was', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))
-  await openTable(page)
+  await page.goto('/')
+  await expect(page.locator('body')).toHaveAttribute('data-plan-editable', 'true')
+  const frame = page.locator('[data-plan-rendered] .plan-block-frame').filter({ has: page.locator('[data-plan-data-table]') }).first()
+  await expect(frame.locator('tbody tr')).toHaveCount(2)
+  // Where the table starts in the page, whatever the scroll.
+  const readTop = await frame.evaluate((node) => node.getBoundingClientRect().top + window.scrollY)
+  await page.locator('[data-plan-rendered] [data-plan-data-table]').first().hover()
+  await page.locator('[data-plan-block-edit]').click()
+  await expect(tableEditor(page)).toBeVisible()
+  // It opens where it reads, with no room over it, and + for a row and a column show the whole time.
+  const openedTop = await editor(page).evaluate((node) => node.getBoundingClientRect().top + window.scrollY)
+  expect(Math.abs(openedTop - readTop)).toBeLessThan(1)
+  await page.mouse.move(5, 450)
+  for (const bar of await tableEditor(page).locator('[data-dt-add-row], [data-dt-add-column]').all()) {
+    expect(await bar.evaluate((node) => getComputedStyle(node).opacity)).toBe('1')
+  }
   const before = await planSource(page)
   expect(before).toContain(OPERATIONS)
 
