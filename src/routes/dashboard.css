@@ -70,43 +70,12 @@ body {
   transform: scale(0.97);
 }
 
-.dashboard .lede,
 .dashboard .status {
   margin: 0;
   color: var(--muted);
   max-width: 72rem;
   font-size: 14px;
   line-height: 1.5;
-}
-
-.dashboard .stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 16px;
-  margin: 0;
-}
-
-.dashboard .stat {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 16px;
-}
-
-.dashboard .stat span {
-  display: block;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.dashboard .stat strong {
-  display: block;
-  margin-top: 0.25rem;
-  font-weight: 600;
-  color: var(--ink);
-  font-size: 1.7rem;
-  font-variant-numeric: tabular-nums;
 }
 
 .dashboard .table-wrap {
@@ -177,42 +146,6 @@ body {
   line-height: 1.4;
 }
 
-.dashboard .path {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.75rem;
-  overflow-wrap: break-word;
-}
-
-.dashboard .pill {
-  display: inline-flex;
-  height: auto;
-  border-radius: 999px;
-  padding: 0.15rem 0.5rem;
-  font-size: 0.78rem;
-  font-weight: 600;
-  background: var(--accent-soft);
-  color: var(--ink);
-}
-
-.dashboard .pill.active {
-  gap: 0.35rem;
-  align-items: center;
-}
-
-.dashboard .pill.active::before {
-  content: "";
-  width: 0.45rem;
-  height: 0.45rem;
-  border-radius: 50%;
-  background: #04b54b;
-}
-
-.dashboard .pill.idle {
-  background: transparent;
-  color: var(--muted);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--muted) 40%, transparent);
-}
-
 .dashboard .status-line {
   display: inline-flex;
   align-items: center;
@@ -220,7 +153,7 @@ body {
 }
 
 .dashboard .status-line + .sub {
-  white-space: nowrap;
+  margin-top: 6px;
 }
 
 .dashboard .agent-icon {
@@ -235,31 +168,6 @@ body {
 
 .dashboard .agent-icon.on {
   color: #04b54b;
-}
-
-.dashboard .pill.executed {
-  background: var(--good-soft);
-  color: var(--good);
-}
-
-.dashboard .pill.interrupted {
-  background: var(--warn-soft);
-  color: var(--warn);
-}
-
-.dashboard .meter {
-  width: 7.5rem;
-  height: 0.4rem;
-  border-radius: 999px;
-  background: var(--line);
-  overflow: hidden;
-  margin-bottom: 0.3rem;
-}
-
-.dashboard .meter span {
-  display: block;
-  height: 100%;
-  background: var(--accent);
 }
 
 .dashboard .num {
@@ -310,7 +218,7 @@ body {
     animation-delay: 80ms;
   }
 
-  .dashboard-live[data-shift='enter'] .stat,
+  .dashboard-live[data-shift='enter'] .dash-card,
   .dashboard-live[data-shift='enter'] tbody tr {
     animation: dashboard-enter 200ms var(--ease-out) both;
   }

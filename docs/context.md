@@ -39,6 +39,7 @@ The service and the private server are Elysia apps. Route handlers live in `src/
 | `src/planSearch.ts`, `src/searchMatch.ts` | Search one plan block by block (`GET /api/search` on the local session and on the plan's Durable Object), or every plan a dashboard lists by title and text (`GET /api/dashboard/search` locally, `GET /api/account/search` on the host). Live by default; saved versions only when `version` asks. Exact unless `fuzzy=on`, which the dashboards send |
 | `src/openUrl.ts` | Opens a page from the CLI or the terminal dashboard: in the Living Plan Mac app when it can show it, then in the installed Living Plan web app (Chrome, Edge, Brave, Chromium) when that origin has one, else a browser tab |
 | `src/dashboardLoading.ts` | Skeletons, the spinner, and the dimmed state both dashboards show while plans or search results load |
+| `src/dashboardOverview.ts`, `src/dashboardFormat.ts` | What both dashboards draw the same way: the Plans, Open now, and Work cards, the status bar and pills, the row details, their CSS and icons, and the text helpers. The local script inlines the helpers with `toString()`, so each stays self-contained |
 | `src/workflow.ts`, `src/execution.ts` | Expected workflow and the live execution overlay |
 | `client/` | React Flow canvas. It reads `window.__LIVE_PLAN_BASE__` and calls `/api/...` under that prefix |
 | `src/host/` | Worker session for `--cloud`: Better Auth, D1 plan rows, Elysia routes, and one SQLite Durable Object per plan |

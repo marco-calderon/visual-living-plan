@@ -1,27 +1,36 @@
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, isRedirect, redirect, useNavigate } from "@tanstack/react-router";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { planActivity, type DashboardPeriod, type DashboardSummary } from "../dashboard.ts";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { openQuestions, planActivity, type DashboardPeriod, type DashboardSummary } from "../dashboard.ts";
 import {
   agentLine,
   completionLabel,
   DASHBOARD_FILTERS,
   dashboardStatusLine,
+  durationPhrase,
   emptyPlansText,
   formatDuration,
   formatWhen,
+  outcomeLabel,
+  plansCountText,
+  progressDetail,
+  questionsText,
   safeHttpUrl,
+  startedText,
   statusLabel,
+  statusSegments,
   visiblePlans,
   type DashboardFilter,
 } from "../dashboardFormat.ts";
+import { agentSeenAgo } from "../agentPresence.ts";
+import { ACTIVITY_GLYPH_SVG, dashboardOverviewCss, OVERVIEW_CARDS, progressTone } from "../dashboardOverview.ts";
 import { Button } from "../../client/ui/button.tsx";
 import { HostBar } from "../HostBar.tsx";
 import { loadAccount, type AccountPayload } from "../planFns.ts";
 import type { PlanRecord } from "../processRecord.ts";
 import { PlanRowActions } from "./PlanRowActions.tsx";
 import { DashboardSearch } from "./DashboardSearch.tsx";
-import { dashboardLoadingCss, ROW_SKELETON_WIDTHS, STAT_SKELETONS } from "../dashboardLoading.ts";
+import { dashboardLoadingCss, ROW_SKELETON_WIDTHS } from "../dashboardLoading.ts";
 import { startOfflineEngine } from "../../client/offline/engine.ts";
 import { refreshDeviceDashboards } from "../../client/offline/warmPlans.ts";
 import { dashboardAccountDecision, isAccountNetworkFailure } from "../offlineSync.ts";
@@ -252,16 +261,26 @@ function DashboardPage() {
     ? `Loading ${PERIOD_PHRASE[period]}…`
     : offlineAt
       ? `Offline · updated ${formatWhen(offlineAt)}`
-      : error || (payload ? dashboardStatusLine(payload.summary, shown.length, filter) : "Loading plans…");
+      : error || (payload ? dashboardStatusLine(payload.summary) : "Loading plans…");
+  // Open plans first, then finished runs, each under its heading when both are shown.
+  const openPlans = shown.filter((plan) => plan.status === "running");
+  const finishedPlans = shown.filter((plan) => plan.status !== "running");
+  const groups: Array<{ label: string; plans: DashboardPlan[] }> =
+    openPlans.length && finishedPlans.length
+      ? [
+          { label: "Open", plans: openPlans },
+          { label: "Finished", plans: finishedPlans },
+        ]
+      : [{ label: "", plans: shown }];
 
   return (
     <>
       <HostBar title="Dashboard" label={account.user.name || account.user.email} />
-      <style dangerouslySetInnerHTML={{ __html: dashboardLoadingCss() }} />
+      <style dangerouslySetInnerHTML={{ __html: dashboardLoadingCss() + dashboardOverviewCss() }} />
       <main className="dashboard">
         <div className="dashboard-live" data-shift={switching ? "quiet" : shift}>
           <section className="dash-section" aria-label="Summary">
-            <div className="section-bar">
+            <div className="period-bar">
               <div className="tabs" role="group" aria-label="Summary period">
                 {PERIODS.map((item) => (
                   <Button
@@ -276,6 +295,10 @@ function DashboardPage() {
                   </Button>
                 ))}
               </div>
+              <div className="dash-status-row">
+                <p className="status">{status}</p>
+                {loading || switching ? <span className="dash-spinner" aria-hidden="true" /> : null}
+              </div>
               <Button
                 type="button"
                 variant="ghost"
@@ -289,29 +312,13 @@ function DashboardPage() {
               </Button>
             </div>
             <section
-              className={switching ? "stats dash-pending" : "stats"}
+              className={switching ? "dash-overview dash-pending" : "dash-overview"}
+              aria-label="Summary for the period"
               aria-live="polite"
               aria-busy={loading || switching || undefined}
             >
-              {loading ? (
-                <StatSkeletons />
-              ) : payload ? (
-                <>
-                  <Stat label="Active" value={String(payload.summary.active ?? 0)} />
-                  <Stat label="Idle" value={String(payload.summary.idle ?? payload.summary.running)} />
-                  <Stat label="Executed" value={String(payload.summary.executed)} />
-                  <Stat label="Interrupted" value={String(payload.summary.interrupted)} />
-                  <Stat label="Files modified" value={String(payload.summary.filesModified)} />
-                  <Stat label="Execution time" value={formatDuration(payload.summary.durationMs)} />
-                  <Stat label="Folders" value={String(payload.summary.folders)} />
-                </>
-              ) : null}
+              {loading ? <OverviewSkeletons /> : payload ? <Overview summary={payload.summary} /> : null}
             </section>
-            <p className="lede">{LEDE}</p>
-            <div className="dash-status-row">
-              <p className="status">{status}</p>
-              {loading || switching ? <span className="dash-spinner" aria-hidden="true" /> : null}
-            </div>
           </section>
           <section className="dash-section" aria-label="Plans">
             <div className="section-bar">
@@ -336,21 +343,28 @@ function DashboardPage() {
               aria-busy={loading || switching || undefined}
             >
               <table>
-                <caption>Plans</caption>
+                <caption>
+                  Plans
+                  {payload ? <span className="caption-count">{plansCountText(shown.length, plans.length, filter)}</span> : null}
+                </caption>
                 {/* Keyed by filter so each filter in a quick run fades its own rows in. */}
                 <thead key={`head-${filter}`}>
                   <tr>
                     <th scope="col">Plan</th>
                     <th scope="col">Status</th>
-                    <th scope="col">Completion</th>
+                    <th scope="col">Progress</th>
                     <th scope="col">Started</th>
-                    <th scope="col" />
+                    <th scope="col">
+                      <span className="dash-sr">Actions</span>
+                    </th>
                   </tr>
                 </thead>
-                <tbody key={`body-${filter}`}>
-                  {loading ? (
+                {loading ? (
+                  <tbody key={`body-${filter}`}>
                     <RowSkeletons />
-                  ) : !payload ? (
+                  </tbody>
+                ) : !payload ? (
+                  <tbody key={`body-${filter}`}>
                     <tr>
                       <td className="empty" colSpan={5}>
                         Could not read the dashboard.
@@ -359,21 +373,36 @@ function DashboardPage() {
                         </Button>
                       </td>
                     </tr>
-                  ) : shown.length === 0 ? (
+                  </tbody>
+                ) : shown.length === 0 ? (
+                  <tbody key={`body-${filter}`}>
                     <tr>
                       <td className="empty" colSpan={5}>
                         {emptyPlansText(filter, period)}
                       </td>
                     </tr>
-                  ) : (
-                    shown.map((plan) => (
-                      <PlanRow key={plan.id} plan={plan} offline={offline} onDelete={() => deletePlan(plan)} />
-                    ))
-                  )}
-                </tbody>
+                  </tbody>
+                ) : (
+                  groups.map((group) => (
+                    <tbody key={`body-${filter}-${group.label}`}>
+                      {group.label ? (
+                        <tr className="plan-group">
+                          <th scope="rowgroup" colSpan={5}>
+                            {group.label}
+                            <span>{group.plans.length}</span>
+                          </th>
+                        </tr>
+                      ) : null}
+                      {group.plans.map((plan) => (
+                        <PlanRow key={plan.id} plan={plan} offline={offline} onDelete={() => deletePlan(plan)} />
+                      ))}
+                    </tbody>
+                  ))
+                )}
               </table>
             </div>
           </section>
+          <p className="lede dash-footnote">{LEDE}</p>
         </div>
       </main>
     </>
@@ -386,14 +415,21 @@ function isAccountPayload(value: unknown): value is AccountPayload {
   return Boolean(user && typeof user.email === "string");
 }
 
-/** Placeholder cards while the first numbers load. The status line says what is loading. */
-function StatSkeletons() {
+/** Placeholder cards while the first numbers load, shaped like the summary cards. */
+function OverviewSkeletons() {
   return (
     <>
-      {Array.from({ length: STAT_SKELETONS }, (_, index) => (
-        <article className="stat stat-skeleton" aria-hidden="true" key={index}>
-          <span className="dash-skeleton" />
-          <span className="dash-skeleton" />
+      {Array.from({ length: OVERVIEW_CARDS }, (_, index) => (
+        <article
+          className={index === 0 ? "dash-card dash-card-skeleton dash-card-plans" : "dash-card dash-card-skeleton"}
+          aria-hidden="true"
+          key={index}
+        >
+          <span className="dash-skeleton skel-eyebrow" />
+          <span className="dash-skeleton skel-figure" />
+          {index === 0 ? <span className="dash-skeleton skel-bar" /> : null}
+          <span className="dash-skeleton skel-line" />
+          {index === 0 ? null : <span className="dash-skeleton skel-line" />}
         </article>
       ))}
     </>
@@ -406,7 +442,7 @@ function RowSkeletons() {
     <>
       {ROW_SKELETON_WIDTHS.map((width, index) => (
         <tr className="row-skeleton" aria-hidden="true" key={index}>
-          <td>
+          <td className="plan-cell">
             <span className="dash-skeleton skel-title" style={{ width: width.title }} />
             <span className="dash-skeleton skel-sub" style={{ width: width.sub }} />
             <span className="dash-skeleton skel-sub" style={{ width: width.path }} />
@@ -418,22 +454,115 @@ function RowSkeletons() {
             <span className="dash-skeleton skel-meter" />
             <span className="dash-skeleton skel-sub" style={{ width: "96px" }} />
           </td>
-          <td>
+          <td className="plan-time-cell">
             <span className="dash-skeleton skel-sub" style={{ width: width.when }} />
           </td>
-          <td />
+          <td className="plan-actions-cell" />
         </tr>
       ))}
     </>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function count(value: number | null | undefined): string {
+  return (Number(value) || 0).toLocaleString();
+}
+
+function ofCount(done: number | null | undefined, total: number | null | undefined): string {
+  return `${count(done)} of ${count(total)}`;
+}
+
+function Figure({ value, caption, hero = false }: { value: string; caption: string; hero?: boolean }) {
   return (
-    <article className="stat">
-      <span>{label}</span>
+    <p className={hero ? "dash-figure hero" : "dash-figure"}>
       <strong>{value}</strong>
-    </article>
+      <span>{caption}</span>
+    </p>
+  );
+}
+
+function Facts({ entries }: { entries: Array<[string, string]> }) {
+  return (
+    <dl className="dash-facts">
+      {entries.map(([label, value]) => (
+        <div key={label}>
+          <dt>{label}</dt>
+          <dd>{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** A trusted icon string from src/dashboardOverview.ts. */
+function Glyph({ svg }: { svg: string }) {
+  return <span className="dash-glyph" aria-hidden="true" dangerouslySetInnerHTML={{ __html: svg }} />;
+}
+
+/**
+ * Three cards: the period's plans by status, what is open and waiting on the person now, and the
+ * work the runs did. A hosted plan has no folder or git change set, so Work leaves those out.
+ */
+function Overview({ summary }: { summary: DashboardSummary }) {
+  const segments = statusSegments(summary);
+  const total = segments.reduce((sum, part) => sum + part.count, 0);
+  const parts = segments.filter((part) => part.count > 0);
+  const questions = Number(summary.questions) || 0;
+  return (
+    <>
+      <article className="dash-card dash-card-plans">
+        <h2 className="dash-eyebrow">Plans</h2>
+        <Figure value={count(summary.plans ?? total)} caption={startedText(summary)} hero />
+        <div
+          className="dash-seg"
+          role="img"
+          aria-label={total ? `Plans by status: ${segments.map((part) => `${part.label} ${part.count}`).join(", ")}` : "No plans"}
+        >
+          {parts.length === 0 ? (
+            <span className="dash-seg-part empty" />
+          ) : (
+            parts.map((part) => (
+              <span
+                key={part.id}
+                className="dash-seg-part"
+                data-activity={part.id}
+                style={{ "--dash-count": String(part.count) } as CSSProperties}
+                title={`${part.label} · ${part.count} of ${total} (${part.share}%)`}
+              />
+            ))
+          )}
+        </div>
+        <ul className="dash-legend">
+          {segments.map((part) => (
+            <li key={part.id} data-activity={part.id}>
+              <span className="dash-swatch" aria-hidden="true" />
+              {part.label} <strong>{count(part.count)}</strong>
+            </li>
+          ))}
+        </ul>
+      </article>
+      <article className="dash-card">
+        <h2 className="dash-eyebrow">Open now</h2>
+        <Figure value={count(questions)} caption={questions === 1 ? "question waiting on you" : "questions waiting on you"} />
+        <Facts
+          entries={[
+            ["Open plans", count(summary.running)],
+            ["Plans waiting on you", count(summary.waiting)],
+            ["Agents connected", ofCount(summary.active, summary.running)],
+          ]}
+        />
+      </article>
+      <article className="dash-card">
+        <h2 className="dash-eyebrow">Work</h2>
+        <Figure value={formatDuration(summary.durationMs)} caption="execution time" />
+        <Facts
+          entries={[
+            ["Phases done", ofCount(summary.phaseDone, summary.phaseTotal)],
+            ["Answers given", ofCount(summary.interactionDone, summary.interactionTotal)],
+          ]}
+        />
+      </article>
+    </>
   );
 }
 
@@ -468,16 +597,21 @@ function AgentIcon({ plan }: { plan: DashboardPlan }) {
 }
 
 function PlanRow({ plan, offline, onDelete }: { plan: DashboardPlan; offline: boolean; onDelete: () => Promise<boolean> }) {
-  const bits = [plan.mode || "watch"];
-  if (plan.executionStep) bits.push(plan.executionStep);
-  if (plan.outcome) bits.push(plan.outcome);
+  const activity = planActivity(plan);
+  const running = plan.status === "running";
   const ratio = Math.max(0, Math.min(100, Number(plan.completionRatio) || 0));
-  const openUrl = plan.status === "running" ? safeHttpUrl(plan.url) : "";
+  const openUrl = running ? safeHttpUrl(plan.url) : "";
   const fileUrl =
     plan.storedPath && plan.id ? plan.fileUrl || `/archive/${encodeURIComponent(plan.id)}` : "";
+  const asking = openQuestions(plan);
+  const seen = agentSeenAgo(plan.agentSeenAt);
+  const verdict = outcomeLabel(plan.outcome);
+  const step = running && plan.executionActive ? plan.executionStep : null;
+  // On the hosted app the step slot names the published version.
+  const version = !plan.executionActive && plan.executionStep ? plan.executionStep : null;
   return (
-    <tr>
-      <td>
+    <tr data-activity={activity}>
+      <td className="plan-cell">
         {openUrl ? (
           <a className="title title-link" href={openUrl}>
             {plan.title || "Untitled plan"}
@@ -485,29 +619,44 @@ function PlanRow({ plan, offline, onDelete }: { plan: DashboardPlan; offline: bo
         ) : (
           <span className="title">{plan.title || "Untitled plan"}</span>
         )}
-        <span className="sub">{bits.join(", ")}</span>
-        {plan.planPath ? <BrokenPath className="sub path" value={plan.planPath} /> : null}
+        <span className="plan-meta">
+          <span className="plan-mode">{plan.mode || "watch"}</span>
+          {version ? <span className="plan-meta-item">{version}</span> : null}
+        </span>
+        {plan.planPath ? <BrokenPath className="plan-file" value={plan.planPath} /> : null}
       </td>
-      <td>
+      <td className="plan-status-cell">
         <span className="status-line">
-          <span className={`pill ${planActivity(plan)}`}>{statusLabel(plan)}</span>
-          {plan.status === "running" ? <AgentIcon plan={plan} /> : null}
+          <span className="dash-pill" data-activity={activity}>
+            <Glyph svg={ACTIVITY_GLYPH_SVG[activity]} />
+            {statusLabel(plan)}
+          </span>
+          {running ? <AgentIcon plan={plan} /> : null}
         </span>
-        {plan.status === "running" ? <span className="sub">{plan.pendingCount} pending</span> : null}
+        {running && asking > 0 ? <span className="sub plan-ask">{questionsText(asking)}</span> : null}
+        {step ? (
+          <span className="sub">Step · {step}</span>
+        ) : running && !plan.agentConnected && seen ? (
+          <span className="sub">Agent last seen {seen}</span>
+        ) : null}
+        {!running && verdict ? <span className="sub">Review · {verdict}</span> : null}
       </td>
-      <td>
-        <div className="meter">
-          <span style={{ width: `${ratio}%` }} />
-        </div>
-        <span className="sub">
-          {ratio}% {completionLabel(plan.completionState)}
+      <td className="plan-progress-cell">
+        <span className="plan-progress" data-tone={progressTone(plan)}>
+          <span className="plan-meter" aria-hidden="true">
+            <span style={{ width: `${ratio}%` }} />
+          </span>
+          <span className="plan-percent">{ratio}%</span>
         </span>
-        <span className="sub">
-          {plan.phaseDone}/{plan.phaseTotal} phases, {plan.interactionDone}/{plan.interactionTotal}{" "}
-          answers
-        </span>
+        <span className="sub">{completionLabel(plan.completionState)}</span>
+        <span className="sub">{progressDetail(plan)}</span>
       </td>
-      <td className="num">{formatWhen(plan.startedAt)}</td>
+      <td className="plan-time-cell">
+        <time className="plan-time" dateTime={plan.startedAt ? new Date(plan.startedAt).toISOString() : undefined}>
+          {formatWhen(plan.startedAt)}
+        </time>
+        <span className="sub">{durationPhrase(plan.status, formatDuration(plan.durationMs))}</span>
+      </td>
       <td className="plan-actions-cell">
         <PlanRowActions
           fileUrl={fileUrl}

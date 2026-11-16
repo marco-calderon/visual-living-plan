@@ -29,6 +29,14 @@ The plan page reads as one document, not a stack of cards ([ADR 0039](docs/archi
 - **D6 · Editable in place.** There is no edit mode. Every block opens its own editor where it sits, from its Edit pill, and + adds a block below it. Done keeps the change on the page; Apply changes makes the version. A block is read-only only when it carries `locked`, or is an answer card (form, questions) that has not set `locked="false"`.
 - **D7 · Room.** No two blocks touch. A block after a block gets `--space-md` (a card after a card in a phase) or `--flow-gap` (at the top level); a heading after a data block starts a new part with `--space-xl`. Only endpoints in a row join into one card, on purpose.
 
+### Dashboard
+
+The dashboards are an app screen, not a document, so they use cards where the plan page does not.
+
+- **Summary.** Three surface cards, each with an eyebrow: *Plans* carries the page's one hero figure (48px, proportional digits), a thin 8px segmented bar of the period's plans by status with 2px gaps of the card between parts, and a legend of swatches, names, and counts. *Open now* and *Work* each lead with a 28px figure, then label and value rows split by hairlines, values in tabular figures. The rows sit at the card's foot so the three cards end level.
+- **Status.** The bar, legend, pills, and meters share four colors: Active `#0094fc`, Idle `#a1a1aa` (dark `#737373`), Executed `#0a7a38` (dark `#22a855`), Interrupted `#c98a00` (dark `#e0b43a`). The dark steps keep neighbors in the bar apart for color-blind readers. A row's pill uses the change-tag tints and the D4 glyph: a progress ring for Active, a dashed ring for Idle, a check disc for Executed, a ban for Interrupted. A meter is blue while open, green when complete, and amber when stopped, on a track of its own hue.
+- **Rows.** Open plans, then finished runs, under eyebrow headings. A plan's mode is an outline chip; folder and branch carry 13px icons; the plan file is mono. Below 720px a row reads as a card.
+
 ## Colors
 
 ### Brand & Accent

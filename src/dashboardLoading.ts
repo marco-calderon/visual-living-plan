@@ -1,11 +1,9 @@
 /**
- * Loading states for both dashboards: skeleton stat cards, table rows, and search results while
+ * Loading states for both dashboards: skeleton summary cards, table rows, and search results while
  * nothing has arrived yet, a dimmed view while newer rows are on the way, and a small spinner.
  * The loopback page renders these strings. The hosted page renders the same classes in React.
  */
 
-/** Number of stat cards the summary shows. */
-export const STAT_SKELETONS = 7
 /** Rows the plan table shows before the first answer. */
 export const ROW_SKELETONS = 4
 
@@ -27,8 +25,6 @@ export function dashboardLoadingCss(): string {
       background: color-mix(in srgb, var(--ink) 8%, transparent);
     }
     .dash-skeleton.pill { border-radius: 999px; }
-    .stat-skeleton .dash-skeleton { height: 13px; width: 58%; }
-    .stat-skeleton .dash-skeleton + .dash-skeleton { height: 26px; width: 36%; margin-top: 0.45rem; }
     .row-skeleton td { vertical-align: middle; }
     .row-skeleton .dash-skeleton + .dash-skeleton { margin-top: 8px; }
     .row-skeleton .skel-title { height: 14px; }
@@ -42,7 +38,7 @@ export function dashboardLoadingCss(): string {
     .search-skeleton .skel-line { height: 12px; width: 86%; }
     /* The views that dim while a new period loads. The transition sits on the view, not on
        .dash-pending, so the new numbers brighten in place when the class comes off. */
-    .stats, .table-wrap { transition: opacity 150ms ease; }
+    .dash-overview, .table-wrap { transition: opacity 150ms ease; }
     .dash-pending { opacity: 0.55; }
     .dash-spinner {
       display: inline-block;
@@ -77,16 +73,9 @@ export function dashboardLoadingCss(): string {
     }
     @media (prefers-reduced-motion: reduce) {
       .dash-spinner, .dash-spin svg, svg.dash-spin { animation-duration: 1.6s; }
-      .stats, .table-wrap, .dash-pending { transition: none; }
+      .dash-overview, .table-wrap, .dash-pending { transition: none; }
     }
   `
-}
-
-/** Stat card placeholders, hidden from assistive tech: the status line says what is loading. */
-export function statSkeletonHtml(): string {
-  const card =
-    '<article class="stat stat-skeleton" aria-hidden="true"><span class="dash-skeleton"></span><span class="dash-skeleton"></span></article>'
-  return Array.from({ length: STAT_SKELETONS }, () => card).join('')
 }
 
 /** Plan table placeholder rows. */
@@ -95,11 +84,11 @@ export function rowSkeletonHtml(): string {
     .map(
       (width) =>
         `<tr class="row-skeleton" aria-hidden="true">` +
-        `<td><span class="dash-skeleton skel-title" style="width:${width.title}"></span><span class="dash-skeleton skel-sub" style="width:${width.sub}"></span><span class="dash-skeleton skel-sub" style="width:${width.path}"></span></td>` +
+        `<td class="plan-cell"><span class="dash-skeleton skel-title" style="width:${width.title}"></span><span class="dash-skeleton skel-sub" style="width:${width.sub}"></span><span class="dash-skeleton skel-sub" style="width:${width.path}"></span></td>` +
         `<td><span class="dash-skeleton skel-pill"></span></td>` +
         `<td><span class="dash-skeleton skel-meter"></span><span class="dash-skeleton skel-sub" style="width:96px"></span></td>` +
-        `<td><span class="dash-skeleton skel-sub" style="width:${width.when}"></span></td>` +
-        `<td></td>` +
+        `<td class="plan-time-cell"><span class="dash-skeleton skel-sub" style="width:${width.when}"></span></td>` +
+        `<td class="plan-actions-cell"></td>` +
         `</tr>`,
     )
     .join('')

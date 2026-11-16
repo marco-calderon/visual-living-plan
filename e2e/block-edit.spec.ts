@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { waitForCodeBlocks } from './fixtures/codeBlocks.ts'
+import { waitForCodeBlocks, waitForDiagrams } from './fixtures/codeBlocks.ts'
 import { clickTextAt, inlineEditor, pointAtWord } from './fixtures/inlineEdit.ts'
 import { useOwnPlanServer } from './fixtures/ownServer.ts'
 
@@ -18,8 +18,9 @@ async function openPlan(page: Page): Promise<void> {
   await page.goto('/')
   await expect(page.locator('[data-plan-rendered]')).toBeVisible()
   await expect(page.locator('body')).toHaveAttribute('data-plan-editable', 'true')
-  // The specs click words by where they are on screen; code blocks that finish drawing later move them.
+  // The specs click words by where they are on screen; code blocks and diagrams that finish drawing later move them.
   await waitForCodeBlocks(page)
+  await waitForDiagrams(page)
 }
 
 async function planSource(page: Page): Promise<string> {
@@ -311,5 +312,23 @@ test.describe('on a touch screen', () => {
       Math.max(...[...bar.querySelectorAll('button')].map((button) => button.getBoundingClientRect().right)),
     )
     expect(right).toBeLessThanOrEqual(390)
+  })
+
+  test("a card's Edit comes back when its open text scrolls away and back", async ({ page }) => {
+    await openPlan(page)
+    const note = page.locator('[data-plan-rendered] [data-entry="callout"] p[data-plan-text]').first()
+    await note.scrollIntoViewIfNeeded()
+    await note.tap()
+    await expect(inlineEditor(page).locator('[contenteditable="true"]')).toBeFocused()
+    await expect(tools(page)).toHaveAttribute('data-visible', '')
+    const top = await page.evaluate(() => window.scrollY)
+    // Out of view, the pill hides with its card, and the text stays open.
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await expect(tools(page)).not.toHaveAttribute('data-visible', '')
+    await expect(inlineEditor(page)).toHaveCount(1)
+    await page.evaluate((y) => window.scrollTo(0, y), top)
+    await expect(tools(page)).toHaveAttribute('data-visible', '')
+    await page.locator('[data-plan-block-edit]').tap()
+    await expect(page.locator('[data-plan-block-editor="edit"]:not([data-inline])')).toBeVisible()
   })
 })

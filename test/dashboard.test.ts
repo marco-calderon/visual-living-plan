@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { buildDashboard, periodRange } from '../src/dashboard.ts'
+import { buildDashboard, openQuestions, periodRange } from '../src/dashboard.ts'
 import { readFileSync } from 'node:fs'
 import type { ExecutionState } from '../src/execution.ts'
 import { parsePlan } from '../src/parse.ts'
@@ -238,6 +238,47 @@ test('dashboard groups plans by local day, week, and month', () => {
   assert.equal(month.summary.label, 'This month')
   assert.equal(month.summary.plans, 3)
   assert.equal(month.summary.durationMs, 4_000 + 19_000 + 50_000)
+})
+
+test('an open plan waits on its unanswered questions, a finished run waits on nobody', () => {
+  assert.equal(openQuestions({ status: 'running', pendingCount: 2, interactionTotal: 4, interactionDone: 2 }), 2)
+  // The hosted host keeps no pending count, only the answers.
+  assert.equal(openQuestions({ status: 'running', pendingCount: 0, interactionTotal: 3, interactionDone: 1 }), 2)
+  assert.equal(openQuestions({ status: 'running', interactionTotal: 1, interactionDone: 1 }), 0)
+  assert.equal(openQuestions({ status: 'executed', pendingCount: 3, interactionTotal: 3, interactionDone: 0 }), 0)
+  assert.equal(openQuestions({ status: 'interrupted', pendingCount: 1 }), 0)
+})
+
+test('the summary counts open questions and sums phases and answers over the period', () => {
+  const now = Date.now()
+  const waiting = plan({
+    id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    status: 'running',
+    endedAt: null,
+    pendingCount: 2,
+    phaseDone: 1,
+    phaseTotal: 3,
+    interactionDone: 1,
+    interactionTotal: 3,
+  })
+  const answered = plan({
+    id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+    status: 'running',
+    endedAt: null,
+    pendingCount: 0,
+    phaseDone: 0,
+    phaseTotal: 2,
+    interactionDone: 2,
+    interactionTotal: 2,
+  })
+  const finished = plan({ id: 'ffffffff-ffff-4fff-8fff-ffffffffffff', status: 'executed', pendingCount: 4 })
+  const summary = buildDashboard([waiting, answered, finished], 'day', now).summary
+  assert.equal(summary.questions, 2)
+  assert.equal(summary.waiting, 1)
+  assert.equal(summary.phaseDone, 1 + 0 + 2)
+  assert.equal(summary.phaseTotal, 3 + 2 + 2)
+  assert.equal(summary.interactionDone, 1 + 2 + 1)
+  assert.equal(summary.interactionTotal, 3 + 2 + 1)
 })
 
 test('opening the store keeps legacy process rows in plans and adds session tables', async () => {

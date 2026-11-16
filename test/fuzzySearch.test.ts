@@ -181,7 +181,7 @@ test('the empty table line names the filter and the period', () => {
 
 test('the local dashboard page starts with skeletons and a search field that searches as you type', () => {
   const html = renderDashboardPage()
-  assert.equal((html.match(/class="stat stat-skeleton"/g) ?? []).length, 7)
+  assert.equal((html.match(/class="dash-card dash-card-skeleton/g) ?? []).length, 3)
   assert.ok((html.match(/class="row-skeleton"/g) ?? []).length >= 3)
   assert.match(html, /id="status">Loading plans…</)
   assert.match(html, /id="search-box"/)

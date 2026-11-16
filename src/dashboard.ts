@@ -20,6 +20,16 @@ export type DashboardSummary = {
   filesModified: number
   durationMs: number
   folders: number
+  /** Questions open plans still wait on the person to answer. */
+  questions: number
+  /** Open plans with at least one question waiting. */
+  waiting: number
+  /** Phases done and planned, summed over the period's plans. */
+  phaseDone: number
+  phaseTotal: number
+  /** Questions answered and asked, summed over the period's plans. */
+  interactionDone: number
+  interactionTotal: number
 }
 
 export type DashboardPayload = {
@@ -39,6 +49,28 @@ export type PlanActivity = 'active' | 'idle' | 'executed' | 'interrupted'
 export function planActivity(plan: { status: string; agentConnected?: boolean | null }): PlanActivity {
   if (plan.status === 'executed' || plan.status === 'interrupted') return plan.status
   return plan.agentConnected ? 'active' : 'idle'
+}
+
+/**
+ * Questions an open plan still waits on the person to answer: choices, forms, questions, and
+ * approvals without a response. A finished run waits on nobody. The local service counts them as
+ * `pendingCount`; the hosted host keeps only the answer counts, so both are read.
+ * Self-contained: the local dashboard script inlines it with `toString()`.
+ */
+export function openQuestions(plan: {
+  status: string
+  pendingCount?: number | null
+  interactionTotal?: number | null
+  interactionDone?: number | null
+}): number {
+  if (plan.status !== 'running') return 0
+  const pending = Number(plan.pendingCount) || 0
+  const unanswered = (Number(plan.interactionTotal) || 0) - (Number(plan.interactionDone) || 0)
+  return Math.max(0, pending, unanswered)
+}
+
+function sum(plans: PlanRecord[], read: (plan: PlanRecord) => number): number {
+  return plans.reduce((total, plan) => total + Math.max(0, Number(read(plan)) || 0), 0)
 }
 
 export function parsePeriod(value: unknown): DashboardPeriod | null {
@@ -93,9 +125,15 @@ export function buildDashboard(records: PlanRecord[], period: DashboardPeriod, n
       idle: inRange.filter((plan) => planActivity(plan) === 'idle').length,
       executed: inRange.filter((plan) => plan.status === 'executed').length,
       interrupted: inRange.filter((plan) => plan.status === 'interrupted').length,
-      filesModified: inRange.reduce((sum, plan) => sum + plan.filesModified, 0),
-      durationMs: inRange.reduce((sum, plan) => sum + Math.max(0, plan.durationMs), 0),
+      filesModified: sum(inRange, (plan) => plan.filesModified),
+      durationMs: sum(inRange, (plan) => plan.durationMs),
       folders: folders.size,
+      questions: sum(inRange, openQuestions),
+      waiting: inRange.filter((plan) => openQuestions(plan) > 0).length,
+      phaseDone: sum(inRange, (plan) => plan.phaseDone),
+      phaseTotal: sum(inRange, (plan) => plan.phaseTotal),
+      interactionDone: sum(inRange, (plan) => plan.interactionDone),
+      interactionTotal: sum(inRange, (plan) => plan.interactionTotal),
     },
     plans: inRange,
   }
