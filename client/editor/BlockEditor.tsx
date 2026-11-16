@@ -21,6 +21,7 @@ import { isTap, isTouchPointer } from '../pointerKind.ts'
 import type { EditCaret, EditFollow } from '../planEditButton.ts'
 import { Button } from '../ui/button.tsx'
 import { releaseOuterCarets, syncFocusedNestedEditor } from './blockHandles.tsx'
+import { focusFence } from './codeFence.tsx'
 import { iconFor, planEditorPlugins, useKeepTypingInView } from './editorSetup.tsx'
 import './planEditor.css'
 
@@ -131,16 +132,36 @@ function placeOpeningCaret(surface: HTMLElement, caret: EditCaret, frames = 12):
   attempt(frames)
 }
 
-/** The fields a card's editor opens with the caret in: its first text field or nested editor. */
+/** The fields a card's editor opens with the caret in: its first text field or nested editor, never a picker. */
 const CARD_FIELDS =
-  'input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([disabled]), textarea:not([disabled]), [contenteditable="true"]'
+  'input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([disabled]):not([role="combobox"]), textarea:not([disabled]), [contenteditable="true"]'
 
-/** A card opens with the caret in its first field, so typing changes the card. Fields can appear a frame or two late. */
+/** The fields under `root` in reading order, looking into open shadow roots too (a code editor types in one). */
+function fieldsIn(root: ParentNode): HTMLElement[] {
+  const found: HTMLElement[] = []
+  for (const element of Array.from(root.querySelectorAll<HTMLElement>('*'))) {
+    if (element.matches(CARD_FIELDS)) found.push(element)
+    if (element.shadowRoot) found.push(...fieldsIn(element.shadowRoot))
+  }
+  return found
+}
+
+/**
+ * A card opens with the caret in its first field, so typing changes the card. A code block or a
+ * diagram opens with the caret in its code. Fields can appear a frame or two late.
+ */
 function focusFirstField(surface: HTMLElement, frames = 12): void {
   const content = surface.querySelector<HTMLElement>('.plan-editor-content')
-  const field = content
-    ? Array.from(content.querySelectorAll<HTMLElement>(CARD_FIELDS)).find((element) => element !== content && element.getClientRects().length > 0)
-    : undefined
+  const lexical = content ? getNearestEditorFromDOMNode(content) : null
+  const code = lexical?.getEditorState().read(() => {
+    const first = $getRoot().getFirstChild()
+    return first && first.getType() === 'codeblock' ? first.getKey() : null
+  })
+  if (code) {
+    focusFence(code)
+    return
+  }
+  const field = content ? fieldsIn(content).find((element) => element !== content && element.getClientRects().length > 0) : undefined
   if (!field) {
     if (frames > 0) requestAnimationFrame(() => focusFirstField(surface, frames - 1))
     else content?.focus({ preventScroll: true })

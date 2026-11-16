@@ -1145,9 +1145,23 @@
 
 /* The editor keeps a line after a card to type below it. A block edited where it sits does not show
  * it, nor its "Type / to add a block": + under the block adds the next one. */
-.plan-block-editor .plan-editor-content > :not(p) + p:last-child:has(> br:only-child) { display: none; }
+/* The editor keeps a line after a card to type below it, in the block and in a card's body. A block
+ * edited where it sits does not show it, unless the caret is on it (a card added with /), so typing
+ * never goes into a line that does not show. */
+:is(.plan-block-editor .plan-editor-content, .plan-block-editor .plan-editor-body [contenteditable="true"]) > :not(p) + p:last-child:not([data-slash-hint]):has(> br:only-child) { display: none; }
 .plan-block-editor .plan-editor-content > :nth-last-child(2):not(p) { margin-bottom: 0; }
 .plan-block-editor .plan-block-add { display: none !important; }
+
+/* A card's editor shows no "Type / to add a block": + under the block adds the next one. */
+.plan-block-editor:not([data-inline]) [data-slash-hint]::before { content: none; }
+
+/* A card's own Remove: the grip's Delete takes a block out (it asks once). Options and other parts
+ * inside the card keep theirs. */
+.plan-block-editor .plan-editor-content > * > [data-editor-entry] > .plan-editor-head > .plan-editor-remove,
+.plan-block-editor .plan-editor-content > * > [data-editor-entry] > .plan-dt-card > .plan-dt-head > .plan-editor-remove { display: none; }
+
+/* No focus ring in a block's editor for now: a field with the caret shows it by its border alone. */
+.plan-block-editor :is(input, textarea, select, .plan-editor-input):is(:focus, :focus-visible) { outline: none; }
 
 /* Opening: the page still draws the block, and the editor waits over it unseen until its own text is
  * in (client/editor/BlockEditor.tsx sets the place), so the block never blanks for a frame. */

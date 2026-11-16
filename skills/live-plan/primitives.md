@@ -695,7 +695,7 @@ The plan's first `#` heading gets a small label above it (Living plan, the mode,
 
 ### Edit
 
-When the human can edit the plan, the page is the editor. Text opens where it reads with a click. A card under the pointer shows Edit, which opens its own editor where it sits, and every block shows a + under it that opens a new line below it. E edits the block that has focus. Leaving the editor keeps the change on the human's device and shows it on the page; nothing reaches your file until they press Apply changes, which saves a version and sends you an `edit` event. Only the edited block's text changes in the file. A locked block has no Edit. The human sets page width and code wrapping on the Settings tab. Both are saved in `live-plan.config.json` beside the plan:
+When the human can edit the plan, the page is the editor. Text opens where it reads with a click. A card under the pointer shows Edit, which opens its own editor where it sits, and every block shows a + under it that opens a new line below it. E edits the block that has focus, and A adds a line below it. Leaving the editor keeps the change on the human's device and shows it on the page; nothing reaches your file until they press Apply changes, which saves a version and sends you an `edit` event. Only the edited block's text changes in the file. A locked block has no Edit. The human sets page width and code wrapping on the Settings tab. Both are saved in `live-plan.config.json` beside the plan:
 
 ```json
 {

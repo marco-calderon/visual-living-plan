@@ -687,7 +687,16 @@ function SlashMenu({ nested, parent }: { nested: boolean; parent?: string | null
     return () => cancelAnimationFrame(frame)
   })
   const [prompt, setPrompt] = useState<{ kind: InsertKind; point: Point | null; line: string | null; anchor: DOMRect } | null>(null)
-  const trigger = useBasicTypeaheadTriggerMatch('/', { minLength: 0, maxLength: 24 })
+  const slash = useBasicTypeaheadTriggerMatch('/', { minLength: 0, maxLength: 24 })
+  // A "/word" with nothing to offer (a path such as /health in a sentence) opens no menu, so Escape
+  // and Enter stay the text's: an empty menu still took the first Escape.
+  const trigger = useCallback<typeof slash>(
+    (text, editor) => {
+      const match = slash(text, editor)
+      return match && menuOptions(nested, match.matchingString, parent).length > 0 ? match : null
+    },
+    [slash, nested, parent],
+  )
   const options = useMemo(() => menuOptions(nested, query ?? '', parent), [nested, query, parent])
 
   // Escape on a line that holds only the `/` (as the + under a block leaves it) empties the line.

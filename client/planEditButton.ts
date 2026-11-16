@@ -16,6 +16,9 @@ import { isTap, isTouchPointer } from './pointerKind.ts'
 /** The key that edits the block with focus. */
 export const BLOCK_EDIT_KEY = 'E'
 
+/** The key that adds a block below the block with focus, or the one under the pointer. */
+export const BLOCK_ADD_KEY = 'A'
+
 type EditState = { editable: boolean; editing: boolean }
 
 /** Where the caret goes when an editor opens: characters into the text, in a data table's cell when `row` is set. */
@@ -177,10 +180,17 @@ function addsAfter(block: HTMLElement): boolean {
   return !block.parentElement?.closest('[data-edit-locked="true"]')
 }
 
-/** The top-level blocks of the plan, in reading order. */
-function topBlocks(): HTMLElement[] {
+/** What stands at a level of the plan for the + bars: its blocks, and an open editor in the place of one. */
+const LEVEL_ITEM = '[data-plan-block], [data-plan-block-editor]'
+
+/** The blocks at the top level, or directly inside `container` (a phase), with any open editor among them, in reading order. */
+function levelItems(container: HTMLElement | null): HTMLElement[] {
   const root = article()
-  return root ? Array.from(root.children).filter((child): child is HTMLElement => child instanceof HTMLElement && child.hasAttribute('data-plan-block')) : []
+  if (!root) return []
+  const scope = container ?? root
+  return Array.from(scope.querySelectorAll<HTMLElement>(LEVEL_ITEM)).filter(
+    (item) => (item.parentElement?.closest('[data-plan-block]') ?? null) === container && !item.parentElement?.closest('[data-plan-block-editor]'),
+  )
 }
 
 /** Where the + bars go with the pointer on `target` at `y`: under `block`, and under the phase that holds it. */
@@ -196,9 +206,10 @@ export function addTargetsOf(target: EventTarget | null, y: number): AddTargets 
   const root = article()
   if (!root || !(target instanceof Element) || !root.contains(target) || target.closest('[data-plan-block-editor]')) return null
   let block = editTargetOf(target)
-  if (!block && target === root) block = levelWith(topBlocks(), y, root.getBoundingClientRect().bottom)
-  else if (block && !isTextBlock(block)) block = levelWith(innerBlocks(block), y, block.getBoundingClientRect().bottom) ?? block
-  if (!block) return null
+  // The gap under an open editor is the editor's: no bar there, nor for the block above it (Enter makes the next line).
+  if (!block && target === root) block = levelWith(levelItems(null), y, root.getBoundingClientRect().bottom)
+  else if (block && !isTextBlock(block)) block = levelWith(levelItems(block), y, block.getBoundingClientRect().bottom) ?? block
+  if (!block || block.hasAttribute('data-plan-block-editor')) return null
   const holder = holderOf(block)
   if (addsAfter(block)) return { block, holder: holder && addsAfter(holder) ? holder : null }
   return holder && addsAfter(holder) ? { block: holder, holder: null } : null
@@ -432,24 +443,29 @@ function toolButton(className: string, label: string, title: string, html: strin
   return button
 }
 
-/** The + bar's height and the room the last block leaves under it. Match .plan-add-bar in client/entries/primitives.css. */
+/** The + bar's height, its least height in a narrow gap, and the room the last block leaves under it. Match .plan-add-bar in client/entries/primitives.css. */
 const BAR_HEIGHT = 16
+const BAR_MIN = 8
 const BAR_ROOM = 24
 /** Room between a phase's bar and the bar of its last block, just above it. */
-const BAR_GAP = 4
+const BAR_GAP = 6
 
 /** A + bar: a slim gray bar with a +, in the gap under a block, as wide as the block. */
-function addBar(label: string, title: string): HTMLButtonElement {
-  const bar = toolButton('plan-add-bar', label, title, PLUS)
+function addBar(label: string, title: string, text?: string): HTMLButtonElement {
+  const bar = toolButton('plan-add-bar', label, title, text ? `${PLUS}<span class="plan-add-bar-label">${text}</span>` : PLUS)
   bar.dataset.planAddBar = ''
   return bar
 }
 
+type BarPlace = { top: number; left: number; width: number; height: number }
+
 /**
  * Where `block`'s + bar goes: in the middle of the gap under it, before the next block at its level,
- * or the end of the phase that holds it. The plan's title draws its facts under it: the gap is under those.
+ * or the end of the phase that holds it. The plan's title draws its facts under it: the gap is under
+ * those. The bar stays inside the gap, thinner in a narrow one, so it never covers the next block's
+ * first line or takes its clicks.
  */
-function barPlace(block: HTMLElement): { top: number; left: number; width: number } {
+function barPlace(block: HTMLElement): BarPlace {
   const rect = block.getBoundingClientRect()
   let bottom = rect.bottom
   let next: Element | null = block.nextElementSibling
@@ -459,8 +475,18 @@ function barPlace(block: HTMLElement): { top: number; left: number; width: numbe
   }
   const holder = block.parentElement?.closest('[data-plan-block]')
   const end = next ? next.getBoundingClientRect().top : holder ? holder.getBoundingClientRect().bottom - (Number.parseFloat(getComputedStyle(holder).borderBottomWidth) || 0) : bottom + BAR_ROOM
-  const top = bottom + Math.max(0, end - bottom - BAR_HEIGHT) / 2
-  return { top: top + window.scrollY, left: rect.left + window.scrollX, width: rect.width }
+  const gap = end - bottom
+  const height = Math.min(BAR_HEIGHT, Math.max(BAR_MIN, gap - 6))
+  const top = bottom + (gap - height) / 2
+  return { top: top + window.scrollY, left: rect.left + window.scrollX, width: rect.width, height }
+}
+
+/** True when `block` is the plan's last top-level block: Add a block, right under it, adds after it. */
+function lastOfPlan(block: HTMLElement): boolean {
+  const root = article()
+  if (!root || block.parentElement !== root || !document.querySelector('[data-plan-add-block]:not([data-editing])')) return false
+  for (let next = block.nextElementSibling; next; next = next.nextElementSibling) if (next.matches('[data-plan-block], [data-plan-block-editor]')) return false
+  return true
 }
 
 export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding {
@@ -473,11 +499,12 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
   edit.dataset.planBlockEdit = ''
   edit.setAttribute('aria-keyshortcuts', BLOCK_EDIT_KEY)
   tools.append(edit)
-  // + under the block under the pointer, and under the phase that holds it. The grip's menu has
-  // Add below for the keyboard and for a screen reader, so the bars stay out of the tab order.
-  const add = addBar('Add a block below', 'Add a block below')
+  // + under the block under the pointer, and under the phase that holds it, which says so. They stay
+  // out of the tab order: A adds a block below the block with focus, as E edits it.
+  const add = addBar('Add a block below', `Add a block below (${BLOCK_ADD_KEY})`)
   add.dataset.planBlockAdd = ''
-  const addAfterHolder = addBar('Add a block below the phase', 'Add a block below the phase')
+  add.setAttribute('aria-keyshortcuts', BLOCK_ADD_KEY)
+  const addAfterHolder = addBar('Add a block below the phase', 'Add a block below the phase', 'After phase')
   addAfterHolder.dataset.planHolderAdd = ''
   document.body.append(tools, add, addAfterHolder)
   let block: HTMLElement | null = null
@@ -511,10 +538,11 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     if (!bars || !bars.block.isConnected) return hideBars()
     const rect = bars.block.getBoundingClientRect()
     if (rect.bottom < -BAR_ROOM || rect.top > window.innerHeight) return hideBars()
-    const below = barPlace(bars.block)
-    const holder = bars.holder?.isConnected ? barPlace(bars.holder) : null
+    // The plan's last block has Add a block right under it, which adds after it.
+    const below = lastOfPlan(bars.block) ? null : barPlace(bars.block)
+    const holder = bars.holder?.isConnected && !lastOfPlan(bars.holder) ? barPlace(bars.holder) : null
     // The phase's bar keeps clear of its last block's, which sits just above it.
-    if (holder) holder.top = Math.max(holder.top, below.top + BAR_HEIGHT + BAR_GAP)
+    if (holder && below) holder.top = Math.max(holder.top, below.top + below.height + BAR_GAP)
     for (const [bar, at] of [
       [add, below],
       [addAfterHolder, holder],
@@ -526,6 +554,9 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
       bar.style.top = `${at.top}px`
       bar.style.left = `${at.left}px`
       bar.style.width = `${at.width}px`
+      bar.style.height = `${at.height}px`
+      // In a narrow gap the bar is thinner, and takes no clicks past its own edges.
+      bar.toggleAttribute('data-tight', at.height < BAR_HEIGHT)
       bar.setAttribute('data-visible', '')
     }
   }
@@ -696,12 +727,27 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
       hideBars()
       return
     }
-    if (event.key.toUpperCase() !== BLOCK_EDIT_KEY) return
+    const key = event.key.toUpperCase()
+    if (key !== BLOCK_EDIT_KEY && key !== BLOCK_ADD_KEY) return
     if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) return
     const target = event.target
     if (target instanceof HTMLElement && (target.closest('input, textarea, select') || target.isContentEditable)) return
     if (!usable()) return
     event.preventDefault()
+    if (key === BLOCK_ADD_KEY) {
+      // A new line below the block under the pointer, or with focus, or at the reading line.
+      if (showPlanTab()) return
+      const focused = editTargetOf(document.activeElement)
+      const after = [bars?.block, focused, blockAtReadingLine()]
+        .map((candidate) => (candidate?.isConnected ? (addsAfter(candidate) ? candidate : holderOf(candidate)) : null))
+        .find((candidate): candidate is HTMLElement => Boolean(candidate?.dataset.planBlock))
+      hide()
+      hideBars()
+      if (!after?.dataset.planBlock) return
+      barsRest = true
+      options.add(after.dataset.planBlock, addHow(after))
+      return
+    }
     // From Workflow or Settings, E shows the plan first.
     if (showPlanTab()) return
     if (pointedText?.isConnected && pointedText.dataset.planText) {

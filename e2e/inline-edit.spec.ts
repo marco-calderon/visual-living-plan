@@ -458,6 +458,29 @@ test('text in a phase has + under it, which adds a block below it in the phase w
   await expect(editor(page)).toHaveCount(0)
 })
 
+test('+ stays inside a narrow gap, and the gap under open text shows no bar', async ({ page }) => {
+  await openPlan(page)
+  // A heading sits close over its list: the bar is thinner there and never covers the list.
+  const heading = rendered(page).locator('> h2')
+  await heading.hover()
+  await expect(addBar(page)).toHaveAttribute('data-visible', '')
+  const [bar, above, below] = [await addBar(page).boundingBox(), await heading.boundingBox(), await rendered(page).locator('> h2 + *').boundingBox()]
+  if (!bar || !above || !below) throw new Error('no bar or blocks on screen')
+  expect(bar.y).toBeGreaterThanOrEqual(above.y + above.height - 0.5)
+  expect(bar.y + bar.height).toBeLessThanOrEqual(below.y + 0.5)
+
+  // Text open in its editor: the gap under it is its own, with no bar for the block above it.
+  const intro = rendered(page).locator('> p[data-plan-block]').first()
+  await clickTextAt(page, intro, 'gateway')
+  const open = await inlineEditor(page).boundingBox()
+  if (!open) throw new Error('no editor')
+  await page.mouse.move(open.x + 100, open.y + open.height + 3)
+  await page.waitForTimeout(400)
+  await expect(addBar(page)).not.toHaveAttribute('data-visible', '')
+  await page.keyboard.press('Escape')
+  await expect(editor(page)).toHaveCount(0)
+})
+
 test('a block open in its editor has one grip, the page\'s', async ({ page }) => {
   await openPlan(page)
   const phase = rendered(page).locator('[data-entry="phase"]')

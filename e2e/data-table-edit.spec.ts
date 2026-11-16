@@ -232,8 +232,8 @@ test('the / menu adds a data table with two columns and one row', async ({ page 
   await expect(added).toBeVisible()
   await expect(added.locator('[data-dt-header]')).toHaveCount(2)
   await expect(added.locator('tbody tr[data-dt-row]')).toHaveCount(1)
-  // The line the editor keeps under the new table does not show, nor its / hint.
-  await expect(editor(page).locator('.plan-editor-content > p:last-child')).toBeHidden()
+  // The caret waits on the line under the new table, which shows, so typing is never lost.
+  await expect(editor(page).locator('.plan-editor-content > p:last-child')).toBeVisible()
   await page.mouse.click(5, 450)
   await expect(editor(page)).toHaveCount(0)
   await expect(page.locator('[data-plan-rendered] [data-plan-data-table]')).toHaveCount(before + 1)

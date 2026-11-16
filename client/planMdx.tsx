@@ -1052,9 +1052,11 @@ function PlanMdxApp() {
       editIds.current += 1
       setOpenEdit({ id: editIds.current, target, caret: how?.caret, margins: how?.margins, height: how?.height, source: pageSourceRef.current })
     }
-    // Load the editor while the reader looks at the page, so a click on text or Edit opens at once.
+    // Load the editor while the reader looks at the page, so a click on text or Edit opens at once:
+    // when the page is idle, or at the first pointer over it, whichever comes first.
     const warm = () => void loadBlockEditor().catch(() => undefined)
     document.addEventListener('pointerover', warm, { once: true, passive: true })
+    const idle = typeof window.requestIdleCallback === 'function' ? window.requestIdleCallback(warm, { timeout: 2000 }) : window.setTimeout(warm, 1000)
     const binding = bindBlockEditButton({
       state: () => editState.current,
       edit: (range, how) => open({ kind: 'edit', range, inline: how?.inline }, how),
@@ -1107,6 +1109,8 @@ function PlanMdxApp() {
     moveBinding.current = mover
     return () => {
       document.removeEventListener('pointerover', warm)
+      if (typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(idle)
+      else window.clearTimeout(idle)
       editBinding.current = null
       moveBinding.current = null
       binding.stop()
@@ -1492,9 +1496,11 @@ function PlanMdxApp() {
                         ? 'This browser did not keep the changes. Apply them before you close the page.'
                         : rebased
                           ? 'The agent updated the plan. Your changes are kept on top of it.'
-                          : !online
-                            ? 'Kept on this device. Apply them when you are back online.'
-                            : 'Kept on this device. Apply to save a new version of the plan.'}
+                          : !draft
+                            ? 'Kept when you leave the block. Apply to save a new version of the plan.'
+                            : !online
+                              ? 'Kept on this device. Apply them when you are back online.'
+                              : 'Kept on this device. Apply to save a new version of the plan.'}
             </span>
           </div>
           <div className="plan-apply-actions">

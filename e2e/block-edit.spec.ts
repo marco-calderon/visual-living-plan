@@ -81,6 +81,8 @@ test('the toolbar has no Edit button; text shows no pill, a card shows Edit, and
   await expect(addBar(page)).toHaveAttribute('data-visible', '')
   await expect(holderBar(page)).toHaveAttribute('data-visible', '')
   await expect(holderBar(page)).toHaveAccessibleName('Add a block below the phase')
+  // The phase's bar says where it adds, so it reads apart from the bar above it.
+  await expect(holderBar(page)).toContainText('After phase')
   const [inner, outer, box] = [await addBar(page).boundingBox(), await holderBar(page).boundingBox(), await phase.boundingBox()]
   if (!inner || !outer || !box) throw new Error('no bars or phase on screen')
   expect(outer.y).toBeGreaterThanOrEqual(box.y + box.height - 1)
@@ -283,11 +285,15 @@ test('E edits the block with focus, or the text under the pointer, and typing an
   const open = page.locator('[data-plan-block-editor="edit"]')
   await expect(open).toBeVisible()
   await expect(open.locator('[data-editor-entry="choice"]')).toBeVisible()
-  // Only the card's own editor: no frame, no bar, no line under it, and the caret in its first field.
+  // Only the card's own editor: no frame, no bar, no line under it, and the caret in its first field,
+  // with no focus ring. The card's own Remove is the grip's Delete; its options keep theirs.
   await expect(open.getByLabel('Prompt')).toBeFocused()
+  expect(await open.getByLabel('Prompt').evaluate((node) => getComputedStyle(node).outlineStyle)).toBe('none')
   await expect(open.locator('.plan-block-editor-bar')).toHaveCount(0)
   expect(await open.evaluate((node) => getComputedStyle(node).borderTopWidth)).toBe('0px')
   await expect(open.locator('[data-slash-hint]')).toHaveCount(0)
+  await expect(open.getByLabel('Remove choice')).toBeHidden()
+  await expect(open.getByLabel('Remove option').first()).toBeVisible()
   // Nothing typed yet: Escape closes it.
   await page.keyboard.press('Escape')
   await expect(editor(page)).toHaveCount(0)
@@ -297,6 +303,42 @@ test('E edits the block with focus, or the text under the pointer, and typing an
   await page.keyboard.press('e')
   await expect(inlineEditor(page).locator('[contenteditable="true"]')).toBeFocused()
   await page.keyboard.press('Escape')
+  await expect(editor(page)).toHaveCount(0)
+})
+
+test('A adds an empty line below the block under the pointer, as + does', async ({ page }) => {
+  await openPlan(page)
+  await intro(page).hover()
+  await page.keyboard.press('a')
+  const added = page.locator('[data-plan-block-editor="add"]')
+  await expect(added).toHaveAttribute('data-inline', '')
+  await expect(added.locator('[contenteditable="true"]')).toBeFocused()
+  const before = (await intro(page).innerText()).slice(0, 30)
+  expect(await added.evaluate((node) => (node.previousElementSibling?.textContent ?? '').slice(0, 30))).toBe(before)
+  await page.keyboard.press('Escape')
+  await expect(editor(page)).toHaveCount(0)
+})
+
+test('Edit on a code block puts the caret in its code, not on its language', async ({ page }) => {
+  await openPlan(page)
+  const code = page.locator('[data-plan-rendered] .code-host').first()
+  await code.scrollIntoViewIfNeeded()
+  await code.hover({ position: { x: 300, y: 20 } })
+  await page.locator('[data-plan-block-edit]').click()
+  const fence = page.locator('[data-plan-block-editor] [data-code-fence]')
+  await expect(fence).toBeVisible()
+  // The code editor types in a shadow root of its own.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        let active = document.activeElement
+        while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement
+        const host = (active?.getRootNode() as ShadowRoot | Document | undefined) instanceof ShadowRoot ? (active!.getRootNode() as ShadowRoot).host : active
+        return Boolean(host?.closest('[data-code-fence]')) && active?.getAttribute('contenteditable') === 'true'
+      }),
+    )
+    .toBe(true)
+  await page.mouse.click(5, 450)
   await expect(editor(page)).toHaveCount(0)
 })
 
