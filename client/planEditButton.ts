@@ -424,7 +424,12 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
   const place = () => {
     if (!block || !block.isConnected) return hide()
     const rect = block.getBoundingClientRect()
-    if (rect.bottom < 0 || rect.top > window.innerHeight) return hide()
+    if (rect.bottom < 0 || rect.top > window.innerHeight) {
+      // The card whose text is open keeps its pill while it is out of view, and the pill comes back
+      // with the card. The page can jump away and back as the text's editor draws.
+      if (block === pinned) return void tools.removeAttribute('data-visible')
+      return hide()
+    }
     const width = tools.offsetWidth || 92
     const height = tools.offsetHeight || 26
     // Beside the block's first line (a phase's padding puts its title below the hairline), in the
@@ -438,6 +443,7 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     const top = Math.min(Math.max(firstLine, titleBar + 8), rect.bottom - height)
     tools.style.top = `${top + window.scrollY}px`
     tools.style.left = `${left + window.scrollX}px`
+    if (block === pinned) tools.setAttribute('data-visible', '')
   }
   let addOnly = false
   const show = (next: HTMLElement, onlyAdd = false) => {

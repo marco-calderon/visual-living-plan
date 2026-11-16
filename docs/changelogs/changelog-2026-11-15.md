@@ -14,6 +14,7 @@ The dashboard is organized into three summary cards and a grouped plan table. Yo
 
 - On a phone, the plan table cut off its Progress and Started columns, and the status tabs ran past the edge of the screen. Each plan now reads as a card, and the tabs scroll inside their pill.
 - A hosted plan's dashboard row never showed questions waiting, because the hosted host keeps no pending count. The row and the summary now count its unanswered questions.
+- With a card's text open on a phone, the card's Edit could vanish for good: if the page jumped and the card left the screen for a moment, which can happen while typing, the Edit stayed hidden after the card came back. It now hides only while the card is out of view and shows again with it.
 
 ### Improvements
 

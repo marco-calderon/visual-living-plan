@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { appendToText, clickTextAt, inlineEditor, pointAtWord } from './fixtures/inlineEdit.ts'
 import { useOwnPlanServer } from './fixtures/ownServer.ts'
+import { waitForDiagrams } from './fixtures/codeBlocks.ts'
 
 // Text and table cells are edited where they read; cards, choices, endpoints, and diagrams keep the
 // Edit pill (ADR 0040). Its own server and plan, so the edits it applies stay off the shared plan.
@@ -14,6 +15,8 @@ async function openPlan(page: Page): Promise<void> {
   await page.goto('/')
   await expect(rendered(page)).toBeVisible()
   await expect(page.locator('body')).toHaveAttribute('data-plan-editable', 'true')
+  // The specs point at blocks by where they are; the diagram above them settles its height later.
+  await waitForDiagrams(page)
 }
 
 async function planSource(page: Page): Promise<string> {
@@ -406,6 +409,7 @@ test("paragraphs in a card's editor are spaced as paragraphs on the page", async
   const callout = rendered(page).locator('[data-entry="callout"]')
   await callout.scrollIntoViewIfNeeded()
   await callout.hover({ position: { x: 12, y: 12 } })
+  await expect(tools(page)).toHaveAttribute('data-visible', '')
   await page.locator('[data-plan-block-edit]').click()
   const body = editor(page).locator('.plan-editor-body [contenteditable]').first()
   await expect(body).toContainText('Staff get the flag')
