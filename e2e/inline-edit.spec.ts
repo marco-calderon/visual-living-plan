@@ -616,6 +616,36 @@ test('the / menu adds a chip and a pill inside the text, and filtering does not 
   await expect(intro.locator('.plan-pill')).toHaveText('status')
 })
 
+test('text that ends in a /word opens with no / menu, and one Escape closes it', async ({ page }) => {
+  await openPlan(page)
+  const menu = page.locator('.plan-slash-menu')
+  // The intro comes to end in a /word that a card answers to. Typed, it opens the menu.
+  const intro = rendered(page).locator('> p[data-plan-block]').first()
+  await clickTextAt(page, intro, 'gateway')
+  await page.keyboard.press('Control+End')
+  await page.keyboard.type(' /health')
+  await expect(menu).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(menu).toHaveCount(0)
+  await page.keyboard.press('Control+Enter')
+  await expect(editor(page)).toHaveCount(0)
+  await expect(intro).toHaveText(/\/health$/)
+
+  // Opened with a click away from the /word, the text shows no menu, and Escape closes the editor.
+  const cases: Array<{ text: Locator; word: string }> = [
+    { text: intro, word: 'gateway' },
+    { text: rendered(page).locator('.rich-table tbody tr').first().locator('td').first(), word: 'GET' },
+  ]
+  for (const { text, word } of cases) {
+    await clickTextAt(page, text, word)
+    // The menu would open a moment after the editor does.
+    await page.waitForTimeout(300)
+    await expect(menu, `${word} opened the / menu`).toHaveCount(0)
+    await page.keyboard.press('Escape')
+    await expect(editor(page)).toHaveCount(0)
+  }
+})
+
 test("a press outside a card's editor closes it, and a click on other text opens that text", async ({ page }) => {
   await openPlan(page)
   const callout = rendered(page).locator('[data-entry="callout"]')

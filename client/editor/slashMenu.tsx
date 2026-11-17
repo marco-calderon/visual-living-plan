@@ -669,6 +669,11 @@ function SlashMenu({ nested, parent }: { nested: boolean; parent?: string | null
   const insertTable = usePublisher(insertTable$)
   const setActiveEditor = usePublisher(activeEditor$)
   const [query, setQuery] = useState<string | null>(null)
+  // Lexical's menu opens in a transition, and its close does nothing until that open has drawn. Text
+  // opens with the caret at its end for a moment before it goes where the click landed, so text that
+  // ends in a "/word" (`GET /health`) opened the menu and could not close it: every option showed,
+  // and it took the first Escape. A query that ends starts the menu over, which drops that open.
+  const [menuKey, setMenuKey] = useState(0)
   const open = useRef(false)
   const highlighted = useRef(0)
   const shownQuery = useRef<string | null>(null)
@@ -893,7 +898,9 @@ function SlashMenu({ nested, parent }: { nested: boolean; parent?: string | null
       <InsertPrompt kind={prompt.kind} anchor={prompt.anchor} onSubmit={(values) => closePrompt(values)} onCancel={() => closePrompt(null)} />
     ) : null}
     <LexicalTypeaheadMenuPlugin<CardOption>
+      key={menuKey}
       onQueryChange={(next) => {
+        if (next === null && open.current) setMenuKey((key) => key + 1)
         open.current = next !== null
         if (next === null) {
           selectAndClose.current = null
@@ -910,7 +917,8 @@ function SlashMenu({ nested, parent }: { nested: boolean; parent?: string | null
         shownQuery.current = query
         selectAndClose.current = selectOptionAndCleanUp
         return (
-        anchor.current && options.length > 0
+        // No query, no menu: only one that has not closed yet would draw without one, with every option.
+        anchor.current && query !== null && options.length > 0
           ? createPortal(
               <div
                 className="plan-slash-menu"
