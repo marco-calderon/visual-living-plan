@@ -634,7 +634,8 @@
   opacity: 0.4;
 }
 
-/* The + under a block: a short gray bar in the gap before the next one. Height matches BAR_HEIGHT. */
+/* The + under a block: a short gray bar in the gap before the next one, clear of both blocks. Its
+ * height comes from the gap (client/addBar.ts), as on the page's .plan-add-bar. */
 .plan-block-add {
   position: absolute;
   z-index: 5;
@@ -642,7 +643,7 @@
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  height: 16px;
+  height: 10px;
   padding: 0;
   border: 0;
   border-radius: 6px;
@@ -655,12 +656,15 @@
     background-color 120ms ease-out;
 }
 
-/* A taller target than the bar, still inside the gap. */
+/* A taller target than the bar: the room it keeps from the blocks, still inside the gap. */
 .plan-block-add::before {
   content: '';
   position: absolute;
-  inset: -4px 0;
+  inset: -3px 0;
 }
+
+/* Too short for its +: a line in the gap. */
+.plan-block-add[data-slim] svg { display: none; }
 
 .plan-block-add[hidden] {
   display: none;

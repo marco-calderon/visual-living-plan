@@ -496,24 +496,38 @@ test('text in a phase has + under it, which adds a block below it in the phase w
   await expect(editor(page)).toHaveCount(0)
 })
 
-test('every + bar has the same size, a narrow gap included, and the gap under open text shows no bar', async ({ page }) => {
+test('a + bar keeps clear of the blocks above and below it, and the gap under open text shows no bar', async ({ page }) => {
   await openPlan(page)
-  // A heading sits close over its list: the bar keeps its size, centered on the gap, and takes no
-  // clicks past its own edges there.
+  /** The bar under `above`, and the room between it and the blocks on either side. */
+  const barIn = async (above: Locator, below: Locator) => {
+    const [bar, top, bottom] = [await addBar(page).boundingBox(), await above.boundingBox(), await below.boundingBox()]
+    if (!bar || !top || !bottom) throw new Error('no bar or blocks on screen')
+    const gapMiddle = (top.y + top.height + bottom.y) / 2
+    expect(Math.abs(bar.y + bar.height / 2 - gapMiddle), 'the bar is centered on the gap').toBeLessThan(1)
+    return { height: bar.height, over: bar.y - (top.y + top.height), under: bottom.y - (bar.y + bar.height) }
+  }
+  // A heading sits close over its list: the bar is a slim line with no +, clear of both, and takes
+  // no clicks past its own edges.
   const heading = rendered(page).locator('> h2')
   await heading.hover()
   await expect(addBar(page)).toHaveAttribute('data-visible', '')
   await expect(addBar(page)).toHaveAttribute('data-tight', '')
-  const [bar, above, below] = [await addBar(page).boundingBox(), await heading.boundingBox(), await rendered(page).locator('> h2 + *').boundingBox()]
-  if (!bar || !above || !below) throw new Error('no bar or blocks on screen')
-  expect(bar.height).toBe(16)
-  const gapMiddle = (above.y + above.height + below.y) / 2
-  expect(Math.abs(bar.y + bar.height / 2 - gapMiddle)).toBeLessThan(1)
-  // Under a table, where there is room, the same 16px bar.
+  await expect(addBar(page)).toHaveAttribute('data-slim', '')
+  await expect(addBar(page).locator('svg')).toBeHidden()
+  const slim = await barIn(heading, rendered(page).locator('> h2 + *'))
+  expect(slim.height).toBeLessThan(6)
+  expect(slim.over).toBeGreaterThanOrEqual(2)
+  expect(slim.under).toBeGreaterThanOrEqual(2)
+  // Under a table, where there is room, a 10px bar with its +, 3px or more from each block.
   const table = rendered(page).locator('.rich-table')
   await table.hover({ position: { x: 20, y: 10 } })
   await expect(addBar(page)).not.toHaveAttribute('data-tight', '')
-  expect((await addBar(page).boundingBox())?.height).toBe(16)
+  await expect(addBar(page)).not.toHaveAttribute('data-slim', '')
+  await expect(addBar(page).locator('svg')).toBeVisible()
+  const roomy = await barIn(table, rendered(page).locator('.rich-table + *'))
+  expect(roomy.height).toBe(10)
+  expect(roomy.over).toBeGreaterThanOrEqual(3)
+  expect(roomy.under).toBeGreaterThanOrEqual(3)
 
   // Text open in its editor: the gap under it is its own, with no bar for the block above it.
   const intro = rendered(page).locator('> p[data-plan-block]').first()

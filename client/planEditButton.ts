@@ -10,6 +10,7 @@
  * One pill and two bars follow the pointer, so the page's blocks stay as React drew them.
  * ------------------------------------------------------------------------------------------- */
 
+import { barFit } from './addBar.ts'
 import { textOffsetAt } from './caretSpot.ts'
 import { isTap, isTouchPointer } from './pointerKind.ts'
 
@@ -321,8 +322,9 @@ function showPlanTab(): boolean {
 const PENCIL =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>'
 
+// Drawn at 10px in the + bar, so its stroke is about a whole pixel there.
 const PLUS =
-  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>'
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>'
 
 /** How long the pill waits after the pointer leaves a block, so it can be reached. */
 const HIDE_DELAY_MS = 300
@@ -459,8 +461,7 @@ function toolButton(className: string, label: string, title: string, html: strin
   return button
 }
 
-/** The + bar's height and the room the last block leaves under it. Match .plan-add-bar in client/entries/primitives.css. */
-const BAR_HEIGHT = 16
+/** The room the last block leaves under it for its + bar. The bar's own size is client/addBar.ts. */
 const BAR_ROOM = 24
 /** Room between a phase's bar and the bar of its last block, just above it. */
 const BAR_GAP = 6
@@ -472,13 +473,13 @@ function addBar(label: string, title: string, text?: string): HTMLButtonElement 
   return bar
 }
 
-type BarPlace = { top: number; left: number; width: number; height: number; tight: boolean }
+type BarPlace = { top: number; left: number; width: number; height: number; tight: boolean; slim: boolean }
 
 /**
  * Where `block`'s + bar goes: in the middle of the gap under it, before the next block at its level,
  * or the end of the phase that holds it. The plan's title draws its facts under it: the gap is under
- * those. Every bar has the same size, a table's add-row bar's; in a gap narrower than the bar it is
- * `tight` and takes no clicks past its own edges.
+ * those. The bar keeps clear of the blocks above and below it (client/addBar.ts): a narrow gap gets a
+ * shorter bar, or a slim line with no +, and its click target stays inside the gap.
  */
 function barPlace(block: HTMLElement): BarPlace {
   const rect = block.getBoundingClientRect()
@@ -490,9 +491,15 @@ function barPlace(block: HTMLElement): BarPlace {
   }
   const holder = block.parentElement?.closest('[data-plan-block]')
   const end = next ? next.getBoundingClientRect().top : holder ? holder.getBoundingClientRect().bottom - (Number.parseFloat(getComputedStyle(holder).borderBottomWidth) || 0) : bottom + BAR_ROOM
-  const gap = end - bottom
-  const top = bottom + (gap - BAR_HEIGHT) / 2
-  return { top: top + window.scrollY, left: rect.left + window.scrollX, width: rect.width, height: BAR_HEIGHT, tight: gap < BAR_HEIGHT + 8 }
+  const fit = barFit(end - bottom)
+  return {
+    top: bottom + fit.offset + window.scrollY,
+    left: rect.left + window.scrollX,
+    width: rect.width,
+    height: fit.height,
+    tight: fit.tight,
+    slim: fit.slim,
+  }
 }
 
 /** True when `block` is the plan's last top-level block: Add a block, right under it, adds after it. */
@@ -568,8 +575,10 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
       bar.style.top = `${at.top}px`
       bar.style.left = `${at.left}px`
       bar.style.width = `${at.width}px`
-      // In a narrow gap the bar takes no clicks past its own edges.
+      bar.style.height = `${at.height}px`
+      // In a narrow gap the bar takes no clicks past its own edges, and a bar too short for its + is a line.
       bar.toggleAttribute('data-tight', at.tight)
+      bar.toggleAttribute('data-slim', at.slim)
       bar.setAttribute('data-visible', '')
     }
   }
