@@ -4,6 +4,7 @@ import {
   headingsPlugin,
   imagePlugin,
   jsxPlugin,
+  lexicalTheme,
   linkPlugin,
   listsPlugin,
   markdownShortcutPlugin,
@@ -21,6 +22,15 @@ import { lockedCardsPlugin } from './lockedPlugin.tsx'
 import { codeFenceEditor } from './codeFence.tsx'
 import { blockHandlesPlugin } from './blockHandles.tsx'
 import { dataTableMarkdownPlugin } from './dataTableEditor.tsx'
+
+/**
+ * MDXEditor's theme without its inline code class. Lexical draws inline code as `<code><span>`, and
+ * MDXEditor's class on the span drew a second chip inside the page's, with its own padding and a
+ * smaller type, so code grew and dropped when text opened. The page's one rule
+ * (`.plan-document :not(pre) > code`) now draws it open and closed; the span takes its type.
+ */
+const { code: _editorCode, ...planTextTheme } = lexicalTheme.text ?? {}
+export const planLexicalTheme: typeof lexicalTheme = { ...lexicalTheme, text: planTextTheme }
 
 /** A table's add-row and add-column bars use the same + as the bar that adds a block. */
 export function iconFor(name: IconKey): ReactElement {

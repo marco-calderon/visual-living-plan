@@ -62,6 +62,10 @@
   color: var(--ink);
 }
 
+/* MDXEditor sets its own --font-mono on its root; the page's goes through, so code in the editor
+ * is set in the page's mono and keeps its width when text opens and closes. */
+.plan-editor .mdxeditor { --font-mono: inherit; }
+
 .plan-editor-content {
   min-height: 240px;
   padding: 0;

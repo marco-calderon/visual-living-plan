@@ -76,6 +76,44 @@ test('text keeps its place and look while it is edited, and the caret goes where
   await expect(page.locator('[data-plan-apply-bar]')).toHaveCount(0)
 })
 
+/** Each inline code chip in `root`: where it is, its size, and the type and padding it is drawn with. */
+function codeChips(root: Locator) {
+  return root.evaluate((node) =>
+    [...node.querySelectorAll('code')].map((code) => {
+      const box = code.getBoundingClientRect()
+      const style = getComputedStyle(code)
+      // The editor draws `<code><span>`: the span takes the chip's type and adds no chip of its own.
+      const inner = code.firstElementChild ? getComputedStyle(code.firstElementChild) : style
+      return {
+        text: code.textContent,
+        box: [box.x, box.y, box.width, box.height],
+        look: [style.fontFamily, style.fontSize, style.padding, style.borderRadius, style.backgroundColor, inner.fontSize, inner.fontFamily],
+        innerPadding: code.firstElementChild ? inner.padding : '0px',
+      }
+    }),
+  )
+}
+
+test('inline code keeps its chip while its text is edited: the same place, size, and type', async ({ page }) => {
+  await openPlan(page)
+  const cases: Array<{ text: Locator; word: string }> = [
+    { text: rendered(page).locator('> p[data-plan-block]').first(), word: 'gateway' },
+    { text: rendered(page).locator('> ul[data-plan-block] li').first(), word: 'Ship' },
+    { text: rendered(page).locator('.rich-table tbody tr').first().locator('td').first(), word: 'GET' },
+  ]
+  for (const { text, word } of cases) {
+    await text.scrollIntoViewIfNeeded()
+    const before = await codeChips(text)
+    expect(before, `${word} has inline code`).toHaveLength(1)
+    await clickTextAt(page, text, word)
+    const open = await codeChips(inlineEditor(page))
+    expect(open.map(({ text, look, innerPadding }) => ({ text, look, innerPadding }))).toEqual(before.map(({ text, look }) => ({ text, look, innerPadding: '0px' })))
+    open[0].box.forEach((value, at) => expect(Math.abs(value - before[0].box[at]), `${word}: the code chip moved or changed size`).toBeLessThan(0.5))
+    await page.mouse.click(5, 450)
+    await expect(editor(page)).toHaveCount(0)
+  }
+})
+
 test('a pipe table cell is edited where it is, Enter keeps it, and only that cell changes in the file', async ({ page }) => {
   await openPlan(page)
   const before = await planSource(page)

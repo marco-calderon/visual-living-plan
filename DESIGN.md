@@ -179,6 +179,7 @@ Flat by default. Hairline border, no shadow, on documentation cards. Level 2 sha
 - **count-pill**: 22px tall, `hairline-strong` outline, mono 11.5px, `done/total`. Beside a segmented bar of 4px segments with 3px gaps, one per item, colored by the item's state.
 - **change-tag**: mono 10.5px 600, 18px tall, 4px radius, on the tag tint. Text is NEW, MODIFY, DELETE, RENAME; a screen reader hears Added, Modified, Deleted, Renamed.
 - **cite-chip**: mono 11px on `--tag-info-bg`, for line ranges and foreign keys.
+- **code-inline**: mono at 0.9em on `--code-inline-bg`, 0.1rem by 0.35rem padding, 0.35rem radius. Wraps anywhere in prose and stays on one line in a table cell. One rule draws it on the page and in the block editor, so code in open text keeps its place, size, and type.
 - **health-pill**: 24px pill with a trend glyph: On track, At risk, Off track.
 - **fact-chip**: 28px outline pill with a bold number, for the plan header (`Phase 2 of 6`, `1/6 phases done`, `3 open questions`).
 - **block-tools**: 26px outline pill, a pencil with *Edit*, beside a card's first line while the pointer or focus is on it (a tap on a touch screen) and the plan can be edited. Text has none: a click opens it. Never shown on a locked block, in comment mode, or in print.

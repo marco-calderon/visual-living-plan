@@ -678,6 +678,8 @@ html:not([data-comments="on"]) body[data-plan-editable="true"]:not([data-plan-mo
 .plan-phase[data-status="failed"] a.plan-step-number,
 .plan-phase[data-status="blocked"] a.plan-step-number { color: var(--danger); }
 
+/* Inline code: the one chip, on the page and in its editor. The editor draws `<code><span>`, and the
+ * span adds nothing (planLexicalTheme in client/editor/editorSetup.tsx), so open text keeps its code. */
 .plan-rich :not(pre) > code,
 .plan-document :not(pre) > code {
   font-family: var(--font-mono);
