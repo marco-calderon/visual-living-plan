@@ -34,7 +34,7 @@ export const planLexicalTheme: typeof lexicalTheme = { ...lexicalTheme, text: pl
 
 /** A table's add-row and add-column bars use the same + as the bar that adds a block. */
 export function iconFor(name: IconKey): ReactElement {
-  if (name === 'add_row' || name === 'add_column') return <Plus size={12} strokeWidth={2.25} aria-hidden="true" />
+  if (name === 'add_row' || name === 'add_column') return <Plus size={10} strokeWidth={2.5} aria-hidden="true" />
   return defaultSvgIcons[name]
 }
 

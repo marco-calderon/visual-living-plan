@@ -433,7 +433,7 @@ export function DataTableEditor({ mdastNode }: JsxEditorProps) {
                 data-dt-add-column=""
                 onClick={onAddColumn}
               >
-                <Plus size={12} strokeWidth={2.25} aria-hidden="true" />
+                <Plus size={10} strokeWidth={2.5} aria-hidden="true" />
               </button>
             )}
           </div>
@@ -447,7 +447,7 @@ export function DataTableEditor({ mdastNode }: JsxEditorProps) {
             data-dt-add-row=""
             onClick={onAddRow}
           >
-            <Plus size={12} strokeWidth={2.25} aria-hidden="true" />
+            <Plus size={10} strokeWidth={2.5} aria-hidden="true" />
           </button>
         )}
       </div>

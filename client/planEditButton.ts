@@ -10,7 +10,7 @@
  * One pill and two bars follow the pointer, so the page's blocks stay as React drew them.
  * ------------------------------------------------------------------------------------------- */
 
-import { barFit } from './addBar.ts'
+import { BAR_HEIGHT, barFit } from './addBar.ts'
 import { textOffsetAt } from './caretSpot.ts'
 import { isTap, isTouchPointer } from './pointerKind.ts'
 
@@ -322,7 +322,7 @@ function showPlanTab(): boolean {
 const PENCIL =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>'
 
-// Drawn at 10px in the + bar, so its stroke is about a whole pixel there.
+// Drawn at --add-bar-icon (10px) in the + bar, so its stroke is about a whole pixel there.
 const PLUS =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>'
 
@@ -473,13 +473,13 @@ function addBar(label: string, title: string, text?: string): HTMLButtonElement 
   return bar
 }
 
-type BarPlace = { top: number; left: number; width: number; height: number; tight: boolean; slim: boolean }
+type BarPlace = { top: number; left: number; width: number; height: number; tight: boolean }
 
 /**
  * Where `block`'s + bar goes: in the middle of the gap under it, before the next block at its level,
  * or the end of the phase that holds it. The plan's title draws its facts under it: the gap is under
- * those. The bar keeps clear of the blocks above and below it (client/addBar.ts): a narrow gap gets a
- * shorter bar, or a slim line with no +, and its click target stays inside the gap.
+ * those. Every bar has the same height (client/addBar.ts); in a gap with little room around the bar it
+ * is `tight` and takes no clicks past its own edges.
  */
 function barPlace(block: HTMLElement): BarPlace {
   const rect = block.getBoundingClientRect()
@@ -496,9 +496,8 @@ function barPlace(block: HTMLElement): BarPlace {
     top: bottom + fit.offset + window.scrollY,
     left: rect.left + window.scrollX,
     width: rect.width,
-    height: fit.height,
+    height: BAR_HEIGHT,
     tight: fit.tight,
-    slim: fit.slim,
   }
 }
 
@@ -575,10 +574,8 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
       bar.style.top = `${at.top}px`
       bar.style.left = `${at.left}px`
       bar.style.width = `${at.width}px`
-      bar.style.height = `${at.height}px`
-      // In a narrow gap the bar takes no clicks past its own edges, and a bar too short for its + is a line.
+      // In a narrow gap the bar takes no clicks past its own edges.
       bar.toggleAttribute('data-tight', at.tight)
-      bar.toggleAttribute('data-slim', at.slim)
       bar.setAttribute('data-visible', '')
     }
   }

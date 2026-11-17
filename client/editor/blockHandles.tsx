@@ -33,7 +33,7 @@ import { isLockedNodeDeep } from './locked.ts'
 
 type Level = 'root' | 'nested'
 type Drop = { beforeKey: string } | { afterKey: string }
-type Bar = { top: number; left: number; width: number; height: number; slim: boolean }
+type Bar = { top: number; left: number; width: number }
 
 /** The room the last block leaves under it for its + bar. The bar's own size is client/addBar.ts. */
 const BAR_ROOM = 24
@@ -260,15 +260,12 @@ function BlockHandles({ level }: { level: Level }) {
     const box = container.getBoundingClientRect()
     setTop(rect.top - box.top)
     if (level !== 'root') return
-    // The bar sits in the middle of the gap under the block, as wide as the block, clear of both blocks.
+    // The bar sits in the middle of the gap under the block, as wide as the block.
     const next = element.nextElementSibling?.getBoundingClientRect().top ?? rect.bottom + BAR_ROOM
-    const fit = barFit(next - rect.bottom)
     setBar({
-      top: rect.bottom + fit.offset - box.top,
+      top: rect.bottom + barFit(next - rect.bottom).offset - box.top,
       left: rect.left - box.left,
       width: rect.width,
-      height: fit.height,
-      slim: fit.slim,
     })
   }, [container, editor, key, level])
   useLayoutEffect(place, [place])
@@ -503,8 +500,7 @@ function BlockHandles({ level }: { level: Level }) {
           data-block-add=""
           data-plan-grab-ignore=""
           hidden={!key || !bar || line !== null}
-          data-slim={bar?.slim ? '' : undefined}
-          style={bar ? { top: bar.top, left: bar.left, width: bar.width, height: bar.height } : undefined}
+          style={bar ? { top: bar.top, left: bar.left, width: bar.width } : undefined}
           onPointerEnter={cancelHide}
           onPointerLeave={scheduleHide}
           onMouseDown={(event) => event.preventDefault()}

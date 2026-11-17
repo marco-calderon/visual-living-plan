@@ -88,6 +88,9 @@ test('a data table opens as a grid, and a press outside with no change leaves th
   for (const bar of await tableEditor(page).locator('[data-dt-add-row], [data-dt-add-column]').all()) {
     expect(await bar.evaluate((node) => getComputedStyle(node).opacity)).toBe('1')
   }
+  // The same 8px as every + bar: the row bar's height and the column bar's width.
+  expect((await tableEditor(page).locator('[data-dt-add-row]').boundingBox())?.height).toBe(8)
+  expect((await tableEditor(page).locator('[data-dt-add-column]').boundingBox())?.width).toBe(8)
   const before = await planSource(page)
   expect(before).toContain(OPERATIONS)
 

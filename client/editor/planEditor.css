@@ -634,8 +634,8 @@
   opacity: 0.4;
 }
 
-/* The + under a block: a short gray bar in the gap before the next one, clear of both blocks. Its
- * height comes from the gap (client/addBar.ts), as on the page's .plan-add-bar. */
+/* The + under a block: a short gray bar in the middle of the gap before the next one, the page's
+ * .plan-add-bar. --add-bar-size tall, as every + bar is. */
 .plan-block-add {
   position: absolute;
   z-index: 5;
@@ -643,7 +643,7 @@
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  height: 10px;
+  height: var(--add-bar-size, 8px);
   padding: 0;
   border: 0;
   border-radius: 6px;
@@ -656,15 +656,12 @@
     background-color 120ms ease-out;
 }
 
-/* A taller target than the bar: the room it keeps from the blocks, still inside the gap. */
+/* A taller target than the bar, still inside the gap. */
 .plan-block-add::before {
   content: '';
   position: absolute;
   inset: -3px 0;
 }
-
-/* Too short for its +: a line in the gap. */
-.plan-block-add[data-slim] svg { display: none; }
 
 .plan-block-add[hidden] {
   display: none;
@@ -1055,7 +1052,7 @@
   outline-offset: -1px;
 }
 
-/* The add-row and add-column bars match the + bar that adds a block. */
+/* The add-row and add-column bars match the + bar that adds a block: --add-bar-size thick. */
 .plan-editor [class*='_tableEditor_'] :is([class*='_addRowButton_'], [class*='_addColumnButton_']) {
   box-sizing: border-box;
   display: flex;
@@ -1075,14 +1072,14 @@
 
 .plan-editor [class*='_tableEditor_'] [class*='_addRowButton_'] {
   width: 100%;
-  height: 16px;
+  height: var(--add-bar-size, 8px);
   margin-top: 4px;
 }
 
 .plan-editor [class*='_tableEditor_'] [class*='_addColumnButton_'] {
-  width: 16px;
+  width: var(--add-bar-size, 8px);
   height: 100%;
-  min-height: 16px;
+  min-height: var(--add-bar-size, 8px);
   margin-left: 4px;
 }
 
@@ -1351,8 +1348,8 @@
 .plan-block-editor .plan-editor-content :is(input, textarea, select, .plan-editor-input):is(:focus, :focus-visible) { outline: none; }
 .plan-block-editor .plan-editor-content .plan-dt-label:is(:focus, :focus-visible) { border-color: var(--focus); }
 
-/* + to add a row or a column shows the whole time a table is open, the same 16px bars as + under a
- * block: a markdown table's under its card and right of it, a data table's inside its card. */
+/* + to add a row or a column shows the whole time a table is open, the same bars as + under a block:
+ * a markdown table's under its card and right of it, a data table's inside its card. */
 .plan-block-editor .plan-dt-add,
 .plan-block-editor [class*='_tableEditor_'] :is([class*='_addRowButton_'], [class*='_addColumnButton_']) { opacity: 1; }
 
@@ -1763,19 +1760,26 @@
 }
 
 .plan-dt-add-column {
-  width: 16px;
-  min-height: 16px;
+  width: var(--add-bar-size, 8px);
+  min-height: var(--add-bar-size, 8px);
   margin: 4px 0;
 }
 
 .plan-dt-add-row {
   width: calc(100% - 8px);
-  height: 16px;
+  height: var(--add-bar-size, 8px);
   margin: 0 4px 4px;
 }
 
 .plan-dt-editor:is(:hover, :focus-within) .plan-dt-add {
   opacity: 1;
+}
+
+/* Every + bar's +, the same size in each (--add-bar-icon). */
+:is(.plan-block-add, .plan-dt-add, .plan-editor [class*='_tableEditor_'] :is([class*='_addRowButton_'], [class*='_addColumnButton_'])) svg {
+  flex: none;
+  width: var(--add-bar-icon, 10px);
+  height: var(--add-bar-icon, 10px);
 }
 
 .plan-dt-add:is(:hover, :active) {

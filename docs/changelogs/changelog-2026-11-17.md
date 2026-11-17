@@ -8,7 +8,7 @@
 
 ### Summary
 
-Inline code no longer jumps when you click into its text. It keeps the same place, size, and font open and closed. Text that ends in a path such as `/health` no longer opens the / menu by itself when you click into it, and the + bar between blocks keeps clear of them.
+Inline code no longer jumps when you click into its text. It keeps the same place, size, and font open and closed. Text that ends in a path such as `/health` no longer opens the / menu by itself when you click into it, and every + bar is a smaller 8px, the same height everywhere.
 
 ### Bugs fixed
 
@@ -18,7 +18,7 @@ Inline code no longer jumps when you click into its text. It keeps the same plac
 
 ### Improvements
 
-- The + bar between blocks is smaller, 10px tall at most, and keeps at least 3px from the block above and the block below it. A narrow gap gets a shorter bar that keeps its +; under a heading, where the gap is narrowest, it is a slim line that still adds a block. A table's add-row and add-column bars keep their size.
+- Every + bar is one height, 8px (16px before): under a block, under a phase, and a table's add-row and add-column bars. A bar under a block sits in the middle of the gap with its + in it, so in most gaps it no longer touches the blocks above and below it.
 
 ### Notes
 
