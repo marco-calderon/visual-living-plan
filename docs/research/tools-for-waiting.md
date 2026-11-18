@@ -12,7 +12,7 @@ It is better than `events` as the **primary** interface where MCP is set up. It 
 
 - A tool result is the one wake-up every tool-using model and harness handles the same way. Today's loop depends on the harness re-invoking the agent when a background process exits, and most harnesses other than Claude Code do not.
 - Tools take typed input and return typed output. There is no shell quoting of `reply --text`, no stdout and stderr parsing, and one permission rule (`mcp__living-plan__*`) instead of a prompt per command.
-- MCP servers run outside the shell sandbox in harnesses whose default sandbox turns network off for commands, such as Codex `workspace-write` (reported, see below). `bunx visual-living-plan events` cannot reach the service there. An MCP server can.
+- Shell sandboxes can block the CLI. Codex's default `workspace-write` sandbox turns network off for commands, so `bunx visual-living-plan events` cannot reach the service there. MCP servers are separate processes that Codex starts, and third-party write-ups say the sandbox does not contain them. That is unverified in OpenAI's docs.
 - A remote MCP server on the hosted app reaches places with no shell at all: claude.ai, Claude Desktop chat, ChatGPT, mobile, and cloud sessions through an account connector.
 
 What holds it back:
@@ -20,10 +20,10 @@ What holds it back:
 - **Tool-call timeouts differ by harness.** Clients built on the MCP TypeScript SDK time out a request at 60 seconds unless they change it; the spike measured that. Codex defaults to 60 seconds and claude.ai connectors allow 240 seconds. Claude Code allows about 27.8 hours and moves a call longer than 2 minutes to the background. A wait has to be a long poll with a bounded window, and the window has to suit the client.
 - **The current MCP spec (2026-07-28) is stateless.** On HTTP a dropped stream cancels the call. Long waits only work because the queue is already durable on the server.
 - **A blocking call blocks the turn** in most harnesses. The agent cannot work while it waits, except in Claude Code (auto-background, MCP Tasks) and where MCP Tasks are supported.
-- **Long polls cost model turns.** Each window that ends with nothing costs one model round trip and a little context. That is fine for minutes. It is wasteful for hours, and some harnesses cap tool calls per request.
+- **Long polls cost model turns.** Each window that ends with nothing costs one model round trip and a little context. That is fine for minutes and wasteful for hours. It is the same cost as the foreground `events` loop that every harness but Claude Code already runs.
 - **Setup.** `bunx` needs nothing installed. A tool needs the harness's MCP config (stdio) or a connector with sign-in (remote).
 
-So the recommendation is to ship tools as a second adapter on the same queue: `live-plan mcp`. Keep `events` as the fallback and as the zero-setup path. Add push mechanisms (MCP Tasks, Claude Code channels) where a harness supports them. The [recommendation](#recommendation) section has the order.
+So the recommendation is to ship tools as a second adapter on the same queue: `live-plan mcp`. Keep `events` as the fallback and as the zero-setup path. Add the asynchronous forms (MCP Tasks, Claude Code channels, MCP Events) where a harness supports them. The [recommendation](#recommendation) section has the order.
 
 ## How the agent waits today
 
@@ -34,24 +34,31 @@ The baseline the tools are measured against ([ADR 0012](../architecture/decision
 - `followAgentEvents` reconnects through drops, restarts, and token changes.
 - Presence ([ADR 0030](../architecture/decisions/0030-agent-presence.md)) and hosted slots ([ADR 0031](../architecture/decisions/0031-agent-slots.md)) count open agent streams.
 
-This works best where the harness runs a command in the background and wakes the model when it exits (Claude Code `run_in_background`). Elsewhere the agent runs `events` in the foreground, under the shell tool's own timeout, which is already a long poll, only untyped.
+This works best where the harness runs a command in the background and wakes the model when it exits. Only Claude Code does that reliably (`run_in_background`); see the harness table. Even there, unattended and cloud sessions stop a background command at 30 minutes by default and 2 hours at most. A cloud VM also pauses after a few idle minutes, and background shells do not keep the session running. Elsewhere the agent runs `events` in the foreground, under the shell tool's own timeout, which is already a long poll, only untyped.
 
 ## Mechanisms a tool layer can use
 
 | Mechanism | How the agent hears the person | Where it works | Limits |
 |---|---|---|---|
 | Blocking call | `plan_wait` returns when a submission arrives | Every MCP client | The client's tool timeout. Blocks the turn |
-| Long poll | `plan_wait` returns `timedOut` after a window, and the agent calls it again | Every MCP client | One model turn per empty window. Tool-call caps per request |
-| Progress heartbeat | `notifications/progress` during the wait | Clients that reset an idle timer on progress: Claude Code's idle timeout, SDK clients that pass `resetTimeoutOnProgress` | Does not extend Claude Code's hard per-call limit. Most clients ignore it |
+| Long poll | `plan_wait` returns `timedOut` after a window, and the agent calls it again | Every MCP client | One model turn and a little context per empty window |
+| Progress heartbeat | `notifications/progress` during the wait | Claude Code's idle timer. No surveyed client passes the SDK's `resetTimeoutOnProgress` | Lengthens no hard limit anywhere. Still worth sending: it keeps quiet connections open |
 | Auto-background | The harness moves a long call off the turn and wakes the model when it returns | Claude Code (after 2 minutes) | Claude Code only. Off in non-interactive `-p` runs unless `CLAUDE_AUTO_BACKGROUND_TASKS` is set |
 | MCP Tasks (`io.modelcontextprotocol/tasks` extension, SEP-2663) | `tools/call` returns `resultType: "task"`; the host polls `tasks/get` until the task ends, and the agent keeps working | Claude Code (public beta since 2.1.304: "if Claude is idle when the result arrives, Claude starts on it unprompted"), MCPJam, Glean; Claude web per the client matrix, unverified | The 2025-11-25 experimental tasks are not wire-compatible with the extension. No progress notifications on a task. The server must store the task durably |
 | Push into the session | The server sends `notifications/claude/channel` and the idle session wakes with the event | Claude Code channels | Research preview. Stdio only, interactive only. Gated, see Claude Code below |
-| Push by webhook | The server POSTs a signed event to the host, and the conversation wakes | ChatGPT MCP Events (`events/list`, `events/subscribe`); the spec's Events extension (SEP-3415, accepted 2026-11-11, no reference implementation yet) | Needs durable subscriptions and outbound HTTPS from the server. Only the hosted app can do it |
+| MCP Events | The server offers an event stream or webhook, and the host wakes the conversation when an event arrives | ChatGPT MCP Events (webhooks); OpenCode 2.3 (event-stream watch, flag `mcp_events`); the spec's Events extension (SEP-3415, accepted 2026-11-11, not merged) | Webhooks need durable subscriptions and outbound HTTPS, which only the hosted app can do. Early: two hosts, both new |
 | Elicitation | The server asks the person in the harness's own UI, beside the page | Clients with elicitation (see table) | It is a question to the person, not a wake-up. Flat form schemas only |
 | MCP Apps (`io.modelcontextprotocol/ui`, stable 2026-01-26) | The plan renders inside the chat. A click calls a tool (`tools/call`) or puts a message in the conversation (`ui/message`) | Claude web and Desktop, ChatGPT, VS Code Copilot, M365 Copilot, Goose, Cursor, Postman, others | Claude Code hides UI resources. In Claude, `sendMessage` needs the person's consent, is capped at 8,000 characters, and must not run on a timer; app-only tools have a 45 s limit and need a remote connector. The plan page has to run in a sandboxed iframe |
 | Resource subscription | Change notifications on `plan://<id>` (`resources/subscribe`, replaced by `subscriptions/listen` in 2026-07-28) | No host found that passes them to the model. Claude's hosted apps do not support them | Good for reading state, not for waking |
 
-Not tools, but they fill the same gap in Claude Code: a Stop hook that blocks stopping while submissions are pending, and an `asyncRewake` hook, which runs in the background and wakes the model when it exits `2`.
+Not tools, but they fill the same gap:
+
+- Claude Code:
+  - an `asyncRewake` hook runs in the background and wakes the model, even an idle one, when it exits `2`;
+  - Bash commands and hooks get `CLAUDE_CODE_MESSAGING_SOCKET` and `CLAUDE_CODE_MESSAGING_TOKEN`, through which a running process can post into its own session, more than once. They are exported in this cloud session. Their wire format is undocumented.
+- Stop hooks that keep the turn going (`decision: block` in Claude Code and VS Code, `followup_message` in Cursor, AfterAgent `deny` in Gemini CLI). These only act at the end of a turn.
+
+A future `events --notify` could use the inbox socket to post each submission while it keeps running. That would be push for the CLI, in Claude Code only.
 
 ## Every action that can be a tool
 
@@ -100,7 +107,30 @@ All of these map to routes the service and the hosted app already have. The stdi
 
 ## Harnesses
 
-HARNESS_TABLE_PLACEHOLDER
+Checked against official docs and main-branch source on 2026-11-17 and 18. "Unverified" means the docs and source did not settle it.
+
+| Harness | Tool-call timeout | A long call | Push or wake | Today's loop (background `events`, wake on exit) |
+|---|---|---|---|---|
+| Claude Code 2.1.3xx | About 28 h hard. Idle 30 min stdio, 5 min HTTP, reset by progress. Per-server `timeout` | Moves to the background at 2 min. MCP Tasks (beta since 2.1.304; CLI and Agent SDK only; needs revision 2026-07-28) | Channels (gated), `asyncRewake` hooks, the session inbox socket | Works. Unattended and cloud sessions cap background commands at 30 min by default, 2 h at most |
+| Cursor 3.x | About 60 min in the IDE, 60 s in the CLI, 300 s for remote HTTP (forum staff, not documented). No setting | Blocks. Cancel does not abort the HTTP request | Stop hook `followup_message` (loop limit 5 by default) | Shells persist across turns. "Task has finished" turns are reported since 3.18.9, unverified as stable |
+| Codex CLI | Docs say 60 s; `main` source says 300 s. `tool_timeout_sec` | Blocks. Released ≤ 0.163 sends no `notifications/cancelled` | `codex queue --thread`, Stop-hook continuation | **No wake on exit** (openai/codex#32188, open). Default sandbox turns network off for commands |
+| Gemini CLI | 600 s. Per-server `timeout` | Blocks. Esc sends no cancel | AfterAgent `deny` forces a retry | Only with `backgroundCompletionBehavior` and `experimental.modelSteering` |
+| VS Code Copilot | About 180 s in the Copilot harness (default since 1.142). `timeout` honored only in `~/.copilot/mcp-config.json` | Blocks | Stop hook `decision: block`. Elicitation only during an active turn. An MCP App's message fills the input, no auto-send | Unverified |
+| Cline | 60 s. `timeout` 1–3600 s | Blocks. Sends no progress token | — | Unverified |
+| OpenCode 2.3 | 12 h. `mcp.timeout.execution` | Unverified | **MCP Events watch wakes the session** (flag `mcp_events`). HTTP `prompt_async` | Unverified |
+| Goose | 300 s per extension | Blocks | MCP Apps | Unverified |
+| Zed | 60 s, capped at 600 s | Blocks. Cancels on stop, not on timeout | None | No background terminal |
+| JetBrains Junie | 60 s, settable 1 s–1 h | Unverified | Unverified | Unverified |
+| Windsurf (Devin Desktop) | Unverified | Unverified | A Stop hook exists; continuation not documented | Unverified |
+
+Across them:
+
+- **No client passes the SDK's `resetTimeoutOnProgress`.** Claude Code's idle timer is the only timer that progress resets. A heartbeat keeps a call alive there and keeps connections from going quiet. It does not lengthen anyone's hard limit.
+- **A 55 s window works everywhere.** Larger windows are safe per client: Gemini CLI about 9 min, Goose 4.5 min, VS Code about 170 s, and long ones in Claude Code (with a heartbeat) and OpenCode.
+- **Today's loop wakes the agent reliably only in Claude Code.** In every other harness, the agent already runs `events` in the foreground and starts it again: a long poll through the shell. A tool runs the same loop at the same cost, typed, outside the sandbox, and with one permission rule.
+- **Elicitation:** form and URL in Claude Code, Codex, and OpenCode; form in Cursor and Goose; none in Gemini CLI, Cline, and Zed. VS Code allows it only during an active turn.
+- **Tasks:** only Claude Code among local harnesses.
+- **One conflict in Claude Code.** Tasks need revision 2026-07-28, and a channel server must negotiate an older one. They would be two server entries, not one.
 
 ### Claude Code, read from the 2.1.327 binary
 
@@ -109,12 +139,13 @@ Read from the binary in this cloud container, not from the docs:
 - **Hard timeout.** `MCP_TOOL_TIMEOUT`, or a per-server `"timeout"` in milliseconds, defaults to `1e8` ms (about 27.8 hours) and is capped at 2³¹−1 ms. The binary's own help text says "progress notifications do not extend it".
 - **Idle timeout.** A call is aborted after "no response or progress notification" for 30 minutes on a stdio server, or 5 minutes on a remote one. `CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT` changes it (`0` turns it off), and so does a per-server `timeout`. **A remote `plan_wait` must send progress at least every few minutes**, or Claude Code drops it at 5 minutes.
 - **Auto-background.** A tool call that runs past 120 seconds moves to the background (`CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS`, flag `tengu_mcp_auto_background`, on by default). It comes back as a task notification ("The tool call …, which ran in the background"). In an interactive session a blocking `plan_wait` therefore behaves like `events` with `run_in_background` today. It is off in non-interactive runs unless `CLAUDE_AUTO_BACKGROUND_TASKS` is set.
-- **MCP Tasks.** Claude Code polls a server's task and waits for `mcp_tasks_changed`. In cloud sessions a polling service follows the task ("the polling service polls it; this client polls once, then waits for mcp_tasks_changed or a person's message").
+- **MCP Tasks.** Claude Code polls a server's task and waits for `mcp_tasks_changed`. In cloud sessions a polling service follows the task ("the polling service polls it; this client polls once, then waits for mcp_tasks_changed or a person's message"). The docs add three points: tasks are a public beta in the CLI and Agent SDK, not in the VS Code extension or the desktop app; they need revision 2026-07-28; and an idle Claude starts on a finished task unprompted.
 - **Channels.** A server that declares the `claude/channel` capability can send `notifications/claude/channel`, and the message reaches the session. The gates are all in the binary:
   - first-party Anthropic models only, not Bedrock, Vertex, or Foundry;
   - org policy `channelsEnabled: true`, with `allowedChannelPlugins` replacing Anthropic's default allowlist;
   - the server must be a marketplace plugin named in `--channels`, or loaded with `--dangerously-load-development-channels`;
-  - a connection that negotiated the newer stateless protocol revision has "no unsolicited notification path".
+  - a connection that negotiated the newer stateless protocol revision has "no unsolicited notification path". The docs say to use `MCP_PROTOCOL_NEGOTIATION=legacy` or SDK 1.x;
+  - the docs add: stdio only, interactive sessions only (`--dangerously-load-development-channels` is ignored in `-p` and the Agent SDK), and nothing documents channels in cloud sessions.
 - **Output cap.** `MAX_MCP_OUTPUT_TOKENS` limits a result, so a `plan_wait` result must not carry a page edit's whole source. The CLI already strips it.
 
 ## Models
@@ -171,13 +202,31 @@ What this means for the cloud:
 
 ## Spike
 
-A stdio server in the session scratchpad (not committed) imported the repo's own `followAgentEvents` and `ackPlanEvents`. It exposed `wait_for_events`, `reply`, and `set_mode`. An MCP SDK client (1.32.2) drove it over stdio against a local service started with `serve examples/rate-limit.plan.md` under its own `LIVE_PLAN_HOME`, and plain HTTP posts played the person.
+[`spike/server.ts`](spike/server.ts) is a stdio server that imports the repo's own `followAgentEvents` and `ackPlanEvents` and exposes `wait_for_events`, `reply`, and `set_mode`. [`spike/client.ts`](spike/client.ts) drives it with the MCP SDK client (1.32.2), as a harness would, and plays the person with plain HTTP posts. It is not product code, and the typecheck and tests do not include it.
+
+To run it, serve a copy of the fixture under a throwaway home on a free port, which leaves a running service alone. Then pass the printed URL to the client:
+
+```bash
+export LIVE_PLAN_HOME=$(mktemp -d)
+cp examples/rate-limit.plan.md "$LIVE_PLAN_HOME/"
+bun src/cli.ts serve "$LIVE_PLAN_HOME/rate-limit.plan.md" --no-open --port 0
+cd docs/research/spike && bun install
+bun client.ts <printed plan URL>
+```
+
+`serve` leaves that throwaway service running. Stop it by the pid in its lock file:
+
+```bash
+kill "$(bun -e 'console.log((await Bun.file(process.env.LIVE_PLAN_HOME + "/registry.json").json()).pid)')"
+```
+
+It answers `fail-mode` and comments on `design`, so use a fresh copy of the plan for each run. Two runs on 2026-11-17 and 18 gave the same results:
 
 | Check | Result |
 |---|---|
 | Nothing pending, 2 s window | `{"timedOut":true,"waitedMs":2000}` |
 | Presence between calls | `agentConnected: true`, because the server holds the stream between calls |
-| Person picks a choice while the call blocks | Returned 41 ms after the post, with the `interaction` row |
+| Person picks a choice while the call blocks | Returned 40–41 ms after the post, with the `interaction` row |
 | Harness cancels the call, then the person comments | Cancel rejected the call. The next call returned the comment. Nothing lost, nothing acked early |
 | `reply` through the tool | The page API shows the comment answered with one reply |
 | SDK default timeout, 90 s wait, no progress | Rejected at 60 s: `MCP error -32001: Request timed out` |
@@ -203,11 +252,11 @@ A stdio server in the session scratchpad (not committed) imported the repo's own
 
 | Criterion | `events` CLI | Stdio MCP tools | Remote MCP on the host |
 |---|---|---|---|
-| Wakes the model in any harness | Only where a background exit wakes it | Yes, by returning | Yes, by returning |
+| Wakes the model in any harness | Only Claude Code wakes on a background exit | Yes, by returning | Yes, by returning |
 | Long waits without burning turns | Claude Code background | Claude Code (auto-background, tasks); elsewhere long polls | Windows of 240 s or less on claude.ai; tasks in Claude Code; webhook wake in ChatGPT |
 | Agent keeps working while waiting | Claude Code background | Claude Code, task-capable clients | Same |
 | Typed input and output | No | Yes | Yes |
-| Shell sandbox with network off | Blocked | Works (server outside the sandbox) | Works |
+| Shell sandbox with network off | Blocked | Reported to work (server outside the sandbox) | Works |
 | Permission prompts | One per command | One rule for the server | One rule |
 | Setup | None (`bunx`) | MCP config per harness | Connector and sign-in once per account |
 | Chat surfaces with no shell | No | No | Yes |
@@ -230,4 +279,41 @@ Record the choice as an ADR when step 1 starts. It changes how agents are notifi
 
 ## Sources
 
-SOURCES_PLACEHOLDER
+First-hand, in this session:
+
+- The Claude Code 2.1.327 binary at `/opt/claude-code/bin/claude`: timeout constants, idle timeout, auto-background, task polling, channel gates, hooks.
+- `@modelcontextprotocol/sdk` 1.32.2: `DEFAULT_REQUEST_TIMEOUT_MSEC = 60000`, latest protocol `2025-11-25`.
+- The spike against this repo's local service, described above.
+
+Spec and SDKs:
+
+- [MCP versioning](https://modelcontextprotocol.io/specification/versioning), [2026-07-28 release post](https://blog.modelcontextprotocol.io/posts/2026-07-28/), [2026-07-28 changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog)
+- [Streamable HTTP, 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http), [transports, 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports), [cancellation](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/cancellation), [subscriptions](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/subscriptions), [elicitation](https://modelcontextprotocol.io/specification/2026-07-28/client/elicitation)
+- [Tasks extension](https://modelcontextprotocol.io/extensions/tasks/overview), [SEP-2663](https://modelcontextprotocol.io/seps/2663-tasks-extension), [Events extension, SEP-3415](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/3415), [client matrix](https://modelcontextprotocol.io/extensions/client-matrix), [roadmap](https://modelcontextprotocol.io/development/roadmap)
+- [MCP Apps spec, 2026-01-26](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx)
+
+Harnesses:
+
+- Claude Code: [MCP](https://code.claude.com/docs/en/mcp), [environment variables](https://code.claude.com/docs/en/env-vars), [channels](https://code.claude.com/docs/en/channels), [channels reference](https://code.claude.com/docs/en/channels-reference), [hooks](https://code.claude.com/docs/en/hooks), [tools reference](https://code.claude.com/docs/en/tools-reference), [cross-session messaging](https://code.claude.com/docs/en/cross-session-messaging), [on the web](https://code.claude.com/docs/en/claude-code-on-the-web), [cloud environments](https://code.claude.com/docs/en/cloud-environments)
+- Claude connectors: [building](https://claude.com/docs/connectors/building), [authentication](https://claude.com/docs/connectors/building/authentication), [MCP Apps: sending messages](https://claude.com/docs/connectors/building/mcp-apps/send-messages), [MCP Apps: app tools](https://claude.com/docs/connectors/building/mcp-apps/app-tools)
+- OpenAI:
+  - Codex: [MCP in Codex](https://learn.chatgpt.com/docs/extend/mcp), [hooks](https://learn.chatgpt.com/docs/hooks), [agent approvals and security](https://developers.openai.com/codex/agent-approvals-security), [openai/codex#32188](https://github.com/openai/codex/issues/32188) (no wake on exit), [openai/codex#26956](https://github.com/openai/codex/issues/26956) (no cancel)
+  - ChatGPT: [developer mode](https://developers.openai.com/api/docs/guides/developer-mode), [MCP Events](https://developers.openai.com/plugins/build/mcp-events), [MCP Apps in ChatGPT](https://developers.openai.com/apps-sdk/mcp-apps-in-chatgpt)
+  - Third party, on MCP servers and the Codex sandbox: [Codex sandbox, explained](https://www.agent37.com/blog/codex-sandbox)
+- Cursor: [MCP](https://cursor.com/docs/mcp.md), [hooks](https://cursor.com/docs/hooks.md), [remote MCP 300 s timeout](https://forum.cursor.com/t/166437), [timeouts thread](https://forum.cursor.com/t/163925), [cloud agent capabilities](https://cursor.com/docs/cloud-agent/capabilities)
+- Gemini CLI: [hooks reference](https://geminicli.com/docs/hooks/reference/), and `packages/core/src/tools/mcp-client.ts` and `docs/reference/configuration.md` on `main`
+- VS Code: [MCP developer guide](https://code.visualstudio.com/docs/copilot/guides/mcp-developer-guide), [microsoft/vscode#343135](https://github.com/microsoft/vscode/issues/343135) (Copilot harness timeout)
+- GitHub Copilot cloud agent: [extending it with MCP](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/extend-coding-agent-with-mcp), [about it](https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-coding-agent), [hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)
+- Others:
+  - [OpenCode MCP servers](https://opencode.ai/docs/mcp-servers/), [OpenCode server](https://opencode.ai/docs/server/)
+  - [Goose elicitation](https://goose-docs.ai/docs/guides/mcp-elicitation/)
+  - [Junie MCP configuration](https://junie.jetbrains.com/docs/junie-cli-mcp-configuration.html)
+  - [Devin MCP](https://docs.devin.ai/work-with-devin/mcp), [Devin hooks](https://docs.devin.ai/cli/extensibility/hooks/overview)
+  - [Jules changelog](https://jules.google/docs/changelog/)
+  - Cline (`McpHub.ts`) and Zed (`crates/context_server`) source on `main`
+
+Cloudflare and auth:
+
+- Cloudflare: [Workers limits](https://developers.cloudflare.com/workers/platform/limits/), [error 524](https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-524), [Durable Object lifecycle](https://developers.cloudflare.com/durable-objects/concepts/durable-object-lifecycle/), [Durable Objects pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/), [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/)
+- Agents SDK: [v0.20.0 changelog](https://developers.cloudflare.com/changelog/post/2026-07-27-agents-sdk-v0.20.0-mcp-sdk-v2/), [MCP v2 post](https://blog.cloudflare.com/mcp-v2)
+- [Better Auth MCP plugin](https://www.better-auth.com/docs/plugins/mcp)
