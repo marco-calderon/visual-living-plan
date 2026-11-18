@@ -9,10 +9,13 @@
 //!
 //! The app keeps no settings logic. Its commands run the CLI it ships (`live-plan desktop ...`,
 //! `live-plan skills ...`) and hand the answer to the setup screen.
+//!
+//! It updates itself from GitHub releases (ADR 0041, `update.rs`).
 
 mod app_link;
 mod links;
 mod service;
+mod update;
 
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -668,9 +671,27 @@ fn front_window_label(app: &AppHandle) -> String {
 }
 
 /// Adds a Plans menu to the standard one, so local, cloud, and setup are reachable from any page,
-/// including one served by an older plan service that draws no switch in its toolbar.
+/// including one served by an older plan service that draws no switch in its toolbar. A build that
+/// updates itself also gets Check for Updates… under About.
 fn install_menu(app: &AppHandle) -> tauri::Result<()> {
     let menu = Menu::default(app)?;
+    if update::enabled(app) {
+        let app_menu = menu
+            .items()?
+            .into_iter()
+            .next()
+            .and_then(|item| item.as_submenu().cloned());
+        if let Some(app_menu) = app_menu {
+            let check = MenuItem::with_id(
+                app,
+                update::MENU_ID,
+                "Check for Updates…",
+                true,
+                None::<&str>,
+            )?;
+            app_menu.insert(&check, 1)?;
+        }
+    }
     let plans = Submenu::with_items(
         app,
         "Plans",
@@ -691,6 +712,10 @@ fn install_menu(app: &AppHandle) -> tauri::Result<()> {
     menu.append(&plans)?;
     app.set_menu(menu)?;
     app.on_menu_event(|app, event| {
+        if event.id().as_ref() == update::MENU_ID {
+            update::check_now(app);
+            return;
+        }
         let fragment = match event.id().as_ref() {
             "plans-local" => "mode=local",
             "plans-cloud" => "mode=cloud",
@@ -731,7 +756,11 @@ pub fn run() {
                 .open_js_links_on_click(false)
                 .build(),
         )
+        // Used from Rust only. No capability grants their commands to a page.
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .manage(Arc::new(Shared::default()))
+        .manage(update::Updates::default())
         .invoke_handler(tauri::generate_handler![
             connect,
             desktop_state,
@@ -757,6 +786,7 @@ pub fn run() {
                 MAIN_WINDOW,
                 WebviewUrl::App("index.html".into()),
             )?;
+            update::watch(app.handle());
             Ok(())
         })
         .run(tauri::generate_context!())

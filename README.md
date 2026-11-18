@@ -73,7 +73,19 @@ The first launch shows a short setup, one step at a time:
 
 Setup opens again from Settings on any page, and from **Plans**, then **Setup**, in the menu bar. The same installs work from a terminal: `live-plan skills install` copies the skill into every agent found on the machine (`--harness <id>` names one, `skills list` shows where it is), and `live-plan desktop install-cli` writes the launcher. On macOS the page toolbar is the window's title bar. Cloud mode needs a connection, and when the host does not answer the app offers the plans on this computer. In the app, sign in to a hosted Living Plan with email or GitHub; Google refuses sign-in from an embedded window.
 
-The `.dmg` for each release is attached to the GitHub release by `.github/workflows/desktop.yml`. The app is signed ad hoc, not notarized, so the first launch asks you to allow it in System Settings, Privacy & Security. To build it on a Mac from a checkout you need Rust:
+The `.dmg` for each release is attached to the GitHub release by `.github/workflows/desktop.yml`. The app is signed ad hoc, not notarized, so the first launch asks you to allow it in System Settings, Privacy & Security.
+
+After that the app updates itself. It checks the latest GitHub release shortly after it opens and every few hours, installs a newer version in the background, and asks you to restart; **Later** keeps it for the next launch. **Living Plan > Check for Updates…** checks now. Updates are signed, and the app checks each one against the public key it ships with. macOS does not ask you to allow the app again, because the app downloads the update itself rather than through a browser. The plan service keeps running through the restart.
+
+Maintainers sign updates with an updater key, which is separate from Apple signing and needs no Apple account:
+
+1. Generate it on your own machine: `bun tauri signer generate -w ~/.tauri/living-plan.key`. Keep the private key and its password out of the repository.
+2. Put the contents of `~/.tauri/living-plan.key.pub` in `plugins.updater.pubkey` in `src-tauri/tauri.conf.json` and commit it.
+3. Add the repository secrets `TAURI_SIGNING_PRIVATE_KEY` (the contents of `~/.tauri/living-plan.key`) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+
+From then on each published release gets `Living.Plan_<version>_<arch>.app.tar.gz`, its `.sig`, and `latest.json` beside the `.dmg` files ([ADR 0041](docs/architecture/decisions/0041-desktop-app-updates.md)).
+
+To build the app on a Mac from a checkout you need Rust:
 
 ```bash
 bun install

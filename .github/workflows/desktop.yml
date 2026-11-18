@@ -3,12 +3,17 @@ name: Desktop
 # Builds the Living Plan desktop app (src-tauri) for macOS, Apple silicon and Intel.
 # Runs on pull requests that touch the app, by hand, and on a published release, where the
 # .dmg files are attached to that release. Builds are signed ad hoc, not notarized. See ADR 0036.
+#
+# On a release, when the TAURI_SIGNING_PRIVATE_KEY secret is set, each build also makes a signed
+# update package, and the update-manifest job attaches latest.json, which installed apps read to
+# update themselves. Pull requests never get the key. See ADR 0041.
 on:
   pull_request:
     paths:
       - src-tauri/**
       - desktop/**
       - scripts/build-desktop.ts
+      - scripts/updater-manifest.ts
       - scripts/desktop-icon/**
       - .github/workflows/desktop.yml
   workflow_dispatch:
@@ -30,6 +35,8 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: write
+    outputs:
+      updater: ${{ steps.updater.outputs.enabled }}
     strategy:
       fail-fast: false
       matrix:
@@ -66,9 +73,42 @@ jobs:
           tar xzf ./*.tgz
           echo "LIVE_PLAN_DESKTOP_BUN=$RUNNER_TEMP/bun/package/bin/bun" >> "$GITHUB_ENV"
 
-      # Stages the bundled service and Bun (bun run desktop:stage), then builds the .app and .dmg.
+      # Update packages are signed on a release only, and only once the key and the public key in
+      # tauri.conf.json are both there. A key without the public key is a mistake: stop.
+      - name: Updater signing
+        id: updater
+        env:
+          RELEASE: ${{ github.event_name == 'release' }}
+          HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          pubkey=$(jq -r '.plugins.updater.pubkey // ""' src-tauri/tauri.conf.json)
+          if [ "$RELEASE" != true ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          elif [ "$HAS_KEY" != true ]; then
+            if [ -n "$pubkey" ]; then
+              echo "::warning::TAURI_SIGNING_PRIVATE_KEY is not set, so this release has no update for installed apps."
+            fi
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          elif [ -z "$pubkey" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY is set, but plugins.updater.pubkey in src-tauri/tauri.conf.json is empty. Commit the public key that pairs with it."
+            exit 1
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Stages the bundled service and Bun (bun run desktop:stage), then builds the .app and .dmg,
+      # and on a signed release the update package (bundle/macos/Living Plan.app.tar.gz and .sig).
       - name: Build the app
-        run: bun run desktop:build -- --target ${{ matrix.target }}
+        env:
+          UPDATER: ${{ steps.updater.outputs.enabled }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ steps.updater.outputs.enabled == 'true' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ steps.updater.outputs.enabled == 'true' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+        run: |
+          if [ "$UPDATER" = true ]; then
+            bun run desktop:build -- --target ${{ matrix.target }} --config '{"bundle":{"createUpdaterArtifacts":true}}'
+          else
+            bun run desktop:build -- --target ${{ matrix.target }}
+          fi
 
       - name: Rust tests
         if: matrix.arch == 'arm64'
@@ -86,3 +126,55 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "${{ github.event.release.tag_name }}" src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg --clobber
+
+      # Living.Plan_<version>_<arch>.app.tar.gz and its .sig, named so both builds fit on the release.
+      - name: Name the update package
+        if: steps.updater.outputs.enabled == 'true'
+        run: bun scripts/updater-manifest.ts package --target ${{ matrix.target }} --out "$RUNNER_TEMP/updater"
+
+      - uses: actions/upload-artifact@v7
+        if: steps.updater.outputs.enabled == 'true'
+        with:
+          name: living-plan-updater-${{ matrix.arch }}
+          path: ${{ runner.temp }}/updater/*
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Attach the update package to the release
+        if: steps.updater.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" "$RUNNER_TEMP"/updater/* --clobber
+
+  # Written once both builds have attached their packages, so latest.json never names a missing one.
+  update-manifest:
+    name: Update manifest
+    needs: build
+    if: github.event_name == 'release' && needs.build.outputs.updater == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: living-plan-updater-*
+          merge-multiple: true
+          path: updater
+
+      - name: Write latest.json
+        env:
+          RELEASE_NOTES: ${{ github.event.release.body }}
+          BASE_URL: https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}
+        run: bun scripts/updater-manifest.ts manifest --dir updater --base-url "$BASE_URL" --out latest.json
+
+      - name: Attach latest.json to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" latest.json --clobber
