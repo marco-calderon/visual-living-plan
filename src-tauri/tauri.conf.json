@@ -54,6 +54,13 @@
           "living-plan"
         ]
       }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUyODZGODZDNkFGNzY0QTYKUldTbVpQZHFiUGlHNGt3ZVdCNFB6aTBURi90T0ExRFM1VGtuNHlMUEJVN0lmbTZCWlpBVktSZ1kK",
+      "endpoints": [
+        "https://github.com/marco-calderon/visual-living-plan/releases/latest/download/latest.json"
+      ],
+      "requireSignedVersion": true
     }
   }
 }

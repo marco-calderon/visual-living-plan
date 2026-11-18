@@ -1,6 +1,6 @@
 # ADR 0036: The desktop app is a Tauri window on the local plan service
 
-- Status: Accepted. [ADR 0038](0038-desktop-setup-and-cloud.md) adds the setup screen, hosted plans, and the title bar, and gives remote pages one window permission.
+- Status: Accepted. [ADR 0038](0038-desktop-setup-and-cloud.md) adds the setup screen, hosted plans, and the title bar, and gives remote pages one window permission. [ADR 0041](0041-desktop-app-updates.md) makes the app update itself from GitHub releases.
 - Date: 2026-11-11
 
 ## Context
