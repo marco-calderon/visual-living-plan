@@ -245,4 +245,25 @@ mod tests {
         assert!(updater["pubkey"].is_string());
         serde_json::from_value::<tauri_plugin_updater::Config>(updater).unwrap();
     }
+
+    #[test]
+    fn the_shipped_public_key_decodes() {
+        use base64::Engine;
+        // An empty key turns updates off in that build, and is allowed. Any other key must decode
+        // as the updater decodes it, or every update would fail its signature check.
+        let config: Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let key = config["plugins"]["updater"]["pubkey"]
+            .as_str()
+            .unwrap()
+            .trim();
+        if key.is_empty() {
+            return;
+        }
+        let text = base64::engine::general_purpose::STANDARD
+            .decode(key)
+            .expect("plugins.updater.pubkey is the base64 of the .pub file");
+        let text = String::from_utf8(text).expect("the .pub file is text");
+        minisign_verify::PublicKey::decode(&text)
+            .expect("plugins.updater.pubkey is a minisign key");
+    }
 }

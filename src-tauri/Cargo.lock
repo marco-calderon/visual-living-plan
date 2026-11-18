@@ -2119,6 +2119,8 @@ checksum = "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae"
 name = "living-plan-desktop"
 version = "0.0.0"
 dependencies = [
+ "base64 0.23.1",
+ "minisign-verify",
  "objc2-app-kit",
  "objc2-foundation",
  "serde",
