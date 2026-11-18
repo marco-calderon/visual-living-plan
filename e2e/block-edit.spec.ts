@@ -332,7 +332,17 @@ test('Edit on a code block puts the caret in its code, not on its language', asy
   const code = page.locator('[data-plan-rendered] .code-host').first()
   await code.scrollIntoViewIfNeeded()
   await code.hover({ position: { x: 300, y: 20 } })
-  await page.locator('[data-plan-block-edit]').click()
+  // The pill shows beside the code block's first line, and is pressed where it is. A click that
+  // scrolls the pill into view first moves the page under the pointer, which can then be on the
+  // phase's title, and the pill goes to the phase.
+  const pill = page.locator('[data-plan-block-tools]')
+  await expect(pill).toHaveAttribute('data-visible', '')
+  await expect
+    .poll(async () => Math.abs(((await pill.boundingBox())?.y ?? 0) - ((await code.boundingBox())?.y ?? 0)))
+    .toBeLessThan(1)
+  const at = await page.locator('[data-plan-block-edit]').boundingBox()
+  if (!at) throw new Error('no Edit pill on screen')
+  await page.mouse.click(at.x + at.width / 2, at.y + at.height / 2)
   const fence = page.locator('[data-plan-block-editor] [data-code-fence]')
   await expect(fence).toBeVisible()
   // The code editor types in a shadow root of its own.
