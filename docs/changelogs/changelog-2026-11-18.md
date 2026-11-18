@@ -2,7 +2,7 @@
 
 ## 2.31.1
 
-**PR:** to be linked when the pull request opens
+**PR:** [#202](https://github.com/marco-calderon/visual-living-plan/pull/202)
 
 **Bump:** patch
 
