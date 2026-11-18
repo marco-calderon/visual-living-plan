@@ -21,6 +21,7 @@ import {
 import { ArrowDown, ArrowUp, GripVertical, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { createPortal } from 'react-dom'
+import { barFit } from '../addBar.ts'
 import { isLockedNodeDeep } from './locked.ts'
 
 /**
@@ -34,8 +35,7 @@ type Level = 'root' | 'nested'
 type Drop = { beforeKey: string } | { afterKey: string }
 type Bar = { top: number; left: number; width: number }
 
-/** Height of the + bar, and the room the last block leaves under it. Match planEditor.css. */
-const BAR_HEIGHT = 16
+/** The room the last block leaves under it for its + bar. The bar's own size is client/addBar.ts. */
 const BAR_ROOM = 24
 /** How long the grip's menu takes to fade out. Match planEditor.css. */
 const MENU_OUT_MS = 120
@@ -263,7 +263,7 @@ function BlockHandles({ level }: { level: Level }) {
     // The bar sits in the middle of the gap under the block, as wide as the block.
     const next = element.nextElementSibling?.getBoundingClientRect().top ?? rect.bottom + BAR_ROOM
     setBar({
-      top: rect.bottom + Math.max(0, next - rect.bottom - BAR_HEIGHT) / 2 - box.top,
+      top: rect.bottom + barFit(next - rect.bottom).offset - box.top,
       left: rect.left - box.left,
       width: rect.width,
     })
@@ -506,7 +506,7 @@ function BlockHandles({ level }: { level: Level }) {
           onMouseDown={(event) => event.preventDefault()}
           onClick={addBelow}
         >
-          <Plus size={12} strokeWidth={2.25} aria-hidden="true" />
+          <Plus size={10} strokeWidth={2.5} aria-hidden="true" />
         </button>
       ) : null}
       {line !== null ? <div className="plan-block-drop-line" style={{ top: line }} aria-hidden="true" /> : null}

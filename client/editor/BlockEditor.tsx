@@ -22,7 +22,7 @@ import type { EditCaret, EditFollow } from '../planEditButton.ts'
 import { Button } from '../ui/button.tsx'
 import { releaseOuterCarets, syncFocusedNestedEditor } from './blockHandles.tsx'
 import { focusFence } from './codeFence.tsx'
-import { iconFor, planEditorPlugins, useKeepTypingInView } from './editorSetup.tsx'
+import { iconFor, planEditorPlugins, planLexicalTheme, useKeepTypingInView } from './editorSetup.tsx'
 import './planEditor.css'
 
 /**
@@ -644,6 +644,7 @@ export function BlockEditor({
         contentEditableClassName="plan-document plan-ui plan-editor-content"
         markdown={markdown}
         plugins={plugins}
+        lexicalTheme={planLexicalTheme}
         iconComponentFor={iconFor}
         onChange={(value) => changedRef.current(value)}
         onError={({ error }) => setMessage(`The editor could not read part of this block: ${error}`)}

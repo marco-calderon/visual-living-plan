@@ -6,18 +6,18 @@ mode: watch
 
 # Inline edit
 
-The gateway keeps one window per key and returns 429 when it is full. See [the rollout](#rollout).
+The gateway keeps one window per key and returns `429` when it is full. See [the rollout](#rollout).
 
 ## Rollout
 
-- Ship behind a flag
+- Ship behind the `RATE_LIMIT_V2` flag
 - Turn it on for staff
 
 > Keep the old limiter until the new one has run for a week.
 
 | Route | Limit |
 | --- | --- |
-| GET /health | none |
+| `GET /health` | none |
 | POST /api/keys | 600 per minute |
 
 <phase id="build" title="Build the limiter" status="active">

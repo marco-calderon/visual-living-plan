@@ -76,6 +76,44 @@ test('text keeps its place and look while it is edited, and the caret goes where
   await expect(page.locator('[data-plan-apply-bar]')).toHaveCount(0)
 })
 
+/** Each inline code chip in `root`: where it is, its size, and the type and padding it is drawn with. */
+function codeChips(root: Locator) {
+  return root.evaluate((node) =>
+    [...node.querySelectorAll('code')].map((code) => {
+      const box = code.getBoundingClientRect()
+      const style = getComputedStyle(code)
+      // The editor draws `<code><span>`: the span takes the chip's type and adds no chip of its own.
+      const inner = code.firstElementChild ? getComputedStyle(code.firstElementChild) : style
+      return {
+        text: code.textContent,
+        box: [box.x, box.y, box.width, box.height],
+        look: [style.fontFamily, style.fontSize, style.padding, style.borderRadius, style.backgroundColor, inner.fontSize, inner.fontFamily],
+        innerPadding: code.firstElementChild ? inner.padding : '0px',
+      }
+    }),
+  )
+}
+
+test('inline code keeps its chip while its text is edited: the same place, size, and type', async ({ page }) => {
+  await openPlan(page)
+  const cases: Array<{ text: Locator; word: string }> = [
+    { text: rendered(page).locator('> p[data-plan-block]').first(), word: 'gateway' },
+    { text: rendered(page).locator('> ul[data-plan-block] li').first(), word: 'Ship' },
+    { text: rendered(page).locator('.rich-table tbody tr').first().locator('td').first(), word: 'GET' },
+  ]
+  for (const { text, word } of cases) {
+    await text.scrollIntoViewIfNeeded()
+    const before = await codeChips(text)
+    expect(before, `${word} has inline code`).toHaveLength(1)
+    await clickTextAt(page, text, word)
+    const open = await codeChips(inlineEditor(page))
+    expect(open.map(({ text, look, innerPadding }) => ({ text, look, innerPadding }))).toEqual(before.map(({ text, look }) => ({ text, look, innerPadding: '0px' })))
+    open[0].box.forEach((value, at) => expect(Math.abs(value - before[0].box[at]), `${word}: the code chip moved or changed size`).toBeLessThan(0.5))
+    await page.mouse.click(5, 450)
+    await expect(editor(page)).toHaveCount(0)
+  }
+})
+
 test('a pipe table cell is edited where it is, Enter keeps it, and only that cell changes in the file', async ({ page }) => {
   await openPlan(page)
   const before = await planSource(page)
@@ -458,24 +496,32 @@ test('text in a phase has + under it, which adds a block below it in the phase w
   await expect(editor(page)).toHaveCount(0)
 })
 
-test('every + bar has the same size, a narrow gap included, and the gap under open text shows no bar', async ({ page }) => {
+test('every + bar has the same height, a narrow gap included, and the gap under open text shows no bar', async ({ page }) => {
   await openPlan(page)
-  // A heading sits close over its list: the bar keeps its size, centered on the gap, and takes no
-  // clicks past its own edges there.
+  /** The bar under `above`: its height, and the room between it and the blocks on either side. */
+  const barIn = async (above: Locator, below: Locator) => {
+    const [bar, top, bottom] = [await addBar(page).boundingBox(), await above.boundingBox(), await below.boundingBox()]
+    if (!bar || !top || !bottom) throw new Error('no bar or blocks on screen')
+    const gapMiddle = (top.y + top.height + bottom.y) / 2
+    expect(Math.abs(bar.y + bar.height / 2 - gapMiddle), 'the bar is centered on the gap').toBeLessThan(1)
+    return { height: bar.height, over: bar.y - (top.y + top.height), under: bottom.y - (bar.y + bar.height) }
+  }
+  // A heading sits close over its list: the bar keeps its 8px and its +, centered on the gap, and
+  // takes no clicks past its own edges there.
   const heading = rendered(page).locator('> h2')
   await heading.hover()
   await expect(addBar(page)).toHaveAttribute('data-visible', '')
   await expect(addBar(page)).toHaveAttribute('data-tight', '')
-  const [bar, above, below] = [await addBar(page).boundingBox(), await heading.boundingBox(), await rendered(page).locator('> h2 + *').boundingBox()]
-  if (!bar || !above || !below) throw new Error('no bar or blocks on screen')
-  expect(bar.height).toBe(16)
-  const gapMiddle = (above.y + above.height + below.y) / 2
-  expect(Math.abs(bar.y + bar.height / 2 - gapMiddle)).toBeLessThan(1)
-  // Under a table, where there is room, the same 16px bar.
+  await expect(addBar(page).locator('svg')).toBeVisible()
+  expect((await barIn(heading, rendered(page).locator('> h2 + *'))).height).toBe(8)
+  // Under a table, where there is room, the same 8px bar, 3px or more from each block.
   const table = rendered(page).locator('.rich-table')
   await table.hover({ position: { x: 20, y: 10 } })
   await expect(addBar(page)).not.toHaveAttribute('data-tight', '')
-  expect((await addBar(page).boundingBox())?.height).toBe(16)
+  const roomy = await barIn(table, rendered(page).locator('.rich-table + *'))
+  expect(roomy.height).toBe(8)
+  expect(roomy.over).toBeGreaterThanOrEqual(3)
+  expect(roomy.under).toBeGreaterThanOrEqual(3)
 
   // Text open in its editor: the gap under it is its own, with no bar for the block above it.
   const intro = rendered(page).locator('> p[data-plan-block]').first()
@@ -524,6 +570,9 @@ test("a pipe table open in its editor is a card like the page's, with a small re
   for (const bar of [addRow, addColumn]) expect(await bar.evaluate((node) => getComputedStyle(node).opacity)).toBe('1')
   const row = await addRow.boundingBox()
   expect(row && row.y >= last.y + last.height).toBe(true)
+  // The same 8px as + under a block: the row bar's height and the column bar's width.
+  expect(row?.height).toBe(8)
+  expect((await addColumn.boundingBox())?.width).toBe(8)
   const rows = await open.locator(':scope > tbody > tr').count()
   await addRow.click()
   await expect(open.locator(':scope > tbody > tr')).toHaveCount(rows + 1)
@@ -576,6 +625,36 @@ test('the / menu adds a chip and a pill inside the text, and filtering does not 
   await expect(editor(page)).toHaveCount(0)
   await expect(intro.locator('.plan-chip')).toHaveText('label')
   await expect(intro.locator('.plan-pill')).toHaveText('status')
+})
+
+test('text that ends in a /word opens with no / menu, and one Escape closes it', async ({ page }) => {
+  await openPlan(page)
+  const menu = page.locator('.plan-slash-menu')
+  // The intro comes to end in a /word that a card answers to. Typed, it opens the menu.
+  const intro = rendered(page).locator('> p[data-plan-block]').first()
+  await clickTextAt(page, intro, 'gateway')
+  await page.keyboard.press('Control+End')
+  await page.keyboard.type(' /health')
+  await expect(menu).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(menu).toHaveCount(0)
+  await page.keyboard.press('Control+Enter')
+  await expect(editor(page)).toHaveCount(0)
+  await expect(intro).toHaveText(/\/health$/)
+
+  // Opened with a click away from the /word, the text shows no menu, and Escape closes the editor.
+  const cases: Array<{ text: Locator; word: string }> = [
+    { text: intro, word: 'gateway' },
+    { text: rendered(page).locator('.rich-table tbody tr').first().locator('td').first(), word: 'GET' },
+  ]
+  for (const { text, word } of cases) {
+    await clickTextAt(page, text, word)
+    // The menu would open a moment after the editor does.
+    await page.waitForTimeout(300)
+    await expect(menu, `${word} opened the / menu`).toHaveCount(0)
+    await page.keyboard.press('Escape')
+    await expect(editor(page)).toHaveCount(0)
+  }
 })
 
 test("a press outside a card's editor closes it, and a click on other text opens that text", async ({ page }) => {

@@ -81,6 +81,22 @@ function readBoot(): Boot {
   }
 }
 
+/** The plan revision the page was served with, when the plan says. */
+function bootRevision(): number | null {
+  try {
+    const parsed = JSON.parse(document.getElementById('living-plan-mdx')?.textContent ?? 'null') as { revision?: unknown } | null
+    return typeof parsed?.revision === 'number' ? parsed.revision : null
+  } catch {
+    return null
+  }
+}
+
+/** The revision a plan payload carries, when it carries one. */
+function payloadRevision(payload: unknown): number | null {
+  const revision = (payload as { revision?: unknown } | null)?.revision
+  return typeof revision === 'number' ? revision : null
+}
+
 function compileMdx(source: string): Promise<PlanModule> {
   const cached = compiled.get(source)
   if (cached) return cached
@@ -718,6 +734,13 @@ async function refreshLivePlan(apply: (payload: Boot) => void): Promise<void> {
 
 function PlanMdxApp() {
   const [boot, setBoot] = useState<Boot>(readBoot)
+  // The revision of the plan the page last heard from the plan itself. The device copy can be older:
+  // a store that starts late seeds itself from the page's first plan, after the agent wrote again.
+  const heardRevision = useRef<number | null>(bootRevision())
+  const hear = (payload: unknown) => {
+    const revision = payloadRevision(payload)
+    if (revision !== null) heardRevision.current = revision
+  }
   const [content, setContent] = useState<ReactNode>(null)
   const pendingAnchor = useRef<ScrollAnchor | null>(null)
   const signatures = useRef<BlockSignatures | null>(null)
@@ -771,6 +794,9 @@ function PlanMdxApp() {
     const paintFrom = (engine: NonNullable<ReturnType<typeof currentOfflineHandle>>) => {
       const row = engine.plan(context.id)
       if (!row?.source || row.sourceOmitted) return
+      // An older copy would put back a plan the agent has since changed, and unapplied changes would
+      // move onto it, so Apply would send the old plan as their base and be refused.
+      if (heardRevision.current !== null && row.revision < heardRevision.current) return
       setBoot((current) => {
         const responses = row.responses as Boot['responses']
         // The store repaints on every write. Keep the page as it is when nothing it shows changed.
@@ -798,6 +824,7 @@ function PlanMdxApp() {
     const stopPlan = subscribePlanEvents('plan', (event) => {
       try {
         const payload = JSON.parse(event.data) as { source?: string; snapshots?: PlanSnapshotRecord[]; headSnapshotId?: string | null; responses?: Boot['responses']; locked?: boolean }
+        hear(payload)
         apply({
           ...(typeof payload.source === 'string' ? { source: payload.source } : {}),
           ...(Array.isArray(payload.snapshots) ? { snapshots: payload.snapshots } : {}),
@@ -830,7 +857,10 @@ function PlanMdxApp() {
       }
     })
     const stopReload = subscribePlanEvents('reload', () => {
-      void refreshLivePlan(setBoot)
+      void refreshLivePlan((payload) => {
+        hear(payload)
+        setBoot(payload)
+      })
     })
     const forward = (type: string) =>
       subscribePlanEvents(type, (event) => {
@@ -1342,10 +1372,16 @@ function PlanMdxApp() {
       if (!result.ok) {
         setApplyError(result.message)
         // The agent wrote just now and the page has not heard yet. Read the plan, so the changes go on top of it.
-        if (result.status === 409) void refreshLivePlan((payload) => setBoot((current) => ({ ...current, ...payload })))
+        if (result.status === 409) {
+          void refreshLivePlan((payload) => {
+            hear(payload)
+            setBoot((current) => ({ ...current, ...payload }))
+          })
+        }
         return
       }
       const payload = result.payload ?? {}
+      hear(payload)
       clearDraft(planId)
       setBoot((current) => ({
         ...current,

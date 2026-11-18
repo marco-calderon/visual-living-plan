@@ -115,6 +115,10 @@
   --data-card-radius: 12px;
   --flow-gap: 24px;
   --data-head-bg: var(--surface);
+  /* Every + bar: under a block, under a phase, and a table's add-row and add-column bars. Its height
+   * (a column bar's width) and its +. BAR_HEIGHT in client/addBar.ts matches the size. */
+  --add-bar-size: 8px;
+  --add-bar-icon: 10px;
 }
 
 :root[data-theme="dark"] {
@@ -678,6 +682,8 @@ html:not([data-comments="on"]) body[data-plan-editable="true"]:not([data-plan-mo
 .plan-phase[data-status="failed"] a.plan-step-number,
 .plan-phase[data-status="blocked"] a.plan-step-number { color: var(--danger); }
 
+/* Inline code: the one chip, on the page and in its editor. The editor draws `<code><span>`, and the
+ * span adds nothing (planLexicalTheme in client/editor/editorSetup.tsx), so open text keeps its code. */
 .plan-rich :not(pre) > code,
 .plan-document :not(pre) > code {
   font-family: var(--font-mono);
@@ -2016,9 +2022,9 @@ body.plan-live .block.plan-changed {
 
 body:not([data-plan-editable="true"]) .plan-block-tools { display: none; }
 
-/* + under a block (client/planEditButton.ts): a slim gray bar in the gap under the block under the
- * pointer, as wide as it, and one under the phase that holds it. The same bar adds a block in the
- * editor (client/editor/planEditor.css .plan-block-add). Its height matches BAR_HEIGHT. */
+/* + under a block (client/planEditButton.ts): a slim gray bar in the middle of the gap under the
+ * block under the pointer, as wide as it, and one under the phase that holds it. The same bar adds a
+ * block in the editor (client/editor/planEditor.css .plan-block-add). --add-bar-size tall. */
 .plan-add-bar {
   position: absolute;
   z-index: 30;
@@ -2028,7 +2034,7 @@ body:not([data-plan-editable="true"]) .plan-block-tools { display: none; }
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  height: 16px;
+  height: var(--add-bar-size, 8px);
   padding: 0;
   border: 0;
   border-radius: 6px;
@@ -2043,17 +2049,18 @@ body:not([data-plan-editable="true"]) .plan-block-tools { display: none; }
     background-color 120ms var(--ease-out);
 }
 
-/* A taller target than the bar, still inside the gap. Every bar has the same size, the size of a
- * table's add-row bar; in a narrow gap it takes no clicks past its own edges. */
+/* A taller target than the bar (BAR_CLEAR), still inside the gap. In a narrow gap it takes no clicks
+ * past its own edges. */
 .plan-add-bar::before {
   content: '';
   position: absolute;
-  inset: -4px 0;
+  inset: -3px 0;
 }
 
 .plan-add-bar[data-tight]::before { inset: 0; }
 
-.plan-add-bar svg { flex: none; width: 12px; height: 12px; }
+/* The cross is about 6px of its box, so it fits inside the bar. */
+.plan-add-bar svg { flex: none; width: var(--add-bar-icon, 10px); height: var(--add-bar-icon, 10px); }
 
 /* The phase's bar says where it adds, so it reads apart from the bar of the block above it. */
 .plan-add-bar-label {
