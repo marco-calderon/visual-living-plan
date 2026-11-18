@@ -743,3 +743,52 @@ test('a link in text keeps its click', async ({ page }) => {
   await page.waitForTimeout(300)
   await expect(editor(page)).toHaveCount(0)
 })
+
+/**
+ * Press at `point` `count` times, as a hand does a double or triple click: each press `gap` ms after
+ * the last. A quick one lands on the text while its editor comes in, a slow one on the editor.
+ */
+async function clickTimes(page: Page, point: { x: number; y: number }, count: number, gap: number): Promise<void> {
+  await page.mouse.move(point.x, point.y)
+  for (let click = 1; click <= count; click++) {
+    if (click > 1) await page.waitForTimeout(gap)
+    await page.mouse.down({ clickCount: click })
+    await page.mouse.up({ clickCount: click })
+  }
+}
+
+const selectedText = (page: Page) => page.evaluate(() => String(window.getSelection()))
+
+test('a double click on text selects its word in the editor, and typing replaces the word', async ({ page }) => {
+  await openPlan(page)
+  const intro = rendered(page).locator('> p[data-plan-block]').first()
+  const content = inlineEditor(page).locator('[contenteditable="true"].plan-editor-content')
+  for (const gap of [40, 150, 400]) {
+    await clickTimes(page, await pointAtWord(intro, 'window'), 2, gap)
+    await expect(content).toBeFocused()
+    await expect.poll(() => selectedText(page), `a double click ${gap}ms apart`).toBe('window')
+    await page.keyboard.press('Escape')
+    await expect(editor(page)).toHaveCount(0)
+  }
+  await clickTimes(page, await pointAtWord(intro, 'window'), 2, 150)
+  await expect.poll(() => selectedText(page)).toBe('window')
+  await page.keyboard.type('bucket')
+  await expect(inlineEditor(page)).toContainText('The gateway keeps one bucket per key')
+})
+
+test('a triple click on text selects its line in the editor, and typing replaces that line alone', async ({ page }) => {
+  await openPlan(page)
+  const list = rendered(page).locator('> ul[data-plan-block]')
+  const content = inlineEditor(page).locator('[contenteditable="true"].plan-editor-content')
+  for (const gap of [40, 150, 400]) {
+    await clickTimes(page, await pointAtWord(list, 'Ship'), 3, gap)
+    await expect(content).toBeFocused()
+    await expect.poll(() => selectedText(page), `a triple click ${gap}ms apart`).toBe('Ship behind the RATE_LIMIT_V2 flag')
+    await page.keyboard.press('Escape')
+    await expect(editor(page)).toHaveCount(0)
+  }
+  await clickTimes(page, await pointAtWord(list, 'Ship'), 3, 400)
+  await expect.poll(() => selectedText(page)).toBe('Ship behind the RATE_LIMIT_V2 flag')
+  await page.keyboard.type('Ship it')
+  await expect(content.locator('li')).toHaveText(['Ship it', 'Turn it on for staff'])
+})

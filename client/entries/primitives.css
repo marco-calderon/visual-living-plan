@@ -2062,14 +2062,6 @@ body:not([data-plan-editable="true"]) .plan-block-tools { display: none; }
 /* The cross is about 6px of its box, so it fits inside the bar. */
 .plan-add-bar svg { flex: none; width: var(--add-bar-icon, 10px); height: var(--add-bar-icon, 10px); }
 
-/* The phase's bar says where it adds, so it reads apart from the bar of the block above it. */
-.plan-add-bar-label {
-  margin-left: 4px;
-  font-family: var(--font-body);
-  font-size: 11px;
-  line-height: 1;
-}
-
 /* A finger gets more room to hit the bar, where the gap has it. */
 @media (pointer: coarse) {
   .plan-add-bar:not([data-tight])::before { inset: -8px 0; }

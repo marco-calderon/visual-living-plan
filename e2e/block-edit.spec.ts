@@ -13,9 +13,8 @@ const intro = (page: Page) => page.locator('[data-plan-rendered] > p[data-plan-b
 const choice = (page: Page) => page.locator('[data-plan-rendered] [data-entry="choice"]').first()
 const tools = (page: Page) => page.locator('[data-plan-block-tools]')
 const editor = (page: Page) => page.locator('[data-plan-block-editor]')
-/** + under the block under the pointer, and under the phase that holds it. */
+/** + under the block under the pointer. */
 const addBar = (page: Page) => page.locator('[data-plan-block-add]')
-const holderBar = (page: Page) => page.locator('[data-plan-holder-add]')
 
 /** The bar sits under the block, in the gap before the next one, as wide as the block. */
 async function expectBarUnder(bar: Locator, block: Locator): Promise<void> {
@@ -72,26 +71,25 @@ test('the toolbar has no Edit button; text shows no pill, a card shows Edit, and
   await expect(tools(page)).not.toHaveAttribute('data-visible', '', { timeout: 2_000 })
   await expect(addBar(page)).toHaveAttribute('data-visible', '')
 
-  // Text inside a phase opens itself with a click: no pill. + under it adds in the phase, and the
-  // phase's + under the whole phase adds after it.
+  // Text inside a phase opens itself with a click: no pill. + under it adds in the phase. It is the
+  // page's one + bar: the phase's own shows in the gap under the phase, as any block's does.
   const phase = page.locator('[data-plan-rendered] [data-entry="phase"]').filter({ hasText: 'Ship dashboards and alerts' })
   const text = phase.locator('p[data-plan-block]')
+  // The whole phase and the gap under it on screen.
+  await phase.evaluate((node) => node.scrollIntoView({ block: 'center' }))
   await text.hover()
   await expect(tools(page)).not.toHaveAttribute('data-visible', '', { timeout: 2_000 })
   await expect(addBar(page)).toHaveAttribute('data-visible', '')
-  await expect(holderBar(page)).toHaveAttribute('data-visible', '')
-  await expect(holderBar(page)).toHaveAccessibleName('Add a block below the phase')
-  // The phase's bar says where it adds, so it reads apart from the bar above it.
-  await expect(holderBar(page)).toContainText('After phase')
-  const [inner, outer, box] = [await addBar(page).boundingBox(), await holderBar(page).boundingBox(), await phase.boundingBox()]
-  if (!inner || !outer || !box) throw new Error('no bars or phase on screen')
-  expect(outer.y).toBeGreaterThanOrEqual(box.y + box.height - 1)
-  expect(inner.y + inner.height).toBeLessThan(outer.y)
-  expect(Math.abs(outer.width - box.width)).toBeLessThan(1)
+  await expect(page.locator('[data-plan-add-bar]')).toHaveCount(1)
+  await expectBarUnder(addBar(page), text)
+  const box = await phase.boundingBox()
+  if (!box) throw new Error('no phase on screen')
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height + 3, { steps: 4 })
+  await expect.poll(async () => (await addBar(page).boundingBox())?.width).toBeCloseTo(box.width, 0)
+  await expectBarUnder(addBar(page), phase)
   // The phase's title row shows the phase's Edit beside it, and its + under it.
   await phase.locator('.plan-title').hover()
   await expect(page.locator('[data-plan-block-edit]')).toBeVisible()
-  await expect(holderBar(page)).not.toHaveAttribute('data-visible', '')
   await expectBarUnder(addBar(page), phase)
   const pill = await tools(page).boundingBox()
   expect(pill && pill.x > box.x + box.width).toBe(true)

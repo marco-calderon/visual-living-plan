@@ -16,9 +16,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { applyBlockEdit, applyCellEdit, blockEditorText, cellEditorText, samePlanSource, type BlockRange } from '../../src/planMdx/blockEdit.ts'
 import { remapBlockStart } from '../../src/planMdx/remarkBlockRanges.ts'
 import { planNotReadyReason } from '../../src/planReady.ts'
-import { placeCaret } from '../caretSpot.ts'
+import { placeSelection, selectionIn } from '../caretSpot.ts'
 import { isTap, isTouchPointer } from '../pointerKind.ts'
-import type { EditCaret, EditFollow } from '../planEditButton.ts'
+import { standInOf, type EditCaret, type EditFollow } from '../planEditButton.ts'
 import { Button } from '../ui/button.tsx'
 import { releaseOuterCarets, syncFocusedNestedEditor } from './blockHandles.tsx'
 import { focusFence } from './codeFence.tsx'
@@ -109,7 +109,10 @@ function keepNoTrailingLine(content: HTMLElement): () => void {
   return editor.registerUpdateListener(drop)
 }
 
-/** Put the caret where the click landed: in the text, or in a data table's cell. Cells appear a frame or two after the table. */
+/**
+ * Put the caret where the click landed, or select the text a double or triple click did: in the text,
+ * or in a data table's cell. Cells appear a frame or two after the table.
+ */
 function placeOpeningCaret(surface: HTMLElement, caret: EditCaret, frames = 12): void {
   const attempt = (left: number) => {
     const content =
@@ -121,7 +124,7 @@ function placeOpeningCaret(surface: HTMLElement, caret: EditCaret, frames = 12):
       return
     }
     content.focus({ preventScroll: true })
-    if (!placeCaret(content, caret.offset)) return
+    if (!placeSelection(content, caret.offset, caret.end ?? caret.offset)) return
     // The editor takes a caret moved right after its own focus for its own; tell it where the caret is.
     const editor = getNearestEditorFromDOMNode(content)
     editor?.update(() => {
@@ -130,6 +133,43 @@ function placeOpeningCaret(surface: HTMLElement, caret: EditCaret, frames = 12):
     })
   }
   attempt(frames)
+}
+
+/**
+ * What the reader selected on the text an inline editor opens over, while the editor waits there
+ * unseen: the second click of a double click selects a word, the third the line. The editor takes it
+ * before the page stops drawing that text. Null when the selection is not on that text.
+ */
+function selectedOnStandIn(surface: HTMLElement): EditCaret | null {
+  const standIn = standInOf(surface)
+  // A cell's editor is drawn inside the cell, after the text it stands in for.
+  const picked = standIn ? selectionIn(standIn, standIn === surface.parentElement ? surface : undefined) : null
+  return picked ? { offset: picked.start, end: picked.end } : null
+}
+
+/** The lines of the editor's text: a triple click selects one of them. */
+const TEXT_LINE = 'p, h1, h2, h3, h4, h5, h6, li, blockquote'
+
+/**
+ * Keep a triple click's selection to the line it selected: a paragraph, a heading, a list item. The
+ * browser runs it on into the start of the next line, so typing over it would join the two lines.
+ */
+function keepToLine(content: HTMLElement): void {
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return
+  const range = selection.getRangeAt(0)
+  const start = range.startContainer
+  const line = (start instanceof Element ? start : start.parentElement)?.closest(TEXT_LINE)
+  if (!line || !content.contains(line)) return
+  const whole = document.createRange()
+  whole.selectNodeContents(line)
+  if (whole.comparePoint(range.endContainer, range.endOffset) <= 0) return
+  selection.setBaseAndExtent(range.startContainer, range.startOffset, line, line.childNodes.length)
+  const editor = getNearestEditorFromDOMNode(line)
+  editor?.update(() => {
+    const next = $createRangeSelectionFromDom(window.getSelection(), editor)
+    if (next) $setSelection(next)
+  })
 }
 
 /** The fields a card's editor opens with the caret in: its first text field or nested editor, never a picker. */
@@ -264,7 +304,13 @@ export function BlockEditor({
   const shownRef = useRef(onShown)
   shownRef.current = onShown
   useEffect(() => {
-    if (filled && staged) shownRef.current?.()
+    if (!filled || !staged) return
+    // A double or triple click that went on after the editor took the caret selected on the text it
+    // stands in for: the editor takes that selection before the page stops drawing the text.
+    const node = surface.current
+    const picked = node ? selectedOnStandIn(node) : null
+    if (node && picked) placeOpeningCaret(node, picked)
+    shownRef.current?.()
   }, [filled, staged])
 
   // Waiting unseen over the block it stands in for: right where that block's text is, so the caret
@@ -287,6 +333,7 @@ export function BlockEditor({
   // The caret goes into the block, where the click on it landed, so typing can start right away. A new block shows the `/` hint.
   useEffect(() => {
     let stopTrailing = () => {}
+    let stopDrawn = () => {}
     let stopped = false
     let wait = 0
     const frame = requestAnimationFrame(() => {
@@ -294,11 +341,36 @@ export function BlockEditor({
       loaded.current = editor.current?.getMarkdown() ?? null
       // Inline text with no click to follow (E) puts the caret at the end of its text.
       const at = caret ?? (inline ? { offset: Number.MAX_SAFE_INTEGER } : undefined)
-      const opened = () => {
+      const opened = (selected?: EditCaret) => {
         if (!node) return
         const content = node.querySelector<HTMLElement>('.plan-editor-content')
         if (content && !stopped) stopTrailing = keepNoTrailingLine(content)
-        if (at) placeOpeningCaret(node, at)
+        const place = selected ?? at
+        if (place) placeOpeningCaret(node, place)
+      }
+      const focusOptions = { defaultSelection: 'rootEnd', preventScroll: true } as const
+      // Text takes the focus as soon as its editor is in the page, as the editor's own focus would,
+      // so no key typed after the click is lost. Right before, in the same task, it reads what a
+      // double or triple click quicker than the editor selected on the text (a word, the line): no
+      // click comes between, and the focus moves the selection. The editor opens with it selected.
+      if (inline) {
+        const begin = (): boolean => {
+          const content = node?.querySelector<HTMLElement>('.plan-editor-content')
+          const lexical = content ? getNearestEditorFromDOMNode(content) : null
+          if (!node || !lexical || stopped) return false
+          const picked = selectedOnStandIn(node)
+          lexical.focus(() => opened(picked && picked.end !== picked.offset ? picked : undefined), focusOptions)
+          return true
+        }
+        if (node && !begin()) {
+          // The editor draws its text a moment later: begin in the task that draws it.
+          const drawn = new MutationObserver(() => {
+            if (begin() || stopped) drawn.disconnect()
+          })
+          drawn.observe(node, { childList: true, subtree: true })
+          stopDrawn = () => drawn.disconnect()
+        }
+        return
       }
       // A card opens with the caret in its first field, not on the line under it. Its editor draws a frame or two late.
       if (!at) {
@@ -316,20 +388,30 @@ export function BlockEditor({
         card()
         return
       }
-      editor.current?.focus(opened, {
-        defaultSelection: 'rootEnd',
-        preventScroll: true,
-      })
+      editor.current?.focus(() => opened(), focusOptions)
     })
     return () => {
       cancelAnimationFrame(frame)
       cancelAnimationFrame(wait)
       stopped = true
+      stopDrawn()
       stopTrailing()
     }
     // Once, when the editor opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // A triple click in the text selects the line it lands on, and no more.
+  useEffect(() => {
+    const node = surface.current
+    if (!node || !inline) return
+    const onClick = (event: MouseEvent) => {
+      const content = node.querySelector<HTMLElement>('.plan-editor-content')
+      if (event.detail >= 3 && content && event.target instanceof Node && content.contains(event.target)) keepToLine(content)
+    }
+    node.addEventListener('click', onClick)
+    return () => node.removeEventListener('click', onClick)
+  }, [inline])
 
   useEffect(() => {
     const node = surface.current
@@ -577,13 +659,23 @@ export function BlockEditor({
   useEffect(() => {
     const node = surface.current
     if (!node || closing) return
+    // The text the editor opens over, while it waits there unseen. The second and third clicks of a
+    // double or triple click land on it and select in it, for the editor to take once it shows.
+    const onStandIn = (target: EventTarget | null) => target instanceof Node && standInOf(node)?.contains(target) === true
+    // Such a press takes the focus from the editor, as a press on text does, until the editor shows.
+    let pressedStandIn = false
+    let pressTimer = 0
     const outside = (event: MouseEvent) => {
-      if (insideEditor(node, event.target)) return false
+      if (insideEditor(node, event.target) || onStandIn(event.target)) return false
       // The window's scrollbar is not the page.
       return !(event.target === document.documentElement && event.clientX >= document.documentElement.clientWidth)
     }
     // A mouse finishes at the press. A finger finishes at a tap: its press may start a scroll.
     const onPointerDown = (event: PointerEvent) => {
+      window.clearTimeout(pressTimer)
+      pressedStandIn = onStandIn(event.target)
+      // The press moves the focus as it goes down, before anything else runs.
+      if (pressedStandIn) pressTimer = window.setTimeout(() => (pressedStandIn = false), 0)
       if (!isTouchPointer(event) && outside(event)) doneRef.current()
     }
     const onTap = (event: MouseEvent) => {
@@ -591,13 +683,14 @@ export function BlockEditor({
     }
     const onFocusOut = (event: FocusEvent) => {
       const next = event.relatedTarget
-      if (next === null || insideEditor(node, next)) return
+      if (next === null || insideEditor(node, next) || pressedStandIn) return
       doneRef.current()
     }
     document.addEventListener('pointerdown', onPointerDown, true)
     document.addEventListener('click', onTap, true)
     node.addEventListener('focusout', onFocusOut)
     return () => {
+      window.clearTimeout(pressTimer)
       document.removeEventListener('pointerdown', onPointerDown, true)
       document.removeEventListener('click', onTap, true)
       node.removeEventListener('focusout', onFocusOut)
