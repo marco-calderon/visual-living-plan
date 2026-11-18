@@ -1,7 +1,7 @@
 /** Loopback Settings: read the version and changelog from disk each time the page renders. */
 import { readdirSync, readFileSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
-import { newestChangelogName, parseChangelog, type ChangelogRelease } from './changelogParse'
+import { CHANGELOG_FILE, newestChangelogName, parseChangelog, parseVersionNotes, type ChangelogRelease, type VersionNotes } from './changelogParse'
 
 export * from './changelogParse'
 
@@ -30,6 +30,25 @@ export function loadLatestChangelog(entryFile: string): ChangelogRelease | null 
   } catch {
     return null
   }
+}
+
+/** Every version section in every `changelog-yyyy-mm-dd.md` of a directory, newest file first. */
+export function loadVersionNotes(directory: string): VersionNotes[] {
+  let names: string[]
+  try {
+    names = readdirSync(directory).filter((name) => CHANGELOG_FILE.test(name))
+  } catch {
+    return []
+  }
+  const notes: VersionNotes[] = []
+  for (const name of names.sort().reverse()) {
+    try {
+      notes.push(...parseVersionNotes(readFileSync(join(directory, name), 'utf8'), name))
+    } catch {
+      // An unreadable file leaves out its versions, not the others.
+    }
+  }
+  return notes
 }
 
 /** `version` from the package.json next to a source or dist entry file. */

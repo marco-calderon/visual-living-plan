@@ -1,0 +1,291 @@
+/*
+ * The Settings modal's frame: its tokens, panel, backdrop, header, and the release cards of its About
+ * section. The desktop app's What's new modal is drawn with the same rules (src/desktopNotices.ts),
+ * so the two read as one. Rules for the Settings sections themselves stay in settingsDialog.css.
+ */
+.settings-dialog {
+  --brand-blue: #2563eb;
+  --brand-blue-deep: #0094fc;
+  --brand-blue-200: #dbeafe;
+  --canvas: #ffffff;
+  --surface: #f5f5f5;
+  --hairline: #e9e9e9;
+  --hairline-strong: #d4d4d8;
+  --hairline-strong-hover: #a1a1aa;
+  --ink: #181e25;
+  --charcoal: #34393f;
+  --steel: #666666;
+  --primary: #171717;
+  --primary-hover: #242424;
+  --primary-active: #000000;
+  --on-primary: #ffffff;
+  --paper: var(--canvas);
+  --line: var(--hairline);
+  --muted: var(--steel);
+  --accent: var(--brand-blue-deep);
+  --danger: #c9322a;
+  --warning: #b45309;
+  --switch-track: var(--hairline);
+  --swatch-edge: rgba(0, 0, 0, 0.12);
+  --sample-bg: #ffffff;
+  --sample-fg: #0a0a0a;
+  --radius: 16px;
+  --font-display: "DM Sans", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --chip-bg: var(--surface);
+  --tabs-bg: var(--surface);
+  --control-solid: var(--canvas);
+  --tab-active-bg: var(--primary);
+  --tab-active-fg: var(--on-primary);
+  --accent-soft: var(--brand-blue-200);
+  --accent-hover-border: var(--brand-blue);
+  --accent-hover-shadow: none;
+  --code-inline-bg: var(--brand-blue-200);
+  --focus: var(--brand-blue-deep);
+  --release-improvements: #ff502e;
+  --release-features: #0a7a38;
+}
+
+.settings-dialog {
+  --space-xxs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-xl: 24px;
+  --space-xxl: 32px;
+  --space-section: 64px;
+  --elevated: var(--canvas);
+  --shadow-modal: 0 12px 16px -4px rgba(36, 36, 36, 0.08);
+  position: fixed;
+  z-index: 1001;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(960px, calc(100vw - var(--space-xxl) * 2));
+  height: min(720px, calc(100dvh - var(--space-section)));
+  translate: -50% -50%;
+  overflow: hidden;
+  background: var(--elevated);
+  border: 1px solid var(--hairline);
+  border-radius: 20px;
+  box-shadow: var(--shadow-modal);
+  color: var(--charcoal);
+  font-family: var(--font-display);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+@media (prefers-color-scheme: dark) {
+  .settings-dialog {
+    --canvas: #171717;
+    --elevated: #1c1c1c;
+    --surface: #262626;
+    --hairline: #2c2c2c;
+    --hairline-strong: #4a4a4a;
+    --hairline-strong-hover: #666666;
+    --ink: #ededed;
+    --charcoal: #ededed;
+    --steel: #949494;
+    --primary: #ffffff;
+    --primary-hover: #f5f5f5;
+    --primary-active: #e9e9e9;
+    --on-primary: #171717;
+    --accent: #0094fc;
+    --danger: #ffc9bd;
+    --warning: #fbbf24;
+    --switch-track: #262626;
+    --accent-soft: rgba(147, 197, 253, 0.14);
+    --accent-hover-border: #0094fc;
+    --code-inline-bg: rgba(147, 197, 253, 0.16);
+    --release-improvements: #fdba74;
+    --release-features: #6edb8f;
+  }
+}
+
+.settings-dialog .settings-kicker {
+  font-size: 13px;
+  color: var(--steel);
+  font-weight: 600;
+  margin: 0 0 0.35rem;
+}
+
+.settings-dialog .settings-copy {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.settings-dialog .settings-copy code,
+.settings-dialog .settings-meta code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background: var(--code-inline-bg);
+  padding: 0.1rem 0.35rem;
+  border-radius: 6px;
+}
+
+.settings-dialog .settings-meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.settings-dialog .release-cards {
+  display: grid;
+  gap: 0.7rem;
+  margin-bottom: var(--space-md);
+}
+.settings-dialog .release-card {
+  display: grid;
+  grid-template-columns: 8.5rem minmax(0, 1fr);
+  column-gap: 0.9rem;
+  align-items: start;
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  background: var(--control-solid);
+  padding: 0.95rem var(--space-md) var(--space-md);
+  min-width: 0;
+}
+.settings-dialog .release-stat { display: grid; align-content: start; gap: 0.15rem; }
+.settings-dialog .release-card .settings-kicker { margin: 0; }
+.settings-dialog .release-count {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 2.6rem;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  color: var(--ink);
+}
+.settings-dialog .release-card[data-empty="true"] .release-count { color: var(--muted); }
+.settings-dialog .release-card[data-kind="bugs"]:not([data-empty="true"]) .release-count { color: var(--danger); }
+.settings-dialog .release-card[data-kind="improvements"]:not([data-empty="true"]) .release-count { color: var(--release-improvements); }
+.settings-dialog .release-card[data-kind="features"]:not([data-empty="true"]) .release-count { color: var(--release-features); }
+.settings-dialog .release-card[data-kind="changes"] .release-count { color: var(--accent); }
+.settings-dialog .release-list {
+  list-style: disc;
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.5rem;
+}
+.settings-dialog .release-list li {
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--charcoal);
+}
+.settings-dialog .release-list li::marker { color: var(--muted); }
+.settings-dialog .release-list code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--code-inline-bg);
+  border-radius: 6px;
+  padding: 0.05rem 0.3rem;
+}
+.settings-dialog .release-empty {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+@media (max-width: 640px) {
+  .settings-dialog .release-card { grid-template-columns: minmax(0, 1fr); row-gap: 0.6rem; }
+}
+
+/* Modal frame. Level 4 shadow, 20px panel radius, hairline edges (DESIGN.md: Elevation, Shapes). */
+.settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(23, 23, 23, 0.32);
+  transition: opacity 180ms var(--ease-out, ease);
+}
+
+@media (prefers-color-scheme: dark) {
+  .settings-backdrop {
+    background: rgba(0, 0, 0, 0.56);
+  }
+}
+
+.settings-backdrop[data-starting-style],
+.settings-backdrop[data-ending-style] {
+  opacity: 0;
+}
+
+.settings-dialog {
+  transition:
+    opacity 180ms var(--ease-out),
+    transform 220ms var(--ease-out);
+}
+
+.settings-dialog[data-starting-style],
+.settings-dialog[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.98);
+}
+
+.settings-dialog:focus-visible {
+  outline: none;
+}
+
+.settings-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-sm) var(--space-sm) var(--space-xl);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.settings-dialog-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.settings-dialog .settings-dialog-close {
+  width: 36px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+}
+
+.settings-dialog .settings-dialog-close:hover {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+
+:root[data-theme="dark"] .settings-dialog {
+  --release-improvements: #fdba74;
+  --release-features: #6edb8f;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-backdrop,
+  .settings-dialog {
+    transition: none;
+  }
+}
+
+/* Phone: a full-height sheet. */
+@media (max-width: 720px) {
+  .settings-dialog {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: calc(100dvh - var(--space-md));
+    translate: none;
+    border-radius: 20px 20px 0 0;
+    border-bottom: 0;
+  }
+
+  .settings-dialog-head {
+    padding-left: var(--space-md);
+  }
+}

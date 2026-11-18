@@ -1,6 +1,6 @@
 # ADR 0041: The desktop app updates itself from GitHub releases
 
-- Status: Accepted
+- Status: Accepted; how the app shows an update amended by [ADR 0042](0042-update-notices-and-whats-new.md)
 - Date: 2026-11-18
 
 ## Context
@@ -18,8 +18,8 @@ Tauri's updater plugin downloads a whole `.app.tar.gz`, checks it against a publ
 - **Packages are signed with the project's updater key.** It is a minisign key, separate from Apple code signing, and needs no Apple account. The public key is `plugins.updater.pubkey` in `tauri.conf.json`. The private key and its password are the `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` repository secrets. `requireSignedVersion` is on, so the signature must carry the version `latest.json` announces, and a changed manifest cannot install an older release. `tauri build` writes that version into the signature.
 - **Only a release build makes packages.** The base config leaves `createUpdaterArtifacts` off, so `desktop:build` and `desktop:install` need no key. On a published release, the Desktop workflow passes `--config '{"bundle":{"createUpdaterArtifacts":true}}'` when the secret is set. Pull requests never get the key. A secret without a public key in the config fails the build.
 - **Names and the manifest come from `scripts/updater-manifest.ts`.** `package` copies `bundle/macos/Living Plan.app.tar.gz` and its `.sig` to `Living.Plan_<version>_<arch>.app.tar.gz`, so both builds fit on one release. The `update-manifest` job runs after both builds attach their packages, and `manifest` writes `latest.json` with `package.json`'s version, which is the version the app was built with. The release text becomes the notes.
-- **When the app checks.** A release build for macOS with a public key checks 30 seconds after launch and every 6 hours after that. It downloads and installs a newer version in the background, then asks to restart: Restart Now relaunches it, and Later leaves the new version for the next launch. It asks once per version. Living Plan > Check for Updates… checks on request and also says when the app is current or why a check failed. A debug build, a build with no public key, and other platforms never check.
-- **Rust only.** The updater and dialog plugins are used from Rust. No capability grants their commands to a page, so plan pages and hosted pages cannot start an update. This keeps ADR 0038's rule that pages reach the app only through `living-plan://` links.
+- **When the app checks.** A release build for macOS with a public key checks 30 seconds after launch and every 6 hours after that. It downloads and installs a newer version in the background, then asks to restart: Restart Now relaunches it, and Later leaves the new version for the next launch. It asks once per version. Living Plan > Check for Updates… checks on request and also says when the app is current or why a check failed. A debug build, a build with no public key, and other platforms never check. *Amended by ADR 0042: the app says all of this in a toast in the page, with the download's progress, instead of native dialogs.*
+- **Rust only.** The updater ~~and dialog plugins are~~ plugin is used from Rust. No capability grants its commands to a page, so plan pages and hosted pages cannot start an update. This keeps ADR 0038's rule that pages reach the app only through `living-plan://` links. *ADR 0042 drops the dialog plugin; the page's notice answers through `living-plan://update/...` links that the app checks against its own state.*
 
 ## Consequences
 

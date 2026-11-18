@@ -7,3 +7,4 @@
 # Staged by `bun run desktop:stage`
 /service/
 /binaries/
+/web/

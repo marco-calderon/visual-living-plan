@@ -14,6 +14,14 @@
 //!   living-plan://switch/cloud       open the hosted plans, and remember that
 //!   living-plan://setup              show the setup screen
 //!   living-plan://setup/<section>    show it at one section: mode, look, cli, or skills
+//!   living-plan://update/check       check for an update now and say what was found
+//!   living-plan://update/restart     restart into the update that is installed
+//!   living-plan://update/later       keep the installed update for the next launch
+//!   living-plan://update/hide        hide the download's notice until it is done
+//!   living-plan://notes/seen         the What's new notes were closed
+//!
+//! The update and notes links come from the app's own notices (ADR 0042). The app acts on one only
+//! when its state agrees: `restart` does nothing until an update is installed.
 //!
 //! A link names a page by id only, never by URL, so a link from any website can only open a page
 //! on a host the app already knows.
@@ -54,12 +62,36 @@ pub enum Page {
     Plan(String),
 }
 
+/// What a button in the update notice asks for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpdateAction {
+    Check,
+    Restart,
+    Later,
+    Hide,
+}
+
+impl UpdateAction {
+    fn parse(name: &str) -> Option<UpdateAction> {
+        match name {
+            "check" => Some(UpdateAction::Check),
+            "restart" => Some(UpdateAction::Restart),
+            "later" => Some(UpdateAction::Later),
+            "hide" => Some(UpdateAction::Hide),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AppLink {
     Page(Host, Page),
     Switch(Host),
     /// The setup screen, at a section when one is named.
     Setup(Option<&'static str>),
+    Update(UpdateAction),
+    /// The What's new notes were closed.
+    NotesSeen,
 }
 
 const SETUP_SECTIONS: [&str; 4] = ["mode", "look", "cli", "skills"];
@@ -84,6 +116,8 @@ impl AppLink {
                 .iter()
                 .find(|known| *known == section)
                 .map(|known| AppLink::Setup(Some(known))),
+            ["update", action] => UpdateAction::parse(action).map(AppLink::Update),
+            ["notes", "seen"] => Some(AppLink::NotesSeen),
             rest => page(rest).map(|page| AppLink::Page(Host::Local, page)),
         }
     }
@@ -199,6 +233,28 @@ mod tests {
             Some(AppLink::Setup(Some("skills")))
         );
         assert_eq!(parse("living-plan://setup/%3Cscript%3E"), None);
+    }
+
+    #[test]
+    fn reads_links_from_the_notices() {
+        for (raw, action) in [
+            ("living-plan://update/check", UpdateAction::Check),
+            ("living-plan://update/restart", UpdateAction::Restart),
+            ("living-plan://update/later", UpdateAction::Later),
+            ("living-plan://update/hide/", UpdateAction::Hide),
+        ] {
+            assert_eq!(parse(raw), Some(AppLink::Update(action)), "{raw}");
+        }
+        assert_eq!(parse("living-plan://notes/seen"), Some(AppLink::NotesSeen));
+        for raw in [
+            "living-plan://update",
+            "living-plan://update/install",
+            "living-plan://update/restart/now",
+            "living-plan://notes",
+            "living-plan://notes/2.32.0",
+        ] {
+            assert_eq!(parse(raw), None, "{raw}");
+        }
     }
 
     #[test]

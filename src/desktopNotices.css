@@ -1,0 +1,111 @@
+/*
+ * The desktop app's notices, inside their shadow root (src/desktopNotices.ts). The same sheet starts
+ * with Ding's styles, the plan toaster's look (client/chrome/toaster.css), the buttons
+ * (client/ui/button.css), and the Settings modal's frame (src/settings/dialogFrame.css).
+ */
+
+/*
+ * The update notice sits at the top right, below the title bar. The plan's own toasts are at the top
+ * left, and its corner actions and review dock are at the bottom.
+ */
+.tst-viewport[data-desktop-notices] .tst-desc {
+  max-width: 19rem;
+}
+
+/*
+ * What's new. A native modal dialog holds the Settings backdrop and panel, laid out as the Settings
+ * modal lays them out, so the frame's rules apply unchanged. The dialog itself is only the layer.
+ */
+.whats-new-layer {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  overflow: visible;
+}
+
+.whats-new-layer::backdrop {
+  background: transparent;
+}
+
+.settings-dialog.whats-new {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(720px, calc(100vw - var(--space-xxl) * 2));
+  height: auto;
+  max-height: min(760px, calc(100dvh - var(--space-section)));
+}
+
+.whats-new-body {
+  min-height: 0;
+  padding: var(--space-xl) var(--space-xl) var(--space-md);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.settings-dialog .whats-new-lede {
+  margin-bottom: var(--space-xl);
+}
+
+.settings-dialog .whats-new-lede strong,
+.settings-dialog .settings-copy strong,
+.settings-dialog .release-list strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.whats-new-release + .whats-new-release {
+  margin-top: var(--space-xl);
+  padding-top: var(--space-xl);
+  border-top: 1px solid var(--hairline);
+}
+
+.whats-new-release-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-xxs) var(--space-sm);
+  margin: 0 0 var(--space-xs);
+}
+
+.whats-new-version {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.whats-new-release .release-cards {
+  margin-bottom: 0;
+}
+
+.whats-new-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-xl);
+  border-top: 1px solid var(--hairline);
+}
+
+@media (max-width: 720px) {
+  .settings-dialog.whats-new {
+    width: 100vw;
+    max-height: calc(100dvh - var(--space-md));
+  }
+
+  .whats-new-body {
+    padding: var(--space-md) var(--space-md) var(--space-sm);
+  }
+
+  .whats-new-foot {
+    padding: var(--space-sm) var(--space-md);
+  }
+}

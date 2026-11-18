@@ -21,6 +21,7 @@ import {
   SETTINGS_SECTIONS,
   type SettingsSectionId,
 } from './settingsSections.ts'
+import './dialogFrame.css'
 import './settingsDialog.css'
 
 export const THEME_URL = '/api/account/settings'
@@ -458,6 +459,14 @@ function DesktopAppGroup() {
       <SettingsRow title="Command line tool" description="Put live-plan on your PATH, running the copy inside the app.">
         <Button nativeButton={false} render={<a href="living-plan://setup/cli" />}>
           Install
+        </Button>
+      </SettingsRow>
+      <SettingsRow
+        title="Updates"
+        description="The app installs new versions by itself and shows the download in the window. Check now to see if one is out."
+      >
+        <Button nativeButton={false} render={<a href="living-plan://update/check" data-check-updates="" />}>
+          Check for updates
         </Button>
       </SettingsRow>
     </section>

@@ -1734,9 +1734,11 @@ async function main(): Promise<number> {
   if (command === 'desktop') {
     const { cmdDesktop } = await import('./desktopCommand')
     const entry = fileURLToPath(import.meta.url)
+    const { changelogDirectory } = await import('./changelog')
     return cmdDesktop(args.slice(1), {
       version: await readPackageVersion(entry),
       target: { runtime: process.execPath, entry },
+      changelogs: changelogDirectory(entry),
     })
   }
 
