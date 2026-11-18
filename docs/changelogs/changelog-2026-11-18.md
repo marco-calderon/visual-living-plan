@@ -1,5 +1,29 @@
 # Changelog — 2026-11-18
 
+## 2.31.1
+
+**PR:** to be linked when the pull request opens
+
+**Bump:** patch
+
+### Summary
+
+A double click on text in a plan now selects the word, and a triple click selects the line, ready to type over. The *After phase* + bar, which the pointer could not reach, is gone: the + under a phase does the same.
+
+### Bugs fixed
+
+- A double or triple click on text opened its editor with the caret where the first click landed, and selected nothing. Sometimes the second click closed the editor instead. A double click now opens the text with the word selected, and a triple click with its line: the paragraph, heading, list item, quote, or table cell. This works at any speed, inside phases and cards too. Typing replaces the selection.
+- A triple click in open text selected into the start of the next line, so typing over a list item joined it to the next one. It now selects that line alone.
+- Right after a click on text, the + bar under it could move over the text for a moment, so a quick second click pressed + instead. Text that is opening shows no + bar.
+
+### Improvements
+
+- Text inside a phase no longer shows a second + bar labelled *After phase* under the whole phase. The pointer could not reach it, because the phase's own + took its place on the way down. That + shows under the phase while the pointer is on the phase's title row or in the gap below the phase, and adds after it, as the grip's *Add below* and the A key do.
+
+### Notes
+
+No registry restart needed.
+
 ## 2.31.0
 
 **PR:** [#200](https://github.com/marco-calderon/visual-living-plan/pull/200)

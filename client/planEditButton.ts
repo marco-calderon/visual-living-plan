@@ -5,9 +5,9 @@
  * A block that is more than text (a card, a choice, an endpoint, a diagram, code, a table) shows
  * a small Edit pill beside it while it is under the pointer, has focus, or is tapped: Edit opens
  * that block's own editor in its place. Every block, text included, shows a + bar in the gap under
- * it, and a block inside a phase shows the phase's bar too: + opens a new, empty line there, edited
- * as text reads. E edits the block under the pointer or with focus, or the one at the reading line.
- * One pill and two bars follow the pointer, so the page's blocks stay as React drew them.
+ * it, a phase too, in the gap under the whole phase: + opens a new, empty line there, edited as text
+ * reads. E edits the block under the pointer or with focus, or the one at the reading line. One pill
+ * and one bar follow the pointer, so the page's blocks stay as React drew them.
  * ------------------------------------------------------------------------------------------- */
 
 import { BAR_HEIGHT, barFit } from './addBar.ts'
@@ -22,8 +22,12 @@ export const BLOCK_ADD_KEY = 'A'
 
 type EditState = { editable: boolean; editing: boolean }
 
-/** Where the caret goes when an editor opens: characters into the text, in a data table's cell when `row` is set. */
-export type EditCaret = { offset: number; row?: number; column?: number }
+/**
+ * Where the caret goes when an editor opens: characters into the text, in a data table's cell when
+ * `row` is set. With `end`, the text from `offset` to `end` is selected: a double click's word, or a
+ * triple click's line.
+ */
+export type EditCaret = { offset: number; end?: number; row?: number; column?: number }
 
 /**
  * What opens once an editor closes, found by a block's `start` in the plan file the page draws next.
@@ -120,6 +124,35 @@ function article(): HTMLElement | null {
   return document.querySelector<HTMLElement>('[data-plan-rendered]')
 }
 
+/** An inline editor that is opening: it waits unseen over the text it stands in for (client/editor/BlockEditor.tsx). */
+const OPENING_TEXT_EDITOR = '[data-plan-block-editor][data-inline][data-staged]'
+
+/**
+ * The text the page still draws under `editor` while it opens there unseen: the block right before
+ * it, or the cell around a cell's editor. The second and third clicks of a double or triple click on
+ * text land on it, and select a word or the line there for the editor to take.
+ */
+export function standInOf(editor: Element): Element | null {
+  if (!editor.matches(OPENING_TEXT_EDITOR)) return null
+  return editor.getAttribute('data-plan-block-editor') === 'cell' ? editor.parentElement : editor.previousElementSibling
+}
+
+/** True when `target` is on text an editor is opening over: the rest of the click that opened it. */
+function onOpeningText(target: EventTarget | null): boolean {
+  if (!(target instanceof Node)) return false
+  return Array.from(document.querySelectorAll(OPENING_TEXT_EDITOR)).some((editor) => standInOf(editor)?.contains(target))
+}
+
+/**
+ * True when an editor is opening over `block`. It has no + bar meanwhile: the editor takes its place,
+ * and the gap under it is measured to the editor, which waits over the text, so the bar would cover
+ * the text the reader is clicking.
+ */
+function isOpening(block: Element): boolean {
+  const next = block.nextElementSibling
+  return next !== null && standInOf(next) === block
+}
+
 /** The innermost block with a place in the plan file (`data-plan-block`) that holds `target`. */
 export function editTargetOf(target: EventTarget | null): HTMLElement | null {
   const root = article()
@@ -181,7 +214,7 @@ function addsAfter(block: HTMLElement): boolean {
   return !block.parentElement?.closest('[data-edit-locked="true"]')
 }
 
-/** What stands at a level of the plan for the + bars: its blocks, and an open editor in the place of one. */
+/** What stands at a level of the plan for the + bar: its blocks, and an open editor in the place of one. */
 const LEVEL_ITEM = '[data-plan-block], [data-plan-block-editor]'
 
 /** The blocks at the top level, or directly inside `container` (a phase), with any open editor among them, in reading order. */
@@ -194,26 +227,24 @@ function levelItems(container: HTMLElement | null): HTMLElement[] {
   )
 }
 
-/** Where the + bars go with the pointer on `target` at `y`: under `block`, and under the phase that holds it. */
-export type AddTargets = { block: HTMLElement; holder: HTMLElement | null }
-
 /**
- * The blocks whose + bars show with the pointer on `target` at `y`: the block under it, text and
- * cards alike, and the phase that holds it. The gap under a block is its own, the gap after a phase's
- * last block included, so the pointer can go down to that block's bar. A phase's title row is the
- * phase's: its bar is under the whole phase.
+ * The block whose + bar shows with the pointer on `target` at `y`: the block under it, text and cards
+ * alike. The gap under a block is its own, the gap after a phase's last block included, so the pointer
+ * can go down to that block's bar. A phase's title row is the phase's: its bar is under the whole
+ * phase, as it is with the pointer in the gap under the phase. A block inside a locked block gives
+ * its bar to the block that holds it.
  */
-export function addTargetsOf(target: EventTarget | null, y: number): AddTargets | null {
+export function addTargetOf(target: EventTarget | null, y: number): HTMLElement | null {
   const root = article()
   if (!root || !(target instanceof Element) || !root.contains(target) || target.closest('[data-plan-block-editor]')) return null
   let block = editTargetOf(target)
   // The gap under an open editor is the editor's: no bar there, nor for the block above it (Enter makes the next line).
   if (!block && target === root) block = levelWith(levelItems(null), y, root.getBoundingClientRect().bottom)
   else if (block && !isTextBlock(block)) block = levelWith(levelItems(block), y, block.getBoundingClientRect().bottom) ?? block
-  if (!block || block.hasAttribute('data-plan-block-editor')) return null
+  if (!block || block.hasAttribute('data-plan-block-editor') || isOpening(block)) return null
+  if (addsAfter(block)) return block
   const holder = holderOf(block)
-  if (addsAfter(block)) return { block, holder: holder && addsAfter(holder) ? holder : null }
-  return holder && addsAfter(holder) ? { block: holder, holder: null } : null
+  return holder && addsAfter(holder) ? holder : null
 }
 
 /** A block the plan marks `locked`, or one inside a locked block, or an answer card that keeps its default lock. */
@@ -463,12 +494,10 @@ function toolButton(className: string, label: string, title: string, html: strin
 
 /** The room the last block leaves under it for its + bar. The bar's own size is client/addBar.ts. */
 const BAR_ROOM = 24
-/** Room between a phase's bar and the bar of its last block, just above it. */
-const BAR_GAP = 6
 
 /** A + bar: a slim gray bar with a +, in the gap under a block, as wide as the block. */
-function addBar(label: string, title: string, text?: string): HTMLButtonElement {
-  const bar = toolButton('plan-add-bar', label, title, text ? `${PLUS}<span class="plan-add-bar-label">${text}</span>` : PLUS)
+function addBar(label: string, title: string): HTMLButtonElement {
+  const bar = toolButton('plan-add-bar', label, title, PLUS)
   bar.dataset.planAddBar = ''
   return bar
 }
@@ -519,14 +548,12 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
   edit.dataset.planBlockEdit = ''
   edit.setAttribute('aria-keyshortcuts', BLOCK_EDIT_KEY)
   tools.append(edit)
-  // + under the block under the pointer, and under the phase that holds it, which says so. They stay
-  // out of the tab order: A adds a block below the block with focus, as E edits it.
+  // + under the block under the pointer. It stays out of the tab order: A adds a block below the
+  // block with focus, as E edits it.
   const add = addBar('Add a block below', `Add a block below (${BLOCK_ADD_KEY})`)
   add.dataset.planBlockAdd = ''
   add.setAttribute('aria-keyshortcuts', BLOCK_ADD_KEY)
-  const addAfterHolder = addBar('Add a block below the phase', 'Add a block below the phase', 'After phase')
-  addAfterHolder.dataset.planHolderAdd = ''
-  document.body.append(tools, add, addAfterHolder)
+  document.body.append(tools, add)
   let block: HTMLElement | null = null
   // The innermost block under the pointer, with focus, or tapped, text included: what E edits.
   let pointed: HTMLElement | null = null
@@ -534,56 +561,44 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
   let pointedText: HTMLElement | null = null
   let frame = 0
   let hideTimer = 0
-  // The blocks the + bars are under.
-  let bars: AddTargets | null = null
+  // The block the + bar is under.
+  let barBlock: HTMLElement | null = null
   let barTimer = 0
-  // After a + the bars stay away until the pointer moves: the new line opens right where they were.
-  let barsRest = false
+  // After a + the bar stays away until the pointer moves: the new line opens right where it was.
+  let barRest = false
 
-  const inTools = (target: EventTarget | null) =>
-    target instanceof Node && (tools.contains(target) || add.contains(target) || addAfterHolder.contains(target))
+  const inTools = (target: EventTarget | null) => target instanceof Node && (tools.contains(target) || add.contains(target))
 
   const hide = () => {
     window.clearTimeout(hideTimer)
     block = null
     tools.removeAttribute('data-visible')
   }
-  const hideBars = () => {
+  const hideBar = () => {
     window.clearTimeout(barTimer)
-    bars = null
+    barBlock = null
     add.removeAttribute('data-visible')
-    addAfterHolder.removeAttribute('data-visible')
   }
-  const placeBars = () => {
-    if (!bars || !bars.block.isConnected) return hideBars()
-    const rect = bars.block.getBoundingClientRect()
-    if (rect.bottom < -BAR_ROOM || rect.top > window.innerHeight) return hideBars()
-    // The plan's last block has Add a block right under it, which adds after it.
-    const below = lastOfPlan(bars.block) ? null : barPlace(bars.block)
-    const holder = bars.holder?.isConnected && !lastOfPlan(bars.holder) ? barPlace(bars.holder) : null
-    // The phase's bar keeps clear of its last block's, which sits just above it.
-    if (holder && below) holder.top = Math.max(holder.top, below.top + below.height + BAR_GAP)
-    for (const [bar, at] of [
-      [add, below],
-      [addAfterHolder, holder],
-    ] as const) {
-      if (!at) {
-        bar.removeAttribute('data-visible')
-        continue
-      }
-      bar.style.top = `${at.top}px`
-      bar.style.left = `${at.left}px`
-      bar.style.width = `${at.width}px`
-      // In a narrow gap the bar takes no clicks past its own edges.
-      bar.toggleAttribute('data-tight', at.tight)
-      bar.setAttribute('data-visible', '')
-    }
+  const placeBar = () => {
+    if (!barBlock || !barBlock.isConnected) return hideBar()
+    const rect = barBlock.getBoundingClientRect()
+    if (rect.bottom < -BAR_ROOM || rect.top > window.innerHeight) return hideBar()
+    // The plan's last block has Add a block right under it, which adds after it. Text that is
+    // opening gets its editor's bar once the editor shows.
+    if (lastOfPlan(barBlock) || isOpening(barBlock)) return void add.removeAttribute('data-visible')
+    const at = barPlace(barBlock)
+    add.style.top = `${at.top}px`
+    add.style.left = `${at.left}px`
+    add.style.width = `${at.width}px`
+    // In a narrow gap the bar takes no clicks past its own edges.
+    add.toggleAttribute('data-tight', at.tight)
+    add.setAttribute('data-visible', '')
   }
-  const showBars = (next: AddTargets) => {
+  const showBar = (next: HTMLElement) => {
     window.clearTimeout(barTimer)
-    if (bars?.block === next.block && bars.holder === next.holder && add.hasAttribute('data-visible')) return
-    bars = next
-    placeBars()
+    if (barBlock === next && add.hasAttribute('data-visible')) return
+    barBlock = next
+    placeBar()
   }
   const place = () => {
     if (!block || !block.isConnected) return hide()
@@ -620,16 +635,16 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     // In comment mode a click picks a part to comment on, so the pill stays away.
     return state.editable && !state.editing && !commenting()
   }
-  // The + bars stay while a block is edited: a press on one keeps that edit first, then adds.
-  const barsUsable = () => options.state().editable && !commenting()
+  // The + bar stays while a block is edited: a press on it keeps that edit first, then adds.
+  const barUsable = () => options.state().editable && !commenting()
   // The card whose text or title is open: its pill stays beside it while the text is edited.
   let pinned: HTMLElement | null = null
   let pinFrame = 0
   const refresh = (frames = 12) => {
     cancelAnimationFrame(pinFrame)
     const state = options.state()
-    if (!state.editable || commenting()) hideBars()
-    else if (bars) placeBars()
+    if (!state.editable || commenting()) hideBar()
+    else if (barBlock) placeBar()
     if (!state.editable || !state.editing || commenting()) {
       if (pinned) {
         pinned = null
@@ -650,15 +665,15 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     // The text's editor can take a frame or two to appear.
     if (frames > 0) pinFrame = requestAnimationFrame(() => refresh(frames - 1))
   }
-  const trackBars = (target: EventTarget | null, y: number | undefined) => {
-    const next = barsUsable() && !barsRest && y !== undefined ? addTargetsOf(target, y) : null
+  const trackBar = (target: EventTarget | null, y: number | undefined) => {
+    const next = barUsable() && !barRest && y !== undefined ? addTargetOf(target, y) : null
     if (next) {
-      showBars(next)
+      showBar(next)
       return
     }
-    if (!bars) return
+    if (!barBlock) return
     window.clearTimeout(barTimer)
-    barTimer = window.setTimeout(hideBars, HIDE_DELAY_MS)
+    barTimer = window.setTimeout(hideBar, HIDE_DELAY_MS)
   }
   const track = (target: EventTarget | null, y?: number) => {
     if (inTools(target)) {
@@ -666,7 +681,7 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
       window.clearTimeout(barTimer)
       return
     }
-    trackBars(target, y)
+    trackBar(target, y)
     // While a card's text is edited, its pill stays with it.
     if (pinned && options.state().editing) return
     const inner = usable() ? editTargetOf(target) : null
@@ -690,20 +705,20 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     cancelAnimationFrame(frame)
     frame = requestAnimationFrame(() => track(target, clientY))
   }
-  // A touch screen has no hover: a tap on a block shows its pill and its + bars.
+  // A touch screen has no hover: a tap on a block shows its pill and its + bar.
   const onTap = (event: PointerEvent) => {
     if (!isTouchPointer(event)) return
-    barsRest = false
+    barRest = false
     track(event.target, event.clientY)
   }
   const onMove = () => {
     if (block) place()
-    if (bars) placeBars()
+    if (barBlock) placeBar()
   }
-  // The pointer moved for real (the browser also reports pointers over what moved under them): the bars come back.
+  // The pointer moved for real (the browser also reports pointers over what moved under them): the bar comes back.
   const onPointerMove = (event: PointerEvent) => {
-    if (!barsRest || isTouchPointer(event) || (event.movementX === 0 && event.movementY === 0)) return
-    barsRest = false
+    if (!barRest || isTouchPointer(event) || (event.movementX === 0 && event.movementY === 0)) return
+    barRest = false
     cancelAnimationFrame(frame)
     const { target, clientY } = event
     frame = requestAnimationFrame(() => track(target, clientY))
@@ -717,16 +732,16 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
       pending = { action, block: target, at: Date.now() }
       pinned = null
       hide()
-      hideBars()
-      if (action === 'add') barsRest = true
+      hideBar()
+      if (action === 'add') barRest = true
       options.finish()
       return
     }
     hide()
-    hideBars()
-    if (action === 'add') barsRest = true
+    hideBar()
+    if (action === 'add') barRest = true
     const range = target?.dataset.planBlock
-    if (!target || !range || !barsUsable()) return
+    if (!target || !range || !barUsable()) return
     if (action === 'edit') {
       if (usable()) options.edit(range, { margins: cardMargins(target) })
     } else options.add(range, addHow(target))
@@ -738,12 +753,11 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     if (isTap(event) && target) holdKeyboard(event.clientX, event.clientY)
     run('add', target)
   }
-  const onAddBelow = onAdd(() => bars?.block)
-  const onAddAfterHolder = onAdd(() => bars?.holder)
+  const onAddBelow = onAdd(() => barBlock)
   const onKey = (event: KeyboardEvent) => {
     if (event.key === 'Escape') {
       hide()
-      hideBars()
+      hideBar()
       return
     }
     const key = event.key.toUpperCase()
@@ -757,13 +771,13 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
       // A new line below the block under the pointer, or with focus, or at the reading line.
       if (showPlanTab()) return
       const focused = editTargetOf(document.activeElement)
-      const after = [bars?.block, focused, blockAtReadingLine()]
+      const after = [barBlock, focused, blockAtReadingLine()]
         .map((candidate) => (candidate?.isConnected ? (addsAfter(candidate) ? candidate : holderOf(candidate)) : null))
         .find((candidate): candidate is HTMLElement => Boolean(candidate?.dataset.planBlock))
       hide()
-      hideBars()
+      hideBar()
       if (!after?.dataset.planBlock) return
-      barsRest = true
+      barRest = true
       options.add(after.dataset.planBlock, addHow(after))
       return
     }
@@ -821,7 +835,8 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
   const queue = (event: MouseEvent): boolean => {
     const state = options.state()
     if (!state.editable || !state.editing || commenting()) return false
-    if (inTools(event.target)) return true
+    // A double or triple click on the text that is opening selects in it: no other text to open after.
+    if (inTools(event.target) || onOpeningText(event.target)) return true
     const direct = directEditOf(event.target)
     const pill = direct ? null : pillTargetOf(event.target, event.clientY)
     if (direct) queued = { direct, caret: caretFor(direct, event.clientX, event.clientY), text: direct.element.textContent ?? '', at: Date.now() }
@@ -862,7 +877,7 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
   const closed = () => {
     const action = pending
     pending = null
-    if (action && Date.now() - action.at <= QUEUE_MS && barsUsable() && action.block.isConnected) {
+    if (action && Date.now() - action.at <= QUEUE_MS && barUsable() && action.block.isConnected) {
       // The block keeps its element when the edit before it is drawn; its place is the one the page shows now.
       queued = null
       const range = action.block.dataset.planBlock
@@ -889,13 +904,11 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     if (event.target instanceof HTMLElement && event.target.dataset.planFocusStandIn !== undefined) return
     track(event.target)
   }
-  // The bars take no focus from the open editor: a press on one keeps the edit, then adds.
+  // The bar takes no focus from the open editor: a press on it keeps the edit, then adds.
   const keepFocus = (event: MouseEvent) => event.preventDefault()
   edit.addEventListener('click', onEdit)
   add.addEventListener('click', onAddBelow)
-  addAfterHolder.addEventListener('click', onAddAfterHolder)
   add.addEventListener('mousedown', keepFocus)
-  addAfterHolder.addEventListener('mousedown', keepFocus)
   window.addEventListener('click', onClick, true)
   document.addEventListener('pointerdown', onPress, { passive: true })
   document.addEventListener('pointerover', onPointer, { passive: true })
@@ -915,9 +928,7 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     pending = null
     edit.removeEventListener('click', onEdit)
     add.removeEventListener('click', onAddBelow)
-    addAfterHolder.removeEventListener('click', onAddAfterHolder)
     add.removeEventListener('mousedown', keepFocus)
-    addAfterHolder.removeEventListener('mousedown', keepFocus)
     window.removeEventListener('click', onClick, true)
     document.removeEventListener('pointerdown', onPress)
     document.removeEventListener('pointerover', onPointer)
@@ -929,7 +940,6 @@ export function bindBlockEditButton(options: BlockEditActions): BlockEditBinding
     window.removeEventListener('resize', onMove)
     tools.remove()
     add.remove()
-    addAfterHolder.remove()
   }
   return { stop, closed, refresh: () => refresh() }
 }
