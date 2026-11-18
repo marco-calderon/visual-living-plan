@@ -17,7 +17,8 @@ It is better than `events` as the **primary** interface where MCP is set up. It 
 
 What holds it back:
 
-- **Tool-call timeouts differ by harness.** Clients built on the MCP TypeScript SDK time out a request at 60 seconds unless they change it. The spike measured that. Claude Code allows about 27.8 hours and moves a call longer than 2 minutes to the background. Many others stop at 60 seconds to 10 minutes. A wait has to be a long poll with a bounded window, and the window has to suit the client.
+- **Tool-call timeouts differ by harness.** Clients built on the MCP TypeScript SDK time out a request at 60 seconds unless they change it; the spike measured that. Codex defaults to 60 seconds and claude.ai connectors allow 240 seconds. Claude Code allows about 27.8 hours and moves a call longer than 2 minutes to the background. A wait has to be a long poll with a bounded window, and the window has to suit the client.
+- **The current MCP spec (2026-07-28) is stateless.** On HTTP a dropped stream cancels the call. Long waits only work because the queue is already durable on the server.
 - **A blocking call blocks the turn** in most harnesses. The agent cannot work while it waits, except in Claude Code (auto-background, MCP Tasks) and where MCP Tasks are supported.
 - **Long polls cost model turns.** Each window that ends with nothing costs one model round trip and a little context. That is fine for minutes. It is wasteful for hours, and some harnesses cap tool calls per request.
 - **Setup.** `bunx` needs nothing installed. A tool needs the harness's MCP config (stdio) or a connector with sign-in (remote).
@@ -43,11 +44,12 @@ This works best where the harness runs a command in the background and wakes the
 | Long poll | `plan_wait` returns `timedOut` after a window, and the agent calls it again | Every MCP client | One model turn per empty window. Tool-call caps per request |
 | Progress heartbeat | `notifications/progress` during the wait | Clients that reset an idle timer on progress: Claude Code's idle timeout, SDK clients that pass `resetTimeoutOnProgress` | Does not extend Claude Code's hard per-call limit. Most clients ignore it |
 | Auto-background | The harness moves a long call off the turn and wakes the model when it returns | Claude Code (after 2 minutes) | Claude Code only. Off in non-interactive `-p` runs unless `CLAUDE_AUTO_BACKGROUND_TASKS` is set |
-| MCP Tasks (spec 2025-11-25, experimental) | `tools/call` returns a task; the host polls `tasks/get` and gets the result later | Claude Code; see the harness table for others | Experimental. Few clients |
-| Push into the session | The server sends `notifications/claude/channel` and the idle session wakes with the event | Claude Code channels | Research preview. Gated, see Claude Code below |
+| MCP Tasks (`io.modelcontextprotocol/tasks` extension, SEP-2663) | `tools/call` returns `resultType: "task"`; the host polls `tasks/get` until the task ends, and the agent keeps working | Claude Code (public beta since 2.1.304: "if Claude is idle when the result arrives, Claude starts on it unprompted"), MCPJam, Glean; Claude web per the client matrix, unverified | The 2025-11-25 experimental tasks are not wire-compatible with the extension. No progress notifications on a task. The server must store the task durably |
+| Push into the session | The server sends `notifications/claude/channel` and the idle session wakes with the event | Claude Code channels | Research preview. Stdio only, interactive only. Gated, see Claude Code below |
+| Push by webhook | The server POSTs a signed event to the host, and the conversation wakes | ChatGPT MCP Events (`events/list`, `events/subscribe`); the spec's Events extension (SEP-3415, accepted 2026-11-11, no reference implementation yet) | Needs durable subscriptions and outbound HTTPS from the server. Only the hosted app can do it |
 | Elicitation | The server asks the person in the harness's own UI, beside the page | Clients with elicitation (see table) | It is a question to the person, not a wake-up. Flat form schemas only |
-| MCP Apps | The plan renders inside the chat; a click calls a tool or sends a message to the model | Chat hosts that render `ui://` resources | Not terminals. The plan page has to run in a sandboxed iframe |
-| Resource subscription | `notifications/resources/updated` on `plan://<id>` | Rarely surfaced to the model | Good for reading state, not for waking |
+| MCP Apps (`io.modelcontextprotocol/ui`, stable 2026-01-26) | The plan renders inside the chat. A click calls a tool (`tools/call`) or puts a message in the conversation (`ui/message`) | Claude web and Desktop, ChatGPT, VS Code Copilot, M365 Copilot, Goose, Cursor, Postman, others | Claude Code hides UI resources. In Claude, `sendMessage` needs the person's consent, is capped at 8,000 characters, and must not run on a timer; app-only tools have a 45 s limit and need a remote connector. The plan page has to run in a sandboxed iframe |
+| Resource subscription | Change notifications on `plan://<id>` (`resources/subscribe`, replaced by `subscriptions/listen` in 2026-07-28) | No host found that passes them to the model. Claude's hosted apps do not support them | Good for reading state, not for waking |
 
 Not tools, but they fill the same gap in Claude Code: a Stop hook that blocks stopping while submissions are pending, and an `asyncRewake` hook, which runs in the background and wakes the model when it exits `2`.
 
@@ -140,7 +142,32 @@ Read from the binary in this cloud container, not from the docs:
 
 This container reaches `https://plan.logspace.qzz.io` (it answered `307`), and `/mcp` does not exist yet (`404`).
 
-CLOUD_SURFACES_PLACEHOLDER
+### Cloud surfaces
+
+| Surface | MCP | Tool-call limit | Can the person act mid-task? | Notes |
+|---|---|---|---|---|
+| Claude Code on the web | Repo `.mcp.json` (stdio runs in the VM), plus the account's claude.ai connectors | As Claude Code: about 28 h, idle 5 min remote and 30 min stdio, auto-background at 2 min | Yes: web, mobile, elicitation cards | Default network is Limited, so `plan.logspace.qzz.io` must be an allowed domain for a stdio server. Connector traffic goes through Anthropic and skips that allowlist. The VM pauses after a few idle minutes; whether a pending MCP call counts as activity is unverified |
+| claude.ai, Claude Desktop, mobile | Remote connector (Streamable HTTP), OAuth by CIMD or DCR | **240 s per call**, about 150k characters per result | Yes, in the chat, and through MCP Apps | Requests come from `160.79.104.0/21`. Mobile limits unverified |
+| ChatGPT (developer mode, apps) | Remote MCP, OAuth | Not documented | Yes, in the chat, MCP Apps, and MCP Events | MCP Events can wake a conversation from a webhook |
+| Codex cloud | MCP inside cloud tasks is not documented | — | Follow-ups in the same chat | Codex CLI: `tool_timeout_sec` defaults to 60 |
+| Cursor cloud agents | HTTP or stdio, set on cursor.com/agents | Not documented; a 300 s headers timeout is reported for remote calls | Follow-ups | Send response headers at once; per-MCP network policy |
+| GitHub Copilot cloud agent | Repo settings, tools only | Not documented | PR comments, steering | No remote OAuth servers. Actions-based sessions stop at 59 minutes. The firewall reportedly does not apply to MCP servers |
+| Devin | stdio, SSE, or HTTP; OAuth | Not documented | Chat | The server must be on the public internet |
+| Google Jules | Six curated partner servers only | — | — | Read-only since 2026-11-11, shutting down 2026-12-31 |
+
+What this means for the cloud:
+
+- The person can only reach a hosted plan. A local service inside a cloud VM is on that VM's loopback. That is true today too.
+- The **remote connector is the cloud path that needs no setup per container**: no `account login --headless`, and no allowlist entry.
+- **Windows must be short on remote hosts**: 240 s on claude.ai, 60 s in Codex, about 300 s in Cursor. A remote `plan_wait` should default to a window of 200 s or less, and always send keepalives.
+- The spec moved. **MCP 2026-07-28 is stateless**: no `Mcp-Session-Id`, no resumable GET stream, and on Streamable HTTP a closed response stream means the request was cancelled. An hours-long call cannot survive a dropped connection. That suits this design: the queue is already durable in `plan_events`, so a window that drops loses nothing.
+
+### The hosted app as an MCP server
+
+- **Duration.** An HTTP-triggered Worker has no hard duration limit while the client stays connected. Waiting on I/O is not CPU time. A runtime update gives open connections up to 20 minutes, so long streams drop anyway, which is another reason for bounded windows.
+- **Where the wait lives.** A Durable Object cannot hibernate while a response stream is in flight. A waiter held in the object costs about $0.0056 an hour. Hold the MCP response in the Worker, which has no duration charge on the Standard plan. Have the Worker listen to the plan object over the hibernatable agent WebSocket the CLI already uses, so the object is idle between events.
+- **SDK.** The Cloudflare Agents SDK's `McpAgent` is deprecated. `createMcpHandler` is stateless and speaks 2026-07-28 and older stateless clients. Elicitation goes through MRTR.
+- **Auth.** Better Auth 1.7 ships an MCP plugin (`@better-auth/mcp`) with protected-resource metadata and CIMD (`@better-auth/cimd`). The project is on `better-auth ^1.4.0`, so this needs an upgrade. On Workers, CIMD needs a fetch transport of its own. Claude uses CIMD only when the server advertises `client_id_metadata_document_supported: true` and the `none` auth method, and otherwise falls back to DCR. `@cloudflare/workers-oauth-provider` 1.2.4 is the alternative.
 
 ## Spike
 
@@ -160,11 +187,14 @@ A stdio server in the session scratchpad (not committed) imported the repo's own
 ## Design rules if this is built
 
 1. **One stream per plan, owned by the server process.** Open it on the first wait. Keep it through a grace period after each return (about two minutes, to cover the model's reaction), then close it. A stream held all session would keep a plan Active and keep a Free account's one slot while the agent does unrelated work. That would change [ADR 0030](../architecture/decisions/0030-agent-presence.md) and [ADR 0031](../architecture/decisions/0031-agent-slots.md).
-2. **Ack on return, never on cancel.** The spike's rule matches `events`: a row printed or returned is acked; a cancelled or timed-out call leaves it pending. Acking on return also keeps [ADR 0035](../architecture/decisions/0035-six-plan-commands.md)'s Addressing state immediate.
+2. **Ack on return over stdio, by cursor over HTTP.**
+   - Over stdio, a row returned is acked and a cancelled call leaves it pending. That is the spike's rule and the CLI's. A pipe does not lose a written result.
+   - Over Streamable HTTP, a result can be written to a stream that has already closed, and under 2026-07-28 the close is the cancel. So the remote `plan_wait` returns a `cursor`. The next call passes it back, and the server acks through it. A row returned but never confirmed comes back on the next call.
+   - In both cases the row is marked in progress (Addressing) when it is returned, so [ADR 0035](../architecture/decisions/0035-six-plan-commands.md)'s page state stays immediate.
 3. **Drop rows another client acked.** When a CLI listener and the server both hold a stream, re-check before returning: re-read `hello.pending` on reconnect, or have the ack response say which ids were newly delivered.
-4. **Pick the window from the client.** `initialize` names the client (`clientInfo`) and its capabilities. Use the largest safe window per client, and accept `timeoutSeconds` to override it. With no knowledge, stay under 55 s.
-5. **Always send a progress heartbeat** (every 15–30 s) when the client sent a progress token. It resets Claude Code's idle timer and keeps proxies and the Cloudflare edge from closing a quiet connection.
-6. **Offer a task form of `plan_wait`** to clients that declare task support, so the call returns at once and the agent keeps working.
+4. **Pick the window from the client.** The client names itself (`clientInfo`, in `initialize` or in each request's `_meta` under 2026-07-28) and lists its capabilities. Use the largest safe window per client, and accept `timeoutSeconds` to override it. With no knowledge, stay under 55 s locally and under 200 s remotely.
+5. **Always send a heartbeat.** Send `notifications/progress` every 15–30 s when the client sent a progress token, and an SSE `:` comment over HTTP. That resets Claude Code's idle timer and keeps proxies and readers with a 300 s read timeout from closing a quiet connection. Send the response headers at once.
+6. **Offer a task form of `plan_wait`** to clients that declare the Tasks extension, so the call returns at once and the agent keeps working. Store the task in the plan's queue, not in memory, because the extension requires it to be durable.
 7. **Pull page edits into the file before returning an `edit`**, as `events` does (`pullPageEdit`), and strip the source from the result.
 8. **Keep results small and explicit.** Each event is `{event, id, seq, data}` as today, plus `next` on an empty window.
 9. **Ship it in the CLI.** `live-plan mcp` is a mode of the same binary, so versions never drift. `live-plan skills install` can also write the harness's MCP config, since it already knows each harness's paths.
@@ -174,7 +204,7 @@ A stdio server in the session scratchpad (not committed) imported the repo's own
 | Criterion | `events` CLI | Stdio MCP tools | Remote MCP on the host |
 |---|---|---|---|
 | Wakes the model in any harness | Only where a background exit wakes it | Yes, by returning | Yes, by returning |
-| Long waits without burning turns | Claude Code background | Claude Code (auto-background, tasks); elsewhere long polls | Same, plus a 5-minute idle limit in Claude Code without heartbeats |
+| Long waits without burning turns | Claude Code background | Claude Code (auto-background, tasks); elsewhere long polls | Windows of 240 s or less on claude.ai; tasks in Claude Code; webhook wake in ChatGPT |
 | Agent keeps working while waiting | Claude Code background | Claude Code, task-capable clients | Same |
 | Typed input and output | No | Yes | Yes |
 | Shell sandbox with network off | Blocked | Works (server outside the sandbox) | Works |
@@ -190,8 +220,11 @@ Tools win on reach, structure, sandboxes, and permissions. The CLI wins on zero 
 
 1. **`live-plan mcp` (stdio).** The waiting and reacting tools above, over the same queue. Long-poll `plan_wait` with a per-client window, a heartbeat, and the grace-period stream. `skills install` writes the MCP config. The skill teaches tools first and `events` second. This gives local plans and hosted plans from any MCP harness.
 2. **Task form of `plan_wait`** for clients that declare MCP Tasks.
-3. **Remote MCP at `https://plan.logspace.qzz.io/mcp`.** OAuth on Better Auth, the document tools (`plan_write`, `plan_edit_block`), and a heartbeat on every wait. This gives chat surfaces and cloud sessions without a login per container.
-4. **Optional push.** A Claude Code channel plugin that sends a submission into an idle session, and an MCP App view of the plan for chat hosts. Both are narrow, and neither is needed for the first three.
+3. **Remote MCP at `https://plan.logspace.qzz.io/mcp`.** Stateless (`createMcpHandler`), OAuth on Better Auth 1.7's MCP plugin, the document tools (`plan_write`, `plan_edit_block`), cursor acks, windows of 200 s or less, and a heartbeat on every wait. This gives chat surfaces and cloud sessions without a login per container.
+4. **Optional push.** Each is narrow, and none is needed for the first three:
+   - A Claude Code channel plugin that sends a submission into an idle session. Stdio only, interactive only, on an older protocol revision, and behind `--channels`.
+   - ChatGPT MCP Events from the hosted app, and the spec's Events extension when it has an implementation.
+   - An MCP App view of the plan for chat hosts.
 
 Record the choice as an ADR when step 1 starts. It changes how agents are notified and what presence means.
 
