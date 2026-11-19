@@ -1,5 +1,31 @@
 # Changelog — 2026-11-18
 
+## 2.32.0
+
+**PR:** [#203](https://github.com/marco-calderon/visual-living-plan/pull/203)
+
+**Bump:** minor
+
+### Summary
+
+The Mac app shows its updates in the window. A notice at the top right follows the download with a progress bar, then offers **Restart now**. After an update to a new minor version, the app opens **What's new** once, in the same frame as Settings, with what the release added, improved, and fixed.
+
+### New features
+
+- The update notice stays in the window while an update needs it: *Downloading* with a progress bar and the size so far, *Installing*, then *Ready* with **Restart now** and **Later**. Later keeps the new version for the next launch, and **Hide** puts the download out of sight until it is ready. The notice shows over the dashboard, plans, the hosted app, and setup, and a page that opens meanwhile shows it too.
+- **What's new** opens once after the app moves to a new minor version, such as 2.32. It lists each release since the notes you last saw, newest first, with its summary and cards for new features, improvements, and bugs fixed, as Settings shows the changelog. Continue, the close button, or Escape closes it for good. A new install and a patch release open no notes.
+- Settings has **Check for updates** in its Desktop app section, on plans on this computer and on the hosted app. It answers in the same notice: checking, up to date, or why it could not check, with **Try again**.
+
+### Improvements
+
+- Living Plan > Check for Updates… answers in the window instead of a dialog.
+- The update notice has its own place at the top right, so a plan's own messages, at the top left, no longer cover it, and Escape on the page leaves it open.
+- A download that fails after it started says why in the notice, in place of its progress.
+
+### Notes
+
+The app no longer ships the dialog plugin. `desktop.json` gains `notesSeen`. `cargo build` needs `bun run desktop:stage` first, which now also writes `src-tauri/web/notices.js`. `SHELL_CACHE_VERSION` moves to 2.32.0. No registry restart needed.
+
 ## 2.31.1
 
 **PR:** [#202](https://github.com/marco-calderon/visual-living-plan/pull/202)

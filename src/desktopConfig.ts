@@ -1,12 +1,14 @@
 /**
  * What the desktop app remembers between launches ([ADR 0038]): whether it opens the plans on this
- * machine or the hosted ones, which host that is, the color mode, and the look chosen in setup.
+ * machine or the hosted ones, which host that is, the color mode, the look chosen in setup, and the
+ * version whose release notes were last seen ([ADR 0042]).
  *
  * The file is `desktop.json` in the config home, beside `cloud.json`. The app reads and writes it
  * through `live-plan desktop state` and `live-plan desktop configure`. The CLI reads it to know
  * which hosted pages the app can show (`src/desktopApp.ts`).
  *
  * [ADR 0038]: ../docs/architecture/decisions/0038-desktop-setup-and-cloud.md
+ * [ADR 0042]: ../docs/architecture/decisions/0042-update-notices-and-whats-new.md
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -33,6 +35,11 @@ export type DesktopConfig = {
   cloudUrl: string | null
   colorMode: ColorMode
   appearance: DesktopAppearance | null
+  /**
+   * The app version whose What's new was last closed (`src/releaseNotes.ts`). Null until then.
+   * Finishing setup the first time sets it, so a new install does not open the notes.
+   */
+  notesSeen: string | null
 }
 
 export type DesktopConfigPatch = {
@@ -42,10 +49,16 @@ export type DesktopConfigPatch = {
   colorMode?: unknown
   accent?: unknown
   diffsTheme?: unknown
+  notesSeen?: unknown
 }
 
 export function defaultDesktopConfig(): DesktopConfig {
-  return { setupDone: false, mode: 'local', cloudUrl: null, colorMode: 'system', appearance: null }
+  return { setupDone: false, mode: 'local', cloudUrl: null, colorMode: 'system', appearance: null, notesSeen: null }
+}
+
+/** An `x.y.z` version, or null. */
+function version(value: unknown): string | null {
+  return typeof value === 'string' && /^\d+\.\d+\.\d+$/.test(value) ? value : null
 }
 
 export function desktopConfigPath(home = defaultRegistryHome()): string {
@@ -100,6 +113,7 @@ export function parseDesktopConfig(raw: unknown): DesktopConfig {
   config.setupDone = record.setupDone === true
   config.colorMode = oneOf(COLOR_MODES, record.colorMode) ?? 'system'
   config.appearance = parseAppearance(record.appearance)
+  config.notesSeen = version(record.notesSeen)
   const mode = oneOf(DESKTOP_MODES, record.mode) ?? 'local'
   // Cloud without a host cannot open anything.
   config.mode = mode === 'cloud' && !config.cloudUrl ? 'local' : mode
@@ -122,12 +136,13 @@ export async function writeDesktopConfig(config: DesktopConfig, home = defaultRe
 
 /**
  * Apply a change from the setup screen. `fallbackCloudUrl` is the host the CLI is signed in to, used
- * when cloud is chosen and the config names no host. Throws when a value is not one the app accepts.
+ * when cloud is chosen and the config names no host. `version` is the running app's, recorded as
+ * `notesSeen` when setup finishes the first time. Throws when a value is not one the app accepts.
  */
 export function mergeDesktopConfig(
   current: DesktopConfig,
   patch: DesktopConfigPatch,
-  options: { now?: number; fallbackCloudUrl?: string | null } = {},
+  options: { now?: number; fallbackCloudUrl?: string | null; version?: string } = {},
 ): DesktopConfig {
   const next: DesktopConfig = { ...current }
   if (patch.cloudUrl !== undefined) {
@@ -160,5 +175,15 @@ export function mergeDesktopConfig(
     if (accent && diffsTheme) next.appearance = { accent, diffsTheme, savedAt: options.now ?? Date.now() }
   }
   if (patch.setupDone !== undefined) next.setupDone = patch.setupDone === true
+  if (patch.notesSeen !== undefined) {
+    if (patch.notesSeen === null) next.notesSeen = null
+    else {
+      const seen = version(patch.notesSeen)
+      if (!seen) throw new Error('notesSeen must be a version such as 2.32.0.')
+      next.notesSeen = seen
+    }
+  }
+  // A new install has nothing to catch up on: its notes start with the next minor release.
+  if (!current.setupDone && next.setupDone && !next.notesSeen) next.notesSeen = version(options.version)
   return next
 }

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -218,4 +218,26 @@ test('the hosted card loads only the newest built-in changelog', async () => {
     },
   })
   assert.deepEqual(failing, { version: null, release: null })
+})
+
+test('Settings checks for desktop updates from the desktop-only section, on loopback and hosted pages', () => {
+  const plan = parsePlan('---\ntitle: Sample\n---\n\n# Scope\n\nKeep it.\n', 'sample.plan.md')
+  const html = renderPlanPage({
+    plan,
+    mode: 'watch',
+    responses: {},
+    diffs: [],
+    iteration: 1,
+    pendingInteractionIds: [],
+    execution: createIdleExecutionState(),
+    clientAssets: null,
+    theme: themePayload(defaultThemeConfig(), 'live-plan.config.json'),
+  })
+  const desktopAt = html.indexOf('<section class="block settings-section desktop-only"')
+  const checkAt = html.indexOf('href="living-plan://update/check"')
+  assert.ok(desktopAt >= 0 && checkAt > desktopAt && checkAt < html.indexOf('</section>', desktopAt), 'the button sits in the Desktop app section')
+  // The hosted Settings modal draws the same link in its Desktop app group.
+  const hosted = readFileSync(new URL('../src/settings/SettingsDialog.tsx', import.meta.url), 'utf8')
+  const group = hosted.slice(hosted.indexOf('function DesktopAppGroup'), hosted.indexOf('function AccountSection'))
+  assert.match(group, /href="living-plan:\/\/update\/check"/)
 })

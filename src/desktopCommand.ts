@@ -1,7 +1,8 @@
 /**
  * `live-plan desktop` and `live-plan skills`: what the desktop app's setup screen runs ([ADR 0038]).
  *
- *   desktop state                 one JSON line: the app's config and what setup can offer
+ *   desktop state                 one JSON line: the app's config, what setup can offer, and the
+ *                                 release notes to show when this is a newer minor ([ADR 0042])
  *   desktop configure --json {}   change the config, then print the same line
  *   desktop install-cli           put `live-plan` on the PATH, running this install
  *   skills list                   where the live-plan skill is and is not installed
@@ -10,9 +11,11 @@
  * The app keeps no logic of its own for these. It runs the CLI it ships and shows the answer.
  *
  * [ADR 0038]: ../docs/architecture/decisions/0038-desktop-setup-and-cloud.md
+ * [ADR 0042]: ../docs/architecture/decisions/0042-update-notices-and-whats-new.md
  */
 import { AGENT_HARNESSES, harnessStatuses, installSkill, type HarnessStatus } from './agentSkills'
 import { currentLauncherEnv, installLauncher, launcherStatus, type LauncherStatus, type LauncherTarget } from './cliLauncher'
+import { loadVersionNotes } from './changelog'
 import { readCloudFile } from './cloudStore'
 import { globalThemeConfigPath } from './configHome'
 import {
@@ -23,6 +26,7 @@ import {
   type DesktopConfigPatch,
 } from './desktopConfig'
 import { DIFFS_THEME_PRESETS, type DiffsThemeSample } from './diffsTheme'
+import { notesDue, whatsNew, type WhatsNew } from './releaseNotes'
 import { ACCENT_PRESETS, loadThemeConfig, saveThemeConfig } from './theme'
 
 export type DesktopState = {
@@ -36,11 +40,22 @@ export type DesktopState = {
   harnesses: HarnessStatus[]
   accents: Array<{ label: string; accent: string }>
   syntaxThemes: Array<{ id: string; label: string; description: string; light: DiffsThemeSample; dark: DiffsThemeSample }>
+  /** Release notes the app shows once, when this version is a newer minor than the last notes seen. */
+  whatsNew: WhatsNew | null
 }
 
 export type DesktopCommandContext = {
   version: string
   target: LauncherTarget
+  /** The `docs/changelogs` directory beside this install. What's new reads it. */
+  changelogs?: string
+}
+
+/** The notes due at this version. Only after setup, and only past the minor whose notes were seen. */
+export function dueWhatsNew(config: DesktopConfig, context: Pick<DesktopCommandContext, 'version' | 'changelogs'>): WhatsNew | null {
+  // Only a newer minor reads the changelog files.
+  if (!config.setupDone || !context.changelogs || !notesDue(context.version, config.notesSeen)) return null
+  return whatsNew(context.version, config.notesSeen, loadVersionNotes(context.changelogs))
 }
 
 async function signedInCloudUrl(): Promise<string | null> {
@@ -70,13 +85,14 @@ export async function desktopState(context: DesktopCommandContext): Promise<Desk
       light: preset.lightSample,
       dark: preset.darkSample,
     })),
+    whatsNew: dueWhatsNew(config, context),
   }
 }
 
 /** Save a change from setup. A new accent or syntax theme also becomes the machine-wide theme file. */
-export async function configureDesktop(patch: DesktopConfigPatch): Promise<DesktopConfig> {
+export async function configureDesktop(patch: DesktopConfigPatch, options: { version?: string } = {}): Promise<DesktopConfig> {
   const current = await readDesktopConfig()
-  const next = mergeDesktopConfig(current, patch, { fallbackCloudUrl: await signedInCloudUrl() })
+  const next = mergeDesktopConfig(current, patch, { fallbackCloudUrl: await signedInCloudUrl(), version: options.version })
   await writeDesktopConfig(next)
   if (next.appearance && next.appearance.savedAt !== current.appearance?.savedAt) {
     const path = globalThemeConfigPath()
@@ -125,7 +141,7 @@ export async function cmdDesktop(args: string[], context: DesktopCommandContext)
         console.error('--json must be an object.')
         return 1
       }
-      await configureDesktop(patch as DesktopConfigPatch)
+      await configureDesktop(patch as DesktopConfigPatch, { version: context.version })
       console.log(JSON.stringify(await desktopState(context)))
       return 0
     }

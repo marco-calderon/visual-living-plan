@@ -1563,6 +1563,8 @@ export function renderPlanPage(options: {
           <h3>Desktop app</h3>
           <p class="settings-copy">Setup holds the choices from the first launch: local or cloud, the color mode, the accent and syntax theme, and the command line tool.</p>
           <p class="settings-actions"><a class="plan-btn" href="living-plan://setup">Open setup</a> <a class="plan-btn" href="living-plan://setup/cli">Install the command line tool</a></p>
+          <p class="settings-copy">The app installs new versions by itself and shows the download in the window. Check now to see if one is out.</p>
+          <p class="settings-actions"><a class="plan-btn" href="living-plan://update/check" data-check-updates>Check for updates</a></p>
         </section>
         ${versionSectionHtml(options.appVersion, options.changelog)}
       </main>

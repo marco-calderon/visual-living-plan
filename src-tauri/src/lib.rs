@@ -10,7 +10,9 @@
 //! The app keeps no settings logic. Its commands run the CLI it ships (`live-plan desktop ...`,
 //! `live-plan skills ...`) and hand the answer to the setup screen.
 //!
-//! It updates itself from GitHub releases (ADR 0041, `update.rs`).
+//! It updates itself from GitHub releases (ADR 0041, `update.rs`). What it has to say about that, and
+//! the release notes of a newer minor version, show in the page as the app's own notices (ADR 0042):
+//! a script it adds to every window (`src/desktopNotices.ts`), which it calls with `eval`.
 
 mod app_link;
 mod links;
@@ -39,6 +41,10 @@ const APP_TITLE: &str = "Living Plan";
 /// Runs in every page before its own scripts. See the file for what it does.
 const BRIDGE: &str = include_str!("../../desktop/bridge.js");
 
+/// The update notice and What's new, also in every page. `bun run desktop:stage` builds it from
+/// `src/desktopNotices.ts`. It draws nothing until the app calls it.
+const NOTICES: &str = include_str!("../web/notices.js");
+
 /// How long cloud mode waits for the hosted app to answer before it offers the local plans.
 const CLOUD_TIMEOUT: Duration = Duration::from_secs(4);
 
@@ -54,6 +60,11 @@ struct Shared {
     cloud: RwLock<Option<Url>>,
     /// The accent and syntax theme chosen in setup. A hosted page saves it to the account once.
     appearance: RwLock<Option<Value>>,
+    /// Release notes `desktop state` says are due: this version is a newer minor than the last
+    /// notes seen. Shown in the first window until the page says they were closed.
+    whats_new: Mutex<Option<Value>>,
+    /// The version whose notes were closed this session, while that is being saved.
+    notes_closed: Mutex<Option<String>>,
     /// A `living-plan://` page link that arrived before the first `connect`.
     pending: Mutex<Option<(Host, Page)>>,
     /// Whether the first `connect` has finished.
@@ -172,6 +183,17 @@ fn absorb(app: &AppHandle, state: &Value) {
     if let Ok(mut guard) = shared(app).appearance.write() {
         *guard = (!appearance.is_null()).then_some(appearance);
     }
+    let shared = shared(app);
+    let closed = shared
+        .notes_closed
+        .lock()
+        .ok()
+        .and_then(|guard| guard.clone());
+    let notes = state["whatsNew"].clone();
+    let due = notes.is_object() && notes["version"].as_str() != closed.as_deref();
+    if let Ok(mut guard) = shared.whats_new.lock() {
+        *guard = due.then_some(notes);
+    };
 }
 
 /// Run one of the bundled CLI's setup commands off the main thread and read its JSON answer.
@@ -295,6 +317,62 @@ async fn connect(app: AppHandle, mode: String) -> Result<String, String> {
         .ok_or_else(|| "Could not build that page's address.".to_string())
 }
 
+/// Whether a window's page may show the app's notices: the app's own page and pages of the two
+/// hosts. A sign-in provider's page does not.
+pub(crate) fn shows_notices(window: &WebviewWindow) -> bool {
+    window
+        .url()
+        .map(|url| shared(window.app_handle()).destination(&url) == Destination::App)
+        .unwrap_or(false)
+}
+
+/// Show the release notes of a newer minor version once, in the first window, over a page of the
+/// plan service or the hosted app. They stay due until the page says they were closed.
+fn offer_whats_new(app: &AppHandle, window: &WebviewWindow, url: &Url) {
+    let shared = shared(app);
+    if window.label() != MAIN_WINDOW || !shared.is_host(url) {
+        return;
+    }
+    let notes = shared.whats_new.lock().ok().and_then(|guard| guard.clone());
+    let Some(notes) = notes else {
+        return;
+    };
+    let _ = window.eval(format!(
+        "window.__LIVING_PLAN_NOTICES__&&window.__LIVING_PLAN_NOTICES__.whatsNew({notes})"
+    ));
+}
+
+/// The What's new notes were closed: remember their version in `desktop.json`, so they show once.
+fn notes_seen(app: &AppHandle) {
+    let shared = shared(app);
+    let version = shared
+        .whats_new
+        .lock()
+        .ok()
+        .and_then(|mut guard| guard.take())
+        .and_then(|notes| notes["version"].as_str().map(str::to_string));
+    let Some(version) = version else {
+        return;
+    };
+    if let Ok(mut closed) = shared.notes_closed.lock() {
+        *closed = Some(version.clone());
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let patch = serde_json::json!({ "notesSeen": version }).to_string();
+        let saved = cli_json(
+            app.clone(),
+            vec!["desktop".into(), "configure".into(), "--json".into(), patch],
+            "Could not save that the release notes were read",
+        )
+        .await;
+        match saved {
+            Ok(state) => absorb(&app, &state),
+            Err(error) => eprintln!("Living Plan: {error}"),
+        }
+    });
+}
+
 fn open_in_system(url: &Url) {
     if let Err(error) = tauri_plugin_opener::open_url(url.as_str(), None::<&str>) {
         eprintln!("Could not open {url}: {error}");
@@ -388,7 +466,7 @@ fn open_links(app: &AppHandle, urls: Vec<Url>) {
 }
 
 /// A `living-plan://` link followed inside an app window: the toolbar's Local and Cloud switch,
-/// and the setup buttons in Settings.
+/// the setup and update buttons in Settings, and the buttons of the app's notices.
 fn follow_in_window(app: &AppHandle, label: &str, link: AppLink) {
     match link {
         AppLink::Page(host, page) => {
@@ -397,6 +475,8 @@ fn follow_in_window(app: &AppHandle, label: &str, link: AppLink) {
         AppLink::Switch(host) => show_app_page(app, label, format!("mode={}", host.name())),
         AppLink::Setup(None) => show_app_page(app, label, "setup".into()),
         AppLink::Setup(Some(section)) => show_app_page(app, label, format!("setup={section}")),
+        AppLink::Update(action) => update::act(app, label, action),
+        AppLink::NotesSeen => notes_seen(app),
     }
 }
 
@@ -584,6 +664,7 @@ fn app_window(app: &AppHandle, label: &str, url: WebviewUrl) -> tauri::Result<We
         .min_inner_size(640.0, 480.0)
         .center()
         .initialization_script(bridge_script())
+        .initialization_script(NOTICES)
         .on_navigation(move |url| navigate(&on_navigation.0, &on_navigation.1, url))
         .on_new_window(move |url, _features| {
             let app = on_new_window.clone();
@@ -612,6 +693,8 @@ fn app_window(app: &AppHandle, label: &str, url: WebviewUrl) -> tauri::Result<We
                 mark_fullscreen(&window);
                 center_window_buttons(&window);
                 offer_appearance(&on_page_load, &window, payload.url());
+                update::on_page_load(&on_page_load, &window);
+                offer_whats_new(&on_page_load, &window, payload.url());
             }
         })
         .on_document_title_changed(|window, title| {
@@ -713,7 +796,7 @@ fn install_menu(app: &AppHandle) -> tauri::Result<()> {
     app.set_menu(menu)?;
     app.on_menu_event(|app, event| {
         if event.id().as_ref() == update::MENU_ID {
-            update::check_now(app);
+            update::check_now(app, &front_window_label(app));
             return;
         }
         let fragment = match event.id().as_ref() {
@@ -756,9 +839,8 @@ pub fn run() {
                 .open_js_links_on_click(false)
                 .build(),
         )
-        // Used from Rust only. No capability grants their commands to a page.
+        // Used from Rust only. No capability grants its commands to a page.
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_dialog::init())
         .manage(Arc::new(Shared::default()))
         .manage(update::Updates::default())
         .invoke_handler(tauri::generate_handler![

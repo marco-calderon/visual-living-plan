@@ -45,6 +45,7 @@ Decisions are numbered in the order they were made. Superseded decisions stay he
 
 | [0039](0039-document-first-page.md) | 2026-11-13 | Accepted; block Edit opens in place by 0040 | The plan page reads as a document: prose blocks have no card, data views (file tree, endpoint, data model, JSON, annotated code) are their own blocks, any block can carry `locked`, and each block opens the editor from its own Edit |
 | [0040](0040-edit-in-place.md) | 2026-11-13 | Accepted | The page is the editor: each block opens its own editor in place from its Edit or +, Done keeps the change on the device, and Apply changes makes the version; the toolbar Edit and the whole-page editor are gone |
-| [0041](0041-desktop-app-updates.md) | 2026-11-18 | Accepted | The desktop app updates itself from GitHub releases with Tauri's updater: a signed `.app.tar.gz` per Mac architecture and `latest.json` on the newest release, checked after launch and every 6 hours, then a restart prompt |
+| [0041](0041-desktop-app-updates.md) | 2026-11-18 | Accepted; notices in the window by 0042 | The desktop app updates itself from GitHub releases with Tauri's updater: a signed `.app.tar.gz` per Mac architecture and `latest.json` on the newest release, checked after launch and every 6 hours, then a restart prompt |
+| [0042](0042-update-notices-and-whats-new.md) | 2026-11-18 | Accepted | The desktop app shows its update as a lasting toast in the page, with download progress and Restart now, and shows What's new once per newer minor version in the Settings modal's frame; both are the app's own script in a shadow root, and answer through `living-plan://` links |
 
-Add the next decision as `0042-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.
+Add the next decision as `0043-short-name.md` and link it in this table. Record the date, the status, what was decided, and what it replaced.

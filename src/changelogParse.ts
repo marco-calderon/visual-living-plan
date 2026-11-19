@@ -63,6 +63,61 @@ export function parseChangelog(markdown: string, fileName: string): ChangelogRel
   return { fileName, versions, classified, bugs, improvements, features, changes }
 }
 
+/** One `## x.y.z` section of a changelog file, as the desktop app's What's new shows it. */
+export type VersionNotes = {
+  version: string
+  /** `yyyy-mm-dd` from the file name. */
+  date: string | null
+  /** The `### Summary` paragraph, lines joined. Empty when there is none. */
+  summary: string
+  features: string[]
+  improvements: string[]
+  bugs: string[]
+  /** Bullets under `### Changes`, from files written before the three headings. */
+  changes: string[]
+}
+
+/** Every version section in one changelog file, in file order (newest first by convention). */
+export function parseVersionNotes(markdown: string, fileName: string): VersionNotes[] {
+  const date = CHANGELOG_FILE.exec(fileName)?.[1] ?? null
+  const notes: VersionNotes[] = []
+  for (const chunk of markdown.split(/^##\s+/m).slice(1)) {
+    const headerEnd = chunk.indexOf('\n')
+    const heading = (headerEnd === -1 ? chunk : chunk.slice(0, headerEnd)).trim()
+    const version = /^(\d+\.\d+\.\d+)\b/.exec(heading)?.[1]
+    if (!version) continue
+    const entry: VersionNotes = { version, date, summary: '', features: [], improvements: [], bugs: [], changes: [] }
+    const body = headerEnd === -1 ? '' : chunk.slice(headerEnd + 1)
+    for (const part of body.split(/^###\s+/m).slice(1)) {
+      const lineEnd = part.indexOf('\n')
+      const title = (lineEnd === -1 ? part : part.slice(0, lineEnd)).trim().toLowerCase()
+      const text = lineEnd === -1 ? '' : part.slice(lineEnd + 1)
+      if (title === 'summary') {
+        entry.summary = paragraph(text)
+        continue
+      }
+      const kind = HEADING_KIND[title as keyof typeof HEADING_KIND]
+      if (kind) entry[kind].push(...bullets(text))
+    }
+    notes.push(entry)
+  }
+  return notes
+}
+
+/** The first paragraph of a section, its lines joined by spaces. */
+function paragraph(section: string): string {
+  const lines: string[] = []
+  for (const line of section.split('\n')) {
+    if (/^#{1,6}\s/.test(line)) break
+    if (!line.trim()) {
+      if (lines.length) break
+      continue
+    }
+    lines.push(line.trim())
+  }
+  return lines.join(' ')
+}
+
 function bucket(
   kind: Exclude<HeadingKind, 'changes'>,
   lines: ChangelogEntry[],

@@ -15,6 +15,10 @@ on:
       - scripts/build-desktop.ts
       - scripts/updater-manifest.ts
       - scripts/desktop-icon/**
+      # The app's notices script, built into the app by desktop:stage (ADR 0042).
+      - src/desktopNotices.ts
+      - src/desktopNotices.css
+      - src/settings/dialogFrame.css
       - .github/workflows/desktop.yml
   workflow_dispatch:
   release:
