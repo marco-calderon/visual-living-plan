@@ -443,8 +443,8 @@ button.plan-agent-toggle {
 .plan-comment-chat {
   display: flex;
   flex-direction: column;
-  gap: 0.7rem;
-  max-height: 14rem;
+  gap: 0.85rem;
+  max-height: 18rem;
   overflow: auto;
   margin-bottom: 0.75rem;
 }
@@ -452,22 +452,23 @@ button.plan-agent-toggle {
 .plan-comment-turn {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.5rem;
 }
 
 .plan-comment-chat .plan-bubble.is-muted {
-  border-radius: 0.8rem;
+  border-radius: 1rem;
 }
 
+/* The thread reads at body size (14px), the same as the agent chat. */
 .plan-comment-chat .plan-bubble.is-muted .plan-bubble-content {
-  padding: 0.35rem 0.6rem;
-  font: 400 0.75rem/1.4 var(--font-body);
+  padding: 0.45rem 0.75rem;
+  font: 400 0.875rem/1.45 var(--font-body);
 }
 
 .plan-comment-chat .plan-bubble.is-ghost .plan-bubble-content,
 .plan-comment-chat .plan-comment-reply {
   padding: 0;
-  font: 400 0.75rem/1.4 var(--font-body);
+  font: 400 0.875rem/1.5 var(--font-body);
 }
 
 .plan-comment-reply {
@@ -508,14 +509,6 @@ button.plan-agent-toggle {
   margin: -0.75rem -0.75rem 0.75rem;
   padding: 0.65rem 0.75rem 0.55rem;
   border-bottom: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
-}
-
-.plan-comment-popover .plan-popover-title {
-  font-size: calc(0.95rem - 2px);
-}
-
-.plan-comment-popover .plan-popover-description {
-  font-size: calc(0.8rem - 2px);
 }
 
 .plan-popover {
@@ -576,7 +569,7 @@ button.plan-agent-toggle {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  font: 500 calc(0.75rem - 2px)/1 var(--font-body);
+  font: 500 0.75rem/1 var(--font-body);
   color: var(--muted, var(--ink));
 }
 
@@ -593,7 +586,7 @@ button.plan-agent-toggle {
   padding: 0;
   background: transparent;
   color: var(--accent);
-  font: 600 calc(0.75rem - 2px)/1 var(--font-body);
+  font: 600 0.75rem/1 var(--font-body);
   cursor: pointer;
 }
 
@@ -616,8 +609,8 @@ button.plan-agent-toggle {
   border-radius: 6px;
   background: transparent;
   color: var(--ink);
-  padding: 0.45rem 0.55rem;
-  font: 400 0.85rem/1.4 var(--font-body);
+  padding: 0.5rem 0.65rem;
+  font: 400 0.875rem/1.45 var(--font-body);
 }
 
 .plan-comment-actions {
@@ -630,7 +623,7 @@ button.plan-agent-toggle {
 .plan-comment-error {
   margin: 0;
   color: var(--danger);
-  font: 500 0.75rem/1.3 var(--font-body);
+  font: 500 0.8125rem/1.4 var(--font-body);
 }
 
 .plan-grab-toggle,
