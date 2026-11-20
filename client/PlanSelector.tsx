@@ -1,6 +1,7 @@
 import './chrome/mountChrome.tsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { inSubmissionOrder, newestFirst, withReviewNote } from '../src/commentOrder.ts'
 import { replyArrival, replySurface } from '../src/commentReply.ts'
 import type { PlanComment, ReviewResult } from '../src/types.ts'
 import { AgentMessageTray, type AgentMessage, type AgentMessageStatus } from './AgentMessageTray.tsx'
@@ -149,24 +150,25 @@ function upsert(comments: PlanComment[], comment: PlanComment): PlanComment[] {
   return next
 }
 
+/** The tray's messages, newest first. A reply stays under the message it answers. */
 function trayMessages(
   comments: PlanComment[],
-  note: string | undefined,
+  review: SentReview | null,
   fresh: ReadonlySet<string>,
 ): AgentMessage[] {
-  return [
-    ...(note?.trim() ? [{ id: 'review-note', text: note.trim(), status: 'pending' as const }] : []),
-    ...comments.map((comment) => ({
-      id: comment.id,
-      text: comment.text,
-      status: messageStatus(comment),
-      replies: (comment.replies ?? []).map((reply) => ({
-        id: reply.id,
-        text: reply.text,
-        fresh: fresh.has(reply.id),
-      })),
+  const messages: AgentMessage[] = newestFirst(comments).map((comment) => ({
+    id: comment.id,
+    text: comment.text,
+    status: messageStatus(comment),
+    replies: (comment.replies ?? []).map((reply) => ({
+      id: reply.id,
+      text: reply.text,
+      fresh: fresh.has(reply.id),
     })),
-  ]
+  }))
+  const note = review?.note?.trim()
+  if (!review || !note) return messages
+  return withReviewNote(messages, { id: 'review-note', text: note, status: 'pending' }, review.ids)
 }
 
 export function PlanSelector() {
@@ -182,7 +184,7 @@ export function PlanSelector() {
       delete document.documentElement.dataset.comments
     }
   }, [enabled])
-  const [comments, setComments] = useState<PlanComment[]>(readComments)
+  const [comments, setComments] = useState<PlanComment[]>(() => inSubmissionOrder(readComments()))
   const commentsRef = useRef(comments)
   const [freshReplies, setFreshReplies] = useState<ReadonlySet<string>>(() => new Set())
   const [trayAttention, setTrayAttention] = useState<string | null>(null)
@@ -210,7 +212,7 @@ export function PlanSelector() {
     [comments],
   )
   const thread = useMemo(
-    () => (locked ? comments.filter((comment) => comment.partId === locked.partId) : []),
+    () => (locked ? newestFirst(comments.filter((comment) => comment.partId === locked.partId)) : []),
     [comments, locked],
   )
 
@@ -276,7 +278,8 @@ export function PlanSelector() {
   }, [])
 
   function commitComments(update: (current: PlanComment[]) => PlanComment[]) {
-    const next = update(commentsRef.current)
+    // Kept oldest first whatever the source, so `comments.find` meets the earliest comment first.
+    const next = inSubmissionOrder(update(commentsRef.current))
     commentsRef.current = next
     setComments(next)
   }
@@ -712,7 +715,7 @@ export function PlanSelector() {
           attentionKey={trayAttention}
           onSend={sendTrayMessage}
           onReplySettled={settleReply}
-          messages={trayMessages(comments, sentReview?.note, freshReplies)}
+          messages={trayMessages(comments, sentReview, freshReplies)}
         />
       ) : null}
     </>
